@@ -1,0 +1,768 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Working.20with.20constants.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html">Working with constants</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="256694190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256694190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256694190">(Oct 08 2021 at 06:20)</a>:</h4>
+<p>I'm experimenting with using tactic mode to assemble programs given a specification. In my case, the specification is given by an expression containing non-computable functions. In the tactic mode, I want to eliminate these non-computable functions and produce runnable code.</p>
+<p>Here is a bit silly minimal working example where I define an opaque function <code>opaque_id</code> and provide an axiom <code>opaque_id_definition</code> what the function actually does. In my real code, I have for example opaque function <code>integrate</code> with axiom defining what <code>integrate</code> does on continuous functions. </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">constant</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">:</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>  <span class="bp">→</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span>  <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+  <span class="c1">-- In my real code, I have more constructors like adding a runtime check.</span>
+
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="n">Impl.pure</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">conv</span> <span class="bp">=&gt;</span> <span class="n">enter</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="n">n</span><span class="o">]</span>
+          <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span>
+
+  <span class="n">apply</span> <span class="n">Impl.pure</span>
+
+<span class="k">#eval</span> <span class="o">(</span><span class="n">id_impl.assemble</span> <span class="mi">42</span><span class="o">)</span>
+</code></pre></div>
+<p>Unfortunately, <code> (id_impl.assemble  42)</code> evaluates to <code>0</code> and not <code>42</code>.</p>
+<p>Trying to prove that <code>id_impl.assemble = id</code> produces:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">id_impl_proof</span> <span class="o">:</span> <span class="n">id_impl.assemble</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">id_impl</span><span class="o">,</span> <span class="n">Impl.assemble</span><span class="o">]</span>
+</code></pre></div>
+<p>the goal is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="k">match</span> <span class="n">opaque_id</span><span class="o">,</span> <span class="n">Eq.mpr</span> <span class="o">(</span><span class="n">_</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">opaque_id</span> <span class="bp">=</span> <span class="n">Impl</span> <span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">n</span><span class="o">)</span> <span class="o">(</span><span class="n">Impl.pure</span> <span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span>
+      <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">impl</span><span class="o">)</span> <span class="bp">=</span>
+    <span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+</code></pre></div>
+<p>Any idea how to change the setup to make <code>(id_impl.assemble 42)</code> to evaluate to <code>42</code> ?</p>
+
+
+
+<a name="256694540"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256694540" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256694540">(Oct 08 2021 at 06:26)</a>:</h4>
+<p>Maybe the <code>opaque_id</code> should be stated as an axiom to be truly non-computable. Then <code>#eval (id_impl.assemble 42)</code> is giving somewhat expected error:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">failed</span> <span class="n">to</span> <span class="n">compile</span> <span class="kd">definition</span><span class="o">,</span> <span class="n">consider</span> <span class="n">marking</span> <span class="n">it</span> <span class="n">as</span> <span class="bp">'</span><span class="kd">noncomputable</span><span class="bp">'</span> <span class="n">because</span> <span class="n">it</span> <span class="n">depends</span> <span class="n">on</span> <span class="bp">'</span><span class="n">opaque_id'</span><span class="o">,</span> <span class="n">and</span> <span class="n">it</span> <span class="n">does</span> <span class="n">not</span> <span class="k">have</span> <span class="n">executable</span> <span class="n">code</span>
+</code></pre></div>
+<p>However, I thought that by the tactic <code>rw [opaque_id_definition]</code> I have eliminated the non-computable <code>opaque_id</code> from the definition and making the code runnable.</p>
+
+
+
+<a name="256696680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256696680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256696680">(Oct 08 2021 at 06:56)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> What you are doing confuses me so much and I have so many questions. </p>
+<p>First, why are you using tactic mode to write code? That really is not what it is designed to do. </p>
+<p>Second, <code>opaque_id</code> where <code>β</code> is a <code>Nat</code> is (code-wise) just <code>def opaque_id (n : Nat) := 0</code>. This is because<code>0</code> is  the <code>default</code> value for <code>Nat</code> in its <code>Inhabited</code> instance, and this is why  <code>#eval (id_impl.assemble 42)</code> returns <code>0</code>. </p>
+<p>Also note that <code>rw [opaque_id_definition]</code> just affects the type, it doesn't change anything execution wise. This is because its type is a <code>Prop</code> and is thus completely erased at runtime.</p>
+
+
+
+<a name="256701036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256701036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256701036">(Oct 08 2021 at 07:45)</a>:</h4>
+<p>I understand that it is confusing and tactic mode is designed to prove things. However, I have an idea how to use tactic mode to write programs(at least special parts of it) and I want to try it out.</p>
+<p>I think the original question really should have had <code>axiom</code> instead of <code>constant</code> in the definition of <code>opaque_id</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">axiom</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+</code></pre></div>
+<p>Then <code>#eval (id_impl.assemble 42)</code> does not evaluate at all, but I want it to evaluate to <code>42</code>.</p>
+<hr>
+<p>Anyway, I will try to explain my mental model about <code>Impl</code>:</p>
+<p>The  goal <code>Impl (fun x =&gt; f x)</code> means, please construct an implementation of function <code>f</code>. If <code>f</code> is already computable, you can finish the goal by <code>apply Impl.pure</code> that stores <code>f</code> into <code>Impl (fun x =&gt; f x)</code>.  If <code>f</code> is non-computable, you should first transform into computable <code>g</code> for which you know that <code>f=g</code>. Then calling <code>Impl.pure</code> will hopefully stores <code>g</code> into <code>Impl (fun x =&gt; f x)</code>. </p>
+<p>Once you have <code>Impl (fun x =&gt; f x)</code>, you can use <code>assemble</code> to extract the computable function that you can execute.</p>
+
+
+
+<a name="256701365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256701365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256701365">(Oct 08 2021 at 07:49)</a>:</h4>
+<p>An example why I'm doing this. I'm experimenting with automatic differentiation. I have postulated gradient operator <code>∇</code> and an opaque symbol and have bunch of theorems how to eliminate it. Example of computing gradient of <code>x*x</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">square_grad</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="bp">∇</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="o">:</span> <span class="n">ℝ</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="bp">*</span><span class="n">x</span><span class="o">))</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">gradient</span><span class="o">]</span>
+  <span class="n">autograd</span>
+
+  <span class="n">finish_impl</span>
+</code></pre></div>
+<p>After the tactic <code>autograd</code> the goal is <code>Impl fun x =&gt; 1 * x + x * 1</code> where <code>fun x =&gt; 1 * x + x * 1</code> is nice computable function. For now,  the tactic <code>finish_impl</code> is just  does <code>apply Impl.pure</code>, in the future I want to somehow check computability of the final term.</p>
+
+
+
+<a name="256701368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256701368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256701368">(Oct 08 2021 at 07:49)</a>:</h4>
+<p>If you want <code>opaque_id</code> to evaluate, then shouldn't you give it a definition? An axiom about a constant is not a definition, it does not have any computational content and lean has no idea how to turn it into running code</p>
+
+
+
+<a name="256701388"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256701388" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256701388">(Oct 08 2021 at 07:49)</a>:</h4>
+<p>that is, use <code>constant opaque_id : β → β := id</code> if you want it to <code>#eval</code></p>
+
+
+
+<a name="256701546"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256701546" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256701546">(Oct 08 2021 at 07:51)</a>:</h4>
+<p>The thing is that I want to write <code>∇ f</code> for any function without having to supply proof that <code>f</code> is differentiable. If <code>f</code> is not differentiable then <code>∇ f</code> is just not defined but if it is differentiable then <code>∇ f</code> expands to the standard definition.</p>
+<p>This is the reason to split <code>opaque_id</code> into two axioms, just postulating the existence of the symbol and then the actual definition.</p>
+
+
+
+<a name="256702045"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702045" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702045">(Oct 08 2021 at 07:56)</a>:</h4>
+<p>And how should Lean know if your function is differentiable or not?</p>
+
+
+
+<a name="256702091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702091">(Oct 08 2021 at 07:56)</a>:</h4>
+<p>I have definitions and proof automation for that already.</p>
+
+
+
+<a name="256702348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702348">(Oct 08 2021 at 07:59)</a>:</h4>
+<p>I'm using typeclass system to automatically prove that a function is differentiable. So I have bunch of instances like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">[</span><span class="n">IsDiff</span> <span class="n">f</span><span class="o">]</span> <span class="o">[</span><span class="n">IsDiff</span> <span class="n">g</span><span class="o">]</span> <span class="o">:</span> <span class="n">IsDiff</span> <span class="o">(</span><span class="n">comp</span> <span class="n">f</span> <span class="n">g</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">...</span>
+</code></pre></div>
+<p>composition of two differentiable functions is a differentiable one</p>
+
+
+
+<a name="256702372"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702372" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702372">(Oct 08 2021 at 07:59)</a>:</h4>
+<p>I don't get it. Determining if a function is differentiable is probably undecidable algorithmically (since even determining if two reals numbers are equal is undecidable algorithmically), so you can not hope Lean to make the right decision all the time.</p>
+
+
+
+<a name="256702468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702468">(Oct 08 2021 at 08:00)</a>:</h4>
+<p>What you describe is a procedure that, sometimes, will determine that the function is differentiable. But what if it is differentiable but your procedure is not able to show it?</p>
+
+
+
+<a name="256702537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702537">(Oct 08 2021 at 08:00)</a>:</h4>
+<p>I'm not saying I can prove differentiability about anything. But I can do it automatically for certain class of functions.</p>
+
+
+
+<a name="256702616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702616">(Oct 08 2021 at 08:01)</a>:</h4>
+<blockquote>
+<p>But what if it is differentiable but your procedure is not able to show it?</p>
+</blockquote>
+<p>Then I have to prove it manually.</p>
+
+
+
+<a name="256702813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702813">(Oct 08 2021 at 08:03)</a>:</h4>
+<p>Or more precisely, I'm not saying I can decide differentiability of every function. But if I can prove differentiability then I also have bunch of reduction rules for the differential like the chain rule:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">δ</span> <span class="o">(</span><span class="n">comp</span> <span class="n">f</span> <span class="n">g</span><span class="o">)</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">δ</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">δ</span> <span class="n">g</span> <span class="n">x</span> <span class="n">dx</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="256702968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256702968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256702968">(Oct 08 2021 at 08:04)</a>:</h4>
+<p>In theory, the following should work (I think it does in lean 3), but something seems to be different about the noncomputable checker and neither the second <code>def</code> nor the <code>#eval</code> works. But it doesn't evaluate the wrong thing at least</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">axiom</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="n">Impl.pure</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+
+<span class="kd">theorem</span> <span class="n">opaque_id_eq</span> <span class="o">:</span> <span class="bp">@</span><span class="n">opaque_id</span> <span class="n">α</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">funext</span> <span class="n">x</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">opaque_id_eq</span> <span class="bp">▸</span> <span class="o">⟨</span><span class="n">_</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">Impl.mk</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">impl</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="n">_</span><span class="o">,</span> <span class="n">rfl</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">_</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">id_impl'</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">Impl.mk</span> <span class="n">_</span> <span class="n">opaque_id_eq</span>
+
+<span class="k">#eval</span> <span class="o">(</span><span class="n">id_impl.assemble</span> <span class="mi">42</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="256703360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703360">(Oct 08 2021 at 08:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> I was trying a similar thing and was also confused why it wasn't working</p>
+
+
+
+<a name="256703366"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703366" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703366">(Oct 08 2021 at 08:08)</a>:</h4>
+<p>I guess the issue is that in the signature of</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Impl.mk</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">impl</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">a</span>
+</code></pre></div>
+<p>there is nothing to indicate to the compiler that <code>impl</code> is computationally relevant but <code>a</code> isn't, so the noncomputable checker demands that the <code>a</code> input is computable too, which fails because it is instantiated to <code>opaque_id</code> in <code>id_impl'</code></p>
+
+
+
+<a name="256703416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703416">(Oct 08 2021 at 08:09)</a>:</h4>
+<p>I think you need to do something similar to <a href="https://leanprover-community.github.io/mathlib_docs/find/erased">docs#erased</a> to launder the value <code>a</code> through a <code>Type</code> argument</p>
+
+
+
+<a name="256703469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703469">(Oct 08 2021 at 08:09)</a>:</h4>
+<p>Here is what I was trying:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">constant</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">:</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>  <span class="bp">→</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span>  <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+  <span class="c1">-- In my real code, I have more constructors like adding a runtime check.</span>
+
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="n">Impl.pure</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+
+<span class="kd">theorem</span> <span class="n">opaque_id_eq_id</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span> <span class="o">]</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="o">(</span><span class="n">β</span> <span class="o">:=</span> <span class="n">β</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">funext</span> <span class="n">x</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">cast</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_eq_id</span><span class="o">])</span> <span class="bp">&lt;|</span> <span class="n">Impl.pure</span> <span class="n">id</span>
+
+<span class="k">#eval</span> <span class="n">id_impl.assemble</span> <span class="mi">42</span> <span class="c1">-- 0 (why????)</span>
+</code></pre></div>
+
+
+
+<a name="256703471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703471">(Oct 08 2021 at 08:09)</a>:</h4>
+<p>I really hope lean 4 gets direct support for erasure, because the lean 3 erased has a bunch of unnecessary overhead</p>
+
+
+
+<a name="256703593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703593">(Oct 08 2021 at 08:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  The example unfortunately does not work under lean 4.</p>
+
+
+
+<a name="256703625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703625">(Oct 08 2021 at 08:11)</a>:</h4>
+<p>my example should work up to the last two commands, like I said</p>
+
+
+
+<a name="256703651"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703651" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703651">(Oct 08 2021 at 08:11)</a>:</h4>
+<p>in particular <code>id_impl</code> works (passes the noncomputable checker)</p>
+
+
+
+<a name="256703738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703738">(Oct 08 2021 at 08:12)</a>:</h4>
+<p>but <code>Impl.assemble</code> doesn't, so the <code>#eval</code> fails</p>
+
+
+
+<a name="256703856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703856">(Oct 08 2021 at 08:13)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> I think Lean 4 is being too smart and reducing <code>id_impl.assemble</code> to just <code>opaque_id</code>.</p>
+
+
+
+<a name="256703936"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703936" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703936">(Oct 08 2021 at 08:14)</a>:</h4>
+<p>I don't see how that is legal under the execution semantics</p>
+
+
+
+<a name="256703974"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256703974" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256703974">(Oct 08 2021 at 08:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span>  I don't think so, try proving <code>id_impl.assemble = (λ x : β =&gt; x)</code></p>
+
+
+
+<a name="256704004"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704004" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704004">(Oct 08 2021 at 08:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> I mean at a codegen level not a type level</p>
+
+
+
+<a name="256704054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704054">(Oct 08 2021 at 08:15)</a>:</h4>
+<p>Ohh, ok that might be.</p>
+
+
+
+<a name="256704205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704205">(Oct 08 2021 at 08:16)</a>:</h4>
+<p>Observe that:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.compiler.ir</span> <span class="n">true</span>
+<span class="kd">def</span> <span class="n">test</span> <span class="o">:=</span>
+  <span class="n">id_impl.assemble</span> <span class="mi">42</span>
+<span class="sd">/--</span>
+<span class="sd">....</span>
+<span class="sd">def test : obj :=</span>
+<span class="sd">  let x_1 : obj := 0;</span>
+<span class="sd">  ret x_1</span>
+<span class="sd">...</span>
+</code></pre></div>
+
+
+
+<a name="256704272"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704272" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704272">(Oct 08 2021 at 08:17)</a>:</h4>
+<p>yes, that's definitely the code of <code>opaque_id</code> you are seeing. I'm just not sure how the compiler decides to do that</p>
+
+
+
+<a name="256704296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704296">(Oct 08 2021 at 08:17)</a>:</h4>
+<p>it's not like <code>opaque_id_definition</code> is a csimp lemma</p>
+
+
+
+<a name="256704377"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704377" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704377">(Oct 08 2021 at 08:18)</a>:</h4>
+<p>and the <code>cast</code> points straight to the <code>id</code> definition</p>
+
+
+
+<a name="256704840"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704840" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704840">(Oct 08 2021 at 08:22)</a>:</h4>
+<p><code>Impl.assemble</code> is indeed the culprit for selecting the wrong implementation. Take a look that this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.compiler</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="n">Impl.pure</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">compiler.input</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">x</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+<span class="o">[</span><span class="n">compiler.eta_expand</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">x</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+<span class="o">[</span><span class="n">compiler.lcnf</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">_x_1</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span><span class="bp">;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">x</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">_x_1</span> <span class="n">impl</span>
+<span class="o">[</span><span class="n">compiler.cce</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">_x_1</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span><span class="bp">;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">x</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">_x_1</span> <span class="n">impl</span>
+<span class="o">[</span><span class="n">compiler.inline</span><span class="o">]</span> <span class="n">Impl.assemble.match_1</span>
+<span class="o">[</span><span class="n">compiler.simp</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+</code></pre></div>
+
+
+
+<a name="256704845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704845">(Oct 08 2021 at 08:22)</a>:</h4>
+<p>Even wierder:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.compiler.ir</span> <span class="n">true</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">cast</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_eq_id</span><span class="o">])</span> <span class="bp">&lt;|</span> <span class="n">Impl.pure</span> <span class="n">id</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def id_impl._elambda_1._rarg (x_1 : @&amp; obj) : obj :=</span>
+<span class="cm">  inc x_1;</span>
+<span class="cm">  ret x_1</span>
+<span class="cm">def id_impl._elambda_1 (x_1 : ◾) : obj :=</span>
+<span class="cm">  let x_2 : obj := pap id_impl._elambda_1._rarg._boxed;</span>
+<span class="cm">  ret x_2</span>
+<span class="cm">def id_impl (x_1 : ◾) (x_2 : @&amp; obj) : obj :=</span>
+<span class="cm">  let x_3 : obj := pap id_impl._elambda_1._rarg._boxed;</span>
+<span class="cm">  ret x_3</span>
+<span class="cm">def id_impl._elambda_1._rarg._boxed (x_1 : obj) : obj :=</span>
+<span class="cm">  let x_2 : obj := id_impl._elambda_1._rarg x_1;</span>
+<span class="cm">  dec x_1;</span>
+<span class="cm">  ret x_2</span>
+<span class="cm">def id_impl._boxed (x_1 : obj) (x_2 : obj) : obj :=</span>
+<span class="cm">  let x_3 : obj := id_impl x_1 x_2;</span>
+<span class="cm">  dec x_2;</span>
+<span class="cm">  ret x_3</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="256704891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704891">(Oct 08 2021 at 08:23)</a>:</h4>
+<p>It is supposed to be matching on the <code>x</code> argument and passing the contents, and instead it takes the <code>a</code> argument which is the erased one</p>
+
+
+
+<a name="256704940"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256704940" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256704940">(Oct 08 2021 at 08:23)</a>:</h4>
+<p>the match desugaring gives a hint as to why</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">fun</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">x</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">impl</span><span class="o">,</span> <span class="n">Impl.pure</span> <span class="bp">.</span><span class="o">(</span><span class="n">impl</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+</code></pre></div>
+
+
+
+<a name="256705748"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256705748" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256705748">(Oct 08 2021 at 08:29)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> is this a bug?</p>
+
+
+
+<a name="256705780"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256705780" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256705780">(Oct 08 2021 at 08:30)</a>:</h4>
+<p>It's actually really tough to find a way to write the match to extract <code>impl</code> and not reuse <code>a</code>. Using <code>casesOn</code> directly works, though:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.compiler</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">i.casesOn</span> <span class="o">(</span><span class="n">motive</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">α</span><span class="o">)</span> <span class="k">fun</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">compiler.simp</span><span class="o">]</span> <span class="bp">&gt;&gt;</span> <span class="n">Impl.assemble</span>
+<span class="k">fun</span> <span class="n">α</span> <span class="n">a</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="256705862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256705862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256705862">(Oct 08 2021 at 08:30)</a>:</h4>
+<p>Tough to say. It seems more like an unfortunate combination of features</p>
+
+
+
+<a name="256705954"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256705954" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256705954">(Oct 08 2021 at 08:31)</a>:</h4>
+<p>The pattern matching syntax makes it impossible to distinguish <code>impl</code> from <code>a</code>, and after all why would you, they are equal</p>
+
+
+
+<a name="256706099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706099">(Oct 08 2021 at 08:32)</a>:</h4>
+<p>I think the correct way to solve problems of this sort is with a first class <code>erased</code> type</p>
+
+
+
+<a name="256706125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706125">(Oct 08 2021 at 08:32)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> the computable/noncomputable distinction seems like a very good reason to distinguish them (also possibly implementation wise for constants).</p>
+
+
+
+<a name="256706228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706228">(Oct 08 2021 at 08:33)</a>:</h4>
+<p>also <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> what version of Lean 4 are you on?</p>
+
+
+
+<a name="256706255"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706255" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706255">(Oct 08 2021 at 08:33)</a>:</h4>
+<p>a relatively old one, why?</p>
+
+
+
+<a name="256706280"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706280" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706280">(Oct 08 2021 at 08:33)</a>:</h4>
+<p>Your example does not work for me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">constant</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">:</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>  <span class="bp">→</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+  <span class="c1">-- In my real code, I have more constructors like adding a runtime check.</span>
+
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">i.casesOn</span> <span class="o">(</span><span class="n">motive</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">α</span><span class="o">)</span> <span class="k">fun</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+<span class="sd">/--</span>
+<span class="sd">type mismatch</span>
+<span class="sd">  impl</span>
+<span class="sd">has type</span>
+<span class="sd">  α✝ : Type ?u.210</span>
+<span class="sd">but is expected to have type</span>
+<span class="sd">  (fun {α_1} x x =&gt; α) impl (pure impl) : Type ?u.202</span>
+<span class="sd">-/</span>
+</code></pre></div>
+
+
+
+<a name="256706364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706364">(Oct 08 2021 at 08:34)</a>:</h4>
+<p>oops, I changed the definition of <code>Impl</code>, look up</p>
+
+
+
+<a name="256706416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706416">(Oct 08 2021 at 08:34)</a>:</h4>
+<p>ah</p>
+
+
+
+<a name="256706426"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706426" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706426">(Oct 08 2021 at 08:34)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> 's version has an unnecessary universe bump</p>
+
+
+
+<a name="256706477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706477">(Oct 08 2021 at 08:35)</a>:</h4>
+<p>turns out that where you place the colon still matters in inductives</p>
+
+
+
+<a name="256706578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706578">(Oct 08 2021 at 08:36)</a>:</h4>
+<p>Unnecessary in this definition of <code>Impl</code>. My actual definition of <code>Impl</code> is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">:</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>  <span class="bp">→</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span>  <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+
+  <span class="bp">|</span> <span class="n">limit</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">α</span><span class="o">]</span>
+          <span class="o">(</span><span class="n">lim_spec</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span>
+          <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">lim_spec</span> <span class="n">n</span><span class="o">))</span>
+          <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">spec</span> <span class="bp">=</span> <span class="n">limit</span> <span class="n">lim_spec</span><span class="o">)</span>
+          <span class="o">(</span><span class="n">help</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">spec</span>
+
+  <span class="bp">|</span> <span class="n">check</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">[</span><span class="n">Decidable</span> <span class="n">P</span><span class="o">]</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">P</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">spec</span><span class="o">)</span>
+          <span class="o">(</span><span class="n">help</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">spec</span>
+
+  <span class="bp">|</span> <span class="n">assumption</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">}</span>
+          <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">P</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">spec</span><span class="o">)</span>
+          <span class="o">(</span><span class="n">help</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">spec</span>
+</code></pre></div>
+
+
+
+<a name="256706635"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706635" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706635">(Oct 08 2021 at 08:36)</a>:</h4>
+<p>This definition does not work with <code>Impl  {α : Type _}  : (spec : α) → Type _</code></p>
+
+
+
+<a name="256706643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706643">(Oct 08 2021 at 08:36)</a>:</h4>
+<p>So a full functioning example, <span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> , is now:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">axiom</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">inductive</span> <span class="n">Impl.</span><span class="o">{</span><span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">spec</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span>
+<span class="bp">|</span> <span class="n">pure</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">impl</span>
+
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">i.casesOn</span> <span class="o">(</span><span class="n">motive</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">α</span><span class="o">)</span> <span class="k">fun</span> <span class="n">impl</span> <span class="bp">=&gt;</span> <span class="n">impl</span>
+
+<span class="kd">theorem</span> <span class="n">opaque_id_eq_id</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="o">(</span><span class="n">β</span> <span class="o">:=</span> <span class="n">β</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">funext</span> <span class="n">x</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">cast</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_eq_id</span><span class="o">])</span> <span class="bp">&lt;|</span> <span class="n">Impl.pure</span> <span class="n">id</span>
+
+<span class="k">#eval</span> <span class="n">id_impl.assemble</span> <span class="mi">42</span> <span class="c1">-- 42 (yay!)</span>
+</code></pre></div>
+
+
+
+<a name="256706673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706673">(Oct 08 2021 at 08:36)</a>:</h4>
+<p>To review re: <code>erased</code>, in lean 3 <code>erased A</code> is a type that is classically isomorphic to <code>A</code>, with functions in and out, but the function out is noncomputable, and the compiler (is supposed to) have special support for this type, such that anything of type <code>erased A</code> is replaced by <code>_neutral</code>, in the same way as proofs and types</p>
+
+
+
+<a name="256706761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706761">(Oct 08 2021 at 08:37)</a>:</h4>
+<p>In this context, we would want <code>Impl.assemble</code> to have the type</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">Erased</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a.out</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span>
+</code></pre></div>
+
+
+
+<a name="256706880"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706880" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706880">(Oct 08 2021 at 08:38)</a>:</h4>
+<p>Then this would allow the noncomputable checker to know that elements that are passed to the <code>a</code> argument of <code>Impl.assemble</code> are allowed to be noncomputable without tainting the computation</p>
+
+
+
+<a name="256706949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256706949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256706949">(Oct 08 2021 at 08:39)</a>:</h4>
+<p>and you would get better codegen too, basically <code>fun () () i =&gt; i</code></p>
+
+
+
+<a name="256707298"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707298" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707298">(Oct 08 2021 at 08:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> I don't understand why your <code>Impl</code> type is so complex. You should have no need for anything other than the first constructor, which already expresses everything that needs to be said about "computable program that calculates a noncomputable value"</p>
+
+
+
+<a name="256707466"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707466" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707466">(Oct 08 2021 at 08:44)</a>:</h4>
+<p>Ohh I do need the others. I want to implement numerical algorithms that implement the specification only in a certain limit. e.g. I can replace derivative by limit of finite difference. Then I want to erase the limit from implementation and continue working.</p>
+
+
+
+<a name="256707692"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707692" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707692">(Oct 08 2021 at 08:46)</a>:</h4>
+<p>Also I will not be able to prove that certain limits actually exists. Proving that certain PDE's have solution or that their finite element discretization actually converges is super hard. I want lean to help me to create implementation of such discrete solution and then list all the assumptions I took.</p>
+
+
+
+<a name="256707701"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707701" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707701">(Oct 08 2021 at 08:46)</a>:</h4>
+<p>Another expression, less fraught because it uses a predicate for an argument (which is always trivially computable), is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">(</span><span class="n">pred</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">pred</span> <span class="n">impl</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">pred</span>
+</code></pre></div>
+
+
+
+<a name="256707787"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707787" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707787">(Oct 08 2021 at 08:47)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  Yes, I'm typing something along similar lines now :)</p>
+
+
+
+<a name="256707900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707900">(Oct 08 2021 at 08:48)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> fyi, <code>id_impl</code> can be generalized as follows:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">impl</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">a</span> <span class="o">:=</span>
+  <span class="n">cast</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">h</span><span class="o">])</span> <span class="bp">&lt;|</span> <span class="n">Impl.pure</span> <span class="n">b</span>
+
+<span class="kd">def</span> <span class="n">id_impl'</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">opaque_id</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">impl</span> <span class="n">opaque_id</span> <span class="n">id</span> <span class="n">opaque_id_eq_id</span>
+</code></pre></div>
+
+
+
+<a name="256707904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707904">(Oct 08 2021 at 08:48)</a>:</h4>
+<p>Then define <code>axiom Erased {α} : α → Prop</code><br>
+and the goal would be <code>Impl (Erased opaqud_id)</code></p>
+
+
+
+<a name="256707931"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256707931" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256707931">(Oct 08 2021 at 08:48)</a>:</h4>
+<p>This all goes much smoother:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">(</span><span class="n">pred</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">pred</span> <span class="n">impl</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">pred</span>
+
+<span class="kd">axiom</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">set_option</span> <span class="n">trace.compiler</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">pred</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">pred</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+
+<span class="kd">theorem</span> <span class="n">opaque_id_eq</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">funext</span> <span class="n">x</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">Eq</span> <span class="n">opaque_id</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">id</span><span class="o">,</span> <span class="n">opaque_id_eq</span><span class="o">⟩</span>
+
+<span class="k">#eval</span> <span class="n">id_impl.assemble</span> <span class="mi">42</span> <span class="c1">-- 42</span>
+</code></pre></div>
+
+
+
+<a name="256708353"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708353" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708353">(Oct 08 2021 at 08:52)</a>:</h4>
+<p>Note that <code>Erased</code> is supposed to have the type <code>Type u -&gt; Type u</code>, and ideally it should at the logic level look just like this inductive:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Erased</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span>
+  <span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Erased</span> <span class="n">α</span>
+</code></pre></div>
+<p>except that <code>Erased.casesOn</code> is magically noncomputable</p>
+
+
+
+<a name="256708356"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708356" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708356">(Oct 08 2021 at 08:52)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> I think that <code>opaque_id</code> (and like functions) really should be a <code>noncomputable constant </code> -- that way you don't accidently add an inconsistent axiom or produce improper code</p>
+
+
+
+<a name="256708401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708401">(Oct 08 2021 at 08:53)</a>:</h4>
+<p>sure, this was just for the demo</p>
+
+
+
+<a name="256708532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708532">(Oct 08 2021 at 08:54)</a>:</h4>
+<p>it wasn't a criticism XD I was more asking for conformation that the idea was reasonable :P</p>
+
+
+
+<a name="256708598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708598">(Oct 08 2021 at 08:54)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Working.20with.20constants/near/256708356">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> I think that <code>opaque_id</code> (and like functions) really should be a <code>noncomputable constant </code> -- that way you don't accidently add an inconsistent axiom or produce improper code</p>
+</blockquote>
+<p>Yeah, for some time I had <code>axiom invert : (α → β) → (β → α)</code> and only recently realized that it is a bad idea :)</p>
+
+
+
+<a name="256708622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708622">(Oct 08 2021 at 08:55)</a>:</h4>
+<p>indeed, <code>noncomputable constant opaque_id : Nat → Nat</code> works, which is different from lean 3, which knows exactly what is noncomputable and what isn't and won't take a different answer</p>
+
+
+
+<a name="256708798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20constants/near/256708798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20constants.html#256708798">(Oct 08 2021 at 08:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Working.20with.20constants/near/256707931">said</a>:</p>
+<blockquote>
+<p>This all goes much smoother:</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Impl</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">(</span><span class="n">pred</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">pure</span> <span class="o">(</span><span class="n">impl</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">pred</span> <span class="n">impl</span> <span class="bp">→</span> <span class="n">Impl</span> <span class="n">pred</span>
+
+<span class="kd">axiom</span> <span class="n">opaque_id</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="kd">axiom</span> <span class="n">opaque_id_definition</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span>
+
+<span class="kd">set_option</span> <span class="n">trace.compiler</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">Impl.assemble</span> <span class="o">{</span><span class="n">pred</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">:</span> <span class="n">Impl</span> <span class="n">pred</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+
+<span class="kd">theorem</span> <span class="n">opaque_id_eq</span> <span class="o">:</span> <span class="n">opaque_id</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">funext</span> <span class="n">x</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">opaque_id_definition</span><span class="o">]</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">def</span> <span class="n">id_impl</span> <span class="o">:</span> <span class="n">Impl</span> <span class="o">(</span><span class="n">Eq</span> <span class="n">opaque_id</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">id</span><span class="o">,</span> <span class="n">opaque_id_eq</span><span class="o">⟩</span>
+
+<span class="k">#eval</span> <span class="n">id_impl.assemble</span> <span class="mi">42</span> <span class="c1">-- 42</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>Anyway, this looks great! I think I will experiment with it and see if I can achieve what I want.</p>
+<p>Thanks a bunch to both of you!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

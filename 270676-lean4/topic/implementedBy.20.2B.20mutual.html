@@ -1,0 +1,100 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/implementedBy.20.2B.20mutual.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementedBy.20.2B.20mutual.html">implementedBy + mutual</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="255606318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementedBy%20%2B%20mutual/near/255606318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementedBy.20.2B.20mutual.html#255606318">(Sep 30 2021 at 16:43)</a>:</h4>
+<p>Consider the program below, ehre we use a <code>mutual</code> clause to create functions <code>even_impl</code> and <code>odd_impl</code>, which supply<br>
+implementations for the constants <code>odd</code> and <code>even</code> (This pattern was suggested as a workaround to <a href="https://github.com/leanprover/lean4/issues/697">this issue I had yesterday</a>). </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">mk</span><span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">Foo</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">default</span> <span class="o">:=</span> <span class="n">Foo.mk</span> <span class="mi">42</span>
+
+<span class="kd">constant</span> <span class="n">odd</span> <span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">Foo</span>
+<span class="kd">constant</span> <span class="n">even</span> <span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">Foo</span>
+
+<span class="c1">-- | in reality these are partial mutually defined functions.</span>
+<span class="c1">-- | We use `constant` to evade</span>
+<span class="c1">-- | `partial mutual...end`</span>
+<span class="kd">mutual</span>
+  <span class="kd">def</span> <span class="n">even_impl</span> <span class="o">(</span><span class="n">i</span><span class="o">:</span> <span class="n">Int</span><span class="o">):</span> <span class="n">Foo</span> <span class="o">:=</span>
+        <span class="k">match</span> <span class="n">i</span> <span class="k">with</span>
+        <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">Foo.mk</span> <span class="mi">1</span>
+        <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">even</span> <span class="o">(</span><span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+
+ <span class="kd">def</span> <span class="n">odd_impl</span> <span class="o">(</span><span class="n">i</span><span class="o">:</span> <span class="n">Int</span><span class="o">):</span> <span class="n">Foo</span> <span class="o">:=</span>
+     <span class="k">match</span> <span class="n">i</span> <span class="k">with</span>
+     <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">Foo.mk</span> <span class="mi">0</span>
+     <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">even</span> <span class="o">(</span><span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+<span class="kd">end</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">implementedBy</span> <span class="n">odd_impl</span><span class="o">]</span> <span class="n">odd</span>
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">implementedBy</span> <span class="n">even_impl</span><span class="o">]</span> <span class="n">even</span>
+
+<span class="c1">-- | expected output: 1</span>
+<span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">even</span> <span class="mi">10</span> <span class="k">with</span>
+   <span class="bp">|</span> <span class="n">Foo.mk</span> <span class="n">k</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">k</span>
+</code></pre></div>
+<p>We expect the result to be <code>1</code>, as <code>10</code> is even. However, the answer that is produced <code>42</code>, which seems to be generated from the <code>Inhabited</code> instance of <code>Foo</code>. Am I misunderstanding what the pattern is supposed to be doing? is this a bug?</p>
+<p>LEAN4 version [nightly]:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">$</span> <span class="n">lean</span> <span class="c1">--version</span>
+<span class="n">Lean</span> <span class="o">(</span><span class="n">version</span> <span class="mi">4</span><span class="bp">.</span><span class="mi">0</span><span class="bp">.</span><span class="mi">0</span><span class="o">,</span> <span class="n">commit</span> <span class="n">f4759c9a223f</span><span class="o">,</span> <span class="n">Release</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="255609219"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementedBy%20%2B%20mutual/near/255609219" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementedBy.20.2B.20mutual.html#255609219">(Sep 30 2021 at 16:59)</a>:</h4>
+<p>This pattern is not necessary. You can write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+  <span class="bp">|</span> <span class="n">mk</span><span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">Foo</span>
+  <span class="n">deriving</span> <span class="n">Inhabited</span>
+
+<span class="kd">mutual</span>
+  <span class="n">partial</span> <span class="kd">def</span> <span class="n">even</span> <span class="o">(</span><span class="n">i</span><span class="o">:</span> <span class="n">Int</span><span class="o">):</span> <span class="n">Foo</span> <span class="o">:=</span>
+    <span class="k">match</span> <span class="n">i</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">Foo.mk</span> <span class="mi">1</span>
+    <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">odd</span> <span class="o">(</span><span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+
+ <span class="n">partial</span> <span class="kd">def</span> <span class="n">odd</span> <span class="o">(</span><span class="n">i</span><span class="o">:</span> <span class="n">Int</span><span class="o">):</span> <span class="n">Foo</span> <span class="o">:=</span>
+   <span class="k">match</span> <span class="n">i</span> <span class="k">with</span>
+   <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">Foo.mk</span> <span class="mi">0</span>
+   <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">even</span> <span class="o">(</span><span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">even</span> <span class="mi">10</span> <span class="k">with</span>
+   <span class="bp">|</span> <span class="n">Foo.mk</span> <span class="n">k</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">k</span>
+
+<span class="k">#eval</span> <span class="n">main</span>
+<span class="c1">-- 1</span>
+</code></pre></div>
+
+
+
+<a name="255611068"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementedBy%20%2B%20mutual/near/255611068" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementedBy.20.2B.20mutual.html#255611068">(Sep 30 2021 at 17:10)</a>:</h4>
+<p>Right, it's nice that the bug is fixed so I don't need the workaround anymore!</p>
+<p>I was wondering if I misunderstood what <code>implementedBy</code> does, or if the example program exhibits a bug.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

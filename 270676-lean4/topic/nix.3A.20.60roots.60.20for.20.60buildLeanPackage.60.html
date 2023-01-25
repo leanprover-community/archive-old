@@ -1,0 +1,120 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html">nix: `roots` for `buildLeanPackage`</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="292016756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/292016756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julien Marquet <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#292016756">(Aug 04 2022 at 14:40)</a>:</h4>
+<p>I had to setup a dev environment for a Lean project, where there were two files at the top level. Below is a mwe project folder: <code>Main.lean</code> with <code>Aux.lean</code> and <code>Aux/Basic.lean</code>, nothing special in these files.<br>
+My issue is that, even though my main file imports all the files it requires, <code>nix build</code> crashes (and <code>nix run .#vscode-dev</code> will show errors too in the Lean info view).<br>
+I found out that if I add <code>roots = [ "Main" "Aux" ];</code> to my <code>flake.nix</code>, everything works.</p>
+<p>This is not a blocking issue since I found a fix, but I was wondering whether this is intended behavior or this is a bug...?</p>
+<hr>
+<p>The reproduced folder looks like this:<br>
+&lt;root&gt;</p>
+<ul>
+<li>Aux<ul>
+<li>Basic.lean</li>
+</ul>
+</li>
+<li>Aux.lean</li>
+<li>Main.lean</li>
+</ul>
+<p>Main.lean:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Aux</span>
+</code></pre></div>
+<p>Aux.lean:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Aux.basic</span>
+</code></pre></div>
+<p>flake.nix:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">{</span>
+  <span class="n">description</span> <span class="bp">=</span> <span class="s2">"Example package with two roots"</span><span class="bp">;</span>
+
+  <span class="n">inputs.nixpkgs.url</span> <span class="bp">=</span> <span class="n">github</span><span class="o">:</span><span class="n">NixOS</span><span class="bp">/</span><span class="n">nixpkgs</span><span class="bp">/</span><span class="n">nixpkgs</span><span class="bp">-</span><span class="n">unstable</span><span class="bp">;</span>
+  <span class="bp">#</span> <span class="n">inputs.lean.url</span> <span class="bp">=</span> <span class="s2">"github:leanprover/lean4"</span><span class="bp">;</span>
+  <span class="n">inputs.lean.url</span> <span class="bp">=</span> <span class="n">github</span><span class="o">:</span><span class="n">leanprover</span><span class="bp">/</span><span class="n">lean4</span><span class="bp">-</span><span class="n">nightly</span><span class="bp">/</span><span class="n">nightly</span><span class="bp">-</span><span class="mi">2022</span><span class="bp">-</span><span class="mi">07</span><span class="bp">-</span><span class="mi">12</span><span class="bp">;</span>
+  <span class="n">inputs.flake</span><span class="bp">-</span><span class="n">utils.url</span> <span class="bp">=</span> <span class="s2">"github:numtide/flake-utils"</span><span class="bp">;</span>
+
+  <span class="n">outputs</span> <span class="bp">=</span> <span class="o">{</span> <span class="n">self</span><span class="o">,</span> <span class="n">nixpkgs</span><span class="o">,</span> <span class="n">lean</span><span class="o">,</span> <span class="n">flake</span><span class="bp">-</span><span class="n">utils</span> <span class="o">}:</span> <span class="n">flake</span><span class="bp">-</span><span class="n">utils.lib.eachDefaultSystem</span> <span class="o">(</span><span class="n">system</span><span class="o">:</span>
+      <span class="k">let</span>
+        <span class="n">pkgs</span> <span class="bp">=</span> <span class="kn">import</span> <span class="n">nixpkgs</span> <span class="o">{</span>
+          <span class="n">inherit</span> <span class="n">system</span><span class="bp">;</span>
+          <span class="n">config.allowUnfree</span> <span class="bp">=</span> <span class="n">true</span><span class="bp">;</span>
+        <span class="o">}</span><span class="bp">;</span>
+        <span class="n">leanPkgs</span> <span class="bp">=</span> <span class="n">lean.packages.</span><span class="bp">$</span><span class="o">{</span><span class="n">system</span><span class="o">}</span><span class="bp">;</span>
+        <span class="n">pkg</span> <span class="bp">=</span> <span class="k">with</span> <span class="n">pkgs</span><span class="bp">;</span>
+          <span class="n">leanPkgs.buildLeanPackage.override</span> <span class="o">(</span><span class="n">old1</span><span class="o">:</span> <span class="o">{</span>
+            <span class="n">lean</span><span class="bp">-</span><span class="n">vscode</span> <span class="bp">=</span> <span class="n">old1.lean</span><span class="bp">-</span><span class="n">vscode.override</span> <span class="o">(</span><span class="n">old2</span><span class="o">:</span> <span class="o">{</span>
+              <span class="n">vscodeExtensions</span> <span class="bp">=</span> <span class="k">with</span> <span class="n">vscode</span><span class="bp">-</span><span class="n">extensions</span><span class="bp">;</span> <span class="o">[</span> <span class="n">vscodevim.vim</span> <span class="o">]</span> <span class="bp">++</span> <span class="n">old2.vscodeExtensions</span><span class="bp">;</span>
+            <span class="o">})</span><span class="bp">;</span>
+          <span class="o">})</span> <span class="o">{</span>
+            <span class="n">name</span> <span class="bp">=</span> <span class="s2">"Main"</span><span class="bp">;</span> <span class="bp">#</span> <span class="n">must</span> <span class="k">match</span> <span class="n">the</span> <span class="n">name</span> <span class="n">of</span> <span class="n">the</span> <span class="n">top</span><span class="bp">-</span><span class="n">level</span> <span class="bp">.</span><span class="n">lean</span> <span class="n">file</span>
+            <span class="n">roots</span> <span class="bp">=</span> <span class="o">[</span> <span class="s2">"Main"</span> <span class="s2">"Aux"</span> <span class="o">]</span><span class="bp">;</span> <span class="c1">-- Error if I remove this line</span>
+            <span class="n">src</span> <span class="bp">=</span> <span class="bp">./.;</span>
+          <span class="o">}</span><span class="bp">;</span>
+      <span class="k">in</span> <span class="o">{</span>
+        <span class="n">packages</span> <span class="bp">=</span> <span class="n">pkg</span> <span class="bp">//</span> <span class="o">{</span> <span class="n">inherit</span> <span class="o">(</span><span class="n">leanPkgs</span><span class="o">)</span> <span class="n">lean</span><span class="bp">;</span> <span class="o">}</span><span class="bp">;</span>
+
+        <span class="n">defaultPackage</span> <span class="bp">=</span> <span class="n">pkg.modRoot</span><span class="bp">;</span>
+      <span class="o">})</span><span class="bp">;</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>Error if I remove <code>roots = [ "Main" "Aux" ];</code>:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>error: attribute 'Aux' missing
+
+       at /nix/store/8450kwpby6j2rbdim387xz026zv7pwaq-source/nix/buildLeanPackage.nix:187:17:
+
+          186|     let
+          187|       deps = if modDepsMap.${mod}.errors == []
+             |                 ^
+          188|              then map (m: m.module) modDepsMap.${mod}.imports
+(use '--show-trace' to show detailed location information)
+</code></pre></div>
+
+
+
+<a name="292018742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/292018742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#292018742">(Aug 04 2022 at 14:54)</a>:</h4>
+<p>Yes, this is intended, and should match Lake's behavior. You are supposed to store files belonging to a package in a root of the package's name.</p>
+
+
+
+<a name="292022584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/292022584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julien Marquet <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#292022584">(Aug 04 2022 at 15:20)</a>:</h4>
+<p>Should I PR to add a comment <a href="https://github.com/leanprover/lean4/blob/9e69259f83432371fdcf3af7ba6f504462e7bff1/nix/templates/pkg/flake.nix#L11">here in the flake template</a>, and/or add a line in the docs?</p>
+
+
+
+<a name="292317991"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/292317991" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#292317991">(Aug 07 2022 at 12:49)</a>:</h4>
+<p>Apologies for the late answer. More documentation is always good, though I don't want to encourage people to publish Lean packages solely as flakes where a lakefile would work just as well. If a package is not meant for general consumption, that's fine of course.</p>
+
+
+
+<a name="300896734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/300896734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Meinhardt <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#300896734">(Sep 26 2022 at 20:42)</a>:</h4>
+<p>edit: whoops</p>
+
+
+
+<a name="300901248"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/nix%3A%20%60roots%60%20for%20%60buildLeanPackage%60/near/300901248" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/nix.3A.20.60roots.60.20for.20.60buildLeanPackage.60.html#300901248">(Sep 26 2022 at 21:16)</a>:</h4>
+<p>I agree with Sebastian, nix is not easily to setup on all platforms, whereas lake runs fine everywhere, so it would be great if all lean packages were buildable using lake, then similar to how Lean repo is setup, nix flakes can be provided as an alternative build system for those who prefer it.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

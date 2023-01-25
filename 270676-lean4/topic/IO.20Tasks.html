@@ -1,0 +1,93 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/IO.20Tasks.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html">IO Tasks</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="248578429"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/248578429" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#248578429">(Aug 06 2021 at 07:09)</a>:</h4>
+<p>I use <code>Task</code> and <code>IO.asTask</code> heavily in Lake for parallel building, but there are some details to the implementation I am not sure I understand properly, so I am hoping to clarify them here:</p>
+<ul>
+<li>What is the difference between <code>IO.wait task</code> and <code>task.get</code>?</li>
+<li>What is the difference between <code>IO.mapTask f task</code> and <code>IO.asTask do IO.wait task; act</code>?</li>
+<li>Similarly, What is the difference between <code>IO.mapTasks f tasks</code> and <code>IO.asTask do let xs ← tasks.mapM IO.wait; f xs</code>?</li>
+</ul>
+
+
+
+<a name="248579994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/248579994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#248579994">(Aug 06 2021 at 07:32)</a>:</h4>
+<blockquote>
+<p>What is the difference between <code>IO.wait task</code> and <code>task.get</code>?</p>
+</blockquote>
+<p>The former is a side effect, so it will always be executed even if the return value is not acutally used.</p>
+<blockquote>
+<p>What is the difference between <code>IO.mapTask f task</code> and <code>IO.asTask do IO.wait task; act</code>?</p>
+</blockquote>
+<p>The former doesn't uselessly block a thread</p>
+<blockquote>
+<p>Similarly, What is the difference between <code>IO.mapTasks f tasks</code> and <code>IO.asTask do let xs ← tasks.mapM IO.wait; f xs</code>?</p>
+</blockquote>
+<p>ditto</p>
+
+
+
+<a name="248580524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/248580524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wojciech Nawrocki <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#248580524">(Aug 06 2021 at 07:40)</a>:</h4>
+<p>To expand on the latter two answers a bit, the thread pool needs to know the dependency graph between tasks in order to schedule them correctly. Using <code>IO.wait</code> does not register a dependency and will result in a deadlock when there are few threads in the pool and a task gets scheduled before its dependency. So within tasks, you should always use <code>mapTask</code> (<code>wait</code> is okay on the main thread).</p>
+
+
+
+<a name="248581536"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/248581536" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#248581536">(Aug 06 2021 at 07:56)</a>:</h4>
+<blockquote>
+<p>IO.wait does not register a dependency and will result in a deadlock when there are few threads in the pool</p>
+</blockquote>
+<p>Lean 3 used to spawn a new thread in this case, does Lean 4 no longer do this?</p>
+
+
+
+<a name="248584260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/248584260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#248584260">(Aug 06 2021 at 08:30)</a>:</h4>
+<p>It doesn't. That does mean that you need to be mindful of not blocking the pool for too long (or even deadlocking it), and use <code>Task.Priority.dedicated</code> otherwise. I'm not sure if the Lean 3 approach was more sensible, it sure sounds like a recipe for tanking performance. It looks like professional implementation of growing thread pools (most of Rust's seem to be fixed?) are at least <a href="https://mattwarren.org/2017/04/13/The-CLR-Thread-Pool-Thread-Injection-Algorithm/">very careful</a> about injecting new threads.</p>
+
+
+
+<a name="258910009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/258910009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#258910009">(Oct 25 2021 at 02:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> has marked this topic as unresolved.</p>
+
+
+
+<a name="258910093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/258910093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#258910093">(Oct 25 2021 at 02:02)</a>:</h4>
+<p>Another question in regards to IO Tasks:  is <code>IO.mapTask f task</code> significantly more efficient than <code>IO.bindTask task (pure &lt;$&gt; f)</code> or is it just more convenient?</p>
+
+
+
+<a name="258910256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/258910256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#258910256">(Oct 25 2021 at 02:06)</a>:</h4>
+<p>The particular case I am most curious about is <code>IO.mapTask (do ...;  pure x) task</code> vs <code>IO.bindTask task do ...; pure &lt;| pure x</code>.</p>
+
+
+
+<a name="258931091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/IO%20Tasks/near/258931091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/IO.20Tasks.html#258931091">(Oct 25 2021 at 08:45)</a>:</h4>
+<p>It is more efficient, but probably not significantly</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

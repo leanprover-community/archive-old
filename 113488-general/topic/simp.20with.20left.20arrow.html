@@ -1,0 +1,67 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/simp.20with.20left.20arrow.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp.20with.20left.20arrow.html">simp with left arrow</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="243258891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp%20with%20left%20arrow/near/243258891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp.20with.20left.20arrow.html#243258891">(Jun 19 2021 at 17:04)</a>:</h4>
+<p>In the middle of a complicated proof, I have come across a situation where a tactic of the form</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">h0</span><span class="o">,</span> <span class="n">h1.symm</span><span class="o">,</span> <span class="n">h2</span><span class="o">]</span>
+</code></pre></div>
+<p>succeeds but </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>   <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">h0</span><span class="o">,</span> <span class="bp">←</span><span class="n">h1</span><span class="o">,</span> <span class="n">h2</span><span class="o">]</span>
+</code></pre></div>
+<p>fails. All the arguments are explicit equations between elements of a field. The expressions aren't very complicated; they involve <code>+</code>, <code>-</code>, and function application, and as far as I can tell there are no implicit arguments except for the field and <code>has_add</code> and friends.</p>
+<p>I am having a hard time producing a small counterexample. Absurdly, if I use <code>extract_goal</code> to extract a lemma with exactly the same (very large) context, both versions work.</p>
+<p>Using <code>symm</code> is fine as a workaround, but I am curious: has anyone seen something like this before?</p>
+
+
+
+<a name="243262537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp%20with%20left%20arrow/near/243262537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp.20with.20left.20arrow.html#243262537">(Jun 19 2021 at 18:22)</a>:</h4>
+<p>The two are not exactly equivalent. <code>simp [← thm]</code> should be roughly equivalent to <code>simp [thm.symm, -thm]</code>, but using <code>thm.symm</code> means only one set of metavariables is created so it can only be applied at one substitution. Without more details about the example it's hard to say which of those things is making the difference</p>
+
+
+
+<a name="243262606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp%20with%20left%20arrow/near/243262606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp.20with.20left.20arrow.html#243262606">(Jun 19 2021 at 18:24)</a>:</h4>
+<p>Oh, another reason for a difference in the other direction is if <code>h1</code> is an instantiated metavariable then simp might not think it is an equality, but <code>h1.symm</code> is an equality</p>
+
+
+
+<a name="243263188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp%20with%20left%20arrow/near/243263188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp.20with.20left.20arrow.html#243263188">(Jun 19 2021 at 18:39)</a>:</h4>
+<p>Aha! The second one explains it. Here's a small example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">this_works</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="o">:</span> <span class="n">nat</span><span class="o">)</span> <span class="o">(</span><span class="n">h0</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="n">h1</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">d</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">d</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="k">have</span> <span class="n">h3</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">_</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">exact</span> <span class="n">eq.trans</span> <span class="n">h1</span> <span class="n">h2</span> <span class="o">},</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">h0</span><span class="o">,</span> <span class="n">h3.symm</span><span class="o">],</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">this_fails</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="o">:</span> <span class="n">nat</span><span class="o">)</span> <span class="o">(</span><span class="n">h0</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="n">h1</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">d</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">d</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="k">have</span> <span class="n">h3</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">_</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">exact</span> <span class="n">eq.trans</span> <span class="n">h1</span> <span class="n">h2</span> <span class="o">},</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">h0</span><span class="o">,</span> <span class="bp">←</span><span class="n">h3</span><span class="o">],</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Many thanks for clearing that up. I was really curious as to what was going on. It's good to know that <code>simp</code> doesn't see the instantiations.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

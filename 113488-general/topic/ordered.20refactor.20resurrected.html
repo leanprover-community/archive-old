@@ -1,0 +1,361 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/ordered.20refactor.20resurrected.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html">ordered refactor resurrected</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="269930027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/269930027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#269930027">(Jan 30 2022 at 12:20)</a>:</h4>
+<p>Dear All,</p>
+<p>after a long pause, I am picking this up again.  Here is now where the real test of the <code>covariant_class</code>es starts!  What do people think of this prototype?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.order.ring</span>
+
+<span class="kd">universe</span> <span class="n">u</span>
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+
+<span class="c">/-</span><span class="cm">  For reference, the definition of an `ordered_semiring`:</span>
+<span class="cm">An `ordered_semiring α` is a semiring `α` with a partial order such that</span>
+<span class="cm">addition is monotone and multiplication by a positive number is strictly monotone.</span>
+<span class="cm">@[protect_proj]</span>
+<span class="cm">class ordered_semiring (α : Type u) extends semiring α, ordered_cancel_add_comm_monoid α :=</span>
+<span class="cm">(zero_le_one : 0 ≤ (1 : α))</span>
+<span class="cm">(mul_lt_mul_of_pos_left :  ∀ a b c : α, a &lt; b → 0 &lt; c → c * a &lt; c * b)</span>
+<span class="cm">(mul_lt_mul_of_pos_right : ∀ a b c : α, a &lt; b → 0 &lt; c → a * c &lt; b * c)</span>
+<span class="cm">-/</span>
+
+<span class="kn">section</span> <span class="n">cov_con</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">partial_order</span> <span class="n">α</span><span class="o">]</span>
+<span class="kd">instance</span> <span class="n">semiring_has_scalar_pos</span> <span class="o">:</span> <span class="n">has_scalar</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">x</span><span class="o">}</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">smul</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">y</span> <span class="o">}</span>
+
+<span class="kd">variables</span> <span class="o">[</span><span class="n">covariant_class</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">x</span><span class="o">}</span> <span class="n">α</span> <span class="o">(</span><span class="bp">•</span><span class="o">)</span> <span class="o">(</span><span class="bp">≤</span><span class="o">)]</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span>
+
+<span class="c">/-</span><span class="cm">  A sample lemma.  Most of the subsequent ones will not need to juggle with `let` and `show`. -/</span>
+<span class="kd">lemma</span> <span class="n">pre</span> <span class="o">(</span><span class="n">ab</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="n">c0</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">c</span><span class="o">)</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">by_cases</span> <span class="n">cz</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">,</span> <span class="o">{</span> <span class="n">simp</span> <span class="o">[</span><span class="n">cz</span><span class="o">]</span> <span class="o">},</span>
+  <span class="k">let</span> <span class="n">c₀</span> <span class="o">:</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">x</span><span class="o">}</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">c</span><span class="o">,</span> <span class="n">c0.lt_of_ne</span> <span class="o">(</span><span class="n">ne.symm</span> <span class="n">cz</span><span class="o">)⟩,</span>
+  <span class="k">show</span> <span class="n">c₀</span> <span class="bp">•</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">c₀</span> <span class="bp">•</span> <span class="n">b</span><span class="o">,</span> <span class="k">from</span> <span class="n">covariant_class.elim</span> <span class="n">c₀</span> <span class="n">ab</span>
+<span class="kd">end</span>
+
+<span class="c">/-</span><span class="cm">  For instance, this one does not need it. -/</span>
+<span class="kd">lemma</span> <span class="n">mul_nonneg_1</span> <span class="o">(</span><span class="n">a0</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">b0</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">mul_zero</span> <span class="n">a</span><span class="o">)</span><span class="bp">.</span><span class="n">ge.trans</span> <span class="o">(</span><span class="n">pre</span> <span class="n">b0</span> <span class="n">a0</span><span class="o">)</span>
+
+<span class="kd">end</span> <span class="n">cov_con</span>
+
+<span class="kn">section</span> <span class="n">ordered_semiring</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">ordered_semiring</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span>
+
+<span class="c">/-</span><span class="cm">  There will be several instances like this one. -/</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">covariant_class</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">x</span><span class="o">}</span> <span class="n">α</span> <span class="o">(</span><span class="bp">•</span><span class="o">)</span> <span class="o">(</span><span class="bp">&lt;</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">elim</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">c</span> <span class="n">a</span> <span class="n">b</span> <span class="n">ab</span><span class="o">,</span> <span class="n">ordered_semiring.mul_lt_mul_of_pos_left</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">ab</span> <span class="n">c.2</span> <span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">ordered_semiring</span>
+
+<span class="c1">--... etc</span>
+</code></pre></div>
+
+
+
+<a name="270427923"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270427923" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270427923">(Feb 02 2022 at 17:47)</a>:</h4>
+<p>I would be very happy to hear comments and ideas!</p>
+<p>Thank you!</p>
+
+
+
+<a name="270432515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270432515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270432515">(Feb 02 2022 at 18:13)</a>:</h4>
+<p>Great to see you back on track! Thanks a lot for doing this</p>
+
+
+
+<a name="270436758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270436758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270436758">(Feb 02 2022 at 18:42)</a>:</h4>
+<p>What is the motivation for the <code>⊹</code> notation, did you try any alternatives like <code>₊</code> or <code>⁺</code> (or even <code>+</code> or <code>&gt;0</code>!), I personally find some of these a bit more intuitive, but of course they may not work technically due to clashes with other notations.</p>
+
+
+
+<a name="270438365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270438365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270438365">(Feb 02 2022 at 18:54)</a>:</h4>
+<p>The main reason is that typing <code>\+</code> feels like the right symbol!</p>
+<p>There was a discussion about notation, and I seem to remember that <code>&gt;0</code> did not please Mario.</p>
+<p>I am not sure that I tried <code>+</code> alone, but either that or something similar confused lean with the actual + sign of <code>has_add.add</code></p>
+
+
+
+<a name="270438607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270438607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270438607">(Feb 02 2022 at 18:56)</a>:</h4>
+<p>Anyway, I was not set on the notation and am happy to try out different things.  My expectation is that the notation will only be used inside the typeclasses, but not elsewhere.</p>
+
+
+
+<a name="270439897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270439897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270439897">(Feb 02 2022 at 19:04)</a>:</h4>
+<p>Oh okay, I was thinking this was a first step towards having a way of getting <code>pnat</code> from <code>nat</code> and lemmas coming from TC, to allow <code>preal</code> <code>prat</code> etc also and that these types would be referred to by the notation. But if the notation is just for the file its not worth worrying about too much of course.</p>
+
+
+
+<a name="270440739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270440739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270440739">(Feb 02 2022 at 19:10)</a>:</h4>
+<p>I will try out your suggestions extensively tomorrow, though.</p>
+<p>Thanks for your comments!</p>
+
+
+
+<a name="270440743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270440743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270440743">(Feb 02 2022 at 19:10)</a>:</h4>
+<p>Hmm, I had not thought about pnat, since I was focused on the fields of an ordered_semiring.  I need to think a bit about whether I can get pnat to work as well, though!</p>
+
+
+
+<a name="270440827"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270440827" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270440827">(Feb 02 2022 at 19:10)</a>:</h4>
+<p>In this case, good notation would definitely be more important!</p>
+
+
+
+<a name="270456917"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270456917" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270456917">(Feb 02 2022 at 21:02)</a>:</h4>
+<p>Alex, I've been thinking about this and I suspect that the following might work.</p>
+<p>The coercion from ˋpnatˋ to ˋℕˋ is injective, monotone and preserves multiplication.  From this, it should be possible to prove that ˋpnatˋ satisfies several ˋco(ntra)_variant_classˋes.</p>
+<p>Thus, you should get access to many lemmas about interactions between multiplication and order on ˋpnatˋ.</p>
+<p>Addition should follow in a similar way, although then it becomes important that no additive identity is required by the typeclass assumptions.  I <em>think</em> that I have been careful about this and only climbed the typeclass ladder progressively, starting from ˋhas_mulˋ to lush ˋgroupˋ only when really required, but I would need to check this again.</p>
+
+
+
+<a name="270457458"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457458" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457458">(Feb 02 2022 at 21:06)</a>:</h4>
+<p>Importantly, <code>pnat</code> is an <code>add_monoid</code>.</p>
+
+
+
+<a name="270457535"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457535" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457535">(Feb 02 2022 at 21:06)</a>:</h4>
+<p>add_monoid or add_semigroup?  I always get the two confused...</p>
+
+
+
+<a name="270457610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457610">(Feb 02 2022 at 21:07)</a>:</h4>
+<p>Oh, uh, <code>add_semigroup</code> actually...</p>
+
+
+
+<a name="270457626"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457626" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457626">(Feb 02 2022 at 21:07)</a>:</h4>
+<p>Anyways, the one without an additive identity!</p>
+
+
+
+<a name="270457661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457661">(Feb 02 2022 at 21:07)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/pnat.add_comm_semigroup">docs#pnat.add_comm_semigroup</a></p>
+
+
+
+<a name="270457814"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270457814" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270457814">(Feb 02 2022 at 21:08)</a>:</h4>
+<p>Regardless of terminology, I have actually proved many lemmas only assuming ˋ@[to_additive] has_mulˋ, so most of the pieces at least should be there.</p>
+
+
+
+<a name="270513124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270513124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270513124">(Feb 03 2022 at 08:16)</a>:</h4>
+<p>I attempted this and it might be a success!  Here is what works in my file:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">section</span> <span class="n">pos_notation</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">has_lt</span> <span class="n">α</span><span class="o">]</span>
+
+<span class="kd">notation</span> <span class="n">α</span><span class="bp">`⊹`</span><span class="o">:</span><span class="mi">1025</span> <span class="o">:=</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">x</span><span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">pos_notation</span>
+
+<span class="kn">section</span> <span class="n">pnat_like</span>
+<span class="c1">-- start with a reasonable type</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">mul_zero_class</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">covariant_class</span> <span class="n">α</span><span class="bp">⊹</span> <span class="n">α</span> <span class="n">sx</span> <span class="o">(</span><span class="bp">&lt;</span><span class="o">)]</span>
+
+<span class="c1">-- e.g. `ℕ` satisfies them by introducing</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">covariant_class</span> <span class="n">ℕ</span><span class="bp">⊹</span> <span class="n">ℕ</span> <span class="n">sx</span> <span class="o">(</span><span class="bp">&lt;</span><span class="o">)</span>  <span class="o">:=</span>
+<span class="o">{</span> <span class="n">elim</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">rintros</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">a0</span><span class="o">⟩</span> <span class="n">b</span> <span class="n">c</span> <span class="n">bc</span><span class="o">,</span> <span class="n">exact</span> <span class="o">(</span><span class="n">mul_lt_mul_left</span> <span class="n">a0</span><span class="o">)</span><span class="bp">.</span><span class="n">mpr</span> <span class="n">bc</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="c1">--  get multiplication on `α⊹`; order properties seem to be automatically deduced by subtypes</span>
+<span class="kd">instance</span> <span class="n">pos.has_mul</span> <span class="o">:</span> <span class="n">has_mul</span> <span class="n">α</span><span class="bp">⊹</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">mul</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">a0</span><span class="o">⟩</span> <span class="o">⟨</span><span class="n">b</span><span class="o">,</span> <span class="n">b0</span><span class="o">⟩,</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="o">(</span><span class="n">mul_zero</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">))</span><span class="bp">.</span><span class="n">symm.le.trans_lt</span> <span class="o">(</span><span class="n">mul_lt_mul_left'</span> <span class="n">b0</span> <span class="n">a0</span><span class="o">)⟩</span> <span class="o">}</span>
+
+<span class="c1">--  get the appropriate monotonicity type-class on `α⊹`</span>
+<span class="kd">instance</span> <span class="n">pos.to_covariant_class</span> <span class="o">:</span> <span class="n">covariant_class</span> <span class="n">α</span><span class="bp">⊹</span> <span class="n">α</span><span class="bp">⊹</span> <span class="o">(</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="bp">&lt;</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">elim</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">rintros</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">a0</span><span class="o">⟩</span> <span class="o">⟨</span><span class="n">b</span><span class="o">,</span> <span class="n">b0</span><span class="o">⟩</span> <span class="o">⟨</span><span class="n">c</span><span class="o">,</span> <span class="n">c0</span><span class="o">⟩</span> <span class="n">bc</span><span class="o">,</span> <span class="n">exact</span> <span class="n">mul_lt_mul_left'</span> <span class="n">bc</span> <span class="n">a0</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="c1">-- both of these now work!  I put `_root_` just to make sure that I was not using a specialized</span>
+<span class="c1">-- lemma from one of my current imports.</span>
+<span class="n">current</span> <span class="n">imports.</span>
+<span class="kd">lemma</span> <span class="n">attempt_1</span> <span class="o">{</span><span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">α</span><span class="bp">⊹</span><span class="o">}</span> <span class="o">(</span><span class="n">bc</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">&lt;</span> <span class="n">c</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="bp">⊹</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span> <span class="o">:=</span>
+<span class="n">_root_.mul_lt_mul_left'</span> <span class="n">bc</span> <span class="n">a</span>
+
+<span class="c1">-- of course, this should not be surprising, given the above, but it feels good!</span>
+<span class="kd">lemma</span> <span class="n">attempt_2</span> <span class="o">{</span><span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">ℕ</span><span class="bp">⊹</span><span class="o">}</span> <span class="o">(</span><span class="n">bc</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">&lt;</span> <span class="n">c</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℕ</span><span class="bp">⊹</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span> <span class="o">:=</span>
+<span class="n">_root_.mul_lt_mul_left'</span> <span class="n">bc</span> <span class="n">a</span>
+
+<span class="kd">end</span> <span class="n">pnat_like</span>
+</code></pre></div>
+
+
+
+<a name="270513850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270513850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270513850">(Feb 03 2022 at 08:25)</a>:</h4>
+<p>So, if this is really where the PR is going, it may be a good idea to think carefully about the notation <code>α⊹</code> for the subtype of positive elements of a type (with zero and lt).  This would then probably be in a separate file, where all the relevant typeclasses would also be added.</p>
+
+
+
+<a name="270513858"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270513858" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270513858">(Feb 03 2022 at 08:25)</a>:</h4>
+<p>I am tempted to finish this PR as is, possibly changing only the notation.  I would leave the"reaping out the goodies" from this refactor to subsequence ones.</p>
+
+
+
+<a name="270514330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270514330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270514330">(Feb 03 2022 at 08:30)</a>:</h4>
+<p>What you really want is an analog of <a href="https://leanprover-community.github.io/mathlib_docs/find/nonneg">docs#nonneg</a></p>
+
+
+
+<a name="270515737"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270515737" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270515737">(Feb 03 2022 at 08:45)</a>:</h4>
+<p>Ok, I would then be even more inclined to introduce a simple (possible better) notation for this file and leave the full API of <code>pos</code> to a separate PR.</p>
+
+
+
+<a name="270515825"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270515825" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270515825">(Feb 03 2022 at 08:46)</a>:</h4>
+<p>I really would like to get ahead with the lemmas in <code>ordered_semiring</code> using <code>co(ntra)variant_class</code>es, before embarking on this other journey!</p>
+
+
+
+<a name="270515859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270515859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270515859">(Feb 03 2022 at 08:46)</a>:</h4>
+<p>And, if someone else feels that the want to do <code>pos</code>, do go for it!  It will take me some time to do the <code>ordered_semiring</code> lemmas!</p>
+
+
+
+<a name="270516498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270516498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270516498">(Feb 03 2022 at 08:53)</a>:</h4>
+<p>Btw, <code>pos</code> is canonically ordered, but not in the sense of <a href="https://leanprover-community.github.io/mathlib_docs/find/canonically_ordered_add_monoid">docs#canonically_ordered_add_monoid</a></p>
+
+
+
+<a name="270516660"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270516660" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270516660">(Feb 03 2022 at 08:54)</a>:</h4>
+<p>One must replace <code>le_iff_exists_add (a b : α) : a ≤ b ↔ ∃ c, b = a + c</code> by <code>lt_iff_exists_add (a b : α) : a &lt; b ↔ ∃ c, b = a + c</code></p>
+
+
+
+<a name="270546029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270546029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270546029">(Feb 03 2022 at 13:13)</a>:</h4>
+<p>Is there a list of available symbols that can be used, for instance, in notations?</p>
+
+
+
+<a name="270546695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270546695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270546695">(Feb 03 2022 at 13:18)</a>:</h4>
+<p>Have you had a look through <a href="https://github.com/leanprover/vscode-lean/blob/master/src/abbreviation/abbreviations.json">the VScode extension abbreviation list</a>?</p>
+
+
+
+<a name="270547312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270547312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270547312">(Feb 03 2022 at 13:22)</a>:</h4>
+<p>I had not: I did not know it existed!  Thanks!</p>
+
+
+
+<a name="270742491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/270742491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#270742491">(Feb 04 2022 at 16:59)</a>:</h4>
+<p>After a few comments and the discussion about notation, I opened a PR: <a href="https://github.com/leanprover-community/mathlib/pull/11833">#11833</a>.</p>
+<p>More lemmas like these will follow, but I prefer to get the process started, before producing a <em>long</em> PR with lemmas that all look very similar to one another!</p>
+
+
+
+<a name="280626002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/280626002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Oliver Nash <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#280626002">(Apr 29 2022 at 12:39)</a>:</h4>
+<p>Is <a href="https://github.com/leanprover-community/mathlib/pull/13376">#13376</a> part of this effort? It looks fine to me but I confess I never followed the ordered refactor in detail (despite being very grateful to <span class="user-mention" data-user-id="321459">@Damiano Testa</span> and others for their work) so I'd appreciate some additional context.</p>
+
+
+
+<a name="280627671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/280627671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#280627671">(Apr 29 2022 at 12:52)</a>:</h4>
+<p>Oliver, thank you for bringing my attention back to this!</p>
+<p>This is indeed part of the order refactor and I am happy with the proposed changes!</p>
+
+
+
+<a name="280627863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/280627863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#280627863">(Apr 29 2022 at 12:54)</a>:</h4>
+<p>The refactor is now in its final stages: the lemmas and instances take care of using monotonicity of multiplication when the multiplying element is positive.  These are the final steps, in order to start being able to place instances on <code>ordered_semiring</code>s and the "explicit" types.</p>
+
+
+
+<a name="280628405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/280628405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Oliver Nash <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#280628405">(Apr 29 2022 at 12:59)</a>:</h4>
+<p>OK great, thanks for the context! As I said it looks good to me too so I've sent it to bors.</p>
+
+
+
+<a name="281527190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/281527190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#281527190">(May 07 2022 at 08:09)</a>:</h4>
+<p>Related to this topic, hopefully, if someone interested in lemmas about orders could have a look at <a href="https://github.com/leanprover-community/mathlib/pull/13296">#13296</a>, that would be great. It has been sitting near the top of the <a href="https://bit.ly/3zVLgqR">#queue</a> for a while.</p>
+
+
+
+<a name="281527910"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/281527910" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#281527910">(May 07 2022 at 08:27)</a>:</h4>
+<p>Scott, thanks for bringing my attention back to this: I had not given my approval, just because I forgot.</p>
+
+
+
+<a name="286516593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/286516593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> FR <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#286516593">(Jun 17 2022 at 17:01)</a>:</h4>
+<p>Most of the basic lemmas have been prepared. In the following PRs, I will try to replace some lemmas in <code>algebra/order/ring</code>.</p>
+<p>All these lemmas put the assumptions for comparison with 0 in the last now, but I guess it's better to put them before others. Hoping to get some guidelines.</p>
+
+
+
+<a name="298065220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/298065220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuyang Zhao <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#298065220">(Sep 09 2022 at 22:54)</a>:</h4>
+<p><code>zero_lt</code> lemmas encountered the similar problems that happened on <code>group_with_zero</code> lemmas. Their names conflict with the names of plain <code>covariant_class</code> lemmas. Adding a suffix like <code>_of_nonneg</code> often makes the name too long and sometimes there are both <code>0 &lt;</code> and <code>0 ≤</code> assumptions. How about letting some of the <code>zero_lt</code> lemmas also have the suffix <code>₀</code>?</p>
+
+
+
+<a name="298071564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/298071564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuyang Zhao <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#298071564">(Sep 10 2022 at 00:14)</a>:</h4>
+<p>Unfortunately there is something like <a href="https://leanprover-community.github.io/mathlib_docs/find/mul_lt_mul_of_lt_of">docs#mul_lt_mul_of_lt_of</a>_le₀. I will check if these can be replaced by <code>covariant_class</code> lemmas.</p>
+
+
+
+<a name="298076175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/298076175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuyang Zhao <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#298076175">(Sep 10 2022 at 01:32)</a>:</h4>
+<p>Seems we can't do that. It would be nice if the suffix <code>₊</code> could be used...</p>
+
+
+
+<a name="298077122"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/ordered%20refactor%20resurrected/near/298077122" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuyang Zhao <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/ordered.20refactor.20resurrected.html#298077122">(Sep 10 2022 at 01:50)</a>:</h4>
+<p>Then I would use <code>ₚ</code> which means positive.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

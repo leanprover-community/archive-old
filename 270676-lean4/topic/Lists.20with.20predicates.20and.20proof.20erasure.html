@@ -1,0 +1,172 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html">Lists with predicates and proof erasure</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="285193449"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285193449" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wojciech Nawrocki <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285193449">(Jun 07 2022 at 01:29)</a>:</h4>
+<p>I am wondering about the overhead of proving things about the elements of a list in a context where we have a list <code>l</code> and know <code>∀ x ∈ l, P x</code>. There are some examples of transformations on those <a href="https://github.com/leanprover-community/mathlib4/blob/6895646674b04c0d7bcd085b4da3f7bb354ceaa9/Mathlib/Data/List/Basic.lean#L290">in mathlib4</a>. Supposing we have such a predicate, there are at least two ways to use it on every element in a <code>map</code> operation. One, we can wrap the membership proof in a Sigma-type with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">List.withMems</span> <span class="o">:</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">List</span> <span class="o">(</span><span class="bp">Σ'</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as</span> <span class="bp">=&gt;</span>
+    <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">⟩</span> <span class="o">::</span> <span class="n">as.withMems.map'</span> <span class="k">fun</span> <span class="o">⟨</span><span class="n">x</span><span class="o">,</span> <span class="n">hX</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">x</span><span class="o">,</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">hX</span><span class="o">]⟩</span>
+</code></pre></div>
+<p>and then use it in standard <code>List.map</code>. For example if we know that every element is green and want to pass it through a function that has greenness as a precondition</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">isGreen</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">3</span>
+<span class="kd">def</span> <span class="n">onlyGreen</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">_</span> <span class="o">:</span> <span class="n">isGreen</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span>
+
+<span class="kd">def</span> <span class="n">greens₁</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span><span class="o">,</span> <span class="n">isGreen</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="n">l.withMems.map</span> <span class="k">fun</span> <span class="o">⟨</span><span class="n">n</span><span class="o">,</span> <span class="n">hN</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">onlyGreen</span> <span class="n">n</span> <span class="o">(</span><span class="n">H</span> <span class="n">n</span> <span class="n">hN</span><span class="o">)</span>
+</code></pre></div>
+<p>However this seems to generate suboptimal code since the <code>Σ'</code>s have a different runtime representation, so <code>withMems</code> is not a noop and is called first followed by <code>map</code>, resulting in two loops.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">greens₁</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="n">obj</span><span class="o">)</span> <span class="o">(</span><span class="n">x_2</span> <span class="o">:</span> <span class="bp">◾</span><span class="o">)</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">x_3</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">List.withMems._rarg</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_4</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">greens₁._closed_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">List.map'._rarg</span> <span class="n">x_4</span> <span class="n">x_3</span><span class="bp">;</span>
+  <span class="n">ret</span> <span class="n">x_5</span>
+</code></pre></div>
+<p>Note that I used a custom <code>List.map'</code> to avoid the tail-recursive specialization <code>mapTR</code>, but this does not seem to matter.</p>
+<p>Second, we could write a custom membership-proving <code>map</code> like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">List.mapMems</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="n">β</span> <span class="o">:=</span>
+  <span class="n">go</span> <span class="n">l</span> <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">id</span><span class="o">)</span>
+<span class="n">where</span> <span class="n">go</span> <span class="o">:</span> <span class="o">(</span><span class="n">l'</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l'</span><span class="o">,</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span><span class="o">)</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">β</span>
+  <span class="bp">|</span> <span class="o">[],</span>    <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">a</span><span class="o">::</span><span class="n">as</span><span class="o">,</span> <span class="n">H</span> <span class="bp">=&gt;</span>
+    <span class="k">have</span> <span class="n">hA</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">l</span> <span class="o">:=</span> <span class="n">H</span> <span class="n">a</span> <span class="bp">&lt;|</span> <span class="n">List.mem_cons_self</span> <span class="n">_</span> <span class="n">_</span>
+    <span class="k">have</span> <span class="n">hAs</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">as</span><span class="o">,</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span> <span class="o">:=</span> <span class="n">List.forall_mem_of_forall_mem_cons</span> <span class="n">H</span>
+    <span class="n">f</span> <span class="n">a</span> <span class="n">hA</span> <span class="o">::</span> <span class="n">go</span> <span class="n">as</span> <span class="n">hAs</span>
+</code></pre></div>
+<p>and then use it directly</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">greens₂</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span><span class="o">,</span> <span class="n">isGreen</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="n">l.mapMems</span> <span class="k">fun</span> <span class="n">n</span> <span class="n">hN</span> <span class="bp">=&gt;</span> <span class="n">onlyGreen</span> <span class="n">n</span> <span class="o">(</span><span class="n">H</span> <span class="n">n</span> <span class="n">hN</span><span class="o">)</span>
+</code></pre></div>
+<p>The code generated here seems very close to standard <code>List.map</code> and more optimal, although I didn't look at it in too much detail.</p>
+<p>Is this problem explored in the literature on compiling dependently-typed languages? How do people deal with it? Is the <code>mapMems</code> variant (perhaps with a <code>csimp</code> lemma to compile it to a tail-recursive version) the right solution here? Should the Lean compiler (eventually) be able to compile <code>withMems</code> to the identity function, assuming that the runtime representation of <code>PSigma</code> with <code>Prop</code> can be made just the representation of the value?</p>
+
+
+
+<a name="285194230"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285194230" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285194230">(Jun 07 2022 at 01:44)</a>:</h4>
+<blockquote>
+<p>Should the Lean compiler (eventually) be able to compile withMems to the identity function, assuming that the runtime</p>
+</blockquote>
+<p>Yes, this is on our to-do list, but for <code>Subtype</code>. That is, one would have to write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">List.withMems</span> <span class="o">:</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">List</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span> <span class="o">}</span>
+  <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as</span> <span class="bp">=&gt;</span>
+    <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">⟩</span> <span class="o">::</span> <span class="n">as.withMems.map'</span> <span class="k">fun</span> <span class="o">⟨</span><span class="n">x</span><span class="o">,</span> <span class="n">hX</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">x</span><span class="o">,</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">hX</span><span class="o">]⟩</span>
+</code></pre></div>
+<p>Recall that <code>{ x : α // x ∈ l }</code> and <code>α</code> already have the same representation in our runtime.</p>
+
+
+
+<a name="285194852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285194852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285194852">(Jun 07 2022 at 01:57)</a>:</h4>
+<p><span class="user-mention" data-user-id="128280">@Wojciech Nawrocki</span>  I just noticed you used a nested <code>map</code> in your definition. When we considered a similar example, we used the following alternative definition which is easier to detect that <code>withMems</code> is the identity function at the IR level.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.compiler.ir.init</span> <span class="n">true</span>
+<span class="kd">def</span> <span class="n">List.withMems</span> <span class="o">(</span><span class="n">as</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">as'</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">as'</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">as</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">as</span> <span class="o">}</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">as'</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as'</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.head</span> <span class="bp">..</span><span class="o">)⟩</span> <span class="o">::</span> <span class="n">withMems</span> <span class="n">as</span> <span class="n">as'</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">h'</span> <span class="bp">=&gt;</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.tail</span> <span class="n">_</span> <span class="n">h'</span><span class="o">)</span>
+</code></pre></div>
+<p>We can also write it as </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">List.withMems</span> <span class="o">(</span><span class="n">as</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">as</span> <span class="o">}</span> <span class="o">:=</span>
+  <span class="n">go</span> <span class="n">as</span> <span class="n">as</span> <span class="k">fun</span> <span class="n">_</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">h</span>
+<span class="n">where</span>
+  <span class="n">go</span> <span class="o">(</span><span class="n">as</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">as'</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">as'</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">as</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">as</span> <span class="o">}</span> <span class="o">:=</span>
+    <span class="k">match</span> <span class="n">as'</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+    <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as'</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.head</span> <span class="bp">..</span><span class="o">)⟩</span> <span class="o">::</span> <span class="n">go</span> <span class="n">as</span> <span class="n">as'</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">h'</span> <span class="bp">=&gt;</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.tail</span> <span class="n">_</span> <span class="n">h'</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="285195180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195180">(Jun 07 2022 at 02:03)</a>:</h4>
+<p>that <code>go</code> function looks pretty similar to mathlib's <a href="https://leanprover-community.github.io/mathlib_docs/find/list.pmap">docs#list.pmap</a> which generalizes the predicate <code>x \in as</code> to an arbitrary proposition (which also makes it easier to see that <code>as</code> is not a computationally relevant input to the function)</p>
+
+
+
+<a name="285195200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195200">(Jun 07 2022 at 02:03)</a>:</h4>
+<blockquote>
+<p>assuming that the runtime representation of PSigma with Prop can be made just the representation of the value?</p>
+</blockquote>
+<p>This part is not on our to-do list. We currently don't have plans for specializing parametric types. That is, <code>PSigma</code> is always a pair in our runtime, even if the second argument is a <code>Prop</code>.</p>
+
+
+
+<a name="285195248"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195248" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195248">(Jun 07 2022 at 02:04)</a>:</h4>
+<p>although I guess the problem with <code>pmap</code> is that it looks like <code>map</code> and is not specialized to <code>subtype.mk</code> meaning that it can be recognized as the identity function</p>
+
+
+
+<a name="285195346"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195346" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195346">(Jun 07 2022 at 02:07)</a>:</h4>
+<p>That is, I would guess that this one would be a good candidate to be recognized as the identity</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">pmap'</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">as</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="o">((</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">as</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">a</span><span class="o">)</span> <span class="bp">→</span> <span class="n">List</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">//</span> <span class="n">P</span> <span class="n">x</span> <span class="o">}</span>
+  <span class="bp">|</span> <span class="o">[],</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as'</span><span class="o">,</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.head</span> <span class="bp">..</span><span class="o">)⟩</span> <span class="o">::</span> <span class="n">pmap'</span> <span class="n">P</span> <span class="n">as'</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">h'</span> <span class="bp">=&gt;</span> <span class="n">h</span> <span class="n">a</span> <span class="o">(</span><span class="n">List.Mem.tail</span> <span class="n">_</span> <span class="n">h'</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="285195364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195364">(Jun 07 2022 at 02:07)</a>:</h4>
+<p>Yes, it is.</p>
+
+
+
+<a name="285195883"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285195883" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285195883">(Jun 07 2022 at 02:17)</a>:</h4>
+<p><span class="user-mention" data-user-id="128280">@Wojciech Nawrocki</span> Are you planning to use <code>withMems</code> to justify termination when using <code>map</code> and <code>foldl</code>? If yes, here is another approach we have been considering <a href="https://github.com/leanprover/lean4/blob/master/tests/lean/run/combinatorsAndWF.lean">https://github.com/leanprover/lean4/blob/master/tests/lean/run/combinatorsAndWF.lean</a><br>
+In this approach, we only need to modify the WF module, and the user would be able to just write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Expr</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">(</span><span class="n">args</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Expr</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">Expr.numVars</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="n">f</span> <span class="n">args</span> <span class="bp">=&gt;</span> <span class="n">args.foldl</span> <span class="o">(</span><span class="n">init</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">)</span> <span class="k">fun</span> <span class="n">sum</span> <span class="n">arg</span> <span class="bp">=&gt;</span>  <span class="n">sum</span> <span class="bp">+</span> <span class="n">numVars</span> <span class="n">arg</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+
+<a name="285199935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285199935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wojciech Nawrocki <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285199935">(Jun 07 2022 at 03:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure/near/285195180">said</a>:</p>
+<blockquote>
+<p>that <code>go</code> function looks pretty similar to mathlib's <a href="https://leanprover-community.github.io/mathlib_docs/find/list.pmap">docs#list.pmap</a> which generalizes the predicate <code>x \in as</code> to an arbitrary proposition (which also makes it easier to see that <code>as</code> is not a computationally relevant input to the function)</p>
+</blockquote>
+<p>Oh indeed, and <code>withMems</code> is <code>list.attach</code>.</p>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure/near/285195883">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="128280">Wojciech Nawrocki</span> Are you planning to use <code>withMems</code> to justify termination when using <code>map</code> and <code>foldl</code>? </p>
+</blockquote>
+<p>No, I needed it to typecheck some array accesses using indices obtained from <code>List.range</code> and a lemma <code>∀ x ∈ List. range n, x &lt; n</code>. In this case I could also go with an alternative <code>List.range' : (n : Nat) → List (Fin n)</code>. It looks like <code>Fin n</code> gets the subtype treatment and is represented as just the <code>Nat</code> value.</p>
+<p>The WF feature would be great to have regardless, I have ran into the <code>map/fold</code> termination problem many times.</p>
+
+
+
+<a name="285199980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lists%20with%20predicates%20and%20proof%20erasure/near/285199980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wojciech Nawrocki <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lists.20with.20predicates.20and.20proof.20erasure.html#285199980">(Jun 07 2022 at 03:31)</a>:</h4>
+<p>Thank you for your answers!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

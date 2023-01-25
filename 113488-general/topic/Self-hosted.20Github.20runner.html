@@ -1,0 +1,423 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Self-hosted.20Github.20runner.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html">Self-hosted Github runner</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="197556848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197556848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197556848">(May 14 2020 at 13:51)</a>:</h4>
+<p>Breaking this out of the <a href="#narrow/stream/113488-general/topic/speed-up.20project.20returns">speed-up project returns thread</a>.</p>
+<p>It seems like it might be beneficial to have a custom Github runner which could build mathlib much faster than Github's runners. I'm currently running some experiments in this direction with initial funding graciously provided by <span class="user-mention" data-user-id="252300">@Jalex Stark</span>.</p>
+<p>To determine what sort of build server we'd want, a key factor is how mathlib scales with additional cores. I'm currently running benchmarks on a dedicated server with 8 cores and a virtual server with 16 cores. <span class="user-mention" data-user-id="110087">@Scott Morrison</span>, could you perhaps run the same benchmark on your machine? Just so that we have a bit more data.</p>
+<p>Here's the benchmark script:</p>
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+
+<span class="k">function</span> die<span class="o">()</span> <span class="o">{</span>
+  <span class="nb">echo</span> <span class="nv">$1</span>
+  <span class="nb">echo</span> <span class="s2">&quot;Usage: mathlib-bench &lt;mathlib-dir&gt; &lt;n1&gt; [n2 ...]&quot;</span>
+  <span class="nb">exit</span> <span class="m">1</span>
+<span class="o">}</span>
+
+<span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> <span class="o">||</span> die <span class="s2">&quot;Mathlib directory not specified.&quot;</span>
+<span class="nv">mathlib_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+<span class="nb">shift</span>
+
+<span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> <span class="o">||</span> die <span class="s2">&quot;Thread count not specified&quot;</span>
+
+<span class="nb">echo</span> <span class="s2">&quot;===== Cloning mathlib repo in &#39;</span><span class="nv">$mathlib_dir</span><span class="s2">&#39;&quot;</span>
+git clone https://github.com/leanprover-community/mathlib <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  git checkout d0beb496140b5506530e18033591c711030546ad <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">popd</span>
+
+<span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$?</span><span class="s2">&quot;</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Unable to clone mathlib.&quot;</span>
+
+<span class="nb">echo</span> <span class="s2">&quot;===== Installing Lean toolchain&quot;</span>
+<span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  leanpkg configure <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">popd</span>
+
+<span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$?</span><span class="s2">&quot;</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Unable to install Lean toolchain.&quot;</span>
+
+<span class="k">while</span> <span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span><span class="p">;</span> <span class="k">do</span>
+  <span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> -gt <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Not a positive number: </span><span class="nv">$1</span><span class="s2">.&quot;</span>
+  <span class="nv">n_threads</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+
+  <span class="nb">echo</span> <span class="s2">&quot;===== Building mathlib with </span><span class="nv">$n_threads</span><span class="s2"> threads&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    find <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> -name <span class="s1">&#39;*.olean&#39;</span> -delete <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">command</span> <span class="nb">time</span> leanpkg build -- --threads<span class="o">=</span><span class="s2">&quot;</span><span class="nv">$n_threads</span><span class="s2">&quot;</span> --memory<span class="o">=</span><span class="m">16000</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">popd</span>
+
+  <span class="nb">test</span> <span class="nv">$?</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Error while building mathlib.&quot;</span>
+<span class="k">done</span>
+</code></pre></div>
+
+
+<p>Usage: <code>mathlib-bench &lt;dir&gt; &lt;n1&gt; ... &lt;nm&gt;</code> where <code>dir</code> is the directory where <code>mathlib</code> will be checked out (must be empty or nonexistent) and the <code>ni</code> are thread counts. I'm using <code>mathlib-bench &lt;dir&gt; 1 2 4 6 8 10 12 14 16</code>.</p>
+
+
+
+<a name="197558018"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197558018" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197558018">(May 14 2020 at 14:00)</a>:</h4>
+<p>Also, if anyone knows an organisation that would give us build servers for free/cheap, I'm all ears.</p>
+
+
+
+<a name="197558421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197558421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197558421">(May 14 2020 at 14:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197558018">said</a>:</p>
+<blockquote>
+<p>Also, if anyone knows an organisation that would give us build servers for free/cheap, I'm all ears.</p>
+</blockquote>
+<p>We have nothing to lose to try:<br>
+— Nix/NixOS community<br>
+— <a href="http://Packet.com">Packet.com</a><br>
+— University</p>
+<p>Also, thanks for the benchmark script, I'll be able to play around with Packet's EPYC now :-)</p>
+
+
+
+<a name="197558425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197558425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197558425">(May 14 2020 at 14:03)</a>:</h4>
+<p>(the same machine is at the moment running two single-threaded builds of old commits of mathlib, which will presumably interfere for the higher core numbers...)</p>
+
+
+
+<a name="197558707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197558707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197558707">(May 14 2020 at 14:06)</a>:</h4>
+<p>Running!</p>
+
+
+
+<a name="197566168"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197566168" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197566168">(May 14 2020 at 14:51)</a>:</h4>
+<p>Thanks Scott and Ryan! Those numbers will be very interesting.</p>
+
+
+
+<a name="197566605"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197566605" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197566605">(May 14 2020 at 14:54)</a>:</h4>
+<p>And thanks Jalex and Jannis!</p>
+
+
+
+<a name="197580403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197580403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197580403">(May 14 2020 at 16:22)</a>:</h4>
+<p><em>sigh</em> The security issues of self-hosted Github runners are much worse than I thought. Essentially: Anyone can make a PR that changes the GH actions workflow file, then this <em>new</em> file is run (because it can say, 'run me on a self-hosted runner when a PR is created'), and the runner does no sandboxing whatsoever. I was able to create a PR (as a random user with no affiliation with the repo) that changed the workflow file to <code>cat /etc/passwd</code> and this was executed and displayed without a hitch. Whoever thought this was a remotely sensible design deserves to be slapped.</p>
+<p>What this means for the project is that I need to figure out whether I can sandbox the runner myself in a VM or something. Fun times...</p>
+
+
+
+<a name="197584235"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584235" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584235">(May 14 2020 at 16:49)</a>:</h4>
+<p>That's quite ridiculous indeed.</p>
+
+
+
+<a name="197584309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584309">(May 14 2020 at 16:50)</a>:</h4>
+<p>And running it inside some docker sandbox probably hinders the performance</p>
+
+
+
+<a name="197584337"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584337" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584337">(May 14 2020 at 16:50)</a>:</h4>
+<p>How about a qemu bare metal VM?</p>
+
+
+
+<a name="197584419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584419">(May 14 2020 at 16:51)</a>:</h4>
+<p>But it comes with extra maintenance ~~&gt; headaches</p>
+
+
+
+<a name="197584516"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584516" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584516">(May 14 2020 at 16:52)</a>:</h4>
+<p>All solutions for CI involve security issues like this to various extents, as well as the reverse issue: how do I know I can trust the binaries produced by your server?</p>
+
+
+
+<a name="197584593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584593">(May 14 2020 at 16:52)</a>:</h4>
+<p>How about just not building PRs?</p>
+
+
+
+<a name="197584657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584657">(May 14 2020 at 16:52)</a>:</h4>
+<p>As far as I understand, a PR can say " let's build PRs"</p>
+
+
+
+<a name="197584668"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584668" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584668">(May 14 2020 at 16:53)</a>:</h4>
+<p>Am I right?</p>
+
+
+
+<a name="197584715"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584715" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584715">(May 14 2020 at 16:53)</a>:</h4>
+<p>oh, I don't know about this github self-hosted thing in particular</p>
+
+
+
+<a name="197584957"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197584957" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197584957">(May 14 2020 at 16:54)</a>:</h4>
+<p>Does it run under <code>root</code> user account (otherwise it shouldn't have access to <code>/etc/passwd</code>)?</p>
+
+
+
+<a name="197585142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197585142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197585142">(May 14 2020 at 16:56)</a>:</h4>
+<p>I agree if it can't even be configured to only build commits to master, that's an extra level of dumb.</p>
+
+
+
+<a name="197585442"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197585442" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197585442">(May 14 2020 at 16:58)</a>:</h4>
+<p>I think the solution is going to depend on exactly what you want to do with this. Is this supposed to be a replacement for the CI running on Actions right now? Or is it separate, just for benchmarking?</p>
+
+
+
+<a name="197585485"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197585485" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197585485">(May 14 2020 at 16:58)</a>:</h4>
+<p>If it's just for benchmarking, it doesn't have to be tied to the mathlib repo at all.</p>
+
+
+
+<a name="197587057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197587057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197587057">(May 14 2020 at 17:08)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="214703">Yury G. Kudryashov</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197584657">said</a>:</p>
+<blockquote>
+<p>As far as I understand, a PR can say " let's build PRs"</p>
+</blockquote>
+<p>Yes, that's one part of the problem. The workflow itself defines when it is run, and there are no repository-wide configuration options to restrict this. I thought it might be possible to disable Actions for PRs from forks, but no such luck.</p>
+<p><span class="user-mention silent" data-user-id="214703">Yury G. Kudryashov</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197584957">said</a>:</p>
+<blockquote>
+<p>Does it run under <code>root</code> user account (otherwise it shouldn't have access to <code>/etc/passwd</code>)?</p>
+</blockquote>
+<p>No, you can run it as an unprivileged user. (<code>/etc/passwd</code> is world-readable by default, at least on this installation.) But then it still has access to any world-readable files as well as the network, which is way too much attack surface.</p>
+<p><span class="user-mention silent" data-user-id="110596">Rob Lewis</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197585442">said</a>:</p>
+<blockquote>
+<p>I think the solution is going to depend on exactly what you want to do with this. Is this supposed to be a replacement for the CI running on Actions right now? Or is it separate, just for benchmarking?</p>
+</blockquote>
+<p>No, I want this to be a faster replacement for the default Github Actions runners. The idea is to get mathlib compile times to a more tolerable level for all contributors.</p>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197584337">said</a>:</p>
+<blockquote>
+<p>How about a qemu bare metal VM?</p>
+</blockquote>
+<p>The problem is that you really want to spin up a new VM/container for every job, to make sure that they can't leave anything behind. This would have to be done by the GH runner, which, as far as I can tell, can't do it.</p>
+
+
+
+<a name="197587392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197587392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197587392">(May 14 2020 at 17:10)</a>:</h4>
+<blockquote>
+<p>(/etc/passwd is world-readable by default<br>
+I should read more carefully: it's "just" <code>/etc/passwd</code>, not <code>/etc/shadow</code></p>
+</blockquote>
+
+
+
+<a name="197587755"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197587755" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197587755">(May 14 2020 at 17:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197587057">said</a>:</p>
+<blockquote>
+<p>No, I want this to be a faster replacement for the default Github Actions runners. The idea is to get mathlib compile times to a more tolerable level for all contributors.</p>
+</blockquote>
+<p>Have you done the calculations on this?  How many machines would we need to build all PR commits?  (Say one build takes 20 minutes, then we can only do 72 commits per day.  This seems potentially low.)</p>
+
+
+
+<a name="197587941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197587941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197587941">(May 14 2020 at 17:14)</a>:</h4>
+<p>An alternative approach: make <code>github</code> just <code>wget</code> some URL on the server. Then a script can checkout the specified commit, compile it using a hardcoded script, publish <code>olean</code>s, and post a status update.</p>
+
+
+
+<a name="197588267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197588267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197588267">(May 14 2020 at 17:17)</a>:</h4>
+<p>Please be aware that you can execute arbitrary commands when compiling Lean code.  (See <code>io.cmd</code>.)</p>
+
+
+
+<a name="197588537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197588537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197588537">(May 14 2020 at 17:19)</a>:</h4>
+<p>and, for example, you do not want that arbitrary code to have access to your cloud storage credentials</p>
+
+
+
+<a name="197588991"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197588991" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197588991">(May 14 2020 at 17:22)</a>:</h4>
+<p>With that setup, we can at least restrict to people we've offered write access to mathlib branches. External PRs can't access GH secrets, so you just need the script to be called with a stored passphrase.</p>
+
+
+
+<a name="197588993"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197588993" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197588993">(May 14 2020 at 17:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="256311">@Jannis Limperg</span> What's wrong with the current Github actions + leanproject setup?</p>
+
+
+
+<a name="197589089"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197589089" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197589089">(May 14 2020 at 17:23)</a>:</h4>
+<p>But, like Gabriel, I'm skeptical about the scalability here. Github gives us a crazy amount of resources for free, even if they aren't blazing fast.</p>
+
+
+
+<a name="197590921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197590921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197590921">(May 14 2020 at 17:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197587755">said</a>:</p>
+<blockquote>
+<p>Have you done the calculations on this?  How many machines would we need to build all PR commits?  (Say one build takes 20 minutes, then we can only do 72 commits per day.  This seems potentially low.)</p>
+</blockquote>
+<p>No, I'm waiting for the benchmark results to see what the numbers are like. I'm also not sure that they're going to be good enough for this whole thing to be worth it. However, on my machine, compilation with 4 threads already takes under 1h (around half the time GH actions  currently needs), so I could run 2 jobs in parallel.</p>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197588993">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> What's wrong with the current Github actions + leanproject setup?</p>
+</blockquote>
+<p>That it takes 2h until you know whether your commit broke anything (and 3h for linting etc.). I was under the impression that people were unhappy with this and would be happier if it took significantly less long. However, if there's no demand for this project, I'll gladly drop it; the compile times don't bother me personally much (because my machine will likely remain faster than CI).</p>
+
+
+
+<a name="197597106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197597106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197597106">(May 14 2020 at 18:23)</a>:</h4>
+<p><span class="user-mention" data-user-id="110087">@Scott Morrison</span> <span class="user-mention" data-user-id="262143">@Ryan Lahfa</span> The benchmark script was missing a <code>shift</code>, so it'll run the 1-thread benchmark forever. Sorry! (Why is there no facepalm emoji?)</p>
+<p>Corrected script:</p>
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+
+<span class="k">function</span> die<span class="o">()</span> <span class="o">{</span>
+  <span class="nb">echo</span> <span class="nv">$1</span>
+  <span class="nb">echo</span> <span class="s2">&quot;Usage: mathlib-bench &lt;mathlib-dir&gt; &lt;n1&gt; [n2 ...]&quot;</span>
+  <span class="nb">exit</span> <span class="m">1</span>
+<span class="o">}</span>
+
+<span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> <span class="o">||</span> die <span class="s2">&quot;Mathlib directory not specified.&quot;</span>
+<span class="nv">mathlib_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+<span class="nb">shift</span>
+
+<span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> <span class="o">||</span> die <span class="s2">&quot;Thread count not specified&quot;</span>
+
+<span class="nb">echo</span> <span class="s2">&quot;===== Cloning mathlib repo in &#39;</span><span class="nv">$mathlib_dir</span><span class="s2">&#39;&quot;</span>
+git clone https://github.com/leanprover-community/mathlib <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  git checkout d0beb496140b5506530e18033591c711030546ad <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">popd</span>
+
+<span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$?</span><span class="s2">&quot;</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Unable to clone mathlib.&quot;</span>
+
+<span class="nb">echo</span> <span class="s2">&quot;===== Installing Lean toolchain&quot;</span>
+<span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  leanpkg configure <span class="o">&amp;&amp;</span> <span class="se">\</span>
+  <span class="nb">popd</span>
+
+<span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$?</span><span class="s2">&quot;</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Unable to install Lean toolchain.&quot;</span>
+
+<span class="k">while</span> <span class="nb">test</span> -n <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span><span class="p">;</span> <span class="k">do</span>
+  <span class="nb">test</span> <span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span> -gt <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Not a positive number: </span><span class="nv">$1</span><span class="s2">.&quot;</span>
+  <span class="nv">n_threads</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+
+  <span class="nb">echo</span> <span class="s2">&quot;===== Building mathlib with </span><span class="nv">$n_threads</span><span class="s2"> threads&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    find <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> -name <span class="s1">&#39;*.olean&#39;</span> -delete <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">pushd</span> <span class="s2">&quot;</span><span class="nv">$mathlib_dir</span><span class="s2">&quot;</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">command</span> <span class="nb">time</span> leanpkg build -- --threads<span class="o">=</span><span class="s2">&quot;</span><span class="nv">$n_threads</span><span class="s2">&quot;</span> --memory<span class="o">=</span><span class="m">16000</span> <span class="o">&amp;&amp;</span> <span class="se">\</span>
+    <span class="nb">popd</span>
+
+  <span class="nb">test</span> <span class="nv">$?</span> -eq <span class="m">0</span> <span class="o">||</span> die <span class="s2">&quot;Error while building mathlib.&quot;</span>
+  <span class="nb">shift</span>
+<span class="k">done</span>
+</code></pre></div>
+
+
+
+<a name="197597404"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197597404" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197597404">(May 14 2020 at 18:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="256311">@Jannis Limperg</span> It's <code>:face palm:</code>. I've needed it a lot.</p>
+
+
+
+<a name="197605884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197605884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197605884">(May 14 2020 at 19:27)</a>:</h4>
+<p>What's the correct reaction when you're too dumb to find an emoji? <span aria-label="face palm" class="emoji emoji-1f926" role="img" title="face palm">:face_palm:</span></p>
+
+
+
+<a name="197609338"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197609338" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197609338">(May 14 2020 at 19:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197580403">said</a>:</p>
+<blockquote>
+<p><em>sigh</em> The security issues of self-hosted Github runners are much worse than I thought. Essentially: Anyone can make a PR that changes the GH actions workflow file, then this <em>new</em> file is run (because it can say, 'run me on a self-hosted runner when a PR is created'), and the runner does no sandboxing whatsoever. I was able to create a PR (as a random user with no affiliation with the repo) that changed the workflow file to <code>cat /etc/passwd</code> and this was executed and displayed without a hitch. Whoever thought this was a remotely sensible design deserves to be slapped.</p>
+<p>What this means for the project is that I need to figure out whether I can sandbox the runner myself in a VM or something. Fun times...</p>
+</blockquote>
+<p>That's why I think we should go for a Hydra (Nix/NixOS) model</p>
+
+
+
+<a name="197609375"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197609375" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197609375">(May 14 2020 at 19:57)</a>:</h4>
+<p>The GH Actions are cool for simple stuff, beyond that, it's becoming annoyingly difficult to do it</p>
+
+
+
+<a name="197609642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197609642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197609642">(May 14 2020 at 19:59)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197588993">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> What's wrong with the current Github actions + leanproject setup?</p>
+</blockquote>
+<p>That it takes 2h until you know whether your commit broke anything (and 3h for linting etc.). I was under the impression that people were unhappy with this and would be happier if it took significantly less long. However, if there's no demand for this project, I'll gladly drop it; the compile times don't bother me personally much (because my machine will likely remain faster than CI).</p>
+<p>In addition, if it takes 2 hours now, it might slowly getting longer and longer.<br>
+Faster feedback is nice, but also makes it future-proof.</p>
+
+
+
+<a name="197610664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197610664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197610664">(May 14 2020 at 20:07)</a>:</h4>
+<p>I see. But maybe we can first focus on detailed and reliable profiling. So that we better understand where the slow bits of code are?</p>
+
+
+
+<a name="197610690"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197610690" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197610690">(May 14 2020 at 20:07)</a>:</h4>
+<p>Still, of course I would love "instant CI"</p>
+
+
+
+<a name="197610719"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197610719" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197610719">(May 14 2020 at 20:07)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/Self-hosted.20Github.20runner/near/197610664">said</a>:</p>
+<blockquote>
+<p>I see. But maybe we can first focus on detailed and reliable profiling. So that we better understand where the slow bits of code are?</p>
+</blockquote>
+<p>Agreed, I'm not jumping yet on the running stuff yet, I just want to setup simple experiments</p>
+
+
+
+<a name="197610734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197610734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197610734">(May 14 2020 at 20:07)</a>:</h4>
+<p>Ideally, reproducible experiments would be arguably nice</p>
+
+
+
+<a name="197640167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Self-hosted%20Github%20runner/near/197640167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Self-hosted.20Github.20runner.html#197640167">(May 15 2020 at 01:53)</a>:</h4>
+<p>I'm running the updated benchmark script.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

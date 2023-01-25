@@ -1,0 +1,122 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html">Running lean function from c++</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="253768425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253768425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253768425">(Sep 17 2021 at 16:26)</a>:</h4>
+<p>I would like to generate some C code with Lean and then call it from C++. Here is an attempt in a minimal example, but running it causes segmentation fault.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">//</span> <span class="n">main.cpp</span>
+
+<span class="bp">#</span><span class="kn">include</span> <span class="bp">&lt;</span><span class="n">iostream</span><span class="bp">&gt;</span>
+<span class="bp">#</span><span class="kn">include</span> <span class="bp">&lt;</span><span class="n">lean</span><span class="bp">/</span><span class="n">lean.h</span><span class="bp">&gt;</span>
+
+<span class="bp">#</span><span class="kn">include</span> <span class="s2">"main.h"</span>
+
+<span class="n">int</span> <span class="n">main</span><span class="o">(){</span>
+
+  <span class="n">auto</span> <span class="n">obj</span> <span class="bp">=</span> <span class="n">test_string</span><span class="o">(</span><span class="mi">42</span><span class="bp">.</span><span class="mi">0</span><span class="o">)</span><span class="bp">;</span>
+  <span class="n">auto</span> <span class="n">str</span> <span class="bp">=</span> <span class="n">lean_to_string</span><span class="o">(</span><span class="n">obj</span><span class="o">)</span><span class="bp">;</span>
+
+  <span class="n">std</span><span class="o">::</span><span class="n">cout</span> <span class="bp">&lt;&lt;</span> <span class="n">str</span><span class="bp">-&gt;</span><span class="n">m_data</span> <span class="bp">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="bp">;</span>
+
+  <span class="n">lean_dec</span><span class="o">(</span><span class="n">obj</span><span class="o">)</span><span class="bp">;</span>
+
+  <span class="n">return</span> <span class="mi">0</span><span class="bp">;</span>
+<span class="o">}</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">//</span> <span class="n">main.lean</span>
+
+<span class="kd">@[export test_string]</span>
+<span class="kd">def</span> <span class="n">test_string</span> <span class="o">:</span> <span class="n">Float</span> <span class="bp">→</span> <span class="n">String</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="s2">"Hello World "</span> <span class="bp">++</span> <span class="n">x.toString</span>
+</code></pre></div>
+<p>I compile and run this with <code>lean -c main.h main.lean &amp;&amp; leanc -x c++ main.cpp -o main  &amp;&amp; ./main</code> Unfortunately, this causes segmentation fault.</p>
+<p>When generating <code>main</code> function from lean, the C code looks like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="n">int</span> <span class="n">main</span><span class="o">(</span><span class="n">int</span> <span class="n">argc</span><span class="o">,</span> <span class="n">char</span> <span class="bp">**</span> <span class="n">argv</span><span class="o">)</span> <span class="o">{</span>
+
+    <span class="n">lean_object</span><span class="bp">*</span> <span class="k">in</span><span class="bp">;</span> <span class="n">lean_object</span><span class="bp">*</span> <span class="n">res</span><span class="bp">;</span>
+    <span class="n">lean_initialize_runtime_module</span><span class="o">()</span><span class="bp">;</span>
+    <span class="n">res</span> <span class="bp">=</span> <span class="n">initialize_main</span><span class="o">(</span><span class="n">lean_io_mk_world</span><span class="o">())</span><span class="bp">;</span>
+    <span class="n">lean_io_mark_end_initialization</span><span class="o">()</span><span class="bp">;</span>
+    <span class="k">if</span> <span class="o">(</span><span class="n">lean_io_result_is_ok</span><span class="o">(</span><span class="n">res</span><span class="o">))</span> <span class="o">{</span>
+      <span class="n">lean_dec_ref</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">lean_init_task_manager</span><span class="o">()</span><span class="bp">;</span>
+      <span class="n">res</span> <span class="bp">=</span> <span class="n">_lean_main</span><span class="o">(</span><span class="n">lean_io_mk_world</span><span class="o">())</span><span class="bp">;</span>
+    <span class="o">}</span>
+    <span class="k">if</span> <span class="o">(</span><span class="n">lean_io_result_is_ok</span><span class="o">(</span><span class="n">res</span><span class="o">))</span> <span class="o">{</span>
+      <span class="n">int</span> <span class="n">ret</span> <span class="bp">=</span> <span class="n">lean_unbox</span><span class="o">(</span><span class="n">lean_io_result_get_value</span><span class="o">(</span><span class="n">res</span><span class="o">))</span><span class="bp">;</span>
+      <span class="n">lean_dec_ref</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">return</span> <span class="n">ret</span><span class="bp">;</span>
+    <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+      <span class="n">lean_io_result_show_error</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">lean_dec_ref</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">return</span> <span class="mi">1</span><span class="bp">;</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+</code></pre></div>
+<p>The crucial part seems to be <code>lean_initialize_runtime_module()</code> the rest seems to be error handling and IO monad. After some digging I have found <code>lean/init_module.h</code> containing <code>lean::initialize_runtime_module</code> and <code>lean::finalize_runtime_module</code> but running these does not fix the problem.</p>
+
+
+
+<a name="253768980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253768980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253768980">(Sep 17 2021 at 16:30)</a>:</h4>
+<p>You have to call <code>initialize_main</code> as well. There is no header for that, but you can copy the signature from the generated code and declare it as <code>extern "C"</code>.</p>
+
+
+
+<a name="253769701"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253769701" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253769701">(Sep 17 2021 at 16:35)</a>:</h4>
+<p>But what object am I supposed to pass to <code>initialize_main</code> ?  There is <code>lean_io_mk_world()</code> in the generated code, but what if I'm not interested in IO?</p>
+
+
+
+<a name="253769911"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253769911" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253769911">(Sep 17 2021 at 16:37)</a>:</h4>
+<p>Ok I did <code>extern "C" lean_object* initialize_main(lean_object* w)</code> and then <code>initialize_main(nullptr)</code>. It works but looks sketchy.</p>
+
+
+
+<a name="253770128"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253770128" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253770128">(Sep 17 2021 at 16:38)</a>:</h4>
+<p>Initializing a Lean module is inherently IO. The actual value of the parameter doesn't matter, but please just use <code>lean_io_mk_world</code>.</p>
+
+
+
+<a name="253770404"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253770404" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253770404">(Sep 17 2021 at 16:40)</a>:</h4>
+<p>Cool, it works  :)</p>
+
+
+
+<a name="253771297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Running%20lean%20function%20from%20c%2B%2B/near/253771297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Running.20lean.20function.20from.20c.2B.2B.html#253771297">(Sep 17 2021 at 16:47)</a>:</h4>
+<p>Technically you should also check the result (though in this case, initialization cannot fail) and free it</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">lean_io_mark_end_initialization</span><span class="o">()</span><span class="bp">;</span>
+    <span class="k">if</span> <span class="o">(</span><span class="n">lean_io_result_is_ok</span><span class="o">(</span><span class="n">res</span><span class="o">))</span> <span class="o">{</span>
+      <span class="n">lean_dec_ref</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">lean_init_task_manager</span><span class="o">()</span><span class="bp">;</span>
+    <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+      <span class="n">lean_io_result_show_error</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">lean_dec_ref</span><span class="o">(</span><span class="n">res</span><span class="o">)</span><span class="bp">;</span>
+      <span class="n">throw</span> <span class="bp">...;</span>
+    <span class="o">}</span>
+</code></pre></div>
+<p>We might want to supply a helper function for doing that at some point.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

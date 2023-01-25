@@ -1,0 +1,782 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html">Mysterious array access performance</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="250877394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250877394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250877394">(Aug 27 2021 at 03:34)</a>:</h4>
+<p>I haven't yet managed to isolate the problem into an MWE, but I can roughly describe it: For some particular array <code>arr</code> I have observed that <code>readArray</code> is slow (~7 s) here:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">generateArray</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="gr">sorry</span>
+<span class="kd">def</span> <span class="n">readArray</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="o">:=</span> <span class="n">generateArray</span>
+  <span class="n">timeit</span> <span class="s2">"slow"</span> <span class="o">(</span><span class="n">readArray</span> <span class="n">arr</span><span class="o">)</span>
+</code></pre></div>
+<p>but fast (~0.2 ms) here:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">freshen</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="n">arr</span>
+  <span class="n">for</span> <span class="n">i</span> <span class="k">in</span> <span class="o">[</span><span class="mi">0</span><span class="o">:</span><span class="n">out.size</span><span class="o">]</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.setD</span> <span class="n">i</span> <span class="n">out</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+  <span class="n">out</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="o">:=</span> <span class="n">generateArray</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">←</span> <span class="n">freshen</span> <span class="n">arr</span>
+  <span class="n">timeit</span> <span class="s2">"fast"</span> <span class="o">(</span><span class="n">readArray</span> <span class="n">arr</span><span class="o">)</span>
+</code></pre></div>
+<p>What could cause this behavior? <code>readArray</code> is supposed to be fast and basically calls <code>arr[i]</code> for various values of <code>i</code> (it does not modify the array). <code>freshen</code> is a value level no-op but may do something interesting to the reference counts, but I don't see how that would affect the performance of <code>Array.get</code> so dramatically.</p>
+
+
+
+<a name="250878822"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250878822" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250878822">(Aug 27 2021 at 03:59)</a>:</h4>
+<p>Oh, even adding <code>let arr &lt;- if false then freshen arr else arr</code> makes it fast, so this seems like a compiler bug</p>
+
+
+
+<a name="250885304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250885304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250885304">(Aug 27 2021 at 05:28)</a>:</h4>
+<p>I seem to remember that the implementation of Perceus in Lean 4 takes a conservative approach for global variables (i.e., ones that might be shared between threads), where these always take the slow path for the reference count check. The <code>freshen</code> function certainly makes a local copy of <code>generateArray</code>, so it would avoid this, and perhaps <code>if arr &lt;- if false then freshen arr else arr</code> does too (though I'm somewhat dubious).  Maybe it'd be worth taking a look at the generated C code?</p>
+
+
+
+<a name="250886340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250886340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250886340">(Aug 27 2021 at 05:47)</a>:</h4>
+<p>Finally got a self contained example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">freshen</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:=</span> <span class="n">arr.setD</span> <span class="mi">0</span> <span class="o">()</span>
+
+<span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">es</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">e</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">out</span> <span class="bp">←</span> <span class="n">freshen</span> <span class="bp">$</span> <span class="n">Array.mkArray</span> <span class="mi">50000</span> <span class="o">()</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">arr</span> <span class="o">:=</span> <span class="n">build</span> <span class="n">out</span>
+  <span class="c1">-- arr ← freshen arr</span>
+  <span class="n">timeit</span> <span class="s2">"time"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250886717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250886717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250886717">(Aug 27 2021 at 05:53)</a>:</h4>
+<p>Note that all of the tests I've been doing so far have been in the interpreter, not the generated C code. For all I know things are completely different in the compiled version</p>
+
+
+
+<a name="250886817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250886817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250886817">(Aug 27 2021 at 05:54)</a>:</h4>
+<p>Here's a weird data point to add. If you change <code>freshen</code> to not be in the <code>IO</code> monad, then it runs fast again:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">freshen</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="n">arr</span>
+  <span class="n">for</span> <span class="n">i</span> <span class="k">in</span> <span class="o">[</span><span class="mi">0</span><span class="o">:</span><span class="n">out.size</span><span class="o">]</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.setD</span> <span class="n">i</span> <span class="n">out</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+  <span class="n">out</span>
+</code></pre></div>
+
+
+
+<a name="250886884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250886884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250886884">(Aug 27 2021 at 05:55)</a>:</h4>
+<p>Here <code>out &lt;- freshen ...</code> is just there to ensure that it and <code>arr</code> aren't hoisted into globals</p>
+
+
+
+<a name="250887191"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250887191" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250887191">(Aug 27 2021 at 06:00)</a>:</h4>
+<p>(It's kind of a nice surprise that <code>let out &lt;- freshen ...</code> or <code>let out := freshen ...</code> both work when <code>freshen</code> is using the identity monad.) I wonder why the <code>IO</code> monad slows things down so much later...</p>
+
+
+
+<a name="250887625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250887625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250887625">(Aug 27 2021 at 06:06)</a>:</h4>
+<p>This version of <code>freshen</code> also shows this slow/fast behavior depending on whether or not the <code>IO $</code> is present:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">freshen</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="bp">$</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="n">Array.empty</span>
+  <span class="n">for</span> <span class="n">i</span> <span class="k">in</span> <span class="o">[</span><span class="mi">0</span><span class="o">:</span><span class="n">arr.size</span><span class="o">]</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="n">arr</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+  <span class="n">out</span>
+</code></pre></div>
+
+
+
+<a name="250887766"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250887766" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250887766">(Aug 27 2021 at 06:08)</a>:</h4>
+<p>I think the only constraints on <code>freshen</code> to reproduce the bug are that it modifies the array and it is in the IO monad</p>
+
+
+
+<a name="250888042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888042">(Aug 27 2021 at 06:12)</a>:</h4>
+<p>This is a version where <code>freshen</code> doesn't modify the array, but the original array is global.  Removing <code>IO</code> makes it run fast.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">freshen</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:=</span> <span class="n">arr</span>
+
+<span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">es</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">e</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">def</span> <span class="n">arr</span> <span class="o">:=</span> <span class="n">freshen</span> <span class="bp">$</span> <span class="n">Array.mkArray</span> <span class="mi">50000</span> <span class="o">()</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">out</span> <span class="bp">&lt;-</span> <span class="n">arr</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">arr</span> <span class="o">:=</span> <span class="n">build</span> <span class="n">out</span>
+  <span class="c1">-- arr ← freshen arr</span>
+  <span class="n">timeit</span> <span class="s2">"time"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250888131"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888131" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888131">(Aug 27 2021 at 06:14)</a>:</h4>
+<p>in that version uncommenting the <code>arr ← freshen arr</code> doesn't make it fast though</p>
+
+
+
+<a name="250888163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888163">(Aug 27 2021 at 06:14)</a>:</h4>
+<p>but I guess that's not super relevant, there are a bunch of things that make it fast (i.e. dodge the bug conditions)</p>
+
+
+
+<a name="250888199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888199">(Aug 27 2021 at 06:15)</a>:</h4>
+<p>I didn't mean to leave that in.  I just thought it's weird that removing <code>IO</code> makes it fast, but this is still enough to make it slow.</p>
+
+
+
+<a name="250888282"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888282" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888282">(Aug 27 2021 at 06:16)</a>:</h4>
+<p>it looks like <code>@[inline]</code> on <code>arr</code> in your version also makes it fast</p>
+
+
+
+<a name="250888492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888492">(Aug 27 2021 at 06:19)</a>:</h4>
+<p>With this one, removing <code>timeit "time1"</code> makes it slow. Nice to see a Heisenbug...</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">es</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">e</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">def</span> <span class="n">arr</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:=</span> <span class="n">Array.mkArray</span> <span class="mi">50000</span> <span class="o">()</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">arr</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">timeit</span> <span class="s2">"time1"</span> <span class="bp">$</span> <span class="n">build</span> <span class="n">arr</span>
+  <span class="n">timeit</span> <span class="s2">"time2"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250888737"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250888737" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250888737">(Aug 27 2021 at 06:22)</a>:</h4>
+<p>I also can't seem to outline any part of the <code>time2</code> body without making it fast</p>
+
+
+
+<a name="250889244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889244">(Aug 27 2021 at 06:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250888492">said</a>:</p>
+<blockquote>
+<p>With this one, removing <code>timeit "time1"</code> makes it slow. Nice to see a Heisenbug...</p>
+</blockquote>
+<p>This one I can explain.</p>
+
+
+
+<a name="250889328"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889328" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889328">(Aug 27 2021 at 06:31)</a>:</h4>
+<p>Removing the <code>timeit</code> makes the line --- i.e.,<code>let arr &lt;- build arr</code> -- reduce to <code>let arr := build arr</code>.</p>
+
+
+
+<a name="250889420"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889420" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889420">(Aug 27 2021 at 06:32)</a>:</h4>
+<p>Whereas otherwise, the line reduces to <code>timeit "time1" $ build arr &gt;&gt;= fun arr =&gt; ...</code> (i.e., the rest of the code is in a function and is thus lazy).</p>
+
+
+
+<a name="250889437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889437">(Aug 27 2021 at 06:33)</a>:</h4>
+<p>I suspect that all these performances issues probably have to do with the absence/presence of laziness.</p>
+
+
+
+<a name="250889527"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889527" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889527">(Aug 27 2021 at 06:34)</a>:</h4>
+<p>Even making the most pessimistic assumptions, I don't see how 120 array accesses could take 2-6 seconds</p>
+
+
+
+<a name="250889555"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889555" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889555">(Aug 27 2021 at 06:35)</a>:</h4>
+<p>Because the <code>let arr := build arr</code> line results in the next line becoming:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">timeit</span> <span class="s2">"time2"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">build</span> <span class="n">arr</span><span class="o">)[</span><span class="n">ty</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="250889609"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889609" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889609">(Aug 27 2021 at 06:35)</a>:</h4>
+<p>i..e., it is rebuilding the array each step instead of using the same array across all steps.</p>
+
+
+
+<a name="250889620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889620">(Aug 27 2021 at 06:35)</a>:</h4>
+<p>whoa, it does that? That seems like a really bad optimization under most circumstances</p>
+
+
+
+<a name="250889680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889680">(Aug 27 2021 at 06:36)</a>:</h4>
+<p>It would be great if we could spot that in the IR</p>
+
+
+
+<a name="250889696"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889696" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889696">(Aug 27 2021 at 06:36)</a>:</h4>
+<p>This isn't an optimization. Lean is a strict language, that is what that <em>means</em> in a strict language.</p>
+
+
+
+<a name="250889735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889735">(Aug 27 2021 at 06:37)</a>:</h4>
+<p>A <code>let</code> definition is just an alias if its definition and use are in the same closure.</p>
+
+
+
+<a name="250889862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889862">(Aug 27 2021 at 06:39)</a>:</h4>
+<p>Though one could argue the problem is that <code>let arr &lt;- build arr</code> (monadic) becomes <code>let arr := build arr</code> (non-monadic), which is not great.</p>
+
+
+
+<a name="250889905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889905">(Aug 27 2021 at 06:39)</a>:</h4>
+<p>I believe <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> mentioned that the <code>Id</code> monad may become lazy at some point. If so, this problem would vanish.</p>
+
+
+
+<a name="250889906"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889906" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889906">(Aug 27 2021 at 06:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250889328">said</a>:</p>
+<blockquote>
+<p>Removing the <code>timeit</code> makes the line --- i.e.,<code>let arr &lt;- build arr</code> -- reduce to <code>let arr := build arr</code>.</p>
+</blockquote>
+<p>Could you explain this again? I'm not sure I follow.  Wouldn't this predict that the following would run fast?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">es</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">e</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">def</span> <span class="n">arr</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:=</span> <span class="n">Array.mkArray</span> <span class="mi">50000</span> <span class="o">()</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">arr</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">pure</span> <span class="bp">$</span> <span class="n">build</span> <span class="n">arr</span> <span class="c1">-- slow even if you add the IO annotations</span>
+  <span class="n">timeit</span> <span class="s2">"time2"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250889977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889977">(Aug 27 2021 at 06:40)</a>:</h4>
+<p>Even for non-monadic values, I don't think there is any situation that mandates that a computation should be duplicated</p>
+
+
+
+<a name="250889998"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250889998" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250889998">(Aug 27 2021 at 06:40)</a>:</h4>
+<p>the compiler is permitted to duplicate computation (in the sense that this will still produce correct results), but I would generally consider that a (performance) bug</p>
+
+
+
+<a name="250890057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890057">(Aug 27 2021 at 06:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span>  The IO annotation means nothing, <code>IO.pure</code> is not <code>noninline</code> (and IO is not opaque currently).</p>
+
+
+
+<a name="250890129"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890129" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890129">(Aug 27 2021 at 06:42)</a>:</h4>
+<p><code>IO</code> is just short for <code>EStateM IO.Error Unit</code> which can easily be reduced away.</p>
+
+
+
+<a name="250890157"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890157" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890157">(Aug 27 2021 at 06:43)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250889905">said</a>:</p>
+<blockquote>
+<p>I believe <span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> mentioned that the <code>Id</code> monad may become lazy at some point. If so, this problem would vanish.</p>
+</blockquote>
+<p>Well no, not if it's hoisting <code>:=</code> let statements in a monadic block</p>
+
+
+
+<a name="250890184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890184">(Aug 27 2021 at 06:43)</a>:</h4>
+<p>In fact, the <code>pure</code> of <code>EStateM</code> is marked <code>@[inline]</code> so it will be forcibly inlined.</p>
+
+
+
+<a name="250890233"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890233" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890233">(Aug 27 2021 at 06:44)</a>:</h4>
+<p>Then shouldn't this <code>noinline</code> version of <code>pure</code> circumvent that?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">es</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">e</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">def</span> <span class="n">arr</span> <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:=</span> <span class="n">Array.mkArray</span> <span class="mi">50000</span> <span class="o">()</span>
+
+<span class="kd">@[noinline]</span>
+<span class="kd">def</span> <span class="n">mypure</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">pure</span> <span class="n">x</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">arr</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">mypure</span> <span class="bp">$</span> <span class="n">build</span> <span class="n">arr</span>
+  <span class="n">timeit</span> <span class="s2">"time2"</span> <span class="bp">$</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250890316"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890316" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890316">(Aug 27 2021 at 06:46)</a>:</h4>
+<p>It actually does for me</p>
+
+
+
+<a name="250890386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890386">(Aug 27 2021 at 06:46)</a>:</h4>
+<p>I've confirmed <span class="user-mention" data-user-id="315577">@Mac</span> 's theory: starting from <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250886340">this version</a>, among the outputs of <code>set_option trace.compiler.ir.result true</code> is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Array.mapMUnsafe.map._at.bench._spec_2</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="n">obj</span><span class="o">)</span> <span class="o">(</span><span class="n">x_2</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_3</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_4</span> <span class="o">:</span> <span class="n">obj</span><span class="o">)</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span>
+  <span class="n">inc</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">build</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_6</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">USize.decLt</span> <span class="n">x_3</span> <span class="n">x_2</span><span class="bp">;</span>
+  <span class="n">case</span> <span class="n">x_6</span> <span class="o">:</span> <span class="n">u8</span> <span class="n">of</span>
+  <span class="n">Bool.false</span> <span class="bp">→</span>
+    <span class="n">dec</span> <span class="n">x_5</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_1</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_7</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">unsafeCast</span> <span class="bp">◾</span> <span class="bp">◾</span> <span class="n">x_4</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_7</span>
+  <span class="n">Bool.true</span> <span class="bp">→</span>
+    <span class="k">let</span> <span class="n">x_8</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">Array.uget</span> <span class="bp">◾</span> <span class="n">x_4</span> <span class="n">x_3</span> <span class="bp">◾;</span>
+    <span class="k">let</span> <span class="n">x_9</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="mi">0</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_10</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">Array.uset</span> <span class="bp">◾</span> <span class="n">x_4</span> <span class="n">x_3</span> <span class="n">x_9</span> <span class="bp">◾;</span>
+    <span class="k">let</span> <span class="n">x_11</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">unsafeCast</span> <span class="bp">◾</span> <span class="bp">◾</span> <span class="n">x_8</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_12</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">instInhabitedPUnit</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_13</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">Array.get</span><span class="bp">!</span> <span class="bp">◾</span> <span class="n">x_12</span> <span class="n">x_5</span> <span class="n">x_11</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_11</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_5</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_14</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="mi">1</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_15</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="n">USize.add</span> <span class="n">x_3</span> <span class="n">x_14</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_16</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">unsafeCast</span> <span class="bp">◾</span> <span class="bp">◾</span> <span class="n">x_13</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_17</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">Array.uset</span> <span class="bp">◾</span> <span class="n">x_10</span> <span class="n">x_3</span> <span class="n">x_16</span> <span class="bp">◾;</span>
+    <span class="k">let</span> <span class="n">x_18</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">Array.mapMUnsafe.map._at.bench._spec_2</span> <span class="n">x_1</span> <span class="n">x_2</span> <span class="n">x_15</span> <span class="n">x_17</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_18</span>
+</code></pre></div>
+<p>This is the inner loop for the map operation in <code>#[1, 2, 3, 4].map fun ty =&gt; arr[ty]</code>, and you can see <code>let x_5 : obj := build x_1</code>, so <code>build</code> will get called 120 times.</p>
+
+
+
+<a name="250890533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890533">(Aug 27 2021 at 06:48)</a>:</h4>
+<p>(It looks like I had something like 16 versions running simultaneously after editing, and of course the slow ones reported their times last.  My last example does run in less than a second.)</p>
+
+
+
+<a name="250890754"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890754" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890754">(Aug 27 2021 at 06:51)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span> Also note that <code>mypure</code> <em>requires</em> the <code>@[noinline]</code> annotation, it will run slow without it (i.e., it will get inlined).</p>
+
+
+
+<a name="250890862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890862">(Aug 27 2021 at 06:52)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> Yes, I'm agreeing with you. That's why I put <code>@[noinline]</code> there in the first place, and I misinterpreted how VS Code outputs to the console.</p>
+
+
+
+<a name="250890961"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890961" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890961">(Aug 27 2021 at 06:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span>  Sorry, I realized that <span aria-label="laughing" class="emoji emoji-1f606" role="img" title="laughing">:laughing:</span> . I was just elaborating that simply removing the <code>@[inline]</code> from the existing pure is insufficient, it will still get inlined.</p>
+
+
+
+<a name="250890995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250890995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250890995">(Aug 27 2021 at 06:54)</a>:</h4>
+<p>Note that, I believe, the following works (fast):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="n">arr</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="k">do</span> <span class="n">build</span> <span class="n">arr</span>
+  <span class="n">timeit</span> <span class="s2">"time2"</span> <span class="k">do</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="250891004"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891004" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891004">(Aug 27 2021 at 06:55)</a>:</h4>
+<p>From what I can tell, it goes wrong somewhere around when <code>mapMUnsafe</code> is specialized, where the function argument <code>fun ty =&gt; arr[ty]</code> has its dependencies inlined to <code>fun ty =&gt; (build n)[ty]</code></p>
+
+
+
+<a name="250891258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891258">(Aug 27 2021 at 06:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  imo, this is the expected behavior.</p>
+
+
+
+<a name="250891307"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891307" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891307">(Aug 27 2021 at 06:59)</a>:</h4>
+<p>Computations should be wrapped in monads, that is the point of them.</p>
+
+
+
+<a name="250891352"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891352" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891352">(Aug 27 2021 at 06:59)</a>:</h4>
+<p>executing let statements multiple times when they were not written that way is not expected behavior. Executing them not at all is okay, as well as lowering them over <code>case</code> statements, but lowering them into a loop is not okay</p>
+
+
+
+<a name="250891469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891469">(Aug 27 2021 at 07:00)</a>:</h4>
+<p>Going back to <span class="user-mention" data-user-id="110049">@Mario Carneiro</span>'s earlier example, inserting a <code>do</code> makes it fast, as @Mac would expect. But also does replacing the line with <code>let arr := build 50000</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">build</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">out</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[</span><span class="mi">0</span><span class="o">:</span><span class="n">n</span><span class="o">]</span> <span class="k">do</span>
+    <span class="n">out</span> <span class="o">:=</span> <span class="n">out.push</span> <span class="o">()</span>
+  <span class="n">out</span>
+
+<span class="kd">@[noinline]</span> <span class="kd">def</span> <span class="n">size</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">pure</span> <span class="mi">50000</span>
+
+<span class="kd">def</span> <span class="n">bench</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">},</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">())</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">arr</span> <span class="bp">&lt;-</span> <span class="k">do</span> <span class="n">build</span> <span class="o">(</span><span class="bp">←</span> <span class="n">size</span><span class="o">)</span>
+  <span class="n">timeit</span> <span class="s2">"time"</span> <span class="bp">$</span>
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span><span class="mi">30</span><span class="o">]</span> <span class="k">do</span>
+      <span class="n">f</span> <span class="bp">$</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">]</span><span class="bp">.</span><span class="n">map</span> <span class="k">fun</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">arr</span><span class="o">[</span><span class="n">ty</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">bench</span>
+</code></pre></div>
+
+
+
+<a name="250891566"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891566" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891566">(Aug 27 2021 at 07:00)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> To me, a <code>let x := </code> should be inlined at every <code>x</code> -- that is the expected behavior to me. I think of <code>let</code> as an alias.</p>
+
+
+
+<a name="250891571"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891571" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891571">(Aug 27 2021 at 07:00)</a>:</h4>
+<p>There are lots of optimizations that can lead to a monadic computation being turned into a pure computation after inlining, so using <code>&lt;-</code> does not help</p>
+
+
+
+<a name="250891573"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891573" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891573">(Aug 27 2021 at 07:00)</a>:</h4>
+<p>Re what Mario is saying, this is the basis for Haskell's monomorphism restriction, to prevent runtime blowup like this.</p>
+
+
+
+<a name="250891613"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891613" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891613">(Aug 27 2021 at 07:01)</a>:</h4>
+<p>So at least Philip Wadler finds this sort of thing to be unexpected (I believe he was the one who pushed for it)</p>
+
+
+
+<a name="250891615"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891615" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891615">(Aug 27 2021 at 07:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250891566">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> To me, a <code>let x := </code> should be inlined at every <code>x</code>, that is the expected behavior to me. I think of <code>let</code> as an alias.</p>
+</blockquote>
+<p>That is how things work in a lazy language, not a strict language. In ML <code>let</code> statements are executed in the order you wrote them</p>
+
+
+
+<a name="250891713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891713">(Aug 27 2021 at 07:02)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span> And the monomorphism restriction is probably one of the most frustrating (and probably hated) parts of Haskell. <span aria-label="laughing" class="emoji emoji-1f606" role="img" title="laughing">:laughing:</span>  Many of the language extensions in GHC are explicitly designed to get around it.</p>
+
+
+
+<a name="250891752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891752">(Aug 27 2021 at 07:03)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> Wait, not quite, in a lazy language like Haskell each variable has a secret reference cell that gets overwritten with the evaluated value. So it preserves the evaluate-once semantics.</p>
+
+
+
+<a name="250891856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891856">(Aug 27 2021 at 07:04)</a>:</h4>
+<p>If you want alias-like behavior, you should use <code>let f () := ...</code> and then use <code>f ()</code> where needed</p>
+
+
+
+<a name="250891882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891882">(Aug 27 2021 at 07:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> You literally inverted that.</p>
+
+
+
+<a name="250891914"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891914" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891914">(Aug 27 2021 at 07:05)</a>:</h4>
+<p><code>let f () := ...</code> is how you create a lazy reference.</p>
+
+
+
+<a name="250891921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891921">(Aug 27 2021 at 07:05)</a>:</h4>
+<p>yes</p>
+
+
+
+<a name="250891941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250891941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250891941">(Aug 27 2021 at 07:05)</a>:</h4>
+<p>A lazy reference is not an alias. It is the exact opposite of an alias.</p>
+
+
+
+<a name="250892006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892006">(Aug 27 2021 at 07:06)</a>:</h4>
+<p>although as kyle says, this differs from a haskell style lazy value because it isn't memoizing</p>
+
+
+
+<a name="250892059"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892059" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892059">(Aug 27 2021 at 07:07)</a>:</h4>
+<p>If by alias you mean the entire body of the definition is executed when the value is used, then <code>f () := </code> has the right behavior for this in lean</p>
+
+
+
+<a name="250892132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892132">(Aug 27 2021 at 07:08)</a>:</h4>
+<p>In fact, I would argue the point of the invention of <code>let</code> expressions in most programming languages was to create aliases (as previous kinds of assignment created stack variables).</p>
+
+
+
+<a name="250892179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892179">(Aug 27 2021 at 07:08)</a>:</h4>
+<p>I'm very confused by your usage of the word 'alias'</p>
+
+
+
+<a name="250892216"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892216" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892216">(Aug 27 2021 at 07:09)</a>:</h4>
+<p>most languages have a <code>let x := e</code> statement that actually runs the code on the right and stores it on the left</p>
+
+
+
+<a name="250892237"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892237" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892237">(Aug 27 2021 at 07:09)</a>:</h4>
+<p>I haven't seen true call by name outside algol and haskell</p>
+
+
+
+<a name="250892246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892246">(Aug 27 2021 at 07:09)</a>:</h4>
+<p>To me, an alias <code>x := y</code> means that everywhere the syntax <code>x</code> appears it is replaced with <code>y</code> (i.e., substituted, macro expanded, inline, whatever term you like).</p>
+
+
+
+<a name="250892290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892290">(Aug 27 2021 at 07:09)</a>:</h4>
+<p>yes, that's not what <code>let</code> means in almost any language</p>
+
+
+
+<a name="250892348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892348">(Aug 27 2021 at 07:10)</a>:</h4>
+<p>What Mario says</p>
+
+
+
+<a name="250892349"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892349" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892349">(Aug 27 2021 at 07:10)</a>:</h4>
+<p>That is, x is just an convenient abbreviation for y</p>
+
+
+
+<a name="250892360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892360">(Aug 27 2021 at 07:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> By bringing up the monomorphism restriction, I just mean to say that having <code>let</code>s that evaluate multiple times is surprising. The point is that typeclass-polymorphic functions have an implicit instance argument, which inhibits being able to memoize the value of a typeclass-polymorphic variable.  One way or another you have to make a decision how you're going to handle that (either way is fine, so long as it's documented).</p>
+<p>Mario's example of <code>let f () := ...</code> is sort of simulating what the monomorphism restriction is supposed to prevent.  Even when there's the basic sort of Haskell-style memoization, this ensures that each use of <code>f ()</code> is evaluated afresh every time, so it's like the body of the <code>let</code> was substituted in at each point.</p>
+
+
+
+<a name="250892523"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892523" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892523">(Aug 27 2021 at 07:12)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> Maybe I was a bit strict in my definition, I don't mean to say it has to be replaced with  <em>exactly</em>  y. It can also be replaced with some reduced/optimized form of <code>y</code>, but it shouldn't guarantee new storage.</p>
+
+
+
+<a name="250892580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892580">(Aug 27 2021 at 07:12)</a>:</h4>
+<p>It doesn't guarantee new storage, but it should at least guarantee that the right hand side is evaluated at most once for every evaluation of the surrounding context</p>
+
+
+
+<a name="250892707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892707">(Aug 27 2021 at 07:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> I disagree. I think the amount of times it evaluates its expression should be undefined.</p>
+
+
+
+<a name="250892809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892809">(Aug 27 2021 at 07:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> How do you do <em>any</em> practical functional programming in the pure part of a program that way?</p>
+
+
+
+<a name="250892812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892812">(Aug 27 2021 at 07:15)</a>:</h4>
+<p>well, the number of times a pure expression is evaluated is not an "observable property", so it isn't subject to any guarantees really, but as a quality-of-implementation matter it seems like a good principle to stick to to ensure predictable performance</p>
+
+
+
+<a name="250892817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892817">(Aug 27 2021 at 07:15)</a>:</h4>
+<p>That is, I don't think let should be use for computationally sensitive tasks (that should be the domain of monads).</p>
+
+
+
+<a name="250892882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892882">(Aug 27 2021 at 07:16)</a>:</h4>
+<p>that sounds perverse for a pure functional language</p>
+
+
+
+<a name="250892893"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892893" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892893">(Aug 27 2021 at 07:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span> I am not saying it can't, I am just saying it shouldn't be required.</p>
+
+
+
+<a name="250892940"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250892940" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250892940">(Aug 27 2021 at 07:17)</a>:</h4>
+<p>This is a bug. Could you please create an issue using the smallest example that exposes the problem?</p>
+
+
+
+<a name="250893023"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893023" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893023">(Aug 27 2021 at 07:18)</a>:</h4>
+<p>Well, there is the second verdict (after Sebastian's).  <span aria-label="laughing" class="emoji emoji-1f606" role="img" title="laughing">:laughing:</span></p>
+
+
+
+<a name="250893055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893055">(Aug 27 2021 at 07:18)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> is the bug impacting mathport?</p>
+
+
+
+<a name="250893108"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893108" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893108">(Aug 27 2021 at 07:19)</a>:</h4>
+<p>it is, but the discussion here has unearthed a half dozen workarounds (it's a fragile bug), so I don't think it will be a problem</p>
+
+
+
+<a name="250893247"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893247" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893247">(Aug 27 2021 at 07:20)</a>:</h4>
+<p><span class="user-mention" data-user-id="306601">@Kyle Miller</span> Anyway, to me,  pure code should be pure -- it should not care about side effects (and I consider runtime / number of computations to be a side-effect). Obviously, the goal is to none-the-less run it as fast as possible, but the computational aspect should not be part of the pure code's specification.</p>
+
+
+
+<a name="250893324"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893324" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893324">(Aug 27 2021 at 07:21)</a>:</h4>
+<p>That is, pure code should not have defined runtime behaviors.</p>
+
+
+
+<a name="250893418"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893418" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893418">(Aug 27 2021 at 07:22)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/issues/646">leanprover/lean4#646</a></p>
+
+
+
+<a name="250893431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893431">(Aug 27 2021 at 07:22)</a>:</h4>
+<p>This is already to an extent true for Lean as the interpreter, kernel, and compiler all produce very different code with different runtime behaviors.</p>
+
+
+
+<a name="250893520"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250893520" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250893520">(Aug 27 2021 at 07:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250893418">said</a>:</p>
+<blockquote>
+<p><a href="https://github.com/leanprover/lean4/issues/646">leanprover/lean4#646</a></p>
+</blockquote>
+<p>Thanks. I will take a look when I wake up</p>
+
+
+
+<a name="250894619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250894619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250894619">(Aug 27 2021 at 07:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Mysterious.20array.20access.20performance/near/250892237">said</a>:</p>
+<blockquote>
+<p>I haven't seen true call by name outside algol and haskell</p>
+</blockquote>
+<p>It took me a while to remember what it was called, but Kernel (a scheme variant) has <code>$vau</code>, a primitive that lets you implement special forms, though it's not quite call-by-name since you do have to use an <code>eval</code> form to evaluate the passed-in expressions.  The interesting thing is that it makes it so that things that are traditionally macros can be used as first-class functions.</p>
+
+
+
+<a name="250895025"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250895025" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250895025">(Aug 27 2021 at 07:39)</a>:</h4>
+<p>it's true that in languages with a macro functionality like C / Rust / Lisp / Scheme you can implement call by name as a call to a macro (where "let" is a macro definition and use is a call to the macro)</p>
+
+
+
+<a name="250972207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Mysterious%20array%20access%20performance/near/250972207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Mysterious.20array.20access.20performance.html#250972207">(Aug 27 2021 at 18:16)</a>:</h4>
+<p>Pushed a temporary fix for issue <a href="https://github.com/leanprover-community/mathlib/issues/646">#646</a>.<br>
+The perfect fix will only happen when we port the remaining parts of the compiler (still written in C++) to Lean.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

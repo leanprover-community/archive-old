@@ -1,0 +1,554 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/index.html">new members</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html">Turning bundled homomorphism equalities into pointwise ones</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="230293209"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230293209" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230293209">(Mar 15 2021 at 04:16)</a>:</h4>
+<p>I'm playing around with some stuff regarding abelian categories, and I'm getting stuck trying to turn a proof that two homs in <code>CommAddGroup</code> are equal into one that I can apply pointwise. More specifically, I have a proof <code>F.F.map f ≫ α.app Y = α.app X ≫ G.F.map f</code> in my hands, and I want to be able to turn this into something of the form that <code>(α.app Y) ((F.F.map f) x) = (G.F.map f) ((α.app X) x)</code>. I've tried <code>congr_fun</code>, but it yells about some type mismatch with metavariables.</p>
+<p>The code in question:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c">/-</span><span class="cm"></span>
+<span class="cm">Copyright (c) 2020 Reed Mullanix. All rights reserved.</span>
+<span class="cm">Released under Apache 2.0 license as described in the file LICENSE.</span>
+<span class="cm">Authors: Reed Mullanix</span>
+<span class="cm">-/</span>
+
+
+<span class="kn">import</span> <span class="n">algebra.category.Group.basic</span>
+<span class="kn">import</span> <span class="n">algebra.category.Group.abelian</span>
+
+<span class="kn">import</span> <span class="n">category_theory.fin_category</span>
+<span class="kn">import</span> <span class="n">category_theory.full_subcategory</span>
+<span class="kn">import</span> <span class="n">category_theory.functor_category</span>
+<span class="kn">import</span> <span class="n">category_theory.limits.shapes.finite_limits</span>
+
+<span class="kn">import</span> <span class="n">category_theory.preadditive</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.basic</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.exact</span>
+
+<span class="kn">open</span> <span class="n">AddCommGroup</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+<span class="kn">open</span> <span class="n">category_theory.limits</span>
+
+<span class="kn">namespace</span> <span class="n">category_theory.abelian</span>
+
+<span class="kd">universes</span> <span class="n">v</span> <span class="n">u₁</span> <span class="n">u₂</span>
+
+<span class="kn">section</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">D</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₂</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">D</span><span class="o">]</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">First, let us start by defining left exact functors, and some simple properties</span>
+<span class="cm">-/</span>
+<span class="kd">structure</span> <span class="n">left_exact_functor</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">D</span><span class="o">)</span>
+<span class="o">(</span><span class="n">preserves_finite_limits</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">{</span><span class="n">J</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">[</span><span class="bp">𝒥</span> <span class="o">:</span> <span class="n">small_category</span> <span class="n">J</span><span class="o">]</span> <span class="o">[</span><span class="bp">@</span><span class="n">fin_category</span> <span class="n">J</span> <span class="bp">𝒥</span><span class="o">],</span> <span class="kd">by</span> <span class="n">exactI</span> <span class="n">preserves_limits_of_shape</span> <span class="n">J</span> <span class="n">F</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="n">left_exact_functors</span> <span class="o">:</span> <span class="n">category</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">D</span><span class="o">):=</span>
+<span class="n">induced_category.category</span> <span class="n">left_exact_functor.F</span>
+
+<span class="kd">end</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">preadditive</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">})</span> <span class="o">:=</span>
+<span class="o">{</span><span class="n">hom_group</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">F</span> <span class="n">G</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">add</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">α</span> <span class="n">β</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span>
+      <span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">+</span> <span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">map_zero'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">,</span>
+        <span class="n">map_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+          <span class="n">intros</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span>
+          <span class="n">simp</span><span class="o">,</span>
+          <span class="n">exact</span> <span class="n">add_add_add_comm</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">y</span><span class="o">)</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">y</span><span class="o">)</span>
+        <span class="kd">end</span>
+      <span class="o">},</span>
+      <span class="n">naturality'</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">X</span> <span class="n">Y</span> <span class="n">f</span><span class="o">,</span>
+        <span class="n">ext</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="c1">-- Stuck right here! This is the proof that I want to make into a pointwise one.</span>
+        <span class="k">have</span> <span class="n">α_nat</span> <span class="o">:=</span> <span class="o">(</span><span class="n">α.naturality</span> <span class="n">f</span><span class="o">),</span>
+        <span class="gr">sorry</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">add_assoc</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">zero</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">zero_add</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">add_zero</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">neg</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">add_left_neg</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">add_comm</span> <span class="o">:=</span> <span class="n">_</span>
+  <span class="o">},</span>
+  <span class="n">add_comp'</span> <span class="o">:=</span> <span class="n">_</span><span class="o">,</span>
+  <span class="n">comp_add'</span> <span class="o">:=</span> <span class="n">_</span> <span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">category_theory.abelian</span>
+</code></pre></div>
+
+
+
+<a name="230295107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230295107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230295107">(Mar 15 2021 at 04:52)</a>:</h4>
+<p>I don't know if there are helper lemmas for this, but you can brute force your way through this by using <code>change</code></p>
+
+
+
+<a name="230295115"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230295115" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230295115">(Mar 15 2021 at 04:53)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">change</span> <span class="o">(</span><span class="n">a</span> <span class="bp">&gt;&gt;</span> <span class="n">b</span><span class="o">)</span> <span class="n">x</span> <span class="bp">=</span> <span class="o">(</span><span class="n">c</span> <span class="bp">&gt;&gt;</span> <span class="n">d</span><span class="o">)</span> <span class="n">x</span><span class="o">,</span>
+</code></pre></div>
+
+
+
+<a name="230295121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230295121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230295121">(Mar 15 2021 at 04:53)</a>:</h4>
+<p>and then rewrite with <code>alpha.naturality</code></p>
+
+
+
+<a name="230301807"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230301807" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230301807">(Mar 15 2021 at 06:50)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/add_monoid_hom.congr_fun/src">src#add_monoid_hom.congr_fun</a></p>
+
+
+
+<a name="230444985"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230444985" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230444985">(Mar 16 2021 at 01:00)</a>:</h4>
+<p>Managed to prove everything but there is a loooot of <code>change</code> magic involved to get things to compute nicely. Feels like I'm missing some obvious tool:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c">/-</span><span class="cm"></span>
+<span class="cm">Copyright (c) 2020 Reed Mullanix. All rights reserved.</span>
+<span class="cm">Released under Apache 2.0 license as described in the file LICENSE.</span>
+<span class="cm">Authors: Reed Mullanix</span>
+<span class="cm">-/</span>
+
+
+<span class="kn">import</span> <span class="n">algebra.category.Group.basic</span>
+<span class="kn">import</span> <span class="n">algebra.category.Group.abelian</span>
+
+<span class="kn">import</span> <span class="n">category_theory.fin_category</span>
+<span class="kn">import</span> <span class="n">category_theory.full_subcategory</span>
+<span class="kn">import</span> <span class="n">category_theory.functor_category</span>
+<span class="kn">import</span> <span class="n">category_theory.limits.shapes.finite_limits</span>
+
+<span class="kn">import</span> <span class="n">category_theory.preadditive</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.basic</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.exact</span>
+
+<span class="kn">open</span> <span class="n">AddCommGroup</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+<span class="kn">open</span> <span class="n">category_theory.limits</span>
+
+<span class="kn">namespace</span> <span class="n">category_theory.abelian</span>
+
+<span class="kd">universes</span> <span class="n">v</span> <span class="n">u₁</span> <span class="n">u₂</span>
+
+<span class="kn">section</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">D</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₂</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">D</span><span class="o">]</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">First, let us start by defining left exact functors, and some simple properties</span>
+<span class="cm">-/</span>
+<span class="kd">structure</span> <span class="n">left_exact_functor</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">D</span><span class="o">)</span>
+<span class="o">(</span><span class="n">preserves_finite_limits</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">{</span><span class="n">J</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">[</span><span class="bp">𝒥</span> <span class="o">:</span> <span class="n">small_category</span> <span class="n">J</span><span class="o">]</span> <span class="o">[</span><span class="bp">@</span><span class="n">fin_category</span> <span class="n">J</span> <span class="bp">𝒥</span><span class="o">],</span> <span class="kd">by</span> <span class="n">exactI</span> <span class="n">preserves_limits_of_shape</span> <span class="n">J</span> <span class="n">F</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="n">left_exact_functors</span> <span class="o">:</span> <span class="n">category</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">D</span><span class="o">):=</span>
+<span class="n">induced_category.category</span> <span class="n">left_exact_functor.F</span>
+
+<span class="kd">def</span> <span class="n">natural_transformation_add</span> <span class="o">[</span><span class="n">preadditive</span> <span class="n">D</span><span class="o">]</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">D</span><span class="o">}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span> <span class="n">α.app</span> <span class="n">X</span> <span class="bp">+</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">}</span>
+
+<span class="kd">end</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">nat_add</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">+</span> <span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">map_zero'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">,</span>
+      <span class="n">map_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">exact</span> <span class="n">add_add_add_comm</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">y</span><span class="o">)</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">y</span><span class="o">)</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">naturality'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">X</span> <span class="n">Y</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">ext</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="c1">-- We have to do a bit of a silly dance here to get the naturality proofs to work pointwise.</span>
+      <span class="k">have</span> <span class="n">α_nat</span> <span class="o">:</span> <span class="n">α.app</span> <span class="n">Y</span> <span class="o">(</span><span class="n">F.F.map</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">G.F.map</span> <span class="n">f</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="n">add_monoid_hom.congr_fun</span> <span class="o">(</span><span class="n">α.naturality</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span><span class="o">,</span>
+      <span class="k">have</span> <span class="n">β_nat</span> <span class="o">:</span> <span class="n">β.app</span> <span class="n">Y</span> <span class="o">(</span><span class="n">F.F.map</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">G.F.map</span> <span class="n">f</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="n">add_monoid_hom.congr_fun</span> <span class="o">(</span><span class="n">β.naturality</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">α_nat</span><span class="o">,</span> <span class="n">β_nat</span><span class="o">]</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">nat_zero</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span>
+  <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">nat_neg</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="bp">-</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">map_zero'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">,</span>
+      <span class="n">map_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">g₁</span> <span class="n">g₂</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_comm</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">naturality'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">X</span> <span class="n">Y</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="c1">-- We have to do a bit of a silly dance here to get the naturality proofs to work pointwise.</span>
+      <span class="k">have</span> <span class="n">α_nat</span> <span class="o">:</span> <span class="n">α.app</span> <span class="n">Y</span> <span class="o">(</span><span class="n">F.F.map</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">G.F.map</span> <span class="n">f</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="n">add_monoid_hom.congr_fun</span> <span class="o">(</span><span class="n">α.naturality</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">exact</span> <span class="n">α_nat</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">nat_add_homo</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="n">C</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="bp">=</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">begin</span>
+  <span class="n">unfold</span> <span class="n">nat_add</span><span class="o">,</span>
+  <span class="n">ext</span><span class="o">,</span>
+  <span class="n">simp</span>
+<span class="kd">end</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">preadditive</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">})</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">hom_group</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">F</span> <span class="n">G</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">add</span> <span class="o">:=</span> <span class="n">nat_add</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">add_assoc</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_assoc</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">zero</span> <span class="o">:=</span> <span class="n">nat_zero</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">zero_add</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">nat_zero</span> <span class="n">C</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_zero</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">add_zero</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_zero</span> <span class="n">C</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_zero</span><span class="o">,</span>
+        <span class="n">simp</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">neg</span> <span class="o">:=</span> <span class="n">nat_neg</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">add_left_neg</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">nat_neg</span> <span class="n">C</span> <span class="n">α</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_neg</span><span class="o">,</span>
+        <span class="n">simp</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">add_comm</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span> <span class="n">β</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">β</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_comm</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">add_comp'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="c1">-- Even more golf to get this to a place where simp can handle it</span>
+      <span class="n">change</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">((</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="o">((</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">β</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span><span class="o">)</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="n">change</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">refl</span>
+    <span class="kd">end</span><span class="o">,</span>
+    <span class="n">comp_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">β</span> <span class="n">γ</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="n">change</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">refl</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">category_theory.abelian</span>
+</code></pre></div>
+
+
+
+<a name="230445781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230445781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230445781">(Mar 16 2021 at 01:11)</a>:</h4>
+<p>Likely we can add a lemma (even with <code>@[simp]</code>) for any category where the morphisms have a function coercion, for the "naturality applied at a point" statement. This may be less painful.</p>
+
+
+
+<a name="230446028"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230446028" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230446028">(Mar 16 2021 at 01:14)</a>:</h4>
+<p>Hmm, maybe you can't make it that general.</p>
+
+
+
+<a name="230446029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230446029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230446029">(Mar 16 2021 at 01:14)</a>:</h4>
+<p>Seems reasonable to me, but I'm pretty inexperienced with exactly how/when lean decides to compute things down.</p>
+
+
+
+<a name="230446111"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230446111" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230446111">(Mar 16 2021 at 01:15)</a>:</h4>
+<p>Maybe something about concrete categories could work?</p>
+
+
+
+<a name="230446121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230446121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230446121">(Mar 16 2021 at 01:15)</a>:</h4>
+<p>In any case, doing it generally is probably best punted until someone works out how to do enriched categories nicely. :-)</p>
+
+
+
+<a name="230446257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230446257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230446257">(Mar 16 2021 at 01:18)</a>:</h4>
+<p>Fair enough <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span> I am a bit confused as to why <code>dsimp</code> cant handle this, but I can keep throwing <code>change</code> around blindly so it isn't a blocker</p>
+
+
+
+<a name="230447010"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447010" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447010">(Mar 16 2021 at 01:28)</a>:</h4>
+<p>Here is a bit of a simplification up to <code>nat_add</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c">/-</span><span class="cm"></span>
+<span class="cm">Copyright (c) 2020 Reed Mullanix. All rights reserved.</span>
+<span class="cm">Released under Apache 2.0 license as described in the file LICENSE.</span>
+<span class="cm">Authors: Reed Mullanix</span>
+<span class="cm">-/</span>
+
+
+<span class="kn">import</span> <span class="n">algebra.category.Group.basic</span>
+<span class="kn">import</span> <span class="n">algebra.category.Group.abelian</span>
+
+<span class="kn">import</span> <span class="n">category_theory.fin_category</span>
+<span class="kn">import</span> <span class="n">category_theory.full_subcategory</span>
+<span class="kn">import</span> <span class="n">category_theory.functor_category</span>
+<span class="kn">import</span> <span class="n">category_theory.limits.shapes.finite_limits</span>
+
+<span class="kn">import</span> <span class="n">category_theory.preadditive</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.basic</span>
+<span class="kn">import</span> <span class="n">category_theory.abelian.exact</span>
+
+<span class="kn">open</span> <span class="n">AddCommGroup</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+<span class="kn">open</span> <span class="n">category_theory.limits</span>
+
+<span class="kd">universes</span> <span class="n">v</span> <span class="n">u₁</span> <span class="n">u₂</span>
+
+<span class="kn">namespace</span> <span class="n">category_theory.nat_trans</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">}</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+
+<span class="c1">-- TODO generalize this to any concrete category?</span>
+<span class="kd">@[simp]</span>
+<span class="kd">lemma</span> <span class="n">naturality_apply</span>
+  <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">AddCommGroup</span><span class="o">}</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">⦃</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="n">C</span><span class="o">⦄</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">⟶</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">F.obj</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">α.app</span> <span class="n">Y</span> <span class="o">(</span><span class="n">F.map</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">G.map</span> <span class="n">f</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">add_monoid_hom.congr_fun</span> <span class="o">(</span><span class="n">α.naturality</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span>
+
+<span class="kd">end</span> <span class="n">category_theory.nat_trans</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+
+<span class="kn">namespace</span> <span class="n">category_theory.abelian</span>
+
+<span class="kn">section</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">D</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₂</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">D</span><span class="o">]</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">First, let us start by defining left exact functors, and some simple properties</span>
+<span class="cm">-/</span>
+<span class="kd">structure</span> <span class="n">left_exact_functor</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">D</span><span class="o">)</span>
+<span class="o">(</span><span class="n">preserves_finite_limits</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">{</span><span class="n">J</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">[</span><span class="bp">𝒥</span> <span class="o">:</span> <span class="n">small_category</span> <span class="n">J</span><span class="o">]</span> <span class="o">[</span><span class="bp">@</span><span class="n">fin_category</span> <span class="n">J</span> <span class="bp">𝒥</span><span class="o">],</span> <span class="kd">by</span> <span class="n">exactI</span> <span class="n">preserves_limits_of_shape</span> <span class="n">J</span> <span class="n">F</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="n">left_exact_functors</span> <span class="o">:</span> <span class="n">category</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">D</span><span class="o">):=</span>
+<span class="n">induced_category.category</span> <span class="n">left_exact_functor.F</span>
+
+<span class="kd">def</span> <span class="n">natural_transformation_add</span> <span class="o">[</span><span class="n">preadditive</span> <span class="n">D</span><span class="o">]</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">⥤</span> <span class="n">D</span><span class="o">}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span> <span class="n">α.app</span> <span class="n">X</span> <span class="bp">+</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">}</span>
+
+<span class="kd">end</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">nat_add</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">+</span> <span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">map_zero'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">,</span>
+      <span class="n">map_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span>
+        <span class="n">simp</span> <span class="o">[</span><span class="n">add_add_add_comm</span><span class="o">],</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">naturality'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">X</span> <span class="n">Y</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">ext</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">nat_zero</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span>
+  <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">nat_neg</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">X</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="bp">-</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">map_zero'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">,</span>
+      <span class="n">map_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">g₁</span> <span class="n">g₂</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_comm</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">naturality'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">X</span> <span class="n">Y</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="c1">-- We have to do a bit of a silly dance here to get the naturality proofs to work pointwise.</span>
+      <span class="k">have</span> <span class="n">α_nat</span> <span class="o">:</span> <span class="n">α.app</span> <span class="n">Y</span> <span class="o">(</span><span class="n">F.F.map</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">G.F.map</span> <span class="n">f</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="n">add_monoid_hom.congr_fun</span> <span class="o">(</span><span class="n">α.naturality</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">exact</span> <span class="n">α_nat</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">nat_add_homo</span> <span class="o">{</span><span class="n">F</span> <span class="n">G</span> <span class="o">:</span> <span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">}}</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">⟶</span> <span class="n">G</span><span class="o">)</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="n">C</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="bp">=</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">begin</span>
+  <span class="n">unfold</span> <span class="n">nat_add</span><span class="o">,</span>
+  <span class="n">ext</span><span class="o">,</span>
+  <span class="n">simp</span>
+<span class="kd">end</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">preadditive</span> <span class="o">(</span><span class="n">left_exact_functor</span> <span class="n">C</span> <span class="n">AddCommGroup.</span><span class="o">{</span><span class="n">v</span><span class="o">})</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">hom_group</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">F</span> <span class="n">G</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">add</span> <span class="o">:=</span> <span class="n">nat_add</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">add_assoc</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_assoc</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">zero</span> <span class="o">:=</span> <span class="n">nat_zero</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">zero_add</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">nat_zero</span> <span class="n">C</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_zero</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">add_zero</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_zero</span> <span class="n">C</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_zero</span><span class="o">,</span>
+        <span class="n">simp</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">neg</span> <span class="o">:=</span> <span class="n">nat_neg</span> <span class="n">C</span><span class="o">,</span>
+      <span class="n">add_left_neg</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">nat_neg</span> <span class="n">C</span> <span class="n">α</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">unfold</span> <span class="n">nat_neg</span><span class="o">,</span>
+        <span class="n">simp</span>
+      <span class="kd">end</span><span class="o">,</span>
+      <span class="n">add_comm</span> <span class="o">:=</span> <span class="kd">begin</span>
+        <span class="n">intros</span> <span class="n">α</span> <span class="n">β</span><span class="o">,</span>
+        <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span> <span class="bp">=</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">β</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+        <span class="n">simp</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">add_comm</span> <span class="n">_</span> <span class="n">_</span><span class="o">]</span>
+      <span class="kd">end</span>
+    <span class="o">},</span>
+    <span class="n">add_comp'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="c1">-- Even more golf to get this to a place where simp can handle it</span>
+      <span class="n">change</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">((</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="o">((</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">β</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span><span class="o">)</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="n">change</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">β.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">refl</span>
+    <span class="kd">end</span><span class="o">,</span>
+    <span class="n">comp_add'</span> <span class="o">:=</span> <span class="kd">begin</span>
+      <span class="n">intros</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span> <span class="n">α</span> <span class="n">β</span> <span class="n">γ</span><span class="o">,</span>
+      <span class="n">ext</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">change</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="n">β</span> <span class="n">γ</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">nat_add</span> <span class="n">C</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="bp">≫</span> <span class="n">γ</span><span class="o">))</span><span class="bp">.</span><span class="n">app</span> <span class="n">X</span> <span class="n">g</span><span class="o">,</span>
+      <span class="n">simp</span><span class="o">,</span>
+      <span class="n">change</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">=</span> <span class="n">β.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">)</span> <span class="bp">+</span> <span class="n">γ.app</span> <span class="n">X</span> <span class="o">(</span><span class="n">α.app</span> <span class="n">X</span> <span class="n">g</span><span class="o">),</span>
+      <span class="n">refl</span>
+    <span class="kd">end</span>
+  <span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">category_theory.abelian</span>
+</code></pre></div>
+
+
+
+<a name="230447102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447102">(Mar 16 2021 at 01:30)</a>:</h4>
+<p>I get a timeout on the last instance: you should break it into smaller pieces.</p>
+
+
+
+<a name="230447184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447184">(Mar 16 2021 at 01:31)</a>:</h4>
+<p>Ah, so the basic problem is that you are making <code>def</code>s without corresponding simp lemmas.</p>
+
+
+
+<a name="230447195"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447195" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447195">(Mar 16 2021 at 01:31)</a>:</h4>
+<p>Just try sticking <code>@[simps]</code> on <code>nat_add</code> and <code>nat_zero</code>.</p>
+
+
+
+<a name="230447204"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447204" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447204">(Mar 16 2021 at 01:31)</a>:</h4>
+<p>Everything will be infinitely easier. :-)</p>
+
+
+
+<a name="230447296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230447296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230447296">(Mar 16 2021 at 01:33)</a>:</h4>
+<p>Anytime you find yourself using <code>change</code> or <code>unfold</code>, you should be thinking "how could I have got <code>dsimp</code> or <code>simp</code> to do this itself", and the answer is nearly always "write more <code>@[simp]</code> lemmas.</p>
+
+
+
+<a name="230464120"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Turning%20bundled%20homomorphism%20equalities%20into%20pointwise%20ones/near/230464120" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Turning.20bundled.20homomorphism.20equalities.20into.20pointwise.20ones.html#230464120">(Mar 16 2021 at 06:09)</a>:</h4>
+<p>Welp, adding <code>@[simps]</code> seems to be the magic ingredient I was missing! Breaking up the preadditive instance is a good call, bad habit of mine.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

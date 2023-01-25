@@ -1,0 +1,394 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/to_additive.20issues.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html">to_additive issues</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="311782547"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311782547" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311782547">(Nov 23 2022 at 09:16)</a>:</h4>
+<p><code>to_additive</code> has been through the ringer recently. Let me throw another punch or two.</p>
+<p>In <code>Algebra.Group.Defs</code> the <code>to_additive</code> attributes for <code>HPow</code> are wrong which leads to errors when converting from <code>pow</code> to <code>smul</code> where it complains about <code>HMul.hMul</code>. The first issue is to recognize that the argument reordering is wrong for <code>HPow.hPow</code> (it should be <code>1 5</code>). However, that doesn't lead to a complete fix because <code>Pow</code> is really the heterogeneous <code>HPow</code> under the hood.</p>
+<p>I came up with a fix: Define a heterogeneous scalar multiplication class <code>HSmul</code> with field <code>hSmul</code>, then make <code>•</code> notation for <code>HSmul.hSmul</code> and provide an instance <code>instHSmul</code> to mirror things like <code>instHPow</code>. Of course, we could do the same thing for <code>Vadd</code> if we wanted / needed, but I feel this is less pressing. Then all the translation seems to work.</p>
+<p>This allows the successful(∗) fix of the note lower in this file:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- FIXME The lemmas in this section should be done by `to_additive` below, but it fails.</span>
+</code></pre></div>
+<p>What do we think of this? Should I implement it?</p>
+
+
+
+<a name="311783905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311783905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311783905">(Nov 23 2022 at 09:25)</a>:</h4>
+<p>Regarding the (∗): it actually <em>doesn't</em> work for <code>succ_nsmul</code>, but for a different reason. With the above fix implemented, <code>to_additive</code> fails when trying to additivize <code>pow_succ</code> into <code>succ_nsmul</code> because it sees the <code>1</code> and incorrectly changes it into <code>0</code> (here it is incorrect because it occurs as <code>n + 1</code>, so it really represents <code>n.succ</code>). Note that <code>to_additive</code> in Lean 3 correctly additivizes this declaration.</p>
+<p>This happens despite the fact that there is a note in the file about <code>add_monoid</code>s that:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c">/-</span><span class="cm"> In the definition, we use `n.succ` instead of `n + 1` in the `nsmul_succ'` and `npow_succ'` fields</span>
+<span class="cm">to make sure that `to_additive` is not confused (otherwise, it would try to convert `1 : ℕ`</span>
+<span class="cm">to `0 : ℕ`). -/</span>
+</code></pre></div>
+<p>Moreover, even though in Lean 4 we still use <code>n.succ</code> in the definition of <code>AddMonoid</code> I think <code>to_additive</code> still manages to see a <code>1</code> somehow and converts it into a <code>0</code> (this is based on trying to port <code>Algebra.Group.InjSurj</code> and noting that with the fix in the previous post, <code>to_additive</code> fails to additivize in certain situations for what I believe to be this reason).</p>
+
+
+
+<a name="311785784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311785784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311785784">(Nov 23 2022 at 09:37)</a>:</h4>
+<p>What is <code>HPow</code> used for?</p>
+
+
+
+<a name="311786022"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311786022" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311786022">(Nov 23 2022 at 09:38)</a>:</h4>
+<p>Lean 4 core has all kinds of heterogeneous operations <code>HMul</code>, <code>HAdd</code>, <code>HPow</code> and the notations are actually defined on these type classes, not on <code>Mul</code>, <code>Add</code>, and <code>Pow</code>, but the latter have instances of the former, so they inherit the notation.</p>
+
+
+
+<a name="311786321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311786321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311786321">(Nov 23 2022 at 09:40)</a>:</h4>
+<p>If you wanted, you could use it get it a pow functions <code>ℕ → ℚ → ℝ</code> (with junk values for negative powers). I'm not saying we should do this, only that it's possible.</p>
+
+
+
+<a name="311786504"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311786504" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311786504">(Nov 23 2022 at 09:41)</a>:</h4>
+<p>so <code>HSMul</code> is <code>HMul</code>, right?</p>
+
+
+
+<a name="311787006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311787006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311787006">(Nov 23 2022 at 09:44)</a>:</h4>
+<p>Well, yes and no? They are essentially the same (i.e., structures with a single function <code>α → β → γ</code>), but their respective functions get different notation <code>•</code> vs. <code>*</code>.</p>
+
+
+
+<a name="311787318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311787318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311787318">(Nov 23 2022 at 09:46)</a>:</h4>
+<p>So they are the same and / or different in precisely the same ways as <code>HMul</code>, <code>HAdd</code> and <code>HPow</code>.</p>
+
+
+
+<a name="311787424"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311787424" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311787424">(Nov 23 2022 at 09:47)</a>:</h4>
+<p>Anyway, I need to go to bed. Hopefully while I sleep a few hours people can discuss this a bit.</p>
+
+
+
+<a name="311787861"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311787861" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311787861">(Nov 23 2022 at 09:50)</a>:</h4>
+<p>Just to emphasize one point about why I think we need this type class <code>HSmul</code>: if we don't have it, what is the additivization of <code>instHPow</code> (which is necessary to have)?</p>
+
+
+
+<a name="311795179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311795179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311795179">(Nov 23 2022 at 10:33)</a>:</h4>
+<p>I'll take a look today. <code>1 : ℕ</code> should not be transformed to <code>0</code> by <code>to_additive</code> for a long time already.</p>
+
+
+
+<a name="311798076"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311798076" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311798076">(Nov 23 2022 at 10:50)</a>:</h4>
+<p>I don't think <code>instHPow</code> makes sense in this generality</p>
+
+
+
+<a name="311828521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311828521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311828521">(Nov 23 2022 at 13:44)</a>:</h4>
+<p>Did we discuss that we don't want to use <code>HMul</code> for scalar multiplication? If we do, <code>HMul</code> could be the additive analogue of <code>HPow</code>.</p>
+
+
+
+<a name="311830097"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311830097" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311830097">(Nov 23 2022 at 13:52)</a>:</h4>
+<p>There are currently multiple issues with not translating multiplicative things on <code>ℕ</code> with additive things (both in the code and in the attributes that are set). <br>
+Since numerals are encoded differently in Lean 4, we need some logic around those.<br>
+<span class="user-mention" data-user-id="110049">@Mario Carneiro</span>: if I look through a fully elaborated expression, will all natural number literals (<code>Expr.lit</code>) be inside an application of <code>OfNat.ofNat</code>?</p>
+
+
+
+<a name="311846568"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311846568" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311846568">(Nov 23 2022 at 15:16)</a>:</h4>
+<p>Floris, I saw the branch <code>to_additive_fixes</code>. FYI: it still is translating <code>1 : ℕ</code> to <code>0</code>. See the offshoot branch <code>j-loreaux/HSmul</code> and look at the first error in <code>Algebra.Group.Defs</code> where it tries to additivize <code>pow_succ</code>.</p>
+
+
+
+<a name="311847281"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311847281" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311847281">(Nov 23 2022 at 15:19)</a>:</h4>
+<p>Shouldn't we just create a new type class <code>HSmul</code> for the new notation? It seems better to keep things separate instead of merging them under the hood (i.e., I think it's a bad idea to implement both <code>Smul</code> and <code>Mul</code> in terms of <code>HMul</code>, especially because at some point in time we might want an <em>actual</em> heterogenous multiplication; that is, a heterogenous operation which gets the <code>*</code> notation).</p>
+
+
+
+<a name="311847425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311847425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311847425">(Nov 23 2022 at 15:20)</a>:</h4>
+<p>Yaël, can you explain why you don't think <code>instHPow</code> makes sense? I don't see any issue with it yet.</p>
+
+
+
+<a name="311847510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311847510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311847510">(Nov 23 2022 at 15:20)</a>:</h4>
+<blockquote>
+<p>Still todo:</p>
+<ul>
+<li>deal with literals in Nat (see my question here)</li>
+</ul>
+</blockquote>
+
+
+
+<a name="311847631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311847631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311847631">(Nov 23 2022 at 15:21)</a>:</h4>
+<p>Oh sorry, I misread.</p>
+
+
+
+<a name="311848013"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311848013" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311848013">(Nov 23 2022 at 15:23)</a>:</h4>
+<p>I'm fine with keeping <code>mul</code> and <code>smul</code> separate. And if we do, I agree we need an <code>HSmul</code>.</p>
+
+
+
+<a name="311852550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311852550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311852550">(Nov 23 2022 at 15:46)</a>:</h4>
+<p>I thought the entire point of <code>HMul</code> was to unify <code>mul</code> and <code>smul</code>?</p>
+
+
+
+<a name="311852643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311852643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311852643">(Nov 23 2022 at 15:47)</a>:</h4>
+<p>Do we have any use for <code>HMul</code>?</p>
+
+
+
+<a name="311856062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311856062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311856062">(Nov 23 2022 at 16:04)</a>:</h4>
+<p>Why would we <em>want</em> to unify them? Unless we're trying to unify notation? Types are cheap.</p>
+
+
+
+<a name="311856948"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311856948" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311856948">(Nov 23 2022 at 16:08)</a>:</h4>
+<p>There are two potential reasons to want to unify them. (1) Then we have a reasonable way to write left actions and right actions (I'd like to see bimodules properly handled notationally), (2) there is special elaborator support for HMul, though I don't really know the details (maybe we can use the <code>binop%</code> elaboration helper for an <code>HSmul</code> too? then this wouldn't be an advantage)</p>
+
+
+
+<a name="311858296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311858296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311858296">(Nov 23 2022 at 16:15)</a>:</h4>
+<p>I don't see why this requires unification. We could accomplish this with an <code>HSmul</code> and it has the added benefit that we keep things separate. We can add the elaboration support if we want of course.</p>
+
+
+
+<a name="311858716"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311858716" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311858716">(Nov 23 2022 at 16:17)</a>:</h4>
+<p>But <em>why</em> would we want <code>HSmul</code>? This doesn't represent anything that <code>HMul</code> doesn't represent already.</p>
+
+
+
+<a name="311858873"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311858873" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311858873">(Nov 23 2022 at 16:18)</a>:</h4>
+<p>I'm pushing this for two reasons: (1) I think it will be easier to plug in to <code>to_additive</code>, but perhaps more importantly (2) it safeguards against what I think could be very painful refactors down the road.</p>
+
+
+
+<a name="311858917"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311858917" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311858917">(Nov 23 2022 at 16:18)</a>:</h4>
+<p><code>HMul</code> is to <code>Mul</code> what <code>HMul</code> is to <code>SMul</code>.</p>
+
+
+
+<a name="311858956"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311858956" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311858956">(Nov 23 2022 at 16:18)</a>:</h4>
+<p>Disagree.</p>
+
+
+
+<a name="311859003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311859003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311859003">(Nov 23 2022 at 16:19)</a>:</h4>
+<p>So I don't think we want <code>HPow</code> at all.</p>
+
+
+
+<a name="311859051"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311859051" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311859051">(Nov 23 2022 at 16:19)</a>:</h4>
+<p>Hmul is still for <code>*</code>, but heterogeneous.</p>
+
+
+
+<a name="311859757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311859757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311859757">(Nov 23 2022 at 16:23)</a>:</h4>
+<p>So long as <code>HSMul</code> is fully generic in the two inputs and the output like <code>HMul</code>, I think I'm on board with it. It's a good way to indicate "this is an action of some sort", and I think it should work for both left and right actions.</p>
+<p>(We might still have some <code>HMul</code> instances for certain kinds of actions, like for scalar multiplication on pi types, since that's more of a lift of the scalar using <code>const</code>. Is it a scalar action, or is it a coercion to the pi structure?)</p>
+
+
+
+<a name="311860178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311860178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311860178">(Nov 23 2022 at 16:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="387244">Yaël Dillies</span> <a href="#narrow/stream/287929-mathlib4/topic/to_additive.20issues/near/311858716">said</a>:</p>
+<blockquote>
+<p>But <em>why</em> would we want <code>HSmul</code>? This doesn't represent anything that <code>HMul</code> doesn't represent already.</p>
+</blockquote>
+<p><code>has_one</code> doesn't represent anything that <code>has_zero</code> doesn't represent already but that's not an argument for removing <code>has_one</code>. We're talking about a notational typeclass here, right?</p>
+
+
+
+<a name="311860283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311860283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311860283">(Nov 23 2022 at 16:25)</a>:</h4>
+<p>Yes</p>
+
+
+
+<a name="311860478"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311860478" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311860478">(Nov 23 2022 at 16:26)</a>:</h4>
+<p>Another thing about <code>mul</code> and <code>smul</code> is that <code>mul</code> is generally associative but <code>smul</code> isn't (usually because of type reasons; but a group acting on itself by conjugation is a nonassociative action, for example).</p>
+
+
+
+<a name="311860673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311860673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311860673">(Nov 23 2022 at 16:27)</a>:</h4>
+<p>Any idea why the heterogeneous multiplication  <code>HMul</code> was introduced in Lean 4?</p>
+
+
+
+<a name="311860825"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311860825" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311860825">(Nov 23 2022 at 16:28)</a>:</h4>
+<p>I think Leo saw we were using <code>smul</code> and decided to see if it was worth generalising to <code>mul</code>?</p>
+
+
+
+<a name="311861137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311861137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311861137">(Nov 23 2022 at 16:29)</a>:</h4>
+<p>The examples I've seen are generally scalar multiplication of vectors. When writing programs, it seems like it's also useful for multiplications where you could insert a coercion, but it might be more efficient to use the uncoerced type directly.</p>
+
+
+
+<a name="311864661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311864661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311864661">(Nov 23 2022 at 16:47)</a>:</h4>
+<p>I think it's fair to say that <code>Hmul (m : Nat) (n : Int) : Int</code> is a very specific kind of <code>smul</code>. And also that there might be some sense in supporting it.</p>
+
+
+
+<a name="311864696"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311864696" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311864696">(Nov 23 2022 at 16:47)</a>:</h4>
+<p>So I can imagine using <code>Hmul</code> for algebras.</p>
+
+
+
+<a name="311864726"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311864726" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311864726">(Nov 23 2022 at 16:47)</a>:</h4>
+<p>But still keeping smul around for general actions.</p>
+
+
+
+<a name="311874190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311874190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311874190">(Nov 23 2022 at 17:41)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/to_additive.20issues/near/311830097">said</a>:</p>
+<blockquote>
+<p>If I look through a fully elaborated expression, will all natural number literals (<code>Expr.lit</code>) be inside an application of <code>OfNat.ofNat</code>?</p>
+</blockquote>
+<p>Yes.</p>
+
+
+
+<a name="311880456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311880456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Frédéric Dupuis <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311880456">(Nov 23 2022 at 18:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110050">Sebastien Gouezel</span> <a href="#narrow/stream/287929-mathlib4/topic/to_additive.20issues/near/311860673">said</a>:</p>
+<blockquote>
+<p>Any idea why the heterogeneous multiplication  <code>HMul</code> was introduced in Lean 4?</p>
+</blockquote>
+<p>Matrix multiplication is one obvious place where it would be nice (and the one Leo gave when talking about this new feature).</p>
+
+
+
+<a name="311901875"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311901875" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311901875">(Nov 23 2022 at 20:19)</a>:</h4>
+<p>Just for reference, I can even think now of a situation where I might want <code>HAdd</code>: in operator algebraic K-theory one constructs K_0 (almost) as the Grothendieck group of a semigroup of projections which lie in matrix algebras (of <em>varying</em> sizes) over the algebra in question. So one might want to add something in M_n(A) to something in M_k(A) and get something in M_{n+k}(A).</p>
+
+
+
+<a name="311902056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311902056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311902056">(Nov 23 2022 at 20:20)</a>:</h4>
+<p>Point being, let's have the heterogeneous versions in general; there's little harm if they never get used.</p>
+
+
+
+<a name="311913712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311913712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311913712">(Nov 23 2022 at 22:00)</a>:</h4>
+<p>No but you corroborate my point here: We might want <code>HMul</code> and <code>HAdd</code>, but</p>
+<ol>
+<li>they appear in situations similar to <code>smul</code>, so we might as well get rid of <code>smul</code></li>
+<li>Nobody can come up with an actual use case for <code>HPow</code></li>
+</ol>
+
+
+
+<a name="311915642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311915642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311915642">(Nov 23 2022 at 22:20)</a>:</h4>
+<p>No, I still disagree with this. My point about <code>HAdd</code> was this: in case you didn't know about operator algebraic K-theory, you <em>might</em> think that <code>HAdd</code> is not necessary (of course, you may have your own examples), but then I gave a counterexample. Look, mathlib has a rule about not overgeneralizing <em>when there is some cost</em>; however, when it's essentially free, and it's conceivable that it has a use, there's no reason not to generalize.</p>
+<p>I believe <code>HPow</code> and <code>HSmul</code> fall into this category. In fact, I already gave a potential use for <code>HPow</code>, you've just ignored it: <code>ℕ → ℚ → ℝ</code>. Again, I'm not arguing that we want that particular <code>HPow</code> instance, only that we might.</p>
+<p>Moreover, I think we should not make things overlap just because it's convenient. So <code>smul</code> should not use <code>HMul</code> under the hood, because the latter is the typeclass for <code>*</code>, not <code>•</code>.</p>
+
+
+
+<a name="311915713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311915713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311915713">(Nov 23 2022 at 22:21)</a>:</h4>
+<p>The <code>*</code> vs <code>\bu</code> difference seems quite important. :-)</p>
+
+
+
+<a name="311920227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311920227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311920227">(Nov 23 2022 at 23:13)</a>:</h4>
+<p>I wouldn't call your example of possible use of <code>HPow</code> "actual" <span aria-label="big smile" class="emoji emoji-1f604" role="img" title="big smile">:big_smile:</span></p>
+
+
+
+<a name="311920300"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311920300" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311920300">(Nov 23 2022 at 23:14)</a>:</h4>
+<p>My point is not that we shouldn't generalise. My point is that generalising doesn't mean what you claim it does.</p>
+
+
+
+<a name="311930584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311930584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311930584">(Nov 24 2022 at 01:49)</a>:</h4>
+<p>Look, I propose creating the <code>HSMul</code> class for now so that I can fix <code>to_additive</code> translating <code>pow</code> to <code>smul</code> without potentially clobbering <code>HMul</code>. If later we wish to change Lean 4 core to remove <code>HPow</code> and we can convince the devs, fine, we can do that when the time comes. Can I have thumbs up or thumbs down from people on this?</p>
+
+
+
+<a name="311942226"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311942226" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311942226">(Nov 24 2022 at 04:46)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib4/pull/706">mathlib4#706</a></p>
+
+
+
+<a name="311942680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311942680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311942680">(Nov 24 2022 at 04:53)</a>:</h4>
+<p>Sorry, I thought it built properly on my machine, but apparently not. I'll fix it shortly.</p>
+
+
+
+<a name="311949896"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311949896" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311949896">(Nov 24 2022 at 06:15)</a>:</h4>
+<p>I have no idea why the <code>abel</code> test is failing on this PR. Help appreciated <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> (of course you're welcome to ignore this ping; it is Thanksgiving after all)</p>
+
+
+
+<a name="311952956"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311952956" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311952956">(Nov 24 2022 at 06:50)</a>:</h4>
+<p>Okay, I think I have some idea. I think the issue is that the case matching on <code>abel</code> only handles <code>SMul</code> but now it needs to handle <code>HSMul</code> (in <code>Mathlib.Tactic.Abel.eval</code>). If someone wants to have a go at fixing it, be my guest, but it's bedtime for me.</p>
+
+
+
+<a name="311961340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/to_additive%20issues/near/311961340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/to_additive.20issues.html#311961340">(Nov 24 2022 at 08:06)</a>:</h4>
+<p>This now has a <span aria-label="check" class="emoji emoji-2705" role="img" title="check">:check:</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,87 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html">using indentation to resolve syntactic ambiguity</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="275935580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/using%20indentation%20to%20resolve%20syntactic%20ambiguity/near/275935580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html#275935580">(Mar 19 2022 at 23:25)</a>:</h4>
+<p>I'm building a DSL for writing context free grammars. I have the following syntactic rule and an example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">declare_syntax_cat</span> <span class="n">rules</span>
+<span class="n">declare_syntax_cat</span> <span class="n">rule</span>
+<span class="n">declare_syntax_cat</span> <span class="n">symbol</span>
+<span class="n">syntax</span> <span class="o">(</span><span class="n">ident</span> <span class="bp">&lt;|&gt;</span> <span class="n">strLit</span><span class="o">)</span> <span class="o">:</span> <span class="n">symbol</span>
+<span class="n">syntax</span> <span class="n">ident</span> <span class="s2">" ::= "</span> <span class="o">(</span><span class="n">colGt</span> <span class="n">symbol</span><span class="o">)</span><span class="bp">*</span> <span class="o">:</span> <span class="n">rule</span>
+<span class="n">syntax</span> <span class="n">rule</span><span class="bp">*</span> <span class="o">:</span> <span class="n">rules</span>
+<span class="n">syntax</span><span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">grammarCmd</span><span class="o">)</span> <span class="s2">"grammar "</span> <span class="n">ident</span> <span class="n">rules</span> <span class="s2">"end "</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">grammar</span> <span class="n">foo</span>
+
+  <span class="n">foo</span> <span class="o">::=</span> <span class="s2">"("</span> <span class="n">foo</span> <span class="s2">")"</span>
+  <span class="n">star</span> <span class="o">::=</span> <span class="s2">"."</span> <span class="n">foo</span>
+  <span class="c1">--   ^</span>
+  <span class="c1">-- expected 'end'</span>
+
+<span class="kd">end</span> <span class="n">foo</span>
+<span class="c1">-- invalid 'end', insufficient scopes</span>
+</code></pre></div>
+<p>Clearly, the fact that I can have an identifier on either side of <code>" ::= "</code> makes this grammar ambiguous so I added <code>colGt</code> so that if I have a new line in the middle of a production rule, I have to indent it in order for it to be recognized as the continuation of the same rule. It doesn't seem to work that way. I also tried using <code>notFollowedBy(" ::= ")</code> after <code>ident</code> on the rhs of the production rule and that also doesn't work. How can I resolve this ambiguity?</p>
+
+
+
+<a name="275935943"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/using%20indentation%20to%20resolve%20syntactic%20ambiguity/near/275935943" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html#275935943">(Mar 19 2022 at 23:34)</a>:</h4>
+<p><span class="user-mention" data-user-id="110026">@Simon Hudon</span>  <code>colGt</code> is the way to go, but you need to use <code>withPosition</code> to specify the column <code>colGt</code> is going to compare.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">declare_syntax_cat</span> <span class="n">rules</span>
+<span class="n">declare_syntax_cat</span> <span class="n">rule</span>
+<span class="n">declare_syntax_cat</span> <span class="n">symbol</span>
+<span class="n">syntax</span> <span class="o">(</span><span class="n">ident</span> <span class="bp">&lt;|&gt;</span> <span class="n">str</span><span class="o">)</span> <span class="o">:</span> <span class="n">symbol</span>
+<span class="n">syntax</span> <span class="n">ident</span> <span class="n">withPosition</span><span class="o">(</span><span class="s2">" ::= "</span> <span class="o">(</span><span class="n">colGt</span> <span class="n">symbol</span><span class="o">)</span><span class="bp">*</span><span class="o">)</span> <span class="o">:</span> <span class="n">rule</span>
+<span class="n">syntax</span> <span class="n">rule</span><span class="bp">*</span> <span class="o">:</span> <span class="n">rules</span>
+<span class="n">syntax</span><span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">grammarCmd</span><span class="o">)</span> <span class="s2">"grammar "</span> <span class="n">ident</span> <span class="n">rules</span> <span class="s2">"end "</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">grammar</span> <span class="bp">$</span><span class="n">id1</span><span class="o">:</span><span class="n">ident</span> <span class="bp">$</span><span class="n">rules</span><span class="o">:</span><span class="n">rules</span> <span class="kd">end</span> <span class="bp">$</span><span class="n">id2</span><span class="o">:</span><span class="n">ident</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="k">#print</span> <span class="s2">"hello"</span><span class="o">)</span>
+
+
+<span class="n">grammar</span> <span class="n">foo</span>
+  <span class="n">foo</span> <span class="o">::=</span> <span class="s2">"("</span> <span class="n">foo</span> <span class="s2">")"</span>
+  <span class="n">star</span> <span class="o">::=</span> <span class="s2">"."</span> <span class="n">foo</span>
+
+<span class="kd">end</span> <span class="n">foo</span>
+</code></pre></div>
+
+
+
+<a name="275936169"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/using%20indentation%20to%20resolve%20syntactic%20ambiguity/near/275936169" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html#275936169">(Mar 19 2022 at 23:41)</a>:</h4>
+<p>Ah! Nice! Thank you</p>
+
+
+
+<a name="275944375"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/using%20indentation%20to%20resolve%20syntactic%20ambiguity/near/275944375" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html#275944375">(Mar 20 2022 at 03:20)</a>:</h4>
+<p>What does "colGt" mean? I keep reading "column greater than" in my mind but I'm not sure that makes sense</p>
+
+
+
+<a name="275944842"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/using%20indentation%20to%20resolve%20syntactic%20ambiguity/near/275944842" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/using.20indentation.20to.20resolve.20syntactic.20ambiguity.html#275944842">(Mar 20 2022 at 03:34)</a>:</h4>
+<p>Leo just gave me the second part of this puzzle. <code>withPosition</code> marks a relative position and <code>colGt</code> is a match only if it appears at a column greater that the latest position recorded by <code>withPosition</code></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

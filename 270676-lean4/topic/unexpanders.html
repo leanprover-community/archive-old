@@ -1,0 +1,211 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/unexpanders.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html">unexpanders</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="221956915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/221956915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#221956915">(Jan 07 2021 at 15:40)</a>:</h4>
+<p>I am experimenting with unexpanders, which allow macros to appear in pretty printing. When trying to implement one for a binder I get this error message:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">myfun</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span>
+
+<span class="n">macro</span> <span class="s2">"bindme"</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">", "</span> <span class="n">b</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="o">(</span><span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+
+<span class="kd">@[appUnexpander myfun]</span> <span class="kd">def</span> <span class="n">unexpand</span> <span class="o">:</span> <span class="n">PrettyPrinter.Unexpander</span> <span class="o">:=</span> <span class="k">fun</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">bindme</span> <span class="bp">$</span><span class="n">x</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="k">#check</span> <span class="n">bindme</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span>
+<span class="c1">--[Error pretty printing expression: parenthesize: uncaught backtrack exception. Falling back to raw printer.]</span>
+<span class="c1">-- myfun.{u_1 u_1} ?_uniq.952 ?_uniq.952 (fun (x : ?_uniq.952) =&gt; x) : ?m.952 → ?m.952</span>
+</code></pre></div>
+<p>Any ideas?</p>
+
+
+
+<a name="222041400"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222041400" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222041400">(Jan 08 2021 at 06:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="129120">@Alexander Bentkamp</span> To be sure, what is the expected output of <code>#check</code> that should replace the error?</p>
+
+
+
+<a name="222042340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222042340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222042340">(Jan 08 2021 at 06:32)</a>:</h4>
+<p>Should it be <code>myfun fun (x : ?m.1129) =&gt; x : ?m.1129 → ?m.1129</code>?</p>
+
+
+
+<a name="222042601"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222042601" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222042601">(Jan 08 2021 at 06:38)</a>:</h4>
+<p>I think this should be a step in the right direction:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">myfun</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span>
+
+<span class="n">macro</span> <span class="s2">"bindme"</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">", "</span> <span class="n">b</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="o">(</span><span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+
+<span class="kd">@[appUnexpander myfun]</span> <span class="kd">def</span> <span class="n">unexpand</span> <span class="o">:</span> <span class="n">PrettyPrinter.Unexpander</span> <span class="o">:=</span> <span class="k">fun</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="o">(</span><span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">bindme</span> <span class="bp">$</span><span class="n">x</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="k">#check</span> <span class="n">bindme</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="222050047"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222050047" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222050047">(Jan 08 2021 at 09:05)</a>:</h4>
+<p>I would like the macro "bindme" to appear in the output. Something like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">bindme</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1129</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.1129</span>
+</code></pre></div>
+
+
+
+<a name="222050297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222050297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222050297">(Jan 08 2021 at 09:08)</a>:</h4>
+<blockquote>
+<p><code>`(myfun (fun $x =&gt; $p))</code></p>
+</blockquote>
+<p>Adding these parentheses just stops the unexpander from working at all. Adding them has the same effect as removing <code>def unexpand</code> entirely.</p>
+
+
+
+<a name="222133907"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222133907" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222133907">(Jan 08 2021 at 22:21)</a>:</h4>
+<p>I was able to narrow down the problem to fixing the <code>$i</code> part.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">myfun</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span>
+
+<span class="n">macro</span> <span class="s2">"bindme"</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">", "</span> <span class="n">b</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="o">(</span><span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+
+<span class="kd">@[appUnexpander myfun]</span> <span class="kd">def</span> <span class="n">unexpand</span> <span class="o">:</span> <span class="n">PrettyPrinter.Unexpander</span> <span class="o">:=</span> <span class="k">fun</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">i</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">o</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">bindme</span> <span class="n">i</span><span class="o">,</span> <span class="bp">$</span><span class="n">o</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="k">#check</span> <span class="n">bindme</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span>
+<span class="k">#check</span> <span class="n">bindme</span> <span class="n">y</span><span class="o">,</span> <span class="n">y</span>
+</code></pre></div>
+<p>gives <code>bindme i✝, x : ?m.957 → ?m.957</code> and <code>bindme i✝, y : ?m.967 → ?m.967</code>, that's still not quite the expected result...</p>
+
+
+
+<a name="222137400"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222137400" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222137400">(Jan 08 2021 at 23:05)</a>:</h4>
+<p>I am not sure if this is relevant, but:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">myfun</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span>
+
+<span class="n">macro</span> <span class="s2">"bindme"</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">", "</span> <span class="n">b</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="o">(</span><span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+
+<span class="kd">@[appUnexpander myfun]</span> <span class="kd">def</span> <span class="n">unexpand</span> <span class="o">:</span> <span class="n">PrettyPrinter.Unexpander</span> <span class="o">:=</span> <span class="k">fun</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">i</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">o</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">#check</span> <span class="bp">$</span><span class="n">i</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+</code></pre></div>
+<p>gives <code>elaboration function for 'antiquot' has not been implemented</code>.</p>
+
+
+
+<a name="222137719"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222137719" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mohamed Al-Fahim <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222137719">(Jan 08 2021 at 23:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> Does this mean that elaboration for 'antiquot' will be implemented in the future?</p>
+
+
+
+<a name="222164101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222164101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222164101">(Jan 09 2021 at 10:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="373871">@Mohamed Al-Fahim</span> You forgot the quotation around <code>#check $i</code></p>
+
+
+
+<a name="222164231"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222164231" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222164231">(Jan 09 2021 at 10:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="129120">@Alexander Bentkamp</span> Your <code>$x</code> is capturing the full <code>(x : ?m.1129)</code> binder as shown in <span class="user-mention" data-user-id="373871">@Mohamed Al-Fahim</span>'s output, which will break the <code>bindme</code> syntax after being inserted. You could do something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[appUnexpander myfun]</span> <span class="kd">def</span> <span class="n">unexpand</span> <span class="o">:</span> <span class="n">PrettyPrinter.Unexpander</span> <span class="o">:=</span> <span class="k">fun</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">myfun</span> <span class="k">fun</span> <span class="o">(</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="bp">$</span><span class="n">ty</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">bindme</span> <span class="bp">$</span><span class="n">x</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+</code></pre></div>
+<p>instead, but at this point it should be clear that analysing anything but the raw arguments in an <code>appUnexpander</code> is very brittle since it is dependent on the behavior on the pretty printers that came before it. It would be better to write a full delaborator here working directly on <code>Expr</code>, though that means importing <code>Lean</code>.</p>
+
+
+
+<a name="222164332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222164332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222164332">(Jan 09 2021 at 10:18)</a>:</h4>
+<p>Or make the <code>bindme</code> syntax less restrictive by using <code>x:term</code> :)</p>
+
+
+
+<a name="222281168"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/222281168" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#222281168">(Jan 11 2021 at 10:39)</a>:</h4>
+<p>Ok, thanks!</p>
+
+
+
+<a name="250268132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/250268132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#250268132">(Aug 22 2021 at 10:53)</a>:</h4>
+<p>Is the "collapsing" of brackets in unexpanders (e.g. the unexpander for List will show<code>[0, 1, 2]</code>  instead of [0, [1, [2]]]` just a built-in behavior that does this for matching pairs of brackets, or is there something more to it?</p>
+
+
+
+<a name="250279705"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/250279705" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#250279705">(Aug 22 2021 at 15:33)</a>:</h4>
+<p>it is just how the unexpander is defined, the definition of which you can find <a href="https://github.com/leanprover/lean4/blob/master/src/Init/NotationExtra.lean#L100-L107">here</a> in the Lean 4 source code. You could define a custom unexpander in a similar manner. For example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span> <span class="n">PrettyPrinter</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">high</span><span class="o">)</span> <span class="s2">"("</span> <span class="n">term</span><span class="o">,</span><span class="bp">*</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kd">@[appUnexpander List.nil]</span>
+<span class="kd">def</span> <span class="n">unexpandListNilAlt</span> <span class="o">:</span> <span class="n">Unexpander</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">_</span><span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(())</span>
+<span class="bp">|</span> <span class="n">_</span>       <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="n">Unit.unit</span>
+
+<span class="kd">@[appUnexpander List.cons]</span>
+<span class="kd">def</span> <span class="n">unexpandListConsAlt</span> <span class="o">:</span> <span class="n">Unexpander</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">_</span><span class="o">)</span> <span class="bp">$</span><span class="n">x</span> <span class="o">())</span>      <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">((</span><span class="bp">$</span><span class="n">x</span><span class="o">))</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">_</span><span class="o">)</span> <span class="bp">$</span><span class="n">x</span> <span class="o">(</span><span class="bp">$</span><span class="n">xs</span><span class="o">,</span><span class="bp">*</span><span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">((</span><span class="bp">$</span><span class="n">x</span><span class="o">,</span> <span class="bp">$</span><span class="n">xs</span><span class="o">,</span><span class="bp">*</span><span class="o">))</span>
+<span class="bp">|</span> <span class="n">_</span>                  <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="n">Unit.unit</span>
+
+<span class="k">#check</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">,</span><span class="mi">3</span><span class="o">]</span> <span class="c1">-- (1, 2, 3) : List Nat</span>
+</code></pre></div>
+
+
+
+<a name="250287394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/250287394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#250287394">(Aug 22 2021 at 18:40)</a>:</h4>
+<p>Thanks, I think I'm almost there. I was (am?) confused by how that lets you print stuff that doesn't otherwise have an instance of ToString, like the set notation unexpander in Mathlib4 lets you print sets declared with the macro. I guess it's just turning the macro invocation back into the token tree from which it was expanded and showing it to you again. That's interesting.</p>
+
+
+
+<a name="250291154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/250291154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#250291154">(Aug 22 2021 at 20:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="228466">Chris B</span> <a href="#narrow/stream/270676-lean4/topic/unexpanders/near/250287394">said</a>:</p>
+<blockquote>
+<p>I guess it's just turning the macro invocation back into the token tree from which it was expanded and showing it to you again. That's interesting.</p>
+</blockquote>
+<p>Exactly! An unexpander is a pretty printer takes the expanded syntax and (ideally) reverts it back to the syntax it come frame (i.e., it 'unexpands` it) and then prints the resulting syntax.</p>
+
+
+
+<a name="250299932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unexpanders/near/250299932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unexpanders.html#250299932">(Aug 23 2021 at 00:07)</a>:</h4>
+<p>Got it, thanks.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

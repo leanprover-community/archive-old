@@ -1,0 +1,95 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Eval's.20performance.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Eval's.20performance.html">Eval's performance</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="289655659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Eval%27s%20performance/near/289655659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Eval's.20performance.html#289655659">(Jul 14 2022 at 22:02)</a>:</h4>
+<p>I have a simple lean program that tries to print the contents of the Environment using <code>#eval</code>, but it is taking a long time.</p>
+<p>I understand this is likely a side effect of using the interpreter to eval the expression, but it does sound excessive. So wondering if there is a performance improvement low hanging fruit  here.</p>
+<p>Here is the <a href="https://leanprover-community.github.io/mwe.html">#mwe</a>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">import</span> <span class="n">Lean.Meta</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span>
+
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstantVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">AxiomVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ReducibilityHints</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">DefinitionVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">TheoremVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">OpaqueVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">QuotKind</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">QuotVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">AxiomVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">InductiveVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstructorVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">RecursorRule</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">RecursorVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstantInfo</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">MetaM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span>
+  <span class="n">env.constants.forM</span> <span class="k">fun</span> <span class="n">n</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="n">IO.println</span> <span class="n">n</span>
+</code></pre></div>
+<p>Most of the time it seems to be spent on <code>lean::utf8_strlen()</code>:<br>
+<a href="/user_uploads/3121/68G9isU6svSpuXWIoEYJTc0W/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/68G9isU6svSpuXWIoEYJTc0W/image.png" title="image.png"><img src="/user_uploads/3121/68G9isU6svSpuXWIoEYJTc0W/image.png"></a></div><p>And <code>lean::get_utf8_size()</code>:<br>
+<a href="/user_uploads/3121/1iPhMFy11RoAAZLcV7SJvpZW/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/1iPhMFy11RoAAZLcV7SJvpZW/image.png" title="image.png"><img src="/user_uploads/3121/1iPhMFy11RoAAZLcV7SJvpZW/image.png"></a></div>
+
+
+
+<a name="289655728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Eval%27s%20performance/near/289655728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Eval's.20performance.html#289655728">(Jul 14 2022 at 22:03)</a>:</h4>
+<p>Is there a way I can execute the expression from main to compare it to compiled code?</p>
+
+
+
+<a name="289707518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Eval%27s%20performance/near/289707518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Eval's.20performance.html#289707518">(Jul 15 2022 at 09:59)</a>:</h4>
+<p>That might be because it's producing 8 megabytes of text and printing it as error messages is the bottleneck (didn't investigate though).  This runs in two seconds (but you need to run it with <code>lean --run</code> so that search paths etc are set up correctly):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">import</span> <span class="n">Lean.Meta</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span>
+
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstantVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">AxiomVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ReducibilityHints</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">DefinitionVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">TheoremVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">OpaqueVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">QuotKind</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">QuotVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">AxiomVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">InductiveVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstructorVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">RecursorRule</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">RecursorVal</span>
+<span class="n">deriving</span> <span class="kd">instance</span> <span class="n">Repr</span> <span class="n">for</span> <span class="n">ConstantInfo</span>
+
+<span class="n">unsafe</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">args</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">withImportModules</span> <span class="o">[{</span><span class="n">module</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Lean</span><span class="o">}]</span> <span class="o">{}</span> <span class="o">(</span><span class="n">trustLevel</span> <span class="o">:=</span> <span class="mi">1024</span><span class="o">)</span> <span class="k">fun</span> <span class="n">env</span> <span class="bp">=&gt;</span>
+    <span class="n">env.constants.forM</span> <span class="k">fun</span> <span class="n">n</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+      <span class="n">IO.println</span> <span class="n">n</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

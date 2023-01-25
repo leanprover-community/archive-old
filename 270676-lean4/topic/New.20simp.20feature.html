@@ -1,0 +1,87 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/New.20simp.20feature.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html">New simp feature</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="262068161"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262068161" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262068161">(Nov 19 2021 at 13:50)</a>:</h4>
+<p>I've just stumbled upon a new simp feature:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="mi">42</span> <span class="bp">&lt;</span> <span class="mi">10</span><span class="bp">^</span><span class="mi">100</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span>
+</code></pre></div>
+<p>Interestingly, <code>42 &lt; 10^1000</code> is no longer provable by simp.</p>
+<div class="spoiler-block"><div class="spoiler-header">
+</div><div class="spoiler-content" aria-hidden="true">
+<p>Simp now tries to simplify every closed subterm <code>p : Prop</code> by synthesizing an instance <code>Decidable p</code> and <em>reducing</em> the decidable instance.  There seems to be some timeout built in because it only works up to some small size, but <code>grep Heartbeat</code> doesn't turn up anything relevant.</p>
+</div></div>
+
+
+
+<a name="262460931"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262460931" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262460931">(Nov 23 2021 at 14:16)</a>:</h4>
+<p>I hope this is something we can disable with a simp configuration option? It looks useful for many small things though.</p>
+
+
+
+<a name="262462559"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262462559" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262462559">(Nov 23 2021 at 14:29)</a>:</h4>
+<p>It can be disabled with <code>decide := ff</code>.  I agree, this feature seems useful mostly for small demos (e.g. being able to simplify <code>10 &lt; 42</code> out of the box) but I'm afraid it will cause real performance issues.  For example, when it sees <code>isTaut (pigeonholePrinciple 7 6)</code> or unfolds noncomputable functions.</p>
+
+
+
+<a name="262462797"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262462797" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262462797">(Nov 23 2021 at 14:30)</a>:</h4>
+<p>On the other hand it won't do anything about <code>x &lt; 10 * 42</code> which should be simplified to <code>x &lt; 420</code> (the often requested integration of normNum into simp).</p>
+
+
+
+<a name="262476502"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262476502" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262476502">(Nov 23 2021 at 16:09)</a>:</h4>
+<blockquote>
+<p>Interestingly, 42 &lt; 10^1000 is no longer provable by simp.</p>
+</blockquote>
+<p>We have a <code>checkMaxHeartbeats</code> and <code>withIncRecDepth</code> at <code>whnfImp</code>.<br>
+It fails because the maximum recursion depth has been reached. </p>
+<p>We will eventually have better support for arithmetic that simplifies this kind of proposition without relying on <code>whnf</code>. </p>
+<blockquote>
+<p>I'm afraid it will cause real performance issues. For example, when it sees isTaut (pigeonholePrinciple 7 6) or unfolds noncomputable functions.</p>
+</blockquote>
+<p>If there are serious performance problems in practice, we can set the default to <code>decide := false</code>.<br>
+Some random thoughts:</p>
+<ul>
+<li>I think the feature is useful and it is handy because it works for any decidable proposition. </li>
+<li>It is not clear to me how often we will hit examples such as <code>isTaut (pigeonholePrinciple 7 6)</code>. I am assuming new users will not, and advanced users may set <code>decide := false</code>. Not sure.</li>
+<li>Regarding non-computable functions, we can block them from being unfolded when we execute <code>whnf</code> at <code>decide</code>.</li>
+<li>We can also dramatically reduce the maximum number of heartbeats for this <code>whnf</code>, and produce a nice trace message when it is reached. </li>
+<li>We can also report whether a lot of time is spent in these <code>whnf</code> calls, and suggest <code>decide := false</code> to users.</li>
+</ul>
+
+
+
+<a name="262499022"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20simp%20feature/near/262499022" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20simp.20feature.html#262499022">(Nov 23 2021 at 19:01)</a>:</h4>
+<blockquote>
+<p>It fails because the maximum recursion depth has been reached.</p>
+</blockquote>
+<p>Ah that's what's happening!  I blindly assumed that we had special support for <code>Nat.pow</code> (like we have for +/-/*///%/...).</p>
+<blockquote>
+<p>We will eventually have better support for arithmetic that simplifies this kind of proposition without relying on whnf.</p>
+</blockquote>
+<p>This is a good plan.  Users are often asking for this feature; in mathlib we have a norm_num tactic which essentially does <code>simp; evaluate_arithmetic_expressions</code> and it's used <em>heavily</em>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

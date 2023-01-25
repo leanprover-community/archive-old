@@ -1,0 +1,113 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html">Potential elaboration bug with `elabAsElim`</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="299501275"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Potential%20elaboration%20bug%20with%20%60elabAsElim%60/near/299501275" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html#299501275">(Sep 19 2022 at 04:59)</a>:</h4>
+<p>Calling <code>refine'</code> as below with a lemma marked as <code>elabAsElim</code> doesn't seem to be behaving correctly (on leanprover/lean4:nightly-2022-09-15):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- `Perm l₁ l₂` or `l₁ ~ l₂` asserts that `l₁` and `l₂` are Permutations</span>
+<span class="sd">  of each other. This is defined by induction using pairwise swaps. -/</span>
+<span class="kd">inductive</span> <span class="n">Perm</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">nil</span>   <span class="o">:</span> <span class="n">Perm</span> <span class="o">[]</span> <span class="o">[]</span>
+<span class="bp">|</span> <span class="n">cons</span>  <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">l₁</span> <span class="n">l₂</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">},</span> <span class="n">Perm</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">Perm</span> <span class="o">(</span><span class="n">x</span><span class="o">::</span><span class="n">l₁</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">::</span><span class="n">l₂</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">swap</span>  <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">),</span> <span class="n">Perm</span> <span class="o">(</span><span class="n">y</span><span class="o">::</span><span class="n">x</span><span class="o">::</span><span class="n">l</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">::</span><span class="n">y</span><span class="o">::</span><span class="n">l</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">trans</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">l₁</span> <span class="n">l₂</span> <span class="n">l₃</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">},</span> <span class="n">Perm</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">Perm</span> <span class="n">l₂</span> <span class="n">l₃</span> <span class="bp">→</span> <span class="n">Perm</span> <span class="n">l₁</span> <span class="n">l₃</span>
+
+<span class="kd">infixl</span><span class="o">:</span><span class="mi">50</span> <span class="s2">" ~ "</span> <span class="bp">=&gt;</span> <span class="n">Perm</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">Perm.refl</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">),</span> <span class="n">l</span> <span class="bp">~</span> <span class="n">l</span>
+<span class="bp">|</span> <span class="o">[]</span>      <span class="bp">=&gt;</span> <span class="n">Perm.nil</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">x</span><span class="o">::</span><span class="n">xs</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">Perm.refl</span> <span class="n">xs</span><span class="o">)</span><span class="bp">.</span><span class="n">cons</span> <span class="n">x</span>
+
+<span class="kd">@[elabAsElim]</span>
+<span class="kd">theorem</span> <span class="n">perm_induction_on</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">{</span><span class="n">l₁</span> <span class="n">l₂</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">l₁</span> <span class="bp">~</span> <span class="n">l₂</span><span class="o">)</span> <span class="o">(</span><span class="n">h₁</span> <span class="o">:</span> <span class="n">P</span> <span class="o">[]</span> <span class="o">[])</span>
+    <span class="o">(</span><span class="n">h₂</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="n">l₁</span> <span class="n">l₂</span><span class="o">,</span> <span class="n">l₁</span> <span class="bp">~</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">P</span> <span class="o">(</span><span class="n">x</span> <span class="o">::</span> <span class="n">l₁</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">::</span> <span class="n">l₂</span><span class="o">))</span>
+    <span class="o">(</span><span class="n">h₃</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="n">y</span> <span class="n">l₁</span> <span class="n">l₂</span><span class="o">,</span> <span class="n">l₁</span> <span class="bp">~</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">P</span> <span class="o">(</span><span class="n">y</span> <span class="o">::</span> <span class="n">x</span> <span class="o">::</span> <span class="n">l₁</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">::</span> <span class="n">y</span> <span class="o">::</span> <span class="n">l₂</span><span class="o">))</span>
+    <span class="o">(</span><span class="n">h₄</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="n">l₃</span><span class="o">,</span> <span class="n">l₁</span> <span class="bp">~</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">l₂</span> <span class="bp">~</span> <span class="n">l₃</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">l₂</span> <span class="n">l₃</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">l₃</span><span class="o">)</span> <span class="o">:</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="o">:=</span>
+  <span class="k">have</span> <span class="n">P_refl</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">l</span><span class="o">,</span> <span class="n">P</span> <span class="n">l</span> <span class="n">l</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">l</span> <span class="bp">=&gt;</span> <span class="n">List.recOn</span> <span class="n">l</span> <span class="n">h₁</span> <span class="k">fun</span> <span class="n">x</span> <span class="n">xs</span> <span class="n">ih</span> <span class="bp">=&gt;</span> <span class="n">h₂</span> <span class="n">x</span> <span class="n">xs</span> <span class="n">xs</span> <span class="o">(</span><span class="n">Perm.refl</span> <span class="n">xs</span><span class="o">)</span> <span class="n">ih</span>
+  <span class="n">Perm.recOn</span> <span class="n">p</span> <span class="n">h₁</span> <span class="n">h₂</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="n">y</span> <span class="n">l</span> <span class="bp">=&gt;</span> <span class="n">h₃</span> <span class="n">x</span> <span class="n">y</span> <span class="n">l</span> <span class="n">l</span> <span class="o">(</span><span class="n">Perm.refl</span> <span class="n">l</span><span class="o">)</span> <span class="o">(</span><span class="n">P_refl</span> <span class="n">l</span><span class="o">))</span> <span class="bp">@</span><span class="n">h₄</span>
+
+<span class="kd">theorem</span> <span class="n">perm_inv_core</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">l₁</span> <span class="n">l₂</span> <span class="n">r₁</span> <span class="n">r₂</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">l₁</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r₁</span> <span class="bp">~</span> <span class="n">l₂</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r₂</span> <span class="bp">→</span> <span class="n">l₁</span> <span class="bp">++</span> <span class="n">r₁</span> <span class="bp">~</span> <span class="n">l₂</span> <span class="bp">++</span> <span class="n">r₂</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">generalize</span> <span class="n">e₁</span> <span class="o">:</span> <span class="n">l₁</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r₁</span> <span class="bp">=</span> <span class="n">s₁</span>
+  <span class="n">generalize</span> <span class="n">e₂</span> <span class="o">:</span> <span class="n">l₂</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r₂</span> <span class="bp">=</span> <span class="n">s₂</span>
+  <span class="n">intro</span> <span class="n">p</span>
+  <span class="n">revert</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="n">r₁</span> <span class="n">r₂</span> <span class="n">e₁</span> <span class="n">e₂</span>
+  <span class="n">refine'</span> <span class="bp">@</span><span class="o">(</span><span class="n">perm_induction_on</span> <span class="n">p</span> <span class="n">_</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="n">p</span> <span class="n">IH</span> <span class="bp">=&gt;</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="n">y</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="n">p</span> <span class="n">IH</span> <span class="bp">=&gt;</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="k">fun</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="n">t₃</span> <span class="n">p₁</span> <span class="n">p₂</span> <span class="n">IH₁</span> <span class="n">IH₂</span> <span class="bp">=&gt;</span> <span class="n">_</span><span class="o">))</span>
+  <span class="n">intro</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="n">r₁</span> <span class="n">r₂</span> <span class="n">e₁</span> <span class="n">e₂</span>
+  <span class="c1">-- Hypotheses include</span>
+  <span class="c1">-- `e₁: l₁ ++ a :: r₁ = s₁`</span>
+  <span class="c1">-- `e₂: l₂ ++ a :: r₂ = s₂`</span>
+  <span class="c1">-- but these should be</span>
+  <span class="c1">-- `e₁: l₁ ++ a :: r₁ = nil`</span>
+  <span class="c1">-- `e₂: l₂ ++ a :: r₂ = nil`</span>
+  <span class="n">all_goals</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="299537976"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Potential%20elaboration%20bug%20with%20%60elabAsElim%60/near/299537976" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html#299537976">(Sep 19 2022 at 10:23)</a>:</h4>
+<p>This can be readily minimized to</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Q</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">nil</span>   <span class="o">:</span> <span class="n">Q</span> <span class="o">[]</span>
+
+<span class="kd">@[elabAsElim]</span>
+<span class="kd">theorem</span> <span class="n">Q_induction_on</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">{</span><span class="n">l₁</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">Q</span> <span class="n">l₁</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">P</span> <span class="o">[])</span> <span class="o">:</span> <span class="n">P</span> <span class="n">l₁</span> <span class="o">:=</span>
+  <span class="n">Q.recOn</span> <span class="n">p</span> <span class="n">h</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">l</span> <span class="n">r</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Q</span> <span class="o">(</span><span class="n">l</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Q</span> <span class="o">(</span><span class="n">l</span> <span class="bp">++</span> <span class="n">r</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">generalize</span> <span class="n">e</span> <span class="o">:</span> <span class="n">l</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r</span> <span class="bp">=</span> <span class="n">s</span>
+  <span class="n">intro</span> <span class="n">p</span>
+  <span class="n">revert</span> <span class="n">l</span> <span class="n">r</span> <span class="n">e</span>
+  <span class="n">refine'</span> <span class="bp">@</span><span class="o">(</span><span class="n">Q_induction_on</span> <span class="n">p</span> <span class="n">_</span><span class="o">)</span>
+  <span class="n">intro</span> <span class="n">l</span> <span class="n">r</span> <span class="n">e</span>
+  <span class="c1">-- Hypotheses include</span>
+  <span class="c1">-- `e: l ++ a :: r = s`</span>
+  <span class="c1">-- but this should should be</span>
+  <span class="c1">-- `e: l ++ a :: r = nil`</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="299567167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Potential%20elaboration%20bug%20with%20%60elabAsElim%60/near/299567167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html#299567167">(Sep 19 2022 at 13:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="110087">@Scott Morrison</span> I cannot reproduce the errors above, could you please get the latest nightly build and try again?</p>
+
+
+
+<a name="299573172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Potential%20elaboration%20bug%20with%20%60elabAsElim%60/near/299573172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Potential.20elaboration.20bug.20with.20.60elabAsElim.60.html#299573172">(Sep 19 2022 at 14:17)</a>:</h4>
+<p><code>elabAsElim</code> instructs Lean to use a different approach/heuristic to compute the implicit motive (<code>P</code> in your example). However, the motive does not take the major premise <code>p</code> as a parameter, and this information is necessary for the current implementation. The following variant works</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Q</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">nil</span>   <span class="o">:</span> <span class="n">Q</span> <span class="o">[]</span>
+
+<span class="kd">@[elabAsElim]</span>
+<span class="kd">theorem</span> <span class="n">Q_induction_on</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Q</span> <span class="n">s</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">{</span><span class="n">l₁</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">Q</span> <span class="n">l₁</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">P</span> <span class="o">[]</span> <span class="bp">.</span><span class="n">nil</span><span class="o">)</span> <span class="o">:</span> <span class="n">P</span> <span class="n">l₁</span> <span class="n">p</span> <span class="o">:=</span>
+  <span class="n">Q.recOn</span> <span class="n">p</span> <span class="n">h</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">l</span> <span class="n">r</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Q</span> <span class="o">(</span><span class="n">l</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Q</span> <span class="o">(</span><span class="n">l</span> <span class="bp">++</span> <span class="n">r</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">generalize</span> <span class="n">e</span> <span class="o">:</span> <span class="n">l</span> <span class="bp">++</span> <span class="n">a</span> <span class="o">::</span> <span class="n">r</span> <span class="bp">=</span> <span class="n">s</span>
+  <span class="n">intro</span> <span class="n">p</span>
+  <span class="n">revert</span> <span class="n">l</span> <span class="n">r</span> <span class="n">e</span>
+  <span class="n">refine'</span> <span class="bp">@</span><span class="o">(</span><span class="n">Q_induction_on</span> <span class="n">p</span> <span class="n">_</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

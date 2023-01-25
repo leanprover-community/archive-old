@@ -1,0 +1,366 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html">Is this equality definitional?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="301745488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301745488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301745488">(Sep 30 2022 at 22:39)</a>:</h4>
+<p>I'm stumped by the following in Lean 3 (haven't tried Lean 4):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">weird_zero</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="mi">0</span> <span class="o">:=</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="n">n</span>
+
+<span class="k">#eval</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="c1">-- yields 0</span>
+<span class="k">#reduce</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="c1">-- yields 0</span>
+
+<span class="kd">def</span> <span class="n">test</span> <span class="o">:</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- fails</span>
+</code></pre></div>
+<p>I suppose it must be something to do with the simultaneous/nested recursion on <code>m</code> and <code>n</code>, since replacing either the <code>0 (n+1)</code> or <code>(m+1) 0</code> clause with <code>0</code> makes it work.  But I can't guess how that can matter, because regardless of whatever strange kind of recursion is going on behind the scenes, <code>weird_zero 0 0</code> is a concrete closed term that normalizes to 0 with either <code>eval</code> or <code>reduce</code>.  So why doesn't it likewise get normalized in the definition of <code>test</code>?</p>
+
+
+
+<a name="301749290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301749290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301749290">(Sep 30 2022 at 23:21)</a>:</h4>
+<p><a href="#narrow/stream/113488-general/topic/Base.20case.20of.20recursive.20definition">https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Base.20case.20of.20recursive.20definition</a> sounds related</p>
+
+
+
+<a name="301749793"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301749793" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301749793">(Sep 30 2022 at 23:26)</a>:</h4>
+<p>Yes, that seems to be the same issue.  But the discussion there doesn't explain to me how <code>weird_zero 0 0</code> can reduce to <code>0</code> with <code>eval</code> and <code>reduce</code>, yet <code>rfl</code> doesn't typecheck at <code>weird_zero 0 0 = 0</code>.  It's contrary to all my experience with other dependent-type-theory-based proof assistants.  It's not as if <code>rfl</code> is some weird tactic that's doing some fancy stuff that isn't invariant under definitional equality or doesn't notice definitional equality.  I mean, maybe it is, but writing the explicit term <code>eq.refl 0</code> also fails.</p>
+
+
+
+<a name="301749997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301749997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301749997">(Sep 30 2022 at 23:29)</a>:</h4>
+<p>Is <code>weird_zero 0 0</code> definitionally equal to <code>0</code> or not?</p>
+<p>If so, then it seems that Lean's typechecking does not respect definitional equality, since <code>weird_zero 0 0 = 0</code> is definitionally equal to <code>0 = 0</code>, but <code>eq.refl 0</code> has the latter type and not the former.</p>
+<p>If not, then it seems that <code>eval</code> and <code>reduce</code> are doing some sort of "generalized computation" that doesn't preserve definitional equality.  Which, I suppose, is a thing that one could do.  But then there ought to be some other command that only performs definitional computations, right?</p>
+
+
+
+<a name="301751165"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301751165" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301751165">(Sep 30 2022 at 23:45)</a>:</h4>
+<p>AFAIK, <code>#eval</code> runs in the VM, while <code>#reduce</code> runs in the kernel. But see Mario's message at <a href="#narrow/stream/113489-new-members/topic/not.20p.20versus.20p.20implies.20false/near/209606830">https://leanprover.zulipchat.com/#narrow/stream/113489-new-members/topic/not.20p.20versus.20p.20implies.20false/near/209606830</a> for a possible reason for <code>rfl</code> failing in cases where definitional equality holds.</p>
+
+
+
+<a name="301755066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301755066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301755066">(Oct 01 2022 at 00:42)</a>:</h4>
+<p>Thanks for the link.  But Mario explicitly says that Lean's definitional equality check is semantically equivalent to reducing both sides to a normal form.  So since in this case both sides have the same normal form <code>0</code>, shouldn't they should be judged as equal by the definitional equality checker whatever other fancy stuff it's doing?</p>
+
+
+
+<a name="301755750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301755750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301755750">(Oct 01 2022 at 00:54)</a>:</h4>
+<p>You're right, my bad. I'll wait for the experts to answer :)</p>
+
+
+
+<a name="301756103"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301756103" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301756103">(Oct 01 2022 at 01:01)</a>:</h4>
+<blockquote>
+<p>haven't tried Lean 4</p>
+</blockquote>
+<p>For what it's worth, your <code>weird_zero</code> doesn't compile in Lean 4 as is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">weird_zero</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="c1">-- termination error</span>
+<span class="bp">|</span> <span class="mi">0</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="mi">0</span><span class="o">,</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">),</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">),</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="n">n</span>
+</code></pre></div>
+<p>I get the error:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>fail to show termination for
+  weird_zero
+with errors
+argument #1 was not used for structural recursion
+  failed to eliminate recursive application
+    weird_zero 0 n
+
+argument #2 was not used for structural recursion
+  failed to eliminate recursive application
+    weird_zero m 0
+
+structural recursion cannot be used
+
+failed to prove termination, use `termination_by` to specify a well-founded relation
+</code></pre></div>
+
+
+
+<a name="301757168"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757168" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757168">(Oct 01 2022 at 01:18)</a>:</h4>
+<p>FWIW I tried the <code>pascal</code> example from the other thread in lean4 and got similar behaviour. (Presumably <code>wierd_error</code> will behave similarly if you provide the termination proof.)</p>
+
+
+
+<a name="301757197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757197">(Oct 01 2022 at 01:19)</a>:</h4>
+<p>Coq doesn't accept it either, but Agda does.</p>
+
+
+
+<a name="301757305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757305">(Oct 01 2022 at 01:20)</a>:</h4>
+<p>Ok, this works in Lean 4:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">weird_zero</span> <span class="o">(</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">n</span><span class="o">,</span> <span class="n">m</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="mi">0</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="mi">0</span><span class="o">,</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">weird_zero</span> <span class="n">m</span> <span class="n">n</span>
+<span class="n">termination_by</span> <span class="n">weird_zero</span> <span class="n">n</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">n</span><span class="o">,</span> <span class="n">m</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="c1">-- yields 0</span>
+<span class="k">#reduce</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="c1">-- yields 0</span>
+
+<span class="kd">def</span> <span class="n">test</span> <span class="o">:</span> <span class="n">weird_zero</span> <span class="mi">0</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- passes</span>
+</code></pre></div>
+
+
+
+<a name="301757454"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757454" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757454">(Oct 01 2022 at 01:23)</a>:</h4>
+<p>(I copied the code from <a href="https://github.com/leanprover/lean4/blob/dc1b16c4fbfe30906c4bf795b08f0fdc5bba194e/tests/lean/run/defaultEliminator.lean#L15">this example</a>.  I still have no idea how the termination checker works.)</p>
+
+
+
+<a name="301757543"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757543" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757543">(Oct 01 2022 at 01:24)</a>:</h4>
+<p>Ok, that's fairly nice.  I'm still curious what's going on in Lean 3, though.</p>
+
+
+
+<a name="301757585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757585">(Oct 01 2022 at 01:25)</a>:</h4>
+<p>For more information about <code>termination_by</code>:<br>
+<a href="https://leanprover.github.io/theorem_proving_in_lean4/induction_and_recursion.html#well-founded-recursion-and-induction">https://leanprover.github.io/theorem_proving_in_lean4/induction_and_recursion.html#well-founded-recursion-and-induction</a></p>
+
+
+
+<a name="301757815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301757815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301757815">(Oct 01 2022 at 01:29)</a>:</h4>
+<p>The Lean 3 version is also using well founded recursion. You can use the <code>#print</code> command to see how the frontend compiled the declaration.</p>
+
+
+
+<a name="301758057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758057">(Oct 01 2022 at 01:32)</a>:</h4>
+<p><code>#print weird_zero</code> gives me</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">weird_zero</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="n">weird_zero._main</span>
+</code></pre></div>
+
+
+
+<a name="301758088"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758088" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758088">(Oct 01 2022 at 01:33)</a>:</h4>
+<p>What I really want to know is why <code>eq.refl 0</code> doesn't typecheck at <code>weird_zero 0 0 = 0</code>.</p>
+
+
+
+<a name="301758184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758184">(Oct 01 2022 at 01:34)</a>:</h4>
+<p><span class="user-mention" data-user-id="381187">@Mike Shulman</span> You can print <code>weird_zero._main</code> (and so on ...) but it gets pretty hairy.</p>
+
+
+
+<a name="301758217"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758217" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758217">(Oct 01 2022 at 01:35)</a>:</h4>
+<p>We have to keep going:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#print</span> <span class="n">weird_zero._main</span>
+<span class="k">#print</span> <span class="n">weird_zero._main._pack</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def weird_zero._main._pack : Π (_x : Σ' (a : ℕ), ℕ), (λ (_x : Σ' (a : ℕ), ℕ), ℕ) _x :=</span>
+<span class="cm">λ (_x : Σ' (a : ℕ), ℕ),</span>
+<span class="cm">  well_founded.fix _</span>
+<span class="cm">    (λ (_x : Σ' (a : ℕ), ℕ),</span>
+<span class="cm">       psigma.cases_on _x</span>
+<span class="cm">         (λ (fst snd : ℕ),</span>
+<span class="cm">            nat.cases_on fst</span>
+<span class="cm">              (nat.cases_on snd</span>
+<span class="cm">                 (id_rhs ((Π (_y : Σ' (a : ℕ), ℕ), has_well_founded.r _y ⟨0, 0⟩ → ℕ) → ℕ)</span>
+<span class="cm">  ...</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="301758346"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758346" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758346">(Oct 01 2022 at 01:37)</a>:</h4>
+<p>I also want to understand the answer to Mike's question, to be honest: If <code>#reduce weird_zero 0 0</code> returns <code>0</code>, why does <code>rfl</code> not prove <code>weird_zero 0 0 = 0</code>? Is <code>#reduce</code> doing more powerful things? If so, is there a <code>#command</code> to "emulate" what the kernel is doing?</p>
+
+
+
+<a name="301758639"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758639" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758639">(Oct 01 2022 at 01:41)</a>:</h4>
+<p>The plot gets stranger:  In the <a href="https://leanprover.github.io/live/latest/#code=def%20weird_zero%20:%20%E2%84%95%20%E2%86%92%20%E2%84%95%20%E2%86%92%20%E2%84%95%0A%7C%200%200%20:=%200%0A%7C%200%20(n+1)%20:=%20weird_zero%200%20n%0A%7C%20(m+1)%200%20:=%20weird_zero%20m%200%0A%7C%20(m+1)%20(n+1)%20:=%20weird_zero%20m%20n%0A%0Adef%20test%20:%20weird_zero._main%200%200%20=%200%20:=%20rfl%20--%20passes">Lean 3 official online editor</a> (which I assume is running 3.4.2) it again works.  The rfl succeeds.  So whatever is broken is broken in the community version of Lean 3.</p>
+
+
+
+<a name="301758839"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301758839" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301758839">(Oct 01 2022 at 01:44)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="381187">Mike Shulman</span> <a href="#narrow/stream/113488-general/topic/Is.20this.20equality.20definitional.3F/near/301758088">said</a>:</p>
+<blockquote>
+<p>What I really want to know is why <code>eq.refl 0</code> doesn't typecheck at <code>weird_zero 0 0 = 0</code>.</p>
+</blockquote>
+<p>The <code>#reduce</code> and the frontend type checker are using different settings to decide which declarations can be delta reduced.<br>
+<code>#reduce</code> uses <code>transparency_mode::All</code> and will reduce even theorems if needed. Since <code>weird_zero</code> is defined using well-founded recursion, theorems needed to be reduced. The type checker in the Lean 3 frontend is using a more conservative setting in the community version. I think this was an intentional change in the community version to address nasty performance issues. <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> do you remember the issue?</p>
+
+
+
+<a name="301760296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301760296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301760296">(Oct 01 2022 at 02:09)</a>:</h4>
+<p>I've verified that Mike's example works in Lean 3.28.0 and not in Lean 3.29.0, so I think a relevant PR is <a href="https://github.com/leanprover-community/lean/pull/562">https://github.com/leanprover-community/lean/pull/562</a> ("backport(type_context.cpp): wf should not compute"), but perhaps this is orthogonal to the transparency issue above (all I could find for that was <a href="https://github.com/leanprover-community/lean/pull/211">https://github.com/leanprover-community/lean/pull/211</a>, but this landed way earlier)</p>
+
+
+
+<a name="301760426"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301760426" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301760426">(Oct 01 2022 at 02:11)</a>:</h4>
+<p>It's a bit unexpected that this is a backport and yet the equivalent example works in Lean 4</p>
+
+
+
+<a name="301760780"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301760780" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301760780">(Oct 01 2022 at 02:18)</a>:</h4>
+<p>Hmm, interesting.  Is there a way for the user to alter the attributes or settings so that <code>rfl</code> will work?</p>
+
+
+
+<a name="301761825"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301761825" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Matt Diamond <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301761825">(Oct 01 2022 at 02:37)</a>:</h4>
+<p>this may be the relevant thread for the PR Mauricio linked: <a href="#narrow/stream/270676-lean4/topic/mathport.3Awf-refl">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport.3Awf-refl</a></p>
+
+
+
+<a name="301766492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301766492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301766492">(Oct 01 2022 at 04:10)</a>:</h4>
+<p>The issue was that we don't want proofs to be computed to a normal form because they aren't designed for such anyway. We would end up with some weird incentives to avoid <code>propext</code> and other axioms (which will block computation)</p>
+
+
+
+<a name="301766672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301766672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301766672">(Oct 01 2022 at 04:13)</a>:</h4>
+<p>Basically, "every closed term of nat normalizes to a numeral" is just false for lean as actually practiced</p>
+
+
+
+<a name="301766747"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301766747" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301766747">(Oct 01 2022 at 04:15)</a>:</h4>
+<p>Even before that PR, wf reduction was really flaky because of these issues</p>
+
+
+
+<a name="301767211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301767211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301767211">(Oct 01 2022 at 04:23)</a>:</h4>
+<p>To reiterate an example I used recently:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">pp.all</span> <span class="n">true</span>
+<span class="k">#check</span> <span class="k">show</span> <span class="n">ℕ</span><span class="o">,</span> <span class="k">from</span> <span class="n">eq.rec_on</span> <span class="o">(</span><span class="n">eq_true_intro</span> <span class="o">(</span><span class="bp">@</span><span class="n">id</span> <span class="n">true</span><span class="o">))</span> <span class="mi">2</span> <span class="c1">-- closed term of type ℕ</span>
+<span class="k">#reduce</span> <span class="k">show</span> <span class="n">ℕ</span><span class="o">,</span> <span class="k">from</span> <span class="n">eq.rec_on</span> <span class="o">(</span><span class="n">eq_true_intro</span> <span class="o">(</span><span class="bp">@</span><span class="n">id</span> <span class="n">true</span><span class="o">))</span> <span class="mi">2</span>
+<span class="c1">-- @eq.rec.{1 1} Prop (true → true) (λ (_x : Prop), nat) (nat.succ (nat.succ nat.zero)) true</span>
+<span class="c1">--   (@propext (true → true) true</span>
+<span class="c1">--      (@iff.intro (true → true) true (λ (hl : true → true), true.intro) (λ (hr a : true), a)))</span>
+</code></pre></div>
+<p>Even if we reduce proofs, we get stuck whenever any axioms are used. Definitions by well founded recursion are often susceptible to variants on this if the proof of well foundedness uses <code>simp</code> or <code>rw</code></p>
+
+
+
+<a name="301767668"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301767668" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301767668">(Oct 01 2022 at 04:32)</a>:</h4>
+<p>So many things go wrong when you don't have univalence... (-:O</p>
+
+
+
+<a name="301767895"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301767895" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301767895">(Oct 01 2022 at 04:37)</a>:</h4>
+<p>Or you can just use theorems for rewriting. <code>simp</code> proves this just fine</p>
+
+
+
+<a name="301767959"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301767959" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301767959">(Oct 01 2022 at 04:38)</a>:</h4>
+<p>It's impossible to have all the definitional equalities you would like, unless you accept an extensional type theory. <code>m + 0 = m</code> and <code>0 + m = m</code> are equally true to any mathematician</p>
+
+
+
+<a name="301768007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768007">(Oct 01 2022 at 04:39)</a>:</h4>
+<p>I personally think that we should put as little weight on the DTT side of things as we can. You have to really contort the mathematics to fit into the framework even if you invest in an expansive and useful defeq</p>
+
+
+
+<a name="301768067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768067">(Oct 01 2022 at 04:40)</a>:</h4>
+<p>and the underlying theory becomes monstrously complicated when you go that route</p>
+
+
+
+<a name="301768113"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768113" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768113">(Oct 01 2022 at 04:41)</a>:</h4>
+<p>After spending a while on these kinds of systems, it's amazing to me how much this is just a non-issue in HOL based systems</p>
+
+
+
+<a name="301768402"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768402" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768402">(Oct 01 2022 at 04:47)</a>:</h4>
+<p>I didn't mean to start an argument, just making a tongue-in-cheek observation.  (-:</p>
+
+
+
+<a name="301768558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768558">(Oct 01 2022 at 04:50)</a>:</h4>
+<p>FWIW, your example of <code>m + 0 = m</code> and <code>0 + m = m</code> can both be made to hold definitionally using <a href="https://arxiv.org/abs/1304.0809">nu-equality</a> or <a href="https://dl.acm.org/doi/abs/10.1145/3434341">rewriting type theory</a>.  But I think what it actually illustrates is the folly of conflating definitional equality with mathematical equality.  They are equally true to any mathematician, and indeed they are equally propositionally true in DTT.</p>
+
+
+
+<a name="301768837"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768837" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768837">(Oct 01 2022 at 04:55)</a>:</h4>
+<p>So if all you want to do is formalize set-based mathematics, then perhaps indeed there's not much use for dependent types or definitional equality.  Those of us who want to do higher-typed mathematics do seem to need the latter.  But even apart from that, definitional equality is foundational to the computational interpretation of DTT as a programming language.  I ran into this issue because I'm teaching a class using Lean with a lot of computer science students in it, and so we're doing some basic functional programming, and for that purpose it's important to actually have things compute.</p>
+
+
+
+<a name="301768918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301768918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301768918">(Oct 01 2022 at 04:56)</a>:</h4>
+<p>It's very weird if you write a program that computes when you run it, but when you start trying to prove things about it, it doesn't compute any more during your proof!</p>
+
+
+
+<a name="301769769"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301769769" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301769769">(Oct 01 2022 at 05:09)</a>:</h4>
+<p>I'd love to have a tactic that will prove that a computation under the VM erasing map preserves propositional equality, but as far as I can tell that would need no less than full HoTT style reasoning</p>
+
+
+
+<a name="301769786"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301769786" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301769786">(Oct 01 2022 at 05:09)</a>:</h4>
+<p>because you can get casts and casts upon casts and so on</p>
+
+
+
+<a name="301770107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Is%20this%20equality%20definitional%3F/near/301770107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mike Shulman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Is.20this.20equality.20definitional.3F.html#301770107">(Oct 01 2022 at 05:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/Is.20this.20equality.20definitional.3F/near/301769769">said</a>:</p>
+<blockquote>
+<p>as far as I can tell that would need no less than full HoTT style reasoning</p>
+</blockquote>
+<p>The solution seems obvious to me... (-:O</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,324 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html">Inductive definition in macros</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="230906439"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230906439" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230906439">(Mar 18 2021 at 17:32)</a>:</h4>
+<p>Is there any way to generate inductive definitions (and matches on those definitions) in a macro?<br>
+I'd like to do something like write a macro that creates an "enumerable" type with a list of identifiers, and the implements ToJson/FromJson using the string version of those identifiers</p>
+
+
+
+<a name="230907246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230907246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230907246">(Mar 18 2021 at 17:36)</a>:</h4>
+<p>You can create arbitrary syntax with a macro, including commands</p>
+
+
+
+<a name="230907513"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230907513" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230907513">(Mar 18 2021 at 17:38)</a>:</h4>
+<p>So here was my first try to do just that</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">identArr</span> <span class="o">:=</span> <span class="s2">"["</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">ident</span><span class="o">,</span> <span class="s2">", "</span><span class="o">)</span> <span class="s2">"]"</span>
+<span class="n">syntax</span> <span class="s2">"gen_enum_defs%"</span> <span class="n">ident</span> <span class="n">identArr</span> <span class="o">:</span> <span class="n">command</span> <span class="c1">-- TODO</span>
+<span class="n">syntax</span> <span class="s2">"gen_enum_json%"</span> <span class="n">ident</span> <span class="n">identArr</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">gen_enum_json</span><span class="bp">%</span> <span class="bp">$</span><span class="n">id</span> <span class="o">[</span><span class="bp">$</span><span class="n">ids</span><span class="o">,</span><span class="bp">*</span><span class="o">])</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span> <span class="c1">--set_option trace.Meta.debug true in</span>
+      <span class="k">let</span> <span class="n">ids</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Syntax</span> <span class="o">:=</span> <span class="n">ids</span>
+      <span class="k">if</span> <span class="n">ids.size</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span>
+        <span class="n">return</span> <span class="n">mkNullNode</span>
+      <span class="k">else</span>
+        <span class="bp">`</span><span class="o">(</span><span class="bp">|</span> <span class="s2">"$(quote ids[0])"</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">ids</span><span class="o">[</span><span class="mi">0</span><span class="o">])</span> <span class="bp">%</span><span class="n">gen_enum_json</span><span class="bp">%</span> <span class="bp">$</span><span class="n">id</span> <span class="o">[</span><span class="bp">$</span><span class="o">(</span><span class="n">ids</span><span class="o">[</span><span class="mi">1</span><span class="o">:]),</span><span class="bp">*</span><span class="o">])</span>
+
+<span class="c1">--syntax "gen_enum" identArr : command</span>
+<span class="n">macro</span> <span class="s2">"gen_enum"</span> <span class="n">id</span><span class="o">:</span><span class="n">ident</span> <span class="n">ids</span><span class="o">:</span><span class="n">identArr</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="n">gen_enum_defs</span><span class="bp">%</span> <span class="bp">$</span><span class="n">id</span> <span class="bp">$</span><span class="n">ids</span>
+    <span class="kd">instance</span> <span class="o">:</span> <span class="n">FromJson</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span>
+      <span class="n">fromJson</span><span class="bp">?</span> <span class="n">j</span> <span class="o">:=</span> <span class="k">do</span> <span class="k">match</span> <span class="o">(</span><span class="bp">&lt;-</span><span class="n">j.getStr</span><span class="bp">?</span><span class="o">)</span> <span class="k">with</span> <span class="n">gen_enum_json</span><span class="bp">%</span> <span class="bp">$</span><span class="n">id</span> <span class="bp">$</span><span class="n">ids</span><span class="o">)</span>
+</code></pre></div>
+<p>But I'm getting some errors on the <code>|</code> which I think means it was invalid syntax</p>
+
+
+
+<a name="230908497"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230908497" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230908497">(Mar 18 2021 at 17:44)</a>:</h4>
+<p>You cannot use macros in that position, you have to insert the syntax directly using quotations. There is no documentation on complex quotations yet (oops), but you can find examples in Lean such as <a href="https://github.com/leanprover/lean4/blob/1af02dcaca3ca0665a37254aaa30ea196ec77c90/src/Lean/Elab/Quotation.lean#L457">https://github.com/leanprover/lean4/blob/1af02dcaca3ca0665a37254aaa30ea196ec77c90/src/Lean/Elab/Quotation.lean#L457</a></p>
+
+
+
+<a name="230908997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230908997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230908997">(Mar 18 2021 at 17:47)</a>:</h4>
+<p>See also <a href="https://leanprover-community.github.io/lt2021/slides/sebastian-lean4-parsers-macros.pdf#page=23">https://leanprover-community.github.io/lt2021/slides/sebastian-lean4-parsers-macros.pdf#page=23</a></p>
+
+
+
+<a name="230909403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230909403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230909403">(Mar 18 2021 at 17:50)</a>:</h4>
+<p>I see, so if I had something like <code>$[| $strs =&gt; $idents]*</code> it would expand correctly into multiple patterns?</p>
+
+
+
+<a name="230909508"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230909508" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230909508">(Mar 18 2021 at 17:50)</a>:</h4>
+<p>Exactly!</p>
+
+
+
+<a name="230911209"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230911209" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230911209">(Mar 18 2021 at 18:00)</a>:</h4>
+<p>Ok, then starting from square 1, if I try</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">identArr</span> <span class="o">:=</span> <span class="s2">"["</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">ident</span><span class="o">,</span> <span class="s2">", "</span><span class="o">)</span> <span class="s2">"]"</span>
+<span class="n">syntax</span> <span class="s2">"gen_enum"</span> <span class="n">ident</span> <span class="n">identArr</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">gen_enum</span> <span class="n">id</span> <span class="o">[</span><span class="bp">$</span><span class="n">ids</span><span class="o">,</span><span class="bp">*</span><span class="o">])</span> <span class="bp">=&gt;`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span>
+</code></pre></div>
+<p>I get <code>expected )</code> on the  second <code>$</code></p>
+
+
+
+<a name="230913896"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230913896" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230913896">(Mar 18 2021 at 18:16)</a>:</h4>
+<p>Here is something that is mimicking the inductive definition more somewhat (and your example)  but it's having trouble on the first <code>$[| $ids]*</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"enum"</span> <span class="n">ident</span> <span class="s2">" where "</span> <span class="o">(</span><span class="s2">"|"</span> <span class="n">ident</span><span class="o">)</span><span class="bp">*</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">enum</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span> <span class="bp">=&gt;`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span> <span class="bp">$</span><span class="n">ids</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="230930202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230930202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230930202">(Mar 18 2021 at 20:13)</a>:</h4>
+<p>Ah, that looks like an issue with <code>(stx)</code>...</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">myMatchAlt</span> <span class="o">:=</span> <span class="s2">"|"</span> <span class="n">ident</span>
+<span class="n">syntax</span> <span class="s2">"enum"</span> <span class="n">ident</span> <span class="s2">" where "</span> <span class="n">myMatchAlt</span><span class="bp">*</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">enum</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span> <span class="bp">=&gt;`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="230941132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230941132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230941132">(Mar 18 2021 at 21:33)</a>:</h4>
+<p>Ok, so I've tried to add it the <code>FromJson</code> and I'm getting a weird <code> parenthesize: uncaught backtrack exception.</code><br>
+The code thus far is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">myMatchAlt</span> <span class="o">:=</span> <span class="s2">"|"</span> <span class="n">ident</span>
+<span class="n">syntax</span> <span class="s2">"enum"</span> <span class="n">ident</span> <span class="s2">" where "</span> <span class="n">myMatchAlt</span><span class="bp">*</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">enum</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span>
+      <span class="c1">-- remove `</span>
+      <span class="k">let</span> <span class="n">matchPatterns</span> <span class="o">:=</span> <span class="n">ids.mapSepElems</span> <span class="k">fun</span> <span class="n">i</span> <span class="bp">=&gt;</span> <span class="n">quote</span> <span class="o">((</span><span class="n">toString</span> <span class="n">i</span><span class="o">)</span><span class="bp">.</span><span class="n">drop</span> <span class="mi">1</span><span class="o">)</span>
+      <span class="k">let</span> <span class="n">fromJson</span> <span class="o">:=</span> <span class="n">id.getId.appendAfter</span> <span class="s2">"FromJson"</span>
+      <span class="bp">`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span>
+        <span class="kd">instance</span> <span class="bp">$</span><span class="o">(</span><span class="n">mkIdentFrom</span> <span class="n">id</span> <span class="n">fromJson</span><span class="o">)</span> <span class="o">:</span> <span class="n">FromJson</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span>
+          <span class="n">fromJson</span><span class="bp">?</span> <span class="n">j</span> <span class="o">:=</span> <span class="k">do</span> <span class="k">match</span> <span class="o">(</span><span class="bp">&lt;-</span><span class="n">j.getStr</span><span class="bp">?</span><span class="o">)</span> <span class="k">with</span>
+            <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">matchPatterns</span> <span class="bp">=&gt;</span> <span class="n">pure</span> <span class="bp">$</span><span class="n">ids</span> <span class="o">]</span><span class="bp">*</span>
+            <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">failure</span>
+        <span class="o">)</span>
+</code></pre></div>
+<p>e.g. <code>enum E where</code> fails with the backtrace</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="o">[</span><span class="n">Error</span> <span class="n">pretty</span> <span class="n">printing</span> <span class="n">syntax</span><span class="o">:</span> <span class="n">parenthesize</span><span class="o">:</span> <span class="n">uncaught</span> <span class="n">backtrack</span> <span class="n">exception.</span> <span class="n">Falling</span> <span class="n">back</span> <span class="n">to</span> <span class="n">raw</span> <span class="n">printer.</span><span class="o">]</span>
+  <span class="o">(</span><span class="n">Command.declaration</span>
+   <span class="o">(</span><span class="n">Command.declModifiers</span> <span class="o">[]</span> <span class="o">[]</span> <span class="o">[]</span> <span class="o">[]</span> <span class="o">[]</span> <span class="o">[])</span>
+   <span class="o">(</span><span class="n">Command.instance</span>
+    <span class="o">(</span><span class="n">Term.attrKind</span> <span class="o">[])</span>
+    <span class="s2">"instance"</span>
+    <span class="o">[</span><span class="bp">`</span><span class="n">EFromJson</span><span class="o">]</span>
+    <span class="o">[]</span>
+    <span class="o">(</span><span class="n">Command.declSig</span> <span class="o">[]</span> <span class="o">(</span><span class="n">Term.typeSpec</span> <span class="s2">":"</span> <span class="o">(</span><span class="n">Term.app</span> <span class="bp">`</span><span class="n">FromJson._</span><span class="bp">@.</span><span class="n">Santorini.RPC._hyg.2104</span> <span class="o">[</span><span class="bp">`</span><span class="n">E</span><span class="o">])))</span>
+    <span class="o">(</span><span class="n">Term.whereDecls</span>
+     <span class="s2">"where"</span>
+     <span class="o">[[(</span><span class="n">Term.letRecDecl</span>
+        <span class="o">[]</span>
+        <span class="o">[]</span>
+        <span class="o">(</span><span class="n">Term.letDecl</span>
+         <span class="o">(</span><span class="n">Term.letIdDecl</span>
+          <span class="bp">`</span><span class="n">fromJson</span><span class="bp">?.</span><span class="n">_</span><span class="bp">@.</span><span class="n">Santorini.RPC._hyg.2104</span>
+          <span class="o">[(</span><span class="n">Term.simpleBinder</span> <span class="o">[</span><span class="bp">`</span><span class="n">j._</span><span class="bp">@.</span><span class="n">Santorini.RPC._hyg.2104</span><span class="o">]</span> <span class="o">[])]</span>
+          <span class="o">[]</span>
+          <span class="s2">":="</span>
+          <span class="o">(</span><span class="n">Term.do</span>
+           <span class="s2">"do"</span>
+           <span class="o">(</span><span class="n">Term.doSeqIndent</span>
+            <span class="o">[(</span><span class="n">Term.doSeqItem</span>
+              <span class="o">(</span><span class="n">Term.doMatch</span>
+               <span class="s2">"match"</span>
+               <span class="o">[(</span><span class="n">Term.matchDiscr</span>
+                 <span class="o">[]</span>
+                 <span class="o">(</span><span class="n">Term.paren</span> <span class="s2">"("</span> <span class="o">[(</span><span class="n">Term.liftMethod</span> <span class="s2">"&lt;-"</span> <span class="bp">`</span><span class="n">j.getStr</span><span class="bp">?.</span><span class="n">_</span><span class="bp">@.</span><span class="n">Santorini.RPC._hyg.2104</span><span class="o">)</span> <span class="o">[]]</span> <span class="s2">")"</span><span class="o">))]</span>
+               <span class="o">[]</span>
+               <span class="s2">"with"</span>
+               <span class="o">(</span><span class="n">Term.matchAlts</span>
+                <span class="o">[(</span><span class="n">Term.matchAlt</span>
+                  <span class="s2">"|"</span>
+                  <span class="o">[(</span><span class="n">Term.hole</span> <span class="s2">"_"</span><span class="o">)]</span>
+                  <span class="s2">"=&gt;"</span>
+                  <span class="o">(</span><span class="n">Term.doSeqIndent</span> <span class="o">[(</span><span class="n">Term.doSeqItem</span> <span class="o">(</span><span class="n">Term.doExpr</span> <span class="bp">`</span><span class="n">failure._</span><span class="bp">@.</span><span class="n">Santorini.RPC._hyg.2104</span><span class="o">)</span> <span class="o">[])]))]))</span>
+              <span class="o">[])])))))</span>
+       <span class="o">[]]])))</span>
+</code></pre></div>
+
+
+
+<a name="230942228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230942228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230942228">(Mar 18 2021 at 21:42)</a>:</h4>
+<p>Yes, the pretty printer often gives up when given invalid syntax. But that can't be the actual error message.</p>
+
+
+
+<a name="230942939"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230942939" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230942939">(Mar 18 2021 at 21:49)</a>:</h4>
+<p>Ah, then the actual error message is <code>unexpected syntax</code></p>
+
+
+
+<a name="230943093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230943093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230943093">(Mar 18 2021 at 21:50)</a>:</h4>
+<p>Try <code>$matchPatterns:term</code>. A general <code>matchAlt</code> has a comma-separated list of terms (patterns).</p>
+
+
+
+<a name="230943325"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230943325" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230943325">(Mar 18 2021 at 21:53)</a>:</h4>
+<p>well I don't think that is causing this particular error beacuse in <code>enum E where</code> there should only be the <code>_</code> pattern (I think this is shown in the raw printer)</p>
+
+
+
+<a name="230943768"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230943768" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230943768">(Mar 18 2021 at 21:57)</a>:</h4>
+<p>Ah, right. Then I'm not sure. Debugging syntax trees can be tough, unfortunately.</p>
+
+
+
+<a name="230944010"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230944010" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230944010">(Mar 18 2021 at 21:59)</a>:</h4>
+<p>It can help writing out the expected output and looking at its structure with <code>set_option trace.Elab.command true in ...</code></p>
+
+
+
+<a name="230961619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230961619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230961619">(Mar 19 2021 at 01:17)</a>:</h4>
+<p>How should I write <code>.</code> eliminated terms? i.e. if I have two names $a and $b$ is there a function that gives $a.$b or can i just write it like that?</p>
+
+
+
+<a name="230989761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/230989761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#230989761">(Mar 19 2021 at 08:31)</a>:</h4>
+<p>That only works for projections. Otherwise you need to concatenate them on the <code>Name</code> level</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="bp">`</span><span class="n">a</span> <span class="bp">++</span> <span class="bp">`</span><span class="n">b</span>
+</code></pre></div>
+
+
+
+<a name="231058070"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231058070" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231058070">(Mar 19 2021 at 17:15)</a>:</h4>
+<p>Ahh ok that makes sense. Is there any way to get the <code>Name</code>s themselves from <code>Syntax</code> variables?</p>
+
+
+
+<a name="231058391"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231058391" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231058391">(Mar 19 2021 at 17:17)</a>:</h4>
+<p>If it's an <code>ident</code>, <code>Syntax.getId</code>. <code>Syntax.mkIdent</code> is the reverse.</p>
+
+
+
+<a name="231060971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231060971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231060971">(Mar 19 2021 at 17:33)</a>:</h4>
+<p>Thank you for working with me so much!<br>
+Is there some way to print trace messages myself?</p>
+
+
+
+<a name="231102026"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231102026" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231102026">(Mar 19 2021 at 23:09)</a>:</h4>
+<p>OK this is somewhat working now! Here's my code</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">myMatchAlt</span> <span class="o">:=</span> <span class="s2">"|"</span> <span class="n">ident</span>
+<span class="n">syntax</span> <span class="s2">"enum"</span> <span class="n">ident</span> <span class="s2">" where "</span> <span class="n">myMatchAlt</span><span class="bp">*</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">enum</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">matchPatterns</span> <span class="o">:=</span> <span class="n">ids.map</span> <span class="k">fun</span> <span class="n">i</span> <span class="bp">=&gt;</span> <span class="n">quote</span> <span class="o">((</span><span class="n">toString</span> <span class="n">i</span><span class="o">)</span><span class="bp">.</span><span class="n">drop</span> <span class="mi">1</span><span class="o">)</span>
+      <span class="k">let</span> <span class="n">retPatterns</span> <span class="o">:=</span> <span class="bp">&lt;-</span><span class="o">(</span><span class="n">ids.mapM</span> <span class="o">(</span><span class="n">m</span> <span class="o">:=</span> <span class="n">MacroM</span><span class="o">)</span> <span class="k">fun</span> <span class="n">i</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">mkIdent</span> <span class="bp">$</span> <span class="n">id.getId</span> <span class="bp">++</span> <span class="n">i.getId</span><span class="o">)))</span>
+      <span class="bp">`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span>
+        <span class="kd">instance</span> <span class="o">:</span> <span class="n">FromJson</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span>
+          <span class="n">fromJson</span><span class="bp">?</span> <span class="n">j</span> <span class="o">:=</span> <span class="k">do</span> <span class="k">match</span> <span class="o">(</span><span class="bp">&lt;-</span><span class="n">j.getStr</span><span class="bp">?</span><span class="o">)</span> <span class="k">with</span>
+            <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">matchPatterns</span> <span class="bp">=&gt;</span> <span class="n">pure</span> <span class="o">(</span><span class="bp">$</span><span class="n">retPatterns</span><span class="o">)</span> <span class="o">]</span><span class="bp">*</span>
+            <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">failure</span>
+        <span class="kd">instance</span> <span class="o">:</span> <span class="n">ToJson</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span>
+          <span class="n">toJson</span> <span class="n">e</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+            <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">retPatterns</span><span class="o">:</span><span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">matchPatterns</span> <span class="o">]</span><span class="bp">*</span>
+      <span class="o">)</span>
+</code></pre></div>
+<p>there were two interesting things... First, If I try creating an identifier to name the <code>instance</code> declarations it fails and I can't quite figure out why. Second, this was failing if I had more than one injection (e.g. <code>enum E where | E1|E2</code>) because for some reason <code>mapSepElems</code> and <code>mapSepElemsM</code> only mapped the first element and none of the others.... I had to change to <code>map</code> and <code>mapM</code></p>
+
+
+
+<a name="231133874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231133874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231133874">(Mar 20 2021 at 09:08)</a>:</h4>
+<p>Nice!<br>
+<span class="user-mention silent" data-user-id="382349">Calvin Lee</span> <a href="#narrow/stream/270676-lean4/topic/Inductive.20definition.20in.20macros/near/231102026">said</a>:</p>
+<blockquote>
+<p>First, If I try creating an identifier to name the <code>instance</code> declarations it fails and I can't quite figure out why.</p>
+</blockquote>
+<p>Did you use <code>:ident</code>?</p>
+<blockquote>
+<p>Second, this was failing if I had more than one injection (e.g. <code>enum E where | E1|E2</code>) because for some reason <code>mapSepElems</code> and <code>mapSepElemsM</code> only mapped the first element and none of the others.... I had to change to <code>map</code> and <code>mapM</code></p>
+</blockquote>
+<p><code>mapSepElems</code> is for syntax created by <code>sepBy</code> (i.e. <code>,*</code> etc), not <code>many</code> (i.e. <code>*</code>)</p>
+
+
+
+<a name="231133892"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231133892" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231133892">(Mar 20 2021 at 09:09)</a>:</h4>
+<p>Btw, it looks like you could have avoided the name concatenation with a <code>open $id</code></p>
+
+
+
+<a name="231155750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231155750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Calvin Lee <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231155750">(Mar 20 2021 at 16:24)</a>:</h4>
+<blockquote>
+<p>did you try using <code>:ident</code></p>
+</blockquote>
+<p>oh I think that actually did it!<br>
+Also I did try <code>open $id in...</code> but it didn't seem to work, oh well</p>
+
+
+
+<a name="231159067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231159067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231159067">(Mar 20 2021 at 17:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Inductive.20definition.20in.20macros/near/230930202">said</a>:</p>
+<blockquote>
+<p>Ah, that looks like an issue with <code>(stx)</code>...</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">myMatchAlt</span> <span class="o">:=</span> <span class="s2">"|"</span> <span class="n">ident</span>
+<span class="n">syntax</span> <span class="s2">"enum"</span> <span class="n">ident</span> <span class="s2">" where "</span> <span class="n">myMatchAlt</span><span class="bp">*</span> <span class="o">:</span> <span class="n">command</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">enum</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span> <span class="bp">=&gt;`</span><span class="o">(</span><span class="kd">inductive</span> <span class="bp">$</span><span class="n">id</span> <span class="n">where</span> <span class="bp">$</span><span class="o">[</span><span class="bp">|</span> <span class="bp">$</span><span class="n">ids</span><span class="o">:</span><span class="n">ident</span> <span class="o">]</span><span class="bp">*</span><span class="o">)</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>This is fixed now btw</p>
+
+
+
+<a name="231173429"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Inductive%20definition%20in%20macros/near/231173429" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Kent <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Inductive.20definition.20in.20macros.html#231173429">(Mar 20 2021 at 21:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="382349">@Calvin Lee</span> Nice! <span aria-label="octopus" class="emoji emoji-1f419" role="img" title="octopus">:octopus:</span> This is an awesome macro!  I have thought several times about implementing something similar but have felt too busy or come up with other excuses, haha --- there's some embarrassing boilerplate in our code right now that basically manually creates an "enum" from an inductive type with all nullary constructors by mapping each constructor to a Nat to I can pretend they're an ordered/enumerable/etc type xD</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

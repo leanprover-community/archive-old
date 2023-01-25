@@ -1,0 +1,162 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Parser.20bug.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html">Parser bug?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="308898298"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/308898298" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#308898298">(Nov 10 2022 at 00:17)</a>:</h4>
+<p>I stumbled on what seems like a strange bug. The following works as expected:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">namespace</span> <span class="n">Lean.Elab.Term.TestingParser</span>
+
+<span class="kd">def</span> <span class="n">aa</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"a"</span>
+<span class="kd">def</span> <span class="n">bb</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"b"</span>
+<span class="kd">@[term_parser]</span> <span class="kd">def</span> <span class="n">ab</span> <span class="o">:=</span>
+  <span class="n">leading_parser</span> <span class="o">(</span><span class="n">aa</span> <span class="bp">&gt;&gt;</span> <span class="n">Parser.optional</span> <span class="n">Parser.ident</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="o">(</span><span class="n">bb</span> <span class="bp">&gt;&gt;</span> <span class="n">Parser.optional</span> <span class="n">Parser.ident</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">parsedIndicator</span> <span class="o">:</span> <span class="n">TSyntax</span> <span class="bp">``</span><span class="n">ab</span> <span class="bp">→</span> <span class="n">Syntax</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span><span class="n">a</span><span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">]</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"0"</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span><span class="n">b</span><span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">]</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"1"</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"2"</span>
+
+<span class="kd">@[term_elab ab]</span> <span class="kd">def</span> <span class="n">elabab</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">match</span> <span class="n">stx</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ab</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">elabTerm</span> <span class="o">(</span><span class="n">parsedIndicator</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">some</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">))</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">unreachable</span><span class="bp">!</span>
+
+<span class="k">#eval</span> <span class="n">b</span> <span class="n">xy</span>    <span class="c1">-- 1</span>
+</code></pre></div>
+<p>but if you disallow optional idents after the <code>bb</code> parser, it misses the <code>b</code> case and hits the <code>_</code> case, as demonstrated by the <code>2</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">namespace</span> <span class="n">Lean.Elab.Term.TestingParser'</span>
+
+<span class="kd">def</span> <span class="n">aa</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"a"</span>
+<span class="kd">def</span> <span class="n">bb</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"b"</span>
+<span class="kd">@[term_parser]</span> <span class="kd">def</span> <span class="n">ab</span> <span class="o">:=</span>
+  <span class="n">leading_parser</span> <span class="o">(</span><span class="n">aa</span> <span class="bp">&gt;&gt;</span> <span class="n">Parser.optional</span> <span class="n">Parser.ident</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">bb</span>
+
+<span class="kd">def</span> <span class="n">parsedIndicator</span> <span class="o">:</span> <span class="n">TSyntax</span> <span class="bp">``</span><span class="n">ab</span> <span class="bp">→</span> <span class="n">Syntax</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span><span class="n">a</span><span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">]</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"0"</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span><span class="n">b</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"1"</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">Syntax.mkNumLit</span> <span class="s2">"2"</span>
+
+<span class="kd">@[term_elab ab]</span> <span class="kd">def</span> <span class="n">elabab</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">match</span> <span class="n">stx</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ab</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">elabTerm</span> <span class="o">(</span><span class="n">parsedIndicator</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">some</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">))</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">unreachable</span><span class="bp">!</span>
+
+<span class="k">#eval</span> <span class="n">b</span>    <span class="c1">-- 2</span>
+</code></pre></div>
+<p>Is this a bug, or just a gotcha? (I made sure I was on the latest nightly before posting.)</p>
+
+
+
+<a name="308906425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/308906425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#308906425">(Nov 10 2022 at 01:54)</a>:</h4>
+<p>This does appear to be a bug. cc: <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>  Minimized:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">aa</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"a"</span>
+<span class="kd">def</span> <span class="n">bb</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"b"</span>
+<span class="kd">def</span> <span class="n">ab</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="o">(</span><span class="n">aa</span> <span class="bp">&gt;&gt;</span> <span class="n">aa</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">bb</span>
+
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:</span> <span class="n">TSyntax</span> <span class="bp">``</span><span class="n">ab</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span> <span class="n">a</span> <span class="bp">$</span><span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span> <span class="n">b</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="mi">2</span>
+<span class="k">#print</span> <span class="n">f</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">f</span> <span class="o">:</span> <span class="n">TSyntax</span> <span class="bp">`</span><span class="n">ab</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="o">:=</span>
+<span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span>
+  <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">x</span><span class="bp">;</span>
+  <span class="k">if</span> <span class="n">Syntax.isOfKind</span> <span class="n">__discr.raw</span> <span class="bp">`</span><span class="n">ab</span> <span class="bp">=</span> <span class="n">true</span> <span class="k">then</span>
+    <span class="n">let_fun</span> <span class="n">__discr_1</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">0</span><span class="bp">;</span>
+    <span class="k">if</span> <span class="n">Syntax.isOfKind</span> <span class="n">__discr_1</span> <span class="bp">`</span><span class="n">aa</span> <span class="bp">=</span> <span class="n">true</span> <span class="k">then</span>
+      <span class="n">let_fun</span> <span class="n">__discr_2</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr_1</span> <span class="mi">0</span><span class="bp">;</span>
+      <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">1</span><span class="bp">;</span>
+      <span class="mi">0</span>
+    <span class="k">else</span>
+      <span class="n">let_fun</span> <span class="n">__discr_2</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">0</span><span class="bp">;</span>
+      <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">1</span><span class="bp">;</span>
+      <span class="mi">2</span>
+  <span class="k">else</span>
+    <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">x</span><span class="bp">;</span>
+    <span class="k">if</span> <span class="n">Syntax.isOfKind</span> <span class="n">__discr.raw</span> <span class="bp">`</span><span class="n">ab</span> <span class="bp">=</span> <span class="n">true</span> <span class="k">then</span>
+      <span class="n">let_fun</span> <span class="n">__discr_1</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">0</span><span class="bp">;</span>
+      <span class="k">if</span> <span class="n">Syntax.isOfKind</span> <span class="n">__discr_1</span> <span class="bp">`</span><span class="n">bb</span> <span class="bp">=</span> <span class="n">true</span> <span class="k">then</span>
+        <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr_1</span> <span class="mi">0</span><span class="bp">;</span>
+        <span class="mi">1</span>
+      <span class="k">else</span>
+        <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">Syntax.getArg</span> <span class="n">__discr.raw</span> <span class="mi">0</span><span class="bp">;</span>
+        <span class="mi">2</span>
+    <span class="k">else</span>
+      <span class="n">let_fun</span> <span class="n">__discr</span> <span class="o">:=</span> <span class="n">x</span><span class="bp">;</span>
+      <span class="mi">2</span>
+</code></pre></div>
+<p>The <code>else if Syntax.isOfKind __discr.raw `ab = true</code> case is unreachable, because we already checked that <code>Syntax.isOfKind __discr.raw `ab = true</code> is false, and the <code>1</code> return value only appears in that branch. In other similar syntax matches, this condition is deduplicated and the <code>1</code> would end up in the first <code>if</code> case. I suspect this has to do with the fact that this is using a parser of arity 2 inside a <code>&lt;|&gt;</code>, which is discouraged.</p>
+
+
+
+<a name="308939721"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/308939721" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#308939721">(Nov 10 2022 at 08:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Parser.20bug.3F/near/308906425">said</a>:</p>
+<blockquote>
+<p>I suspect this has to do with the fact that this is using a parser of arity 2 inside a <code>&lt;|&gt;</code>, which is discouraged.</p>
+</blockquote>
+<p>Yes. Don't do that.</p>
+
+
+
+<a name="309065531"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/309065531" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#309065531">(Nov 10 2022 at 19:45)</a>:</h4>
+<p>Is the proper workaround making a <code>leading_parser</code> for every time you’d want to put a parser of arity &gt;1 inside a <code>&lt;|&gt;</code>? I noticed that worked, but wasn’t sure if this was the best option or if there was something better than <code>&lt;|&gt;</code> to use in this situation.</p>
+
+
+
+<a name="309069728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/309069728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#309069728">(Nov 10 2022 at 20:08)</a>:</h4>
+<p>you can use <code>group</code></p>
+
+
+
+<a name="309069964"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/309069964" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#309069964">(Nov 10 2022 at 20:10)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">aa</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"a"</span>
+<span class="kd">def</span> <span class="n">bb</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"b"</span>
+<span class="kd">def</span> <span class="n">ab</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="n">Parser.group</span> <span class="o">(</span><span class="n">aa</span> <span class="bp">&gt;&gt;</span> <span class="n">aa</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">bb</span>
+
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:</span> <span class="n">TSyntax</span> <span class="bp">``</span><span class="n">ab</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span> <span class="n">a</span> <span class="bp">$</span><span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">ab</span><span class="bp">|</span> <span class="n">b</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="mi">2</span>
+<span class="k">#print</span> <span class="n">f</span>
+</code></pre></div>
+<p>works as intended</p>
+
+
+
+<a name="309070156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parser%20bug%3F/near/309070156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parser.20bug.3F.html#309070156">(Nov 10 2022 at 20:11)</a>:</h4>
+<p>Though for all of this you should use <code>syntax</code> instead, which automatically solves this issue</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

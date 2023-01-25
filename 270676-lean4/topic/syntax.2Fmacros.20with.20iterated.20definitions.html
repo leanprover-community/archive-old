@@ -1,0 +1,125 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html">syntax/macros with iterated definitions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="323163385"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323163385" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Paul  Chisholm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323163385">(Jan 24 2023 at 04:28)</a>:</h4>
+<p>I am trying to define some notation that is like the if-fi construct in Dijkstra's Guarded Command Language. I started with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">syntax_version</span>
+
+<span class="n">scoped</span> <span class="n">syntax</span> <span class="s2">" if "</span> <span class="o">(</span><span class="n">term</span> <span class="s2">" ⟹ "</span> <span class="n">term</span> <span class="s2">" ‖ "</span><span class="o">)</span><span class="bp">+</span> <span class="s2">" ⟹ "</span> <span class="n">term</span> <span class="s2">" fi "</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="k">if</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">‖</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₂</span> <span class="n">fi</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="bp">`</span><span class="o">(</span><span class="n">ite</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">$</span><span class="n">e₂</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="k">if</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">‖</span> <span class="bp">$</span><span class="n">c₂</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₂</span> <span class="bp">‖</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₃</span> <span class="n">fi</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="bp">`</span><span class="o">(</span><span class="n">ite</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">$</span><span class="n">e₁</span> <span class="o">(</span><span class="n">ite</span> <span class="bp">$</span><span class="n">c₂</span> <span class="bp">$</span><span class="n">e₂</span> <span class="bp">$</span><span class="n">e₃</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">select</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="bp">==</span> <span class="mi">0</span> <span class="bp">⟹</span> <span class="s2">"zero"</span>
+     <span class="bp">‖</span> <span class="n">n</span> <span class="bp">==</span> <span class="mi">1</span> <span class="bp">⟹</span> <span class="s2">"one"</span>
+<span class="c1">--     ‖ n == 2 ⟹ "two"</span>
+     <span class="bp">‖</span>        <span class="bp">⟹</span> <span class="s2">"&gt; 2"</span>
+    <span class="n">fi</span>
+
+<span class="kd">end</span> <span class="n">syntax_version</span>
+</code></pre></div>
+<p>which is fine as far as it goes but inadequate because you can't keep adding cases each time you need an extra branch (such as to handle the <code>n == 2</code> case in the example). I can't see any way to handle the iterated syntax (<code>+</code>).</p>
+<p>Syntax categories seem to be a step in the right direction so it became:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">syntax_category_version</span>
+
+<span class="n">declare_syntax_cat</span> <span class="n">clause</span>
+<span class="n">declare_syntax_cat</span> <span class="n">catchall</span>
+
+<span class="n">scoped</span> <span class="n">syntax</span> <span class="n">term</span> <span class="s2">" ⟹ "</span> <span class="n">term</span>  <span class="s2">" ‖ "</span> <span class="o">:</span> <span class="n">clause</span>
+<span class="n">scoped</span> <span class="n">syntax</span> <span class="s2">" ⟹ "</span> <span class="n">term</span> <span class="o">:</span> <span class="n">catchall</span>
+<span class="n">scoped</span> <span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">iffi</span><span class="o">)</span> <span class="s2">" if "</span> <span class="n">clause</span><span class="bp">+</span> <span class="n">catchall</span> <span class="s2">" fi "</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">?</span>
+
+<span class="kd">end</span> <span class="n">syntax_category_version</span>
+</code></pre></div>
+<p>I have tried to mimic what I see in the notation section of the manual but haven't been able to come up with the correct pattern. What do I need to do here to match the iterated clauses and translate to the corresponding <code>ite</code> calls?</p>
+
+
+
+<a name="323164154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323164154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323164154">(Jan 24 2023 at 04:41)</a>:</h4>
+<p>you use <code> $(e)*</code> to match an expression produced by <code>stx+</code></p>
+
+
+
+<a name="323165838"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323165838" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Paul  Chisholm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323165838">(Jan 24 2023 at 05:04)</a>:</h4>
+<p>I had tried something along those lines. This sort of thing (ignoring the RHS for the moment):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">catchall</span><span class="bp">|</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">clause</span><span class="bp">|</span> <span class="n">c</span> <span class="bp">⟹</span> <span class="n">e</span> <span class="bp">‖</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">iffi</span><span class="bp">|</span> <span class="k">if</span> <span class="bp">$</span><span class="n">cl</span> <span class="bp">$</span><span class="o">(</span><span class="n">cls</span><span class="o">)</span><span class="bp">*</span> <span class="bp">$</span><span class="n">ca</span> <span class="n">fi</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="o">)</span>
+</code></pre></div>
+<p>I have tried various combinations but I always end up with the <code>fi</code> underlined and the error <code>expected catchall</code>.</p>
+
+
+
+<a name="323166343"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323166343" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Paul  Chisholm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323166343">(Jan 24 2023 at 05:10)</a>:</h4>
+<p>Actually, I missed a couple of <code>$</code> above (in the <code>clause</code> case) which then has an error under the arrow of that case <code>expected ')'</code>.</p>
+
+
+
+<a name="323190885"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323190885" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323190885">(Jan 24 2023 at 08:33)</a>:</h4>
+<p>Using your original syntax:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">scoped</span> <span class="n">syntax</span> <span class="s2">" if "</span> <span class="o">(</span><span class="n">term</span> <span class="s2">" ⟹ "</span> <span class="n">term</span> <span class="s2">" ‖ "</span><span class="o">)</span><span class="bp">+</span> <span class="s2">" ⟹ "</span> <span class="n">term</span> <span class="s2">" fi "</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="k">if</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">‖</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₂</span> <span class="n">fi</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">ite</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">$</span><span class="n">e₂</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="k">if</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₁</span> <span class="bp">‖</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">cs₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">es₁</span> <span class="bp">‖</span><span class="o">]</span><span class="bp">*</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₂</span> <span class="n">fi</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">ite</span> <span class="bp">$</span><span class="n">c₁</span> <span class="bp">$</span><span class="n">e₁</span> <span class="o">(</span><span class="k">if</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">cs₁</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">es₁</span> <span class="bp">‖</span><span class="o">]</span><span class="bp">*</span> <span class="bp">⟹</span> <span class="bp">$</span><span class="n">e₂</span> <span class="n">fi</span><span class="o">))</span>
+</code></pre></div>
+
+
+
+<a name="323191316"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323191316" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323191316">(Jan 24 2023 at 08:35)</a>:</h4>
+<p>Regarding your second approach, you need to resolve ambiguities around antiquotations manually: in <code>clause| $c ...</code>, <code>c</code> will default to being <code>clause</code>, which means you should use <code>$c:term</code> instead</p>
+
+
+
+<a name="323218483"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323218483" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Paul  Chisholm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323218483">(Jan 24 2023 at 10:52)</a>:</h4>
+<p>Thanks very much for the responses.</p>
+<p>It is really nice the way the macro rules are just a kind of recursive definition. I just didn't see that before.</p>
+
+
+
+<a name="323314288"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323314288" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323314288">(Jan 24 2023 at 17:45)</a>:</h4>
+<p><span class="user-mention" data-user-id="383769">@Paul  Chisholm</span> Are you planning on implementing some model checking related stuff?</p>
+
+
+
+<a name="323371431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/syntax/macros%20with%20iterated%20definitions/near/323371431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Paul  Chisholm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/syntax.2Fmacros.20with.20iterated.20definitions.html#323371431">(Jan 24 2023 at 23:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="372804">@Marcus Rossel</span> I was really just experimenting with notation. The notation expands to the nested <code>ite</code>s. What do you have in mind when you say model checking in this context.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

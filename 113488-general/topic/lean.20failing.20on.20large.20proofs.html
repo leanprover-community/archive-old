@@ -1,0 +1,171 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html">lean failing on large proofs</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="296025313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296025313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296025313">(Aug 30 2022 at 02:02)</a>:</h4>
+<p>I am working on a code verification project with a number of large proofs. I recently updated Lean andmathlib from much older versions, and now I am experiencing the following behavior. The development gets stuck on a large file when I run <code>lean --make</code>, which is to say, the output freezes, the system monitor shows a cpu maxing out, and the fan keeps whirring. But when I open the file in VS Code, the yellow bars disappear after about a minute and everything looks o.k. I can step through the file and see the goals change in the infoview.</p>
+<p>Does anyone have any thoughts as to how I can debug, and what might explain the success of the lean server in contrast to lean from the command line? If I type <code>lean --help</code>, I see all kinds of options to increase various limits, but I have no idea what are reasonable numbers to type.</p>
+
+
+
+<a name="296025470"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296025470" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296025470">(Aug 30 2022 at 02:05)</a>:</h4>
+<p>you could turn on the profiler in the file using <code>set_option profiler true</code> which should at least narrow the issue down to a specific proof, and may also pinpoint a bad tactic if that's the culprit</p>
+
+
+
+<a name="296083607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296083607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296083607">(Aug 30 2022 at 11:44)</a>:</h4>
+<p>Thanks for the suggestion. The file has a single theorem, a computer-generated proof of close to 500 lines, that uses <code>simp</code> and <code>norm_num</code> a lot to step through computations. Before <code>lean --make</code> freezes, the profiler reports that the elaborator succeeded in 78.3 seconds, so it seems that it is the kernel check that fails. (There is no smoking gun in the report from the profiler; it shows a lot of time spent in simp and norm_num, as expected.)</p>
+<p>The proof has a couple of calculations with 80-digit numbers, so there is plenty of room for the kernel to get lost. In the mathlib upgrade, I had to fix some problems that had to do with casts from nat to int to a field, so the problem may have to do with that. I will experiment.</p>
+<p>Is there anything to explain why the kernel check seems to work in VS Code but not from the command line?</p>
+
+
+
+<a name="296084565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296084565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ruben Van de Velde <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296084565">(Aug 30 2022 at 11:51)</a>:</h4>
+<p>Just guessing: does vscode pass any interesting command line options to lean that you don't use from the command line?</p>
+
+
+
+<a name="296085075"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296085075" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296085075">(Aug 30 2022 at 11:55)</a>:</h4>
+<p>It raises <code>-M</code> and <code>-T</code> (memory and timeout) if you happen not to be passing those -- the defaults at the minute are <code>-M 4096 and -T 100000</code> (from <a href="https://github.com/leanprover/vscode-lean/blob/8ca7fa689bc89f5d327a4d00017855e3ede0561b/package.json#L32-L50">https://github.com/leanprover/vscode-lean/blob/8ca7fa689bc89f5d327a4d00017855e3ede0561b/package.json#L32-L50</a>)</p>
+
+
+
+<a name="296085253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296085253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296085253">(Aug 30 2022 at 11:56)</a>:</h4>
+<p>Does it help to start squeezing simps?</p>
+
+
+
+<a name="296085287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296085287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296085287">(Aug 30 2022 at 11:56)</a>:</h4>
+<p>Do we need a <code>squeeze_norm_num</code>?</p>
+
+
+
+<a name="296089334"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296089334" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296089334">(Aug 30 2022 at 12:21)</a>:</h4>
+<p>Thanks, Julian, I'll try messing around with the limits. Johan, virtually all our simps are squeezed, and generally we even use <code>norm_num1</code> instead of <code>norm_num</code>.</p>
+
+
+
+<a name="296089824"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296089824" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296089824">(Aug 30 2022 at 12:24)</a>:</h4>
+<p>Hmmzz... then it must be a truly gigantic proof (-;</p>
+
+
+
+<a name="296100875"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296100875" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296100875">(Aug 30 2022 at 13:24)</a>:</h4>
+<p>The problem is solved. Here's the resolution.</p>
+<p>First, the problem was not in the file I thought it was, but in a dependency. There was a proof that passed the elaborator but led to a deterministic timeout in the kernel. VS Code compiled the later file without noticing the timeout (I guess the type signature was enough) and <code>lean --make</code> worked on parts in parallel, so it froze on the earlier dependency just after announcing the successful completion of the later one. Go figure.</p>
+<p>Second, the real problem was simply a numeric calculation with large nat numeral cast to int. If you are not careful (e.g. if you use the simplifier or force definitional reduction) Lean falls into unary notation.  Using the right <code>simp only</code> rules avoids that. I have gotten used to dealing with that, but this bit of code was written by a colleague who was not aware of the issue.</p>
+<p>Everything works great now. <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span> Thanks everyone for the help.</p>
+
+
+
+<a name="296103528"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296103528" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296103528">(Aug 30 2022 at 13:39)</a>:</h4>
+<p>To illustrate, the first proof below takes a number of seconds, whereas the second is instantaneous:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span><span class="o">:</span> <span class="o">((</span><span class="mi">12345678901234567890123456789012345678901234567890</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span>
+  <span class="mi">12345678901234567890123456789012345678901234567891</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">norm_num</span>
+
+<span class="kd">example</span><span class="o">:</span> <span class="o">((</span><span class="mi">12345678901234567890123456789012345678901234567890</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span>
+  <span class="mi">12345678901234567890123456789012345678901234567891</span>  <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">int.coe_nat_zero</span><span class="o">,</span> <span class="n">int.coe_nat_one</span><span class="o">,</span> <span class="n">int.coe_nat_bit0</span><span class="o">,</span> <span class="n">int.coe_nat_bit1</span><span class="o">],</span>
+  <span class="n">norm_num1</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="296103661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296103661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296103661">(Aug 30 2022 at 13:40)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="321696">Julian Berman</span> <a href="#narrow/stream/113488-general/topic/lean.20failing.20on.20large.20proofs/near/296085075">said</a>:</p>
+<blockquote>
+<p>It raises <code>-M</code> and <code>-T</code> (memory and timeout) if you happen not to be passing those -- the defaults at the minute are <code>-M 4096 and -T 100000</code> (from <a href="https://github.com/leanprover/vscode-lean/blob/8ca7fa689bc89f5d327a4d00017855e3ede0561b/package.json#L32-L50">https://github.com/leanprover/vscode-lean/blob/8ca7fa689bc89f5d327a4d00017855e3ede0561b/package.json#L32-L50</a>)</p>
+</blockquote>
+<p>I think the default for <code>lean --make</code> is timeout and memory = 0 (aka infinite) though without extra options, so vscode settings are only there to tame lean</p>
+
+
+
+<a name="296103807"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296103807" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296103807">(Aug 30 2022 at 13:41)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110865">Jeremy Avigad</span> <a href="#narrow/stream/113488-general/topic/lean.20failing.20on.20large.20proofs/near/296103528">said</a>:</p>
+<blockquote>
+<p>To illustrate, the first proof below takes a number of seconds, whereas the second is instantaneous:</p>
+</blockquote>
+<p>Is that something that could be fixed in <code>norm_num</code>?</p>
+
+
+
+<a name="296106478"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296106478" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296106478">(Aug 30 2022 at 13:53)</a>:</h4>
+<p>The plot thickens. The proof <code>by simp; norm_num</code> has the same slow behavior, but if I squeeze that <code>simp</code>, Lean tells me to use <code>simp only [int.coe_nat_bit0, int.coe_nat_bit1, nat.cast_one], norm_num</code>, which has the fast behavior. So I guess <code>simp</code> is backtracking? Let me check...</p>
+
+
+
+<a name="296136493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296136493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296136493">(Aug 30 2022 at 14:39)</a>:</h4>
+<p>The <code>trace</code> is huge. Trying a smaller example <code>100 + 1 = 101</code> shows that the simplifier is trying all kinds of crazy things because the head symbol <code>coe</code> matches a lot. That explains why elaboration would be slow, but it doesn't explain our deterministic timeout.</p>
+<p>I extracted the three big calculations below from the proof that was giving me a deterministic timeout. Replacing the proofs by <code>sorry</code> allowed the proof to compile. But separated out, none of them are problematic, and what squeeze simp tells me to do to speed it up is essentially what I did to fix the proof. So I really don't know why those calculations seemed to result in a failure in the kernel check rather than in the elaboration phase.</p>
+<p>So maybe I was wrong, the problem wasn't with the kernel check, just too much time elaborating calculations in an already long proof?</p>
+<p>Anyhow, it seems that the only way to solve the problem with <code>norm_num</code> is to avoid the use of the full-blown version of <code>simp</code> for preprocessing.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="mi">19342813113834066795298816</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">4</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">-</span> <span class="bp">↑</span><span class="o">(</span><span class="mi">2</span> <span class="bp">^</span> <span class="mi">86</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">))</span> <span class="bp">%</span> <span class="bp">↑</span><span class="o">(</span><span class="mi">3618502788666131213697322783095070105623107215331596699973092056135872020481</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">norm_num</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="mi">19342813113834066795298816</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">4</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">-</span> <span class="bp">↑</span><span class="o">(</span><span class="mi">2</span> <span class="bp">^</span> <span class="mi">86</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">))</span> <span class="bp">%</span> <span class="bp">↑</span><span class="o">(</span><span class="mi">3618502788666131213697322783095070105623107215331596699973092056135872020481</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">norm_num</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="o">((</span><span class="mi">2</span><span class="bp">^</span><span class="mi">86</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">*</span> <span class="bp">-</span><span class="mi">46768052394588894761721767695234645457402928824320</span> <span class="bp">%</span> <span class="bp">↑</span><span class="o">(</span><span class="mi">3618502788666131213697322783095070105623107215331596699973092056135872020481</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">norm_num</span>
+</code></pre></div>
+<p>Incidentally, in case you are curious, I have discovered that you can Google 3618502788666131213697322783095070105623107215331596699973092056135872020481.</p>
+
+
+
+<a name="296172409"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296172409" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296172409">(Aug 30 2022 at 17:08)</a>:</h4>
+<p>One last plot twist. I turns out that I oversimplified my examples. The large prime was hidden behind a definition, and my colleague used <code>dsimp</code> to unfold it, as in the example below. It produces a deterministic timeout in the kernel checking phase. Replacing <code>dsimp</code> by <code>rw</code> is slow but succeeds.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">PRIME</span> <span class="o">:=</span> <span class="mi">3618502788666131213697322783095070105623107215331596699973092056135872020481</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="mi">2</span><span class="bp">^</span><span class="mi">86</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">*</span> <span class="bp">-</span><span class="mi">46768052394588894761721767695234645457402928824320</span> <span class="bp">%</span> <span class="bp">↑</span><span class="n">PRIME</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">dsimp</span> <span class="o">[</span><span class="n">PRIME</span><span class="o">]</span><span class="bp">;</span> <span class="n">norm_num</span>
+</code></pre></div>
+
+
+
+<a name="296210897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296210897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296210897">(Aug 30 2022 at 19:54)</a>:</h4>
+<p>You could also hack your car by googling MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy8Dbv8prpJ : <a href="https://programmingwithstyle.com/posts/howihackedmycar/">https://programmingwithstyle.com/posts/howihackedmycar/</a></p>
+
+
+
+<a name="296263068"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean%20failing%20on%20large%20proofs/near/296263068" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean.20failing.20on.20large.20proofs.html#296263068">(Aug 31 2022 at 06:24)</a>:</h4>
+<p>FYI, <code>norm_num</code> has no support for <code>coe</code>, so this is mostly <code>simp</code> behavior being observed</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

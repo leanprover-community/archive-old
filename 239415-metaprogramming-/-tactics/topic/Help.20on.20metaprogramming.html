@@ -1,0 +1,85 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html">Help on metaprogramming</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="303095137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Help%20on%20metaprogramming/near/303095137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html#303095137">(Oct 09 2022 at 06:05)</a>:</h4>
+<p>To introduce better notation for restriction of sheaves, I need a tactic that can discharge a goal of type <code>U ≤ V</code>. I would like to do this via approximating the transitive closure of the lemmas in the local context and also some tagged lemmas. This is what I have now</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">topology.sheaves.presheaf</span>
+
+<span class="kd">@[user_attribute]</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">restrict_attr</span> <span class="o">:</span> <span class="n">user_attribute</span> <span class="o">(</span><span class="n">tactic</span> <span class="n">unit</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">unit</span><span class="o">)</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">name</span>      <span class="o">:=</span> <span class="bp">`</span><span class="n">sheaf_restrict</span><span class="o">,</span>
+  <span class="n">descr</span>     <span class="o">:=</span> <span class="s2">"tag lemmas to use in `presheaf.restrict_tac`"</span><span class="o">,</span>
+  <span class="n">cache_cfg</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">mk_cache</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">ns</span><span class="o">,</span> <span class="n">pure</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">t</span><span class="o">,</span> <span class="k">do</span>
+    <span class="o">{</span> <span class="n">ctx</span> <span class="bp">&lt;-</span> <span class="n">tactic.local_context</span><span class="o">,</span>
+      <span class="n">ctx.any_of</span> <span class="o">(</span><span class="n">tactic.focus1</span> <span class="bp">∘</span> <span class="o">(</span><span class="n">tactic.apply</span> <span class="bp">&gt;=&gt;</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">tactic.done</span><span class="o">))</span> <span class="bp">&gt;=&gt;</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">t</span><span class="o">))</span> <span class="bp">&lt;|&gt;</span>
+      <span class="n">ns.any_of</span> <span class="o">(</span><span class="n">tactic.focus1</span> <span class="bp">∘</span> <span class="o">(</span><span class="n">tactic.resolve_name</span> <span class="bp">&gt;=&gt;</span> <span class="n">tactic.to_expr</span> <span class="bp">&gt;=&gt;</span> <span class="n">tactic.apply</span> <span class="bp">&gt;=&gt;</span>
+        <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">tactic.done</span><span class="o">))</span> <span class="bp">&gt;=&gt;</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">t</span><span class="o">))</span> <span class="o">},</span>
+    <span class="n">dependencies</span> <span class="o">:=</span> <span class="o">[]</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">restrict_tac</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">tactic</span> <span class="n">unit</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">tactic.fail</span> <span class="s2">"`restrict_tac` failed"</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">monad.join</span> <span class="o">(</span><span class="n">restrict_attr.get_cache</span> <span class="bp">&lt;*&gt;</span> <span class="n">pure</span> <span class="n">tactic.done</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span>
+    <span class="bp">`</span><span class="o">[</span><span class="n">tactic.transitivity</span><span class="o">,</span> <span class="n">mjoin</span> <span class="o">(</span><span class="n">restrict_attr.get_cache</span> <span class="bp">&lt;*&gt;</span> <span class="n">pure</span> <span class="o">(</span><span class="n">restrict_tac</span> <span class="n">n</span><span class="o">))]</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">sheaf_restrict</span><span class="o">]</span> <span class="n">bot_le</span> <span class="n">le_top</span> <span class="n">le_refl</span> <span class="n">inf_le_left</span> <span class="n">inf_le_right</span> <span class="n">le_sup_left</span> <span class="n">le_sup_right</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">complete_lattice</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">v</span> <span class="n">w</span> <span class="n">x</span> <span class="n">y</span> <span class="n">z</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">h₀</span> <span class="o">:</span> <span class="n">v</span> <span class="bp">≤</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">h₁</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">z</span> <span class="bp">⊓</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">h₂</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">y</span> <span class="bp">⊓</span> <span class="n">z</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">v</span> <span class="bp">≤</span> <span class="n">y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">restrict_tac</span> <span class="mi">5</span>
+</code></pre></div>
+<p>Since this is my first time doing metaprogramming in lean, I have some questions:<br>
+Does this do what I think it does? Is there a better way to achieve this? Does the exponential behavior make it unusable in the long run? <br>
+And also I would expect the <code>orelse</code> to shortcut when the first argument succeeds, so it shouldn't matter a lot what large number I put, but it seems like that's not the case. What am I missing?</p>
+
+
+
+<a name="303096287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Help%20on%20metaprogramming/near/303096287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html#303096287">(Oct 09 2022 at 06:27)</a>:</h4>
+<p>Update: It breaks when the example is changed to</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="n">Top</span><span class="o">}</span> <span class="o">{</span><span class="n">v</span> <span class="n">w</span> <span class="n">x</span> <span class="n">y</span> <span class="n">z</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">h₀</span> <span class="o">:</span> <span class="n">v</span> <span class="bp">≤</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">h₁</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">z</span> <span class="bp">⊓</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">h₂</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">y</span> <span class="bp">⊓</span> <span class="n">z</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">v</span> <span class="bp">≤</span> <span class="n">y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">restrict_tac</span> <span class="mi">5</span>
+</code></pre></div>
+<p>But I'm not sure why. I changed <code>apply</code> to <code>apply'</code> and the error persists.</p>
+
+
+
+<a name="303096383"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Help%20on%20metaprogramming/near/303096383" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html#303096383">(Oct 09 2022 at 06:29)</a>:</h4>
+<p>Ah it seems like </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="n">Top</span><span class="o">}</span> <span class="o">{</span><span class="n">v</span> <span class="n">w</span> <span class="n">x</span> <span class="n">y</span> <span class="n">z</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">h₀</span> <span class="o">:</span> <span class="n">v</span> <span class="bp">≤</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">h₁</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">z</span> <span class="bp">⊓</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">h₂</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">y</span> <span class="bp">⊓</span> <span class="n">z</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">v</span> <span class="bp">≤</span> <span class="n">y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">transitivity</span><span class="o">,</span> <span class="o">}</span>
+</code></pre></div>
+<p>breaks already and it is not my fault.</p>
+
+
+
+<a name="303187367"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Help%20on%20metaprogramming/near/303187367" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html#303187367">(Oct 10 2022 at 02:08)</a>:</h4>
+<p>(note there is a <a class="stream" data-stream-id="239415" href="/#narrow/stream/239415-metaprogramming-.2F-tactics">#metaprogramming / tactics</a> stream; do you want a Zulip moderator to move this topic there?)</p>
+
+
+
+<a name="303187432"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Help%20on%20metaprogramming/near/303187432" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Help.20on.20metaprogramming.html#303187432">(Oct 10 2022 at 02:10)</a>:</h4>
+<p>This topic was moved here from <a class="stream-topic" data-stream-id="113488" href="/#narrow/stream/113488-general/topic/Help.20on.20metaprogramming">#general &gt; Help on metaprogramming</a> by <span class="user-mention silent" data-user-id="110049">Mario Carneiro</span>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

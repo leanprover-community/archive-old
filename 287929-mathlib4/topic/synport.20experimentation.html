@@ -1,0 +1,1065 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/synport.20experimentation.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html">synport experimentation</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="250169817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250169817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250169817">(Aug 20 2021 at 20:39)</a>:</h4>
+<p>Using the synport/binport that <span class="user-mention" data-user-id="230999">@Daniel Selsam</span> posted, I did an experiment by taking the synported file of <code>measure_theory/measurable_space_def.lean</code>, and manually fixing all (most) things until the file compiled (I didn't go through correctly camelCasing names). It was quite some work, but there were a lot of minor things that could probably be done by an improved synport.<br>
+After I finished, I realized that this wasn't exactly the experimentation that Daniel asked for, but I'll post my findings here anyway. Hopefully they are helpful.<br>
+Many of these points are (probably known) issues with synport, but there are definitely also some things that are me just being unfamiliar with Lean 4 (and binport/synport).<br>
+First of all, I'd like to say that both binport and synport are very nice tools that already work very well!</p>
+<ul>
+<li>camel casing errors:<ul>
+<li>The field <code>MeasurableSet'</code> of <code>MeasurableSpace</code> was camel cased in the first occurrence, but not any time later in the file.</li>
+<li><code>countable</code> and <code>finite</code> were not capitalized</li>
+<li>Ideally lemmas like <code>measurable_set_empty</code> are automatically camelCased as <code>measurableSet_empty</code>.</li>
+<li>these got an incorrect capital letter when camel casing: (? : MeasurableSet _).Compl, Set.Union, Set.SInter, Set.SUnion, ... (presumably because these are Prop's after unfolding?)</li>
+</ul>
+</li>
+<li>Some notation was not working:<ul>
+<li><code>⋃</code> (probably because I'm importing binported files, not synported files? The <code>notation3</code> I saw to declare it also didn't work, presumably for the same reason?)</li>
+<li><code>∅</code> (missing instance?)</li>
+<li><code>ᶜ</code> (no localized notation)</li>
+</ul>
+</li>
+<li>Tactics that are not implemented:<ul>
+<li><code>simpa using</code></li>
+<li><code>rwa</code></li>
+<li><code>byCases</code></li>
+<li><code>;</code></li>
+<li><code>exacts</code></li>
+<li><code>rfl</code> for other reflexive relations</li>
+</ul>
+</li>
+<li>Notation that is not implemented<ul>
+<li><code>‹...›</code></li>
+<li><code>{ a : α | p }</code></li>
+<li><code>{x}</code></li>
+</ul>
+</li>
+<li>commands that are not implemented<ul>
+<li>open_locale/localized</li>
+</ul>
+</li>
+<li>some declarations (<code>MeasurableSet.bUnion_decode₂</code>) have more explicit arguments than the Lean 3 version (<code>⦃⦄</code> is translated to <code>()</code>?)</li>
+<li>parentheses:<ul>
+<li><code>∀ b ∈ s</code> is translated as <code>∀ b _ : b ∈ s</code> instead of <code>∀ b (_ : b ∈ s)</code></li>
+<li><code>assume t (ht : generate_measurable s t)</code> is translated as <code>fun t ht : generate_measurable s t</code></li>
+</ul>
+</li>
+<li>All <code>simp</code> calls I've tried gave me the error</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">deterministic</span><span class="o">)</span> <span class="n">timeout</span> <span class="n">at</span> <span class="bp">'</span><span class="n">typeclass'</span><span class="o">,</span> <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">heartbeats</span> <span class="o">(</span><span class="mi">500</span><span class="o">)</span> <span class="n">has</span> <span class="n">been</span> <span class="n">reached</span> <span class="o">(</span><span class="n">use</span> <span class="bp">'</span><span class="kd">set_option</span> <span class="n">synthInstance.maxHeartbeats</span> <span class="bp">&lt;</span><span class="n">num</span><span class="bp">&gt;'</span> <span class="n">to</span> <span class="n">set</span> <span class="n">the</span> <span class="n">limit</span><span class="o">)</span>
+</code></pre></div>
+<ul>
+<li>
+<p>spacing</p>
+<ul>
+<li>a lot of spaces after identifiers/commands are eaten</li>
+<li>if an argument to a tactic is missing, there is a superfluous space after translation:<br>
+<code>have p</code> -&gt; <code>have  p</code> or <code>simpa using</code> -&gt; <code>simpa  using</code>.</li>
+</ul>
+</li>
+<li>
+<p>λ should sometimes be replaced by @λ</p>
+</li>
+<li>the default value for <code>Lt</code> in <code>Preorder</code> seems to be missing</li>
+<li>The code</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">subsingleton.MeasurableSet</span> <span class="o">[</span><span class="n">Subsingleton</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">MeasurableSet</span> <span class="n">s</span> <span class="o">:=</span>
+<span class="n">subsingleton.set_cases</span> <span class="n">MeasurableSet.empty</span> <span class="n">MeasurableSet.univ</span> <span class="n">s</span>
+</code></pre></div>
+<p>gives the error</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">Subsingleton</span> <span class="n">α</span>
+
+  <span class="n">Subsingleton</span> <span class="o">(</span><span class="n">pure</span> <span class="n">α</span><span class="o">)</span>
+</code></pre></div>
+<p>I don't know how to specify that I don't want a "pure" inserted.</p>
+<ul>
+<li>In</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">Set.finite.MeasurableSet</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">hs</span> <span class="o">:</span> <span class="n">Finite</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">MeasurableSet</span> <span class="n">s</span> <span class="o">:=</span>
+  <span class="n">Finite.induction_on</span> <span class="n">hs</span> <span class="n">_root_.MeasurableSet.empty</span> <span class="bp">λ</span> <span class="n">ha</span> <span class="n">hsf</span> <span class="n">hsm</span> <span class="bp">=&gt;</span> <span class="n">hsm.insert</span> <span class="n">_</span>
+</code></pre></div>
+<p>the <code>_root_</code> is necessary, because otherwise <code>MeasurableSet</code> is interpreted as a recursive call of the function...</p>
+<ul>
+<li>Two Lean 4 questions:<ul>
+<li>Is there a <code>#print notation</code> equivalent? Something like <code>#print notation +</code>?</li>
+<li>What is the equivalent of <code>open_locale classical</code>?</li>
+</ul>
+</li>
+</ul>
+
+
+
+<a name="250173586"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250173586" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250173586">(Aug 20 2021 at 21:15)</a>:</h4>
+<blockquote>
+<p>What is the equivalent of <code>open_locale classical</code>?</p>
+</blockquote>
+<p>It should be translated to <code>open_locale Classical</code></p>
+
+
+
+<a name="250174006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250174006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250174006">(Aug 20 2021 at 21:19)</a>:</h4>
+<p>Note that synport is not (yet) elaborator-aware, so things like <code>\lam</code> -&gt; <code>@\lam</code> aren't easily addressable right now</p>
+
+
+
+<a name="250174109"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250174109" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250174109">(Aug 20 2021 at 21:20)</a>:</h4>
+<p>but missing syntax and weird formatting can probably be addressed sooner (although I haven't thought about what to do about weird formatting in core yet)</p>
+
+
+
+<a name="250174426"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250174426" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250174426">(Aug 20 2021 at 21:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250169817">said</a>:</p>
+<blockquote>
+<p>- Is there a <code>#print notation</code> equivalent? Something like <code>#print notation +</code>?</p>
+</blockquote>
+<p>No, but you can use go-to-definition on any use of <code>+</code> (and any other syntax as long as it's imported and not contributed by native code, like many builtins are without <code>import Lean</code>)</p>
+
+
+
+<a name="250174679"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250174679" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250174679">(Aug 20 2021 at 21:26)</a>:</h4>
+<p>go to definition seems to take me to the definition of <code>app</code> a lot</p>
+
+
+
+<a name="250175067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175067">(Aug 20 2021 at 21:30)</a>:</h4>
+<p>Haha, that's the one syntax it shouldn't be able to go to since there is no atom to click on. But it's been a while since I've used it.</p>
+
+
+
+<a name="250175130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175130">(Aug 20 2021 at 21:31)</a>:</h4>
+<p>I often get go to definition hovers that cover the whole command and go to <code>def</code> or something. It's not just atoms</p>
+
+
+
+<a name="250175318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175318">(Aug 20 2021 at 21:33)</a>:</h4>
+<p>for example, hovering on <code>rcases</code> here:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rcases</span> <span class="n">x</span>
+</code></pre></div>
+<p>highlights <code>rcases x</code> and takes me to <code>evalTacticSeq1Indented</code></p>
+
+
+
+<a name="250175524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175524">(Aug 20 2021 at 21:36)</a>:</h4>
+<p>It would be <em>really</em> nice to have a more reliable go-to-definition in Lean 4. In Lean 3 it's always very frustrating when it doesn't work or goes to the definition of the tactic that sits at the beginning of the line.</p>
+
+
+
+<a name="250175562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175562">(Aug 20 2021 at 21:36)</a>:</h4>
+<p>In</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">exact</span> <span class="n">x</span>
+</code></pre></div>
+<p>hovering over <code>exact</code> also highlights <code>exact x</code> but it takes me to <code>evalExact</code>, so maybe this has something to do with the elabs</p>
+
+
+
+<a name="250175590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175590">(Aug 20 2021 at 21:36)</a>:</h4>
+<p>(since <code>rcases</code> is not implemented in the first example, it just has a <code>syntax</code> declaration)</p>
+
+
+
+<a name="250175690"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175690" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175690">(Aug 20 2021 at 21:37)</a>:</h4>
+<p>Yes, if syntax and elaborator are separate, go-to-definition goes to the elaborator and go-to-declaration to the syntax</p>
+
+
+
+<a name="250175800"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175800" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175800">(Aug 20 2021 at 21:38)</a>:</h4>
+<p>"no type definition found for 'rcases'"</p>
+
+
+
+<a name="250175883"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175883" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175883">(Aug 20 2021 at 21:39)</a>:</h4>
+<p>in <code>#check  `(by rcases p)</code>, hovering on <code>rcases</code> highlights the whole quotation and goes to <code>elab_stx_quot Parser.Term.quot</code></p>
+
+
+
+<a name="250175995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250175995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250175995">(Aug 20 2021 at 21:40)</a>:</h4>
+<p>Oh yeah, quotations are not special-cased yet</p>
+
+
+
+<a name="250176034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176034">(Aug 20 2021 at 21:41)</a>:</h4>
+<p>what special case is needed? at the syntax level, the <code>rcases</code> parser is called just the same</p>
+
+
+
+<a name="250176076"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176076" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176076">(Aug 20 2021 at 21:41)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250175800">said</a>:</p>
+<blockquote>
+<p>"no type definition found for 'rcases'"</p>
+</blockquote>
+<p>It's go-to-declaration, my bad</p>
+
+
+
+<a name="250176170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176170">(Aug 20 2021 at 21:42)</a>:</h4>
+<p>That one goes to <code>Parser.Tactic.tacticSeq1Indented</code></p>
+
+
+
+<a name="250176220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176220">(Aug 20 2021 at 21:43)</a>:</h4>
+<p>If it's not implemented yet, that's <em>kind of</em> correct, just not very helpful</p>
+
+
+
+<a name="250176321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176321">(Aug 20 2021 at 21:44)</a>:</h4>
+<p>the parser is implemented, but there is no elab (you get an error saying <code>tactic 'Lean.Parser.Tactic.rcases' has not been implemented</code>)</p>
+
+
+
+<a name="250176335"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176335" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176335">(Aug 20 2021 at 21:44)</a>:</h4>
+<p>Yes, that's what I meant</p>
+
+
+
+<a name="250176415"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176415" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176415">(Aug 20 2021 at 21:45)</a>:</h4>
+<p>what's the logic behind the kind-of correctness? Is it going up the tree to find something that was elabbed?</p>
+
+
+
+<a name="250176600"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176600" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176600">(Aug 20 2021 at 21:47)</a>:</h4>
+<p>Yes. Many syntax kinds are merely a part of a notation, so we use the surrounding elaborator if any. In quotations, we should just go to the syntax at point instead. The <code>app</code> case might also stem from this.</p>
+
+
+
+<a name="250176741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176741">(Aug 20 2021 at 21:48)</a>:</h4>
+<p>It would be great to stop the search at category parser calls, which would fix the <code>tacticSeq1Indented</code> case, but we don't have that kind of information</p>
+
+
+
+<a name="250176776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176776">(Aug 20 2021 at 21:49)</a>:</h4>
+<p>hm, it should be possible to also handle the case where an elaborator is expected but missing, like <code>rcases</code>, and go to the syntax for that node instead of the elab if none is available</p>
+
+
+
+<a name="250176854"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176854" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176854">(Aug 20 2021 at 21:50)</a>:</h4>
+<p>Oh right, we could record missing elaborators</p>
+
+
+
+<a name="250176885"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176885" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176885">(Aug 20 2021 at 21:50)</a>:</h4>
+<p>and syntax-at-point is useful regardless - that should be an option anywhere (maybe under the go-to-declaration handler)</p>
+
+
+
+<a name="250176912"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176912" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176912">(Aug 20 2021 at 21:51)</a>:</h4>
+<p>It is!</p>
+
+
+
+<a name="250176929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250176929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250176929">(Aug 20 2021 at 21:51)</a>:</h4>
+<p>right now it looks like syntax-for-elaborator-at-parent-of-point</p>
+
+
+
+<a name="250177009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177009">(Aug 20 2021 at 21:52)</a>:</h4>
+<p>Ah yes, I think you are right. Yeah, I'd be happy to replace that one.</p>
+
+
+
+<a name="250177051"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177051" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177051">(Aug 20 2021 at 21:52)</a>:</h4>
+<p>(I also need to set up a key combination for that, since it seems like VSCode doesn't bind anything to it)</p>
+
+
+
+<a name="250177179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177179">(Aug 20 2021 at 21:54)</a>:</h4>
+<p>Haven't even found it in Emacs at all yet, if it is actually exposed</p>
+
+
+
+<a name="250177364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177364">(Aug 20 2021 at 21:56)</a>:</h4>
+<p>In any case, do open issues for stuff like this!</p>
+
+
+
+<a name="250177507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177507">(Aug 20 2021 at 21:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> I pushed a bunch of changes (some from yesterday) that I wish you had available for your test. Some of the issues you mention are already fixed:</p>
+<ul>
+<li>open_locale/localized</li>
+<li><code>ᶜ</code></li>
+<li><code>‹...›</code></li>
+<li>the default value for Lt in Preorder seems to be missing</li>
+</ul>
+
+
+
+<a name="250177803"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177803" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177803">(Aug 20 2021 at 22:01)</a>:</h4>
+<p>For the unimplemented tactics and notation, we are depending on the community to step up and start filling them in. So far I've mostly been trying to avoid outright failures (these are marked by an <code>-- error</code> comment followed by some code that is obviously not correct lean 4 code) and missing things</p>
+
+
+
+<a name="250177886"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250177886" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250177886">(Aug 20 2021 at 22:02)</a>:</h4>
+<blockquote>
+<p>some declarations (MeasurableSet.bUnion_decode₂) have more explicit arguments than the Lean 3 version (⦃⦄ is translated to ()?)</p>
+</blockquote>
+<p>Lean 4 got strict implicits recently, <del>they haven't been hooked up yet</del> fixed</p>
+
+
+
+<a name="250178544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250178544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250178544">(Aug 20 2021 at 22:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250173586">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>What is the equivalent of <code>open_locale classical</code>?</p>
+</blockquote>
+<p>It should be translated to <code>open_locale Classical</code></p>
+</blockquote>
+<p>Presumably after the community has implemented <code>open_locale</code>? Or did you also implement the command (not just the notation?). <br>
+I was mostly wondering how to do <code>attribute [instance] classical.dec</code> in Lean 4 (I haven't tried it, so maybe this code just works).</p>
+
+
+
+<a name="250178573"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250178573" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250178573">(Aug 20 2021 at 22:11)</a>:</h4>
+<p>Do you know why <code>simp</code> gave me this type-class error? (this would happen on <code>simp</code> without arguments)</p>
+
+
+
+<a name="250178695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250178695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250178695">(Aug 20 2021 at 22:13)</a>:</h4>
+<p>Nice that you've already implemented a couple of my missing points.</p>
+
+
+
+<a name="250178989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250178989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250178989">(Aug 20 2021 at 22:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250177803">said</a>:</p>
+<blockquote>
+<p>For the unimplemented tactics and notation, we are depending on the community to step up and start filling them in. So far I've mostly been trying to avoid outright failures (these are marked by an <code>-- error</code> comment followed by some code that is obviously not correct lean 4 code) and missing things</p>
+</blockquote>
+<p>That makes sense. I'll work on porting some stuff to Lean 4 at some point! Is there anything that is useful to have first? Maybe <code>@[to_additive]</code> and <code>@[simps]</code> since they create new declarations themselves?</p>
+
+
+
+<a name="250178998"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250178998" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250178998">(Aug 20 2021 at 22:16)</a>:</h4>
+<p>Yes, <code>open_locale</code> will need to be implemented. This is the biggest issue with getting error-free synported files right now - there is no hope of elaborating the files when none of the called tactics exist</p>
+
+
+
+<a name="250179163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179163">(Aug 20 2021 at 22:18)</a>:</h4>
+<p>Everything in the <code>Mathport/Prelude/Syntax.lean</code> file needs to be implemented at some point. I would personally focus on the easy tactics first and work my way to the bigger ones, since that will probably get more things working earlier</p>
+
+
+
+<a name="250179304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179304">(Aug 20 2021 at 22:20)</a>:</h4>
+<p>But things like <code>open_locale</code> and <code>notation3</code> are particularly important because they can declare new syntax, without which the file won't even parse</p>
+
+
+
+<a name="250179362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179362">(Aug 20 2021 at 22:21)</a>:</h4>
+<p><code>notation3</code> should work already, but there might be an issue with the camel case heuristics (which are more problematic in notation since those are elaborated lazily in lean 3)</p>
+
+
+
+<a name="250179438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179438">(Aug 20 2021 at 22:22)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250178573">said</a>:</p>
+<blockquote>
+<p>Do you know why <code>simp</code> gave me this type-class error? (this would happen on <code>simp</code> without arguments)</p>
+</blockquote>
+<p>My guess is that some translated <code>@[simp]</code> lemma is poison to lean 4 simp</p>
+
+
+
+<a name="250179503"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179503" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179503">(Aug 20 2021 at 22:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250178544">said</a>:</p>
+<blockquote>
+<p>I was mostly wondering how to do <code>attribute [instance] classical.dec</code> in Lean 4 (I haven't tried it, so maybe this code just works).</p>
+</blockquote>
+<p>I believe the <code>@[instance]</code> attribute still exists in lean 4, so I think the same code works</p>
+
+
+
+<a name="250179643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250179643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250179643">(Aug 20 2021 at 22:25)</a>:</h4>
+<p>btw localized has the snazzy new notation</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">localized</span> <span class="o">[</span><span class="n">Classical</span><span class="o">]</span> <span class="kn">attribute</span> <span class="o">[</span><span class="kd">instance</span><span class="o">]</span> <span class="n">Classical.dec</span>
+</code></pre></div>
+<p>no more string quotes needed! (Also be amazed at how we're correctly translating the contents of a string literal that is double-parsed by lean. No external lean 3 parser would be able to achieve this.)</p>
+
+
+
+<a name="250180966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250180966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250180966">(Aug 20 2021 at 22:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250169817">said</a>:</p>
+<blockquote>
+<ul>
+<li>some declarations (<code>MeasurableSet.bUnion_decode₂</code>) have more explicit arguments than the Lean 3 version (<code>⦃⦄</code> is translated to <code>()</code>?)</li>
+</ul>
+</blockquote>
+<p>The <code>f</code> argument seems to be correctly translated to strict-implicit in Lean4, but strict-implicits were only added to lean4 a few weeks ago and haven't been stress-tested. Can you please be more specific about what behaved unexpectedly?</p>
+
+
+
+<a name="250181240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250181240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250181240">(Aug 20 2021 at 22:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250169817">said</a>:</p>
+<blockquote>
+<ul>
+<li>All <code>simp</code> calls I've tried gave me the error</li>
+</ul>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">deterministic</span><span class="o">)</span> <span class="n">timeout</span> <span class="n">at</span> <span class="bp">'</span><span class="n">typeclass'</span><span class="o">,</span> <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">heartbeats</span> <span class="o">(</span><span class="mi">500</span><span class="o">)</span> <span class="n">has</span> <span class="n">been</span> <span class="n">reached</span> <span class="o">(</span><span class="n">use</span> <span class="bp">'</span><span class="kd">set_option</span> <span class="n">synthInstance.maxHeartbeats</span> <span class="bp">&lt;</span><span class="n">num</span><span class="bp">&gt;'</span> <span class="n">to</span> <span class="n">set</span> <span class="n">the</span> <span class="n">limit</span><span class="o">)</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>The current Lean4 default for <code>synthInstance.maxHeartbeats</code> makes sense for programming applications but is rather ambitious for Mathlib. I should have mentioned that for now I start every file with <code>set_option synthInstance.maxHeartbeats 5000</code>. You may also need to increase the <code>maxHeartbeats</code> flag as well (the default is 50,000 and 200,000 seems reasonable).</p>
+
+
+
+<a name="250181350"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250181350" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250181350">(Aug 20 2021 at 22:51)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> Sorry, I didn't read the whole thread, but I want to remind you that we have scoped instances, notation, unification hints, and simp theorems in Lean 4. Scoped elements are activated when we open the namespace. Exaple:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">g</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">2</span> <span class="c1">-- Error</span>
+
+<span class="kn">open</span> <span class="n">Classical</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">boo</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">g</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">2</span> <span class="c1">-- Ok</span>
+</code></pre></div>
+
+
+
+<a name="250181743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250181743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250181743">(Aug 20 2021 at 22:57)</a>:</h4>
+<p>You can find more examples in the lean4 <code>tests</code> folder directory. Here are some examples:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">scoped</span> <span class="n">syntax</span><span class="o">:</span><span class="n">max</span> <span class="n">term</span> <span class="n">noWs</span> <span class="s2">"["</span> <span class="n">term</span> <span class="s2">", "</span> <span class="n">term</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kd">@[scoped simp]</span> <span class="kd">axiom</span> <span class="n">ax1</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">x</span>
+
+<span class="n">scoped</span> <span class="kd">infix</span><span class="o">:</span><span class="mi">65</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">default</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="s2">"+"</span> <span class="bp">=&gt;</span> <span class="n">f</span>
+
+<span class="n">scoped</span> <span class="kd">instance</span> <span class="o">:</span> <span class="n">ToString</span> <span class="n">A</span> <span class="n">where</span>
+  <span class="n">toString</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"A.mk {a.x} {a.y}"</span>
+
+<span class="kd">noncomputable</span> <span class="n">scoped</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">low</span><span class="o">)</span> <span class="n">propDecidable</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="n">Decidable</span> <span class="n">a</span> <span class="o">:=</span>
+  <span class="n">choice</span> <span class="bp">&lt;|</span> <span class="k">match</span> <span class="n">em</span> <span class="n">a</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">Or.inl</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">isTrue</span> <span class="n">h</span><span class="o">⟩</span>
+    <span class="bp">|</span> <span class="n">Or.inr</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">isFalse</span> <span class="n">h</span><span class="o">⟩</span>
+
+<span class="n">scoped</span> <span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">bar</span><span class="bp">!</span> <span class="bp">$</span><span class="n">x</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="n">x</span> <span class="bp">+</span> <span class="mi">10</span><span class="o">)</span>
+
+<span class="n">scoped</span> <span class="n">unif_hint</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">Magma</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">s</span> <span class="bp">=?=</span> <span class="n">Nat.Magma</span> <span class="bp">|-</span> <span class="n">s.α</span> <span class="bp">=?=</span> <span class="n">Nat</span>
+</code></pre></div>
+
+
+
+<a name="250181844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250181844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250181844">(Aug 20 2021 at 22:59)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250179304">said</a>:</p>
+<blockquote>
+<p>But things like <code>open_locale</code> and <code>notation3</code> are particularly important because they can declare new syntax, without which the file won't even parse</p>
+</blockquote>
+<p>Lean 4 has scoped attributes. Why do you need <code>open_locale</code>? Is there something missing in the new scoped attribute feature?</p>
+
+
+
+<a name="250182820"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250182820" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250182820">(Aug 20 2021 at 23:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250169817">said</a>:</p>
+<blockquote>
+<ul>
+<li>The code</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">subsingleton.MeasurableSet</span> <span class="o">[</span><span class="n">Subsingleton</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">MeasurableSet</span> <span class="n">s</span> <span class="o">:=</span>
+<span class="n">subsingleton.set_cases</span> <span class="n">MeasurableSet.empty</span> <span class="n">MeasurableSet.univ</span> <span class="n">s</span>
+</code></pre></div>
+<p>gives the error</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">Subsingleton</span> <span class="n">α</span>
+
+  <span class="n">Subsingleton</span> <span class="o">(</span><span class="n">pure</span> <span class="n">α</span><span class="o">)</span>
+</code></pre></div>
+<p>I don't know how to specify that I don't want a "pure" inserted.</p>
+</blockquote>
+<p>Setting <code>pp.all true</code> provides more information:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">Subsingleton.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="n">α</span>
+
+  <span class="bp">@</span><span class="n">Set.Subsingleton.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="o">(</span><span class="kt">Type</span> <span class="bp">?</span><span class="n">u.15</span><span class="o">)</span>
+    <span class="o">(</span><span class="bp">@</span><span class="n">Pure.pure.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">,</span> <span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="n">Set.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span>
+      <span class="o">(</span><span class="bp">@</span><span class="n">Applicative.toPure.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">,</span> <span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="n">Set.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span>
+        <span class="o">(</span><span class="bp">@</span><span class="n">Monad.toApplicative.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">,</span> <span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="n">Set.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}</span> <span class="n">Set.monad.</span><span class="o">{</span><span class="bp">?</span><span class="n">u.15</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">}))</span>
+      <span class="o">(</span><span class="kt">Type</span> <span class="bp">?</span><span class="n">u.15</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span>
+</code></pre></div>
+<p>It can be made to work by prefixing <code>_root_.Subsingleton</code> or by not opening the <code>Set</code> namespace. I don't have time to investigate right now but <code>Set</code> is a <code>Monad</code> and the <code>pure</code>-injection may be a little too strong here. We may not even want to align Mathlib's <code>monad</code> with Lean4's at all. Also, it is a shame that this isn't visible with default pp settings: the new smart pretty-printer is actually still very dumb regarding <code>open</code> namespaces, since I only tested it on roundtripping from the root namespace.</p>
+
+
+
+<a name="250183551"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250183551" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250183551">(Aug 20 2021 at 23:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250169817">said</a>:</p>
+<blockquote>
+<ul>
+<li>In</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">Set.finite.MeasurableSet</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">hs</span> <span class="o">:</span> <span class="n">Finite</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">MeasurableSet</span> <span class="n">s</span> <span class="o">:=</span>
+  <span class="n">Finite.induction_on</span> <span class="n">hs</span> <span class="n">_root_.MeasurableSet.empty</span> <span class="bp">λ</span> <span class="n">ha</span> <span class="n">hsf</span> <span class="n">hsm</span> <span class="bp">=&gt;</span> <span class="n">hsm.insert</span> <span class="n">_</span>
+</code></pre></div>
+<p>the <code>_root_</code> is necessary, because otherwise <code>MeasurableSet</code> is interpreted as a recursive call of the function...</p>
+</blockquote>
+<p>Minimized version:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Foo.empty</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="o">()</span>
+<span class="kd">def</span> <span class="n">Bar.Foo</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">Foo.empty</span> <span class="c1">-- error: invalid field 'empty', the environment does not contain 'Unit.empty'</span>
+</code></pre></div>
+<p>I agree this is surprising.</p>
+
+
+
+<a name="250185107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250185107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250185107">(Aug 20 2021 at 23:52)</a>:</h4>
+<p>The example above may look surprising to Lean 3 users, but it is consistent with the name resolution procedure we designed for Lean 4.<br>
+Recall that</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Bar.Foo</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">Foo.empty</span>
+</code></pre></div>
+<p>is expanded to</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">Bar</span>
+<span class="kd">def</span> <span class="n">Foo</span>  <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">Foo.empty</span>
+<span class="kd">end</span> <span class="n">Bar</span>
+</code></pre></div>
+<p>In Lean 4, you don't need to use equations to write recursive functions. As in Lean 3, local declarations have precedence over global ones. So, <code>Foo</code> is the body of the definition is referring to the <code>Foo</code> being defined.<br>
+Then, since <code>Foo</code> has type <code>Unit</code>, the dot-notation complains that there is no <code>Unit.empty</code>.</p>
+
+
+
+<a name="250196239"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250196239" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250196239">(Aug 21 2021 at 04:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250181350">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> Sorry, I didn't read the whole thread, but I want to remind you that we have scoped instances, notation, unification hints, and simp theorems in Lean 4. Scoped elements are activated when we open the namespace. [...]</p>
+</blockquote>
+<p>Oh yes, I forgot to ask about this. I agree that with the scoped behavior I don't think we need the localized / open_locale commands anymore. From your example it is clear that both scoped notation and scoped instances work, which are the only uses in mathlib. <br>
+<span class="user-mention" data-user-id="110049">@Mario Carneiro</span> do you agree we can get rid of localized / open_locale?</p>
+
+
+
+<a name="250196635"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250196635" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250196635">(Aug 21 2021 at 04:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> thanks for your responses.</p>
+<ul>
+<li>About <code>Singleton</code>/<code>Set.Singleton</code>: Ah, that makes sense. I think having a coercion <code>α → Set α</code> is undesirable, so we should consider making <code>Set.Monad</code> a scoped instance.</li>
+</ul>
+
+
+
+<a name="250197097"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250197097" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250197097">(Aug 21 2021 at 04:51)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250181844">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250179304">said</a>:</p>
+<blockquote>
+<p>But things like <code>open_locale</code> and <code>notation3</code> are particularly important because they can declare new syntax, without which the file won't even parse</p>
+</blockquote>
+<p>Lean 4 has scoped attributes. Why do you need <code>open_locale</code>? Is there something missing in the new scoped attribute feature?</p>
+</blockquote>
+<p>My plan, at least, was to translate <code>open_locale</code> directly to a new <code>open_locale</code> command, at least at first, just to keep the translation simple and literal. Scoped attributes can probably replace <code>open_locale</code>, but the implementation is sufficiently syntactically different that it seems easier to do that in a separate refactor after the port. Perhaps there is a way to backport uses of <code>open_locale</code> in mathlib such that they can be more directly replaced by scoped notation.</p>
+
+
+
+<a name="250197891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250197891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250197891">(Aug 21 2021 at 05:12)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250185107">said</a>:</p>
+<blockquote>
+<p>The example above may look surprising to Lean 3 users, but it is consistent with the name resolution procedure we designed for Lean 4.</p>
+</blockquote>
+<p>One of the issues I have hit with this name resolution procedure is that you can't have a definition <code>def foo</code> that makes use of <code>def foo.aux</code>, because it always resolves to the local variable <code>foo</code>. In lean 3, namespaced names take precedence over dot notation, so most of the time this works fine; in equation compiler definitions you can hit this issue because <code>foo</code> is a local variable, but you can still use <code>@foo.aux</code> to refer to it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo.aux</span> <span class="o">:=</span> <span class="mi">1</span>
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">foo.aux</span>
+</code></pre></div>
+<p>In lean 4 I don't know any workaround other than using <code>_root_</code> or some other namespace.</p>
+<p>I think namespaced names should take precedence over dot notation even on local variables (which is not the case in lean 3 or lean 4 ATM), since you can always force dot notation by using any of the other notations for it - <code>foo .aux</code>, <code>foo |&gt;.aux</code>, <code>(foo).aux</code>, while there is no such backup option for namespaced names (besides using a different name to refer to it).</p>
+
+
+
+<a name="250198862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250198862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250198862">(Aug 21 2021 at 05:35)</a>:</h4>
+<p>To say more about the <code>open_locale</code> issue, in mathlib <code>open classical</code> and <code>open_locale classical</code> currently do different things, and in particular the second does not imply the first. Excessive use of <code>open</code> leads to frequent name clashes, and I tend to avoid them in most mathlib code I write. So we may need to refactor mathlib such that locales differ from namespaces, and are specifically tailored for the notations, like the old <code>eq.ops</code> namespace from lean 2.</p>
+
+
+
+<a name="250220025"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250220025" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250220025">(Aug 21 2021 at 14:23)</a>:</h4>
+<blockquote>
+<p>I think namespaced names should take precedence over dot notation even on local variables (which is not the case in lean 3 or lean 4 ATM),</p>
+</blockquote>
+<p>I don't agree.<br>
+Here are different ways to write your <code>foo</code> example above in Lean4:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">_root_.foo.aux</span>
+
+<span class="kn">open</span> <span class="n">foo</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">aux</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="kn">open</span> <span class="n">foo</span> <span class="k">in</span> <span class="n">aux</span>
+
+<span class="n">macro</span> <span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="n">noWs</span> <span class="s2">"#"</span> <span class="n">noWs</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kn">open</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="k">in</span> <span class="bp">$</span><span class="n">s</span><span class="o">:</span><span class="n">ident</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">foo</span><span class="bp">#</span><span class="n">aux</span>
+</code></pre></div>
+<p>Note that we can create many different variants of the last one using macros. This is just a simple one.</p>
+
+
+
+<a name="250220113"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250220113" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250220113">(Aug 21 2021 at 14:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250198862">said</a>:</p>
+<blockquote>
+<p>To say more about the <code>open_locale</code> issue, in mathlib <code>open classical</code> and <code>open_locale classical</code> currently do different things, and in particular the second does not imply the first. Excessive use of <code>open</code> leads to frequent name clashes, and I tend to avoid them in most mathlib code I write. So we may need to refactor mathlib such that locales differ from namespaces, and are specifically tailored for the notations, like the old <code>eq.ops</code> namespace from lean 2.</p>
+</blockquote>
+<p>I added the command <code>open scoped</code> that will activate the scoped attributes, but will not "open" the names.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">scoped</span> <span class="n">Classical</span>
+
+<span class="k">#check</span> <span class="bp">@</span><span class="n">epsilon</span> <span class="c1">-- Error</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">g</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">2</span> <span class="c1">-- Ok</span>
+</code></pre></div>
+
+
+
+<a name="250224576"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250224576" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250224576">(Aug 21 2021 at 16:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250196635">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> thanks for your responses.</p>
+<ul>
+<li>About <code>Singleton</code>/<code>Set.Singleton</code>: Ah, that makes sense. I think having a coercion <code>α → Set α</code> is undesirable, so we should consider making <code>Set.Monad</code> a scoped instance.</li>
+</ul>
+</blockquote>
+<p>I don't know what mathlib uses that instance for, but it would be great if the scoping could be backported.</p>
+
+
+
+<a name="250230791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250230791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250230791">(Aug 21 2021 at 18:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250220113">said</a>:</p>
+<blockquote>
+<p>I added the command <code>open scoped</code> that will activate the scoped attributes, but will not "open" the names.</p>
+</blockquote>
+<p>Thanks. So now <code>open_locale foo</code> can be translated to <code>open scoped Foo</code>. For localized, we would want to translate <code>localized "cmd" in foo</code> to <code>scoped cmd</code>, but with the constraint that we must be in namespace <code>foo</code> when we do it. I think we should backport this, by introducing <code>localized "cmd"</code> without the <code>in foo</code> part, which uses the current namespace (a la <code>#where</code>) to determine what <code>foo</code> should be (and errors in the global namespace).</p>
+
+
+
+<a name="250232184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250232184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250232184">(Aug 21 2021 at 19:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250224576">said</a>:</p>
+<blockquote>
+<p>I don't know what mathlib uses that instance for, but it would be great if the scoping could be backported.</p>
+</blockquote>
+<p>I expect it is used very little. I'll take a look.</p>
+
+
+
+<a name="250233173"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250233173" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250233173">(Aug 21 2021 at 19:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250220025">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>I think namespaced names should take precedence over dot notation even on local variables (which is not the case in lean 3 or lean 4 ATM),</p>
+</blockquote>
+<p>I don't agree.<br>
+Here are different ways to write your <code>foo</code> example above in Lean4:<br>
+[...]<br>
+Note that we can create many different variants of the last one using macros. This is just a simple one.</p>
+</blockquote>
+<p>These accidental self-references occur a lot in mathlib. The statement that object <code>foo</code> has property <code>bar</code> is usually called <code>bar.foo</code> (e.g. <a href="https://leanprover-community.github.io/mathlib_docs/find/continuous.max">docs#continuous.max</a>), so that we can use the projection notation. Often in the proof <code>foo</code> is mentioned explicitly. So the more common example of a clash will look like this</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span> <span class="n">True</span>
+<span class="kd">def</span> <span class="n">aux</span> <span class="o">:=</span> <span class="mi">1</span>
+<span class="kd">def</span> <span class="n">Foo.aux</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">aux</span> <span class="o">:=</span>
+<span class="k">have</span> <span class="n">h</span> <span class="o">:</span> <span class="n">aux</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="n">rfl</span>
+<span class="n">trivial</span>
+</code></pre></div>
+<p>For example, these are all lemmas <em>in a single file</em> with accidental self-references: (at least on the current commit <code>897e4ed</code>)<br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/set.ord_connected.measurable_set/src">src#set.ord_connected.measurable_set</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/ae_measurable.max/src">src#ae_measurable.max</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/ae_measurable.min/src">src#ae_measurable.min</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/measurable.is_lub/src">src#measurable.is_lub</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/ae_measurable.is_lub/src">src#ae_measurable.is_lub</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/measurable.is_glb/src">src#measurable.is_glb</a><br>
+<a href="https://leanprover-community.github.io/mathlib_docs/find/ae_measurable.is_glb/src">src#ae_measurable.is_glb</a></p>
+<p>We could probably make a macro that <code>#foo</code> means <code>_root_.foo</code>, but I'm still worried that it will confuse users.</p>
+
+
+
+<a name="250236251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236251">(Aug 21 2021 at 20:47)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> This is very unfortunate. We have discussed the name resolution in the past and decided that local declarations should take precedence. Note that we did not change that in Lean 4. It looks like a new problem, but it is due to two new features that were requested by users.</p>
+<p>1) <code>def Foo.f  ... := ...</code> expands to <code>namespace Foo def f ... := ... end Foo</code></p>
+<p>2) We don't need to use equations to write recursive declarations. </p>
+<p>To change the name resolution procedure now, we would have to carefully analyze all new issues (and counterintuitive behavior) the change would produce, and carefully spec how it is supposed to work. Even if we do all this work, I can see other users complaining that they have to write <code>foo .aux</code>, <code>foo |&gt;.aux</code>, or <code>(foo).aux</code> because local variables do not take precedence. </p>
+<p>Remarks:</p>
+<ul>
+<li>If we add a mechanism for stating that a declaration is not recursive (i.e., disabling feature 2 above), then the problem is gone.</li>
+<li>The <code>protected</code> keyword is another possible workaround. The local declaration will not be atomic.</li>
+</ul>
+
+
+
+<a name="250236469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236469">(Aug 21 2021 at 20:52)</a>:</h4>
+<blockquote>
+<p>Even if we do all this work, I can see other users complaining that they have to write foo .aux, foo |&gt;.aux, or (foo).aux because local variables do not take precedence. </p>
+</blockquote>
+<p>Note that <code>foo.aux</code> should still work to refer to field projection of <code>aux</code> on local variable <code>foo</code>, provided that <code>foo.aux</code> does not also resolve to something in the current namespace/opens. Since most local variables have lowercase names and most namespaces have uppercase names, I think that collisions of this sort should be rare, but when they do occur, a single character to disambiguate them seems like a small price to pay.</p>
+
+
+
+<a name="250236474"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236474" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236474">(Aug 21 2021 at 20:52)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> Consider the following example you linked</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">ae_measurable.min</span> <span class="o">{</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">δ</span> <span class="bp">→</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">μ</span> <span class="o">:</span> <span class="n">measure</span> <span class="n">δ</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">hf</span> <span class="o">:</span> <span class="n">ae_measurable</span> <span class="n">f</span> <span class="n">μ</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">:</span> <span class="n">ae_measurable</span> <span class="n">g</span> <span class="n">μ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ae_measurable</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">a</span><span class="o">,</span> <span class="n">min</span> <span class="o">(</span><span class="n">f</span> <span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="n">a</span><span class="o">))</span> <span class="n">μ</span> <span class="o">:=</span>
+<span class="o">⟨</span><span class="bp">λ</span> <span class="n">a</span><span class="o">,</span> <span class="n">min</span> <span class="o">(</span><span class="n">hf.mk</span> <span class="n">f</span> <span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">hg.mk</span> <span class="n">g</span> <span class="n">a</span><span class="o">),</span> <span class="n">hf.measurable_mk.min</span> <span class="n">hg.measurable_mk</span><span class="o">,</span>
+  <span class="n">eventually_eq.comp₂</span> <span class="n">hf.ae_eq_mk</span> <span class="n">_</span> <span class="n">hg.ae_eq_mk</span><span class="o">⟩</span>
+</code></pre></div>
+<p>Unless we add the feature stating that <code>ae_measurable.min</code> is not recursive, the <code>min</code> inside will still refer to the lemma being defined.</p>
+
+
+
+<a name="250236596"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236596" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236596">(Aug 21 2021 at 20:55)</a>:</h4>
+<p>Another issue caused by (1) is that it is impossible to have a mutual def between declarations named <code>foo</code> and <code>foo.aux</code></p>
+
+
+
+<a name="250236645"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236645" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236645">(Aug 21 2021 at 20:56)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> The example above shows that the change in the name resolution procedure will not even fix the problem.</p>
+
+
+
+<a name="250236646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236646">(Aug 21 2021 at 20:56)</a>:</h4>
+<p>because you can't put a namespace declaration in the middle of a mutual block</p>
+
+
+
+<a name="250236674"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236674" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236674">(Aug 21 2021 at 20:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250236596">said</a>:</p>
+<blockquote>
+<p>Another issue caused by (1) is that it is impossible to have a mutual def between declarations named <code>foo</code> and <code>foo.aux</code></p>
+</blockquote>
+<p>Let's focus on the problems that affect Mathlib.</p>
+
+
+
+<a name="250236675"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236675" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236675">(Aug 21 2021 at 20:57)</a>:</h4>
+<p>I think that (1) is a bit too aggressive for a lot of uses, but I would like to get more objective data on the relative benefits</p>
+
+
+
+<a name="250236729"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236729" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236729">(Aug 21 2021 at 20:58)</a>:</h4>
+<p>in particular once you are in the def there is no way to "cancel" the namespace that you have been put into</p>
+
+
+
+<a name="250236742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250236742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250236742">(Aug 21 2021 at 20:59)</a>:</h4>
+<p>and so you basically get problems similar to overuse of <code>open</code></p>
+
+
+
+<a name="250237133"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237133" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237133">(Aug 21 2021 at 21:06)</a>:</h4>
+<p>Looking at <code>ae_measurable.min</code>, I think it would be fine to use <code>_root_.min</code> in that particular case. We already have plenty of other examples like it which use the equation compiler, and we just use <code>_root_</code> in that case</p>
+
+
+
+<a name="250237146"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237146" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237146">(Aug 21 2021 at 21:06)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>   This kind of discussion is very time-consuming. It takes time to find holes in the suggestions. I will try to summarize the thread</p>
+<ul>
+<li>The change in the name resolution procedure will not fix the problem. See <code>ae_measurable.min</code> example above. </li>
+<li>Feature (1) was supported by many users. If I remember correctly <span class="user-mention" data-user-id="110032">@Reid Barton</span> was the first one that suggested it. We had written a lot of Lean code, and can confirm it works really well.</li>
+</ul>
+
+
+
+<a name="250237266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237266">(Aug 21 2021 at 21:09)</a>:</h4>
+<blockquote>
+<p>Feature (1) was supported by many users. If I remember correctly @Reid Barton was the first one that suggested it. We had written a lot of Lean code, and can confirm it works really well.</p>
+</blockquote>
+<p>Hence the need to get examples together that show the advantages and disadvantages. Clearly both options have downsides, and I don't know what the relative magnitude of the downsides are, and the cost of the workarounds when you get the wrong thing by default and want the other one</p>
+
+
+
+<a name="250237409"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237409" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237409">(Aug 21 2021 at 21:13)</a>:</h4>
+<p>What kind of code benefits the most from (1) and/or would be much more verbose without it? The simple desugaring suggests that it is possible to get the effect of (1) with a def-like macro (possibly even switching the names around so that <code>def</code> is the macro and <code>def'</code> is the core command)</p>
+
+
+
+<a name="250237470"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237470" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237470">(Aug 21 2021 at 21:14)</a>:</h4>
+<p>it would be easy enough to have synport produce <code>def'</code> instead of <code>def</code> whenever the name of the def contains a dot</p>
+
+
+
+<a name="250237557"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237557" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237557">(Aug 21 2021 at 21:16)</a>:</h4>
+<p>I agree that this is an unfortunate situation, and I don't know the best solution.<br>
+An option to disable (2) would be ok (so that you have to write at least one equation <code>| ... =&gt; ...</code>to enable a recursive call), but it's not ideal. (I expect we will want to use this option in most mathlib files).</p>
+
+
+
+<a name="250237791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237791">(Aug 21 2021 at 21:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250237557">said</a>:</p>
+<blockquote>
+<p>I agree that this is an unfortunate situation, and I don't know the best solution.<br>
+An option to disable (2) would be ok (so that you have to write at least one equation <code>| ... =&gt; ...</code>to enable a recursive call), but it's not ideal. (I expect we will want to use this option in most mathlib files).</p>
+</blockquote>
+<p>Yes, the <code>| ... =&gt; ...</code> style was criticized a lot in the past. We should not go back to it.<br>
+One option is to still use the name <code>ae_measuable.min</code> for the local declaration even after we perform the macro expansion on <code>theorem ae_measurable.min</code>. But some users may protest that <code>def Foo.f  ... := ...</code> would not be equivalent to <code>namespace Foo def f ... := ... end Foo</code> anymore.</p>
+
+
+
+<a name="250237939"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237939" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237939">(Aug 21 2021 at 21:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250237470">said</a>:</p>
+<blockquote>
+<p>it would be easy enough to have synport produce <code>def'</code> instead of <code>def</code> whenever the name of the def contains a dot</p>
+</blockquote>
+<p>This might work. We would also have <code>theorem'</code>, correct?</p>
+
+
+
+<a name="250237990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250237990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250237990">(Aug 21 2021 at 21:28)</a>:</h4>
+<p>yes, and <code>instance'</code>, <code>example'</code> etc. This also seems a bit unfortunate but workable</p>
+
+
+
+<a name="250238050"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238050" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238050">(Aug 21 2021 at 21:30)</a>:</h4>
+<p>To be clear, I'm not prescribing any particular option, and I hope we can find something that works the best for lean 4 users even if mathlib has to change. To my lean 3 colored perspective the fact that the name of a def only affects the name itself and not the body of the definition makes its own kind of sense, and I would present that point of view to anyone protesting about the lack of equivalence of <code>def Foo.f</code> and <code>namespace Foo def f</code>. But there seem to be no perfect options here.</p>
+
+
+
+<a name="250238324"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238324" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238324">(Aug 21 2021 at 21:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250237791">said</a>:</p>
+<blockquote>
+<p>One option is to still use the name <code>ae_measuable.min</code> for the local declaration even after we perform the macro expansion on <code>theorem ae_measurable.min</code>. </p>
+</blockquote>
+<p>I think this will solve 90+% of the cases in mathlib. <br>
+There will be still a couple of problematic cases, like <a href="https://leanprover-community.github.io/mathlib_docs/find/con_gen/src">src#con_gen</a>, <a href="https://leanprover-community.github.io/mathlib_docs/find/magma.free_semigroup/src">src#magma.free_semigroup</a>, <a href="https://leanprover-community.github.io/mathlib_docs/find/localization/src">src#localization</a>, but it's rare that a declaration <code>foo</code> uses a declaration <code>foo.bar</code> in it's definition/proof.<br>
+Another potential problem is that we are in a namespace <code>foo</code> and define <code>bar</code>, while <code>_root_.bar</code> also exists (and is used in <code>foo.bar</code>), but usually we protect declarations <code>foo.bar</code> like this, so then there should be no name clash.</p>
+
+
+
+<a name="250238396"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238396" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238396">(Aug 21 2021 at 21:39)</a>:</h4>
+<p>Is it possible for local declarations to have names with dots? AFAIR this is illegal in lean 3</p>
+
+
+
+<a name="250238453"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238453" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238453">(Aug 21 2021 at 21:40)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> <span class="user-mention" data-user-id="111080">@Floris van Doorn</span> What about a <code>nonrec</code> modifier for declarations? We already have <code>partial</code>. The macro <code>lemma</code> would expand to <code>nonrec theorem</code>. I think <strong>most</strong> of the examples that Floris linked are <code>lemma</code>s.<br>
+EDIT: missed</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">free_semigroup</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">has_mul</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="o">:=</span>
+<span class="n">quot</span> <span class="bp">$</span> <span class="n">free_semigroup.r</span> <span class="n">α</span>
+</code></pre></div>
+
+
+
+<a name="250238459"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238459" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238459">(Aug 21 2021 at 21:41)</a>:</h4>
+<p>ooh, that's nice too</p>
+
+
+
+<a name="250238510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238510">(Aug 21 2021 at 21:42)</a>:</h4>
+<p>I would be happy with that.</p>
+
+
+
+<a name="250238512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238512">(Aug 21 2021 at 21:42)</a>:</h4>
+<p>well, not sure about using <code>lemma</code> for this, I think the mathematicians have their own opinions about when to apply this label that probably don't correlate with <code>nonrec</code></p>
+
+
+
+<a name="250238515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238515">(Aug 21 2021 at 21:42)</a>:</h4>
+<p>but using <code>nonrec lemma</code> directly should be fine</p>
+
+
+
+<a name="250238580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238580">(Aug 21 2021 at 21:44)</a>:</h4>
+<p><del>As I said, the declarations I linked in that message are <em>rare</em>. I just happened to make a list of declarations <code>foo</code> that used <code>foo.bar</code> in their definition, so I had some potential examples lying around. </del><br>
+<del>I would be ok with requiring these <code>def</code>s to be replaced by <code>nonrec def</code></del></p>
+<p>EDIT: Oh wait, with the new suggestion we do run into the problems that in <code>def foo.bar := </code> the declaration <code>bar</code> is a recursive call. That might be more frequent.</p>
+
+
+
+<a name="250238791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250238791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250238791">(Aug 21 2021 at 21:50)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250185107">said</a>:</p>
+<blockquote>
+<p>As in Lean 3, local declarations have precedence over global ones.</p>
+</blockquote>
+<p>I just wanted to mention that we already have a special case in name resolution for recursive references: in <code>x.f</code>, <code>f</code> may be a recursive reference if its (the current) namespace is the type of <code>x</code>. And that makes sense of course (apart from being very convenient) given that users think of recursive references as global references, not local ones - as if <code>f</code> was already part of the environment. Then would it not be consistent to extend the special case to the reverse case as well - to interpret <code>f.x</code> as the global reference <code>f.x</code>, if it exists, in favor of a projection of the recursive reference (which I don't think I have ever seen used anyway)? IOW, I believe it would be consistent and convenient to prefer global to local references <em>in the <code>auxDecl</code> special case</em>.</p>
+
+
+
+<a name="250239057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250239057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250239057">(Aug 21 2021 at 21:57)</a>:</h4>
+<p>More generally we could have name resolution "pretend" that <code>Current.Namespace.f</code> is already in the environment, such that references such as <code>_root_.Current.Namespace.f</code> and <code>Namespace.f</code> work as well</p>
+
+
+
+<a name="250239310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250239310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250239310">(Aug 21 2021 at 22:02)</a>:</h4>
+<p>(This would not resolve the <code>min</code> case, no)</p>
+
+
+
+<a name="250239807"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250239807" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250239807">(Aug 21 2021 at 22:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> What about combining <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>  suggestion and having <code>norec</code> modifier (for examples like <code>min</code>). It should solve all cases, correct?</p>
+
+
+
+<a name="250239840"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250239840" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250239840">(Aug 21 2021 at 22:15)</a>:</h4>
+<p>I think this will work</p>
+
+
+
+<a name="250240260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250240260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250240260">(Aug 21 2021 at 22:24)</a>:</h4>
+<p>Yes, that sounds good to me. I think we still want the <code>nonrec</code> modifier a lot, for cases like <code>ae_measurable.min</code>, so I think we want it to be the default in mathlib for <code>lemma</code> and/or <code>theorem</code>(but as long as we can do that in mathlib by macros, I'd be happy)</p>
+
+
+
+<a name="250243942"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250243942" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250243942">(Aug 21 2021 at 23:54)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/synport.20experimentation/near/250196635">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> thanks for your responses.</p>
+<ul>
+<li>About <code>Singleton</code>/<code>Set.Singleton</code>: Ah, that makes sense. I think having a coercion <code>α → Set α</code> is undesirable, so we should consider making <code>Set.Monad</code> a scoped instance.</li>
+</ul>
+</blockquote>
+<p>BTW with <a href="https://github.com/leanprover/lean4/pull/643">https://github.com/leanprover/lean4/pull/643</a> your example gives the following error with default settings:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">_root_.Subsingleton</span> <span class="n">α</span>
+
+  <span class="n">Set.Subsingleton</span> <span class="o">(</span><span class="n">pure</span> <span class="n">α</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="250244421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/250244421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#250244421">(Aug 22 2021 at 00:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> <span class="user-mention" data-user-id="111080">@Floris van Doorn</span> Pushed the changes. We can now write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo.aux</span> <span class="o">:=</span> <span class="mi">1</span>
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">foo.aux</span>
+</code></pre></div>
+<p>and </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span> <span class="n">True</span>
+<span class="kd">def</span> <span class="n">aux</span> <span class="o">:=</span> <span class="mi">1</span>
+<span class="n">nonrec</span> <span class="kd">def</span> <span class="n">Foo.aux</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">aux</span> <span class="o">:=</span>
+  <span class="k">have</span> <span class="n">h</span> <span class="o">:</span> <span class="n">aux</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="n">rfl</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+
+
+
+<a name="323224590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/323224590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#323224590">(Jan 24 2023 at 11:22)</a>:</h4>
+<p>So does this mean that</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">nonrec</span> <span class="kd">def</span> <span class="n">Foo.aux</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">aux</span> <span class="o">:=</span>
+  <span class="k">have</span> <span class="n">h</span> <span class="o">:</span> <span class="n">aux</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="n">rfl</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+<p>is the preferred spelling, and we should prefer not to write the following?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Foo.aux</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">aux</span> <span class="o">:=</span>
+  <span class="k">have</span> <span class="n">h</span> <span class="o">:</span> <span class="n">_root_.aux</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="n">rfl</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+
+
+
+<a name="323225003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/synport%20experimentation/near/323225003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/synport.20experimentation.html#323225003">(Jan 24 2023 at 11:24)</a>:</h4>
+<p>I don't think we really need a "preferred spelling" here</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,146 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html">simp_nf linter trolling me</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="207247532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207247532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207247532">(Aug 18 2020 at 11:19)</a>:</h4>
+<p>The simp normal form linter is <a href="https://github.com/leanprover-community/mathlib/runs/996265268">complaining about my code</a>. </p>
+<p>The issue is on the <code>with-zero-stuff</code> branch of mathlib, which is compiling. The complaint is about this lemma: <a href="https://github.com/leanprover-community/mathlib/blob/8667a3bab9e5e6fee70dfb8d1b563125aca504ad/src/algebra/group/with_one.lean#L59"><code>coe_mul</code></a> and the linter output is</p>
+<div class="codehilite"><pre><span></span><code>/- The `simp_nf` linter reports: -/
+/- SOME SIMP LEMMAS ARE NOT IN SIMP-NORMAL FORM.
+see note [simp-normal form] for tips how to debug this.
+https://leanprover-community.github.io/mathlib_docs/notes.html#simp-normal%20form
+: -/
+#print with_one.coe_mul /- Left-hand side simplifies from
+  ↑(a * b)
+to
+  ↑a * ↑b
+using
+  [with_zero.coe_mul]
+Try to change the left-hand side to the simplified term!
+ -/
+</code></pre></div>
+
+
+<p>I don't know if I'm confused or the linter is confused or both. This is the file where <code>with_one</code> and <code>with_zero</code> are defined, and they're both defined to be <code>option</code>, but I would not expect <code>simp</code> to be able to see through this definition. Furthermore, <code>with_zero.coe_mul</code> is defined on line 136, after <code>with_one.coe_mul</code>. To my surprise, it is true that if I try <code>simp</code> in the proof of <code>with_zero.coe_mul</code> then it simplifies <code>↑(a * b) : with_zero α</code> to <code>↑a * ↑b : with_one α</code> (and then fails to close the goal with <code>refl</code>). I don't know what to do here. <code>simp</code> trace says it's doing exactly what the linter is warning me about -- just changing a with_zero to a with_one. I don't want the simplifier to do this, I don't <em>think</em>. It's breaking some kind of abstraction barrier as far as I can see. What can I do here?</p>
+
+
+
+<a name="207247742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207247742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207247742">(Aug 18 2020 at 11:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span> Did you see my remark on the PR page?</p>
+
+
+
+<a name="207247757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207247757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207247757">(Aug 18 2020 at 11:22)</a>:</h4>
+<p>Aah! I knew I'd asked about this somewhere last night when I was tired :-)</p>
+
+
+
+<a name="207247951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207247951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207247951">(Aug 18 2020 at 11:25)</a>:</h4>
+<p>So another linter complaint is</p>
+<div class="codehilite"><pre><span></span><code><span class="n">with_zero</span><span class="bp">.</span><span class="n">coe_le_coe</span> <span class="c">/-</span><span class="cm"> simp can prove this:</span>
+<span class="cm">  by simp only [with_bot.coe_le_coe]</span>
+</code></pre></div>
+
+
+<p>This is a bit more excusable because at least  you can imagine a situation where zero = bot. But zero = one is kind of inexcusable. So you suggest to mark them locally irreducible -- but this is basically just to trick the linter, right?</p>
+
+
+
+<a name="207248038"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248038" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248038">(Aug 18 2020 at 11:26)</a>:</h4>
+<p>no, I because then the problem will show up in other files</p>
+
+
+
+<a name="207248066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248066">(Aug 18 2020 at 11:26)</a>:</h4>
+<p>I don't understand what you're suggesting</p>
+
+
+
+<a name="207248067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248067">(Aug 18 2020 at 11:26)</a>:</h4>
+<p>And you will get <code>\u</code> up arrows that are sometimes doing a <code>with_one</code> coe, and sometimes a <code>with_zero</code> coe</p>
+
+
+
+<a name="207248074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248074">(Aug 18 2020 at 11:26)</a>:</h4>
+<p>Which is a pain</p>
+
+
+
+<a name="207248090"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248090" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248090">(Aug 18 2020 at 11:27)</a>:</h4>
+<p>So the only solution I know, is to make them globally irreducible.</p>
+
+
+
+<a name="207248098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248098">(Aug 18 2020 at 11:27)</a>:</h4>
+<p>But I wouldn't be surprised if that breaks everything</p>
+
+
+
+<a name="207248106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248106">(Aug 18 2020 at 11:27)</a>:</h4>
+<p>OTOH is that the "correct" thing to do?</p>
+
+
+
+<a name="207248478"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248478" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248478">(Aug 18 2020 at 11:32)</a>:</h4>
+<p>aargh adding line <code>attribute [irreducible] with_one</code> on line 32 of <code>algebra.group.with_one</code> gives me a SEGV :-/</p>
+
+
+
+<a name="207248492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248492">(Aug 18 2020 at 11:32)</a>:</h4>
+<p>so indeed it breaks everything :-)</p>
+
+
+
+<a name="207248777"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248777" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248777">(Aug 18 2020 at 11:36)</a>:</h4>
+<p>No, that's to early</p>
+
+
+
+<a name="207248784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248784">(Aug 18 2020 at 11:36)</a>:</h4>
+<p>You should do it after setting up the api</p>
+
+
+
+<a name="207248786"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248786" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248786">(Aug 18 2020 at 11:36)</a>:</h4>
+<p>At the end of that file</p>
+
+
+
+<a name="207248791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/simp_nf%20linter%20trolling%20me/near/207248791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/simp_nf.20linter.20trolling.20me.html#207248791">(Aug 18 2020 at 11:37)</a>:</h4>
+<p>And then it shouldn't give a SEGV</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

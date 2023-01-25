@@ -1,0 +1,302 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html">Parsec parser for decoding Uri escapes</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="292193498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292193498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292193498">(Aug 05 2022 at 18:45)</a>:</h4>
+<p>Any ideas why the following crashes the Lean Server with a stack overflow?  I'm trying to decode Uri escaping using Parsec .</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">textData</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">Char</span> <span class="o">:=</span> <span class="n">satisfy</span> <span class="k">fun</span> <span class="n">c</span> <span class="bp">=&gt;</span>
+  <span class="sc">'%'</span> <span class="bp">≠</span> <span class="n">c</span>
+
+<span class="kd">def</span> <span class="n">hexDigitToNat</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">Char</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="sc">'0'</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">≤</span> <span class="sc">'9'</span> <span class="k">then</span> <span class="n">c.toNat</span> <span class="bp">-</span> <span class="sc">'0'</span><span class="bp">.</span><span class="n">toNat</span>
+  <span class="k">else</span> <span class="k">if</span> <span class="sc">'a'</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">≤</span> <span class="sc">'f'</span> <span class="k">then</span> <span class="n">c.toNat</span> <span class="bp">-</span> <span class="sc">'a'</span><span class="bp">.</span><span class="n">toNat</span> <span class="bp">+</span> <span class="mi">10</span>
+  <span class="k">else</span> <span class="n">c.toNat</span> <span class="bp">-</span> <span class="sc">'A'</span><span class="bp">.</span><span class="n">toNat</span> <span class="bp">+</span> <span class="mi">10</span>
+
+<span class="kd">def</span> <span class="n">digitsToNat</span> <span class="o">(</span><span class="n">base</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">digits</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="n">digits.foldl</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">r</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">r</span> <span class="bp">*</span> <span class="n">base</span> <span class="bp">+</span> <span class="n">d</span><span class="o">)</span> <span class="mi">0</span>
+
+<span class="kd">@[inline]</span>
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">exactlyNCore</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">acc</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="bp">$</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">n</span> <span class="bp">&gt;</span> <span class="mi">0</span> <span class="k">then</span> <span class="k">do</span>
+    <span class="n">exactlyNCore</span> <span class="n">p</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">acc.push</span> <span class="bp">$</span> <span class="bp">←</span><span class="n">p</span><span class="o">)</span>
+  <span class="k">else</span>
+    <span class="n">pure</span> <span class="n">acc</span>
+
+<span class="kd">@[inline]</span>
+<span class="kd">def</span> <span class="n">exactlyN</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="bp">$</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">exactlyNCore</span> <span class="n">p</span> <span class="n">n</span> <span class="bp">#</span><span class="o">[]</span>
+
+<span class="kd">def</span> <span class="n">escaped</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">String</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">skipString</span> <span class="s2">"%"</span>
+  <span class="k">let</span> <span class="n">c</span><span class="bp">?</span> <span class="bp">←</span> <span class="n">peek</span><span class="bp">?</span>
+  <span class="k">if</span> <span class="n">c</span><span class="bp">?</span> <span class="bp">=</span> <span class="n">some</span> <span class="sc">'%'</span> <span class="k">then</span>
+    <span class="n">skip</span>
+    <span class="n">return</span> <span class="s2">"%"</span>
+  <span class="k">let</span> <span class="n">charCode</span> <span class="bp">←</span>
+    <span class="n">digitsToNat</span> <span class="mi">16</span> <span class="bp">&lt;$&gt;</span> <span class="n">exactlyN</span> <span class="o">(</span><span class="n">hexDigitToNat</span> <span class="bp">&lt;$&gt;</span> <span class="n">hexDigit</span><span class="o">)</span> <span class="mi">2</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">Char.ofNat</span> <span class="n">charCode</span><span class="o">)</span><span class="bp">.</span><span class="n">toString</span>
+
+<span class="kd">def</span> <span class="n">unescaped</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">manyChars</span> <span class="n">textData</span>
+<span class="kd">def</span> <span class="n">uriChunk</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">escaped</span> <span class="bp">&lt;|&gt;</span> <span class="n">unescaped</span>
+<span class="kd">def</span> <span class="n">parsedUri</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="o">(</span><span class="n">Array</span> <span class="n">String</span><span class="o">)</span> <span class="o">:=</span> <span class="n">many</span> <span class="n">uriChunk</span>
+
+<span class="k">#eval</span> <span class="k">match</span> <span class="n">parsedUri</span> <span class="s2">"file:///d%3a/temp/test.xml"</span><span class="bp">.</span><span class="n">mkIterator</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">Parsec.ParseResult.success</span> <span class="n">_</span> <span class="n">res</span> <span class="bp">=&gt;</span> <span class="n">Except.ok</span> <span class="n">res</span>
+  <span class="bp">|</span> <span class="n">Parsec.ParseResult.error</span> <span class="n">it</span> <span class="n">err</span>  <span class="bp">=&gt;</span> <span class="n">Except.error</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"offset {it.pos}: {err}"</span>
+</code></pre></div>
+<p>and can this code be simplified?</p>
+
+
+
+<a name="292194338"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292194338" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292194338">(Aug 05 2022 at 18:52)</a>:</h4>
+<p>You have a <code>many uriChunk</code> where <code>uriChunk</code> matches the empty string via <code>unescaped</code></p>
+
+
+
+<a name="292194377"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292194377" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292194377">(Aug 05 2022 at 18:53)</a>:</h4>
+<p>so the <code>many</code> parser will end up matching an infinite number of empty strings</p>
+
+
+
+<a name="292194576"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292194576" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292194576">(Aug 05 2022 at 18:54)</a>:</h4>
+<p>Are there parser combinator libraries from other dependently typed languages out there that can guarantee termination if they are used in a correct way with subtypes or similar?</p>
+
+
+
+<a name="292194981"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292194981" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292194981">(Aug 05 2022 at 18:58)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes/near/292194377">said</a>:</p>
+<blockquote>
+<p>so the <code>many</code> parser will end up matching an infinite number of empty strings</p>
+</blockquote>
+<p>Thanks for the hint, now how do I fix it?  I thought <code>textData</code> was greedy and consumed as much as it can, why would it ever match empty, except when it hits '%' in which case escaped should take over... ?</p>
+
+
+
+<a name="292195024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195024">(Aug 05 2022 at 18:59)</a>:</h4>
+<p>what if there is no text remaining?</p>
+
+
+
+<a name="292195053"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195053" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195053">(Aug 05 2022 at 18:59)</a>:</h4>
+<p>it will consume as much as it can, which is nothing</p>
+
+
+
+<a name="292195260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195260">(Aug 05 2022 at 19:00)</a>:</h4>
+<p>It is possible to make <code>many</code> not loop in this case by checking that the contained parser matches at least one character</p>
+
+
+
+<a name="292195380"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195380" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195380">(Aug 05 2022 at 19:01)</a>:</h4>
+<p>The simplest fix in this case would be to use something like <code>many1Chars</code> in <code>unescaped</code></p>
+
+
+
+<a name="292195553"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195553" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195553">(Aug 05 2022 at 19:02)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes/near/292194576">said</a>:</p>
+<blockquote>
+<p>Are there parser combinator libraries from other dependently typed languages out there that can guarantee termination if they are used in a correct way with subtypes or similar?</p>
+</blockquote>
+<p>I believe Gabriel actually proved termination for the lean 3 parsec IIRC</p>
+
+
+
+<a name="292195628"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195628" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195628">(Aug 05 2022 at 19:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> also did some work on provable parsers in mathlib</p>
+
+
+
+<a name="292195759"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195759" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195759">(Aug 05 2022 at 19:04)</a>:</h4>
+<p>Indeed, I just checked and <a href="https://github.com/leanprover-community/lean/blob/master/library/data/buffer/parser.lean">https://github.com/leanprover-community/lean/blob/master/library/data/buffer/parser.lean</a> contains only terminating functions</p>
+
+
+
+<a name="292195791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195791">(Aug 05 2022 at 19:05)</a>:</h4>
+<p>Mario, what's you definition of terminating?</p>
+
+
+
+<a name="292195845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195845">(Aug 05 2022 at 19:05)</a>:</h4>
+<p>Functions that the Lean compiler accepts without stuff like partial for me</p>
+
+
+
+<a name="292195904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195904">(Aug 05 2022 at 19:06)</a>:</h4>
+<p>yeah that's what I mean</p>
+
+
+
+<a name="292195947"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292195947" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292195947">(Aug 05 2022 at 19:06)</a>:</h4>
+<p>I guess the proof is a bit of a cheat because it uses a fuel parameter (even though the fuel parameter is guaranteed to be large enough, that's not proved)</p>
+
+
+
+<a name="292196040"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196040" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196040">(Aug 05 2022 at 19:07)</a>:</h4>
+<p>As a side note, the TC-based parser properties led to the "scary" graph that was shared at lftcm</p>
+
+
+
+<a name="292196130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196130">(Aug 05 2022 at 19:08)</a>:</h4>
+<p>I imagine such a scheme would not work for  parsers that want to match the empty string (i.e., work in a similar manner to <code>skip</code>/ <code>check*</code> functions in the Lean parser).</p>
+
+
+
+<a name="292196175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196175">(Aug 05 2022 at 19:09)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/parser.bounded">docs#parser.bounded</a></p>
+
+
+
+<a name="292196256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196256">(Aug 05 2022 at 19:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> If you are doing the check in <code>many</code> itself I don't see how there could be a false positive unless the parser function is not pure</p>
+
+
+
+<a name="292196309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196309">(Aug 05 2022 at 19:10)</a>:</h4>
+<p>contrast with <a href="https://leanprover-community.github.io/mathlib_docs/find/parser.unfailing">docs#parser.unfailing</a>, related to <a href="https://leanprover-community.github.io/mathlib_docs/find/parser.conditionally_unfailing">docs#parser.conditionally_unfailing</a></p>
+
+
+
+<a name="292196310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196310">(Aug 05 2022 at 19:10)</a>:</h4>
+<p>if you call <code>p</code> and it returns success and does not advance the cursor, then calling <code>p</code> again will result in the same thing and you will definitely loop</p>
+
+
+
+<a name="292196458"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196458" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196458">(Aug 05 2022 at 19:11)</a>:</h4>
+<p><code>many (pure x)</code></p>
+
+
+
+<a name="292196961"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292196961" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292196961">(Aug 05 2022 at 19:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes/near/292195380">said</a>:</p>
+<blockquote>
+<p>The simplest fix in this case would be to use something like <code>many1Chars</code> in <code>unescaped</code></p>
+</blockquote>
+<p>Thanks, many1Chars fixed it.</p>
+
+
+
+<a name="292197357"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292197357" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292197357">(Aug 05 2022 at 19:20)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes/near/292196256">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> If you are doing the check in <code>many</code> itself I don't see how there could be a false positive unless the parser function is not pure</p>
+</blockquote>
+<p>Yes, but this assumes that one wants <code>many</code> to fail at the end of the input. If one has <code>many acceptsEmptyString &gt;&gt; optional otherParser</code>, one ideally does not want <code>many acceptsEmptyString</code> to fail because it just reach the end of the input.  Even break upon reaching the end does not solve this, as it not necessarily clear how many invocations of <code>acceptsEmptyString</code> one wants (especially if the parser <code>acceptsEmptyString</code> is not pure).</p>
+
+
+
+<a name="292197484"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292197484" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292197484">(Aug 05 2022 at 19:22)</a>:</h4>
+<p><code>many acceptsEmptyString</code> would not fail, it would return the empty list and parse nothing</p>
+
+
+
+<a name="292197544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292197544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292197544">(Aug 05 2022 at 19:22)</a>:</h4>
+<p>and the exit condition is not reaching the end, it is parsing 0 characters</p>
+
+
+
+<a name="292197592"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292197592" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292197592">(Aug 05 2022 at 19:23)</a>:</h4>
+<p>if the parser is not pure then you are hosed</p>
+
+
+
+<a name="292199207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292199207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292199207">(Aug 05 2022 at 19:37)</a>:</h4>
+<p>dangerang, this code I borrowed from Lean.Xml.Parser.hexDigitToNat doesn't work, can anyone spot the problem?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="n">Lean.Xml.Parser.CharRef</span> <span class="s2">"&amp;#x3a;"</span><span class="bp">.</span><span class="n">mkIterator</span> <span class="c1">-- ':'</span>
+<span class="k">#eval</span> <span class="n">Lean.Xml.Parser.CharRef</span> <span class="s2">"&amp;#x3b;"</span><span class="bp">.</span><span class="n">mkIterator</span> <span class="c1">-- error expected ';'</span>
+</code></pre></div>
+<p>is there something wrong with <code>if 'a' ≤ c ∧ c ≤ 'f'</code> ?  The weird thing is this works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="n">Lean.Xml.Parser.hexDigitToNat</span> <span class="sc">'b'</span>   <span class="c1">-- 11</span>
+</code></pre></div>
+
+
+
+<a name="292200007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292200007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292200007">(Aug 05 2022 at 19:46)</a>:</h4>
+<p>It's a bug in core</p>
+
+
+
+<a name="292200100"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292200100" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292200100">(Aug 05 2022 at 19:47)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/blob/deafc315c783ac8069508f72b2815f2713d06f6a/src/Lean/Data/Parsec.lean#L126-L128">https://github.com/leanprover/lean4/blob/deafc315c783ac8069508f72b2815f2713d06f6a/src/Lean/Data/Parsec.lean#L126-L128</a></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">hexDigit</span> <span class="o">:</span> <span class="n">Parsec</span> <span class="n">Char</span> <span class="o">:=</span> <span class="n">attempt</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">c</span> <span class="bp">←</span> <span class="n">anyChar</span>
+  <span class="k">if</span> <span class="o">(</span><span class="sc">'0'</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">≤</span> <span class="sc">'9'</span><span class="o">)</span>
+   <span class="bp">∨</span> <span class="o">(</span><span class="sc">'a'</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">≤</span> <span class="sc">'a'</span><span class="o">)</span>
+   <span class="bp">∨</span> <span class="o">(</span><span class="sc">'A'</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">≤</span> <span class="sc">'A'</span><span class="o">)</span> <span class="k">then</span> <span class="n">return</span> <span class="n">c</span> <span class="k">else</span> <span class="n">fail</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"hex digit expected"</span>
+</code></pre></div>
+
+
+
+<a name="292200241"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292200241" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292200241">(Aug 05 2022 at 19:48)</a>:</h4>
+<p>hilarious, I filed a bug <a href="https://github.com/leanprover/lean4/issues/1429">https://github.com/leanprover/lean4/issues/1429</a> and tested the fix <a href="https://github.com/leanprover/lean4/pull/1430">https://github.com/leanprover/lean4/pull/1430</a>, and it works.</p>
+
+
+
+<a name="292200257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292200257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292200257">(Aug 05 2022 at 19:48)</a>:</h4>
+<p>A correct implementation for recognizing undecimal digits, though</p>
+
+
+
+<a name="292243972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292243972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292243972">(Aug 06 2022 at 09:18)</a>:</h4>
+<p>11 is the new 16 -- oh the fix is already merged! I love the way things move fast here.</p>
+
+
+
+<a name="292273658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Parsec%20parser%20for%20decoding%20Uri%20escapes/near/292273658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes.html#292273658">(Aug 06 2022 at 19:02)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/270676-lean4/topic/Parsec.20parser.20for.20decoding.20Uri.20escapes/near/292194576">said</a>:</p>
+<blockquote>
+<p>Are there parser combinator libraries from other dependently typed languages out there that can guarantee termination if they are used in a correct way with subtypes or similar?</p>
+</blockquote>
+<p>There's at least <a href="https://github.com/gallais/agdarsec">https://github.com/gallais/agdarsec</a> to look at, along with its ports to Coq and Idris.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

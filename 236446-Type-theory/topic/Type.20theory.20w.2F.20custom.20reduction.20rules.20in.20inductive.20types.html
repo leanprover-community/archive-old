@@ -1,0 +1,241 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/index.html">Type theory</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html">Type theory w/ custom reduction rules in inductive types</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="241345995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241345995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Brandon Brown <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241345995">(Jun 03 2021 at 03:54)</a>:</h4>
+<p>I've been exploring different ways of constructing the same type, e.g. the integers using a regular inductive type, subtype or quotient type. Each has its pros and cons.</p>
+<p>Constructing the integers as an inductive type derived from the natural numbers, e.g.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">int</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">where</span>
+<span class="bp">|</span> <span class="n">pos</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">int</span>
+<span class="bp">|</span> <span class="n">neg</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">int</span>
+</code></pre></div>
+<p>Is convenient because it's a regular inductive type and it's therefore easy to define functions with it. One minor con is that there are two zero representations: <code>pos zero</code> and <code>neg zero</code></p>
+<p>Alternatively, one can use a subtype of an inductive type that doesn't depend on <code>Nat</code> such that only a restricted subset of representations are used, namely where <code>succ $ pred a = a</code> and <code>pred $ succ a = a</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">pInt</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">where</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+
+<span class="kd">def</span> <span class="n">is_norm</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">pInt</span><span class="o">)</span> <span class="o">:</span> <span class="n">Bool</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">a</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="bp">=&gt;</span> <span class="n">true</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="o">(</span><span class="n">pred</span> <span class="n">a</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">false</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="o">(</span><span class="n">succ</span> <span class="n">a</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">false</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="n">zero</span> <span class="bp">=&gt;</span> <span class="n">true</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="n">zero</span> <span class="bp">=&gt;</span> <span class="n">true</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">is_norm</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">is_norm</span> <span class="n">a</span>
+
+<span class="kd">def</span> <span class="n">int</span> <span class="o">:=</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">//</span> <span class="n">is_norm</span> <span class="n">x</span><span class="o">}</span>
+</code></pre></div>
+<p>This version of the integers doesn't have cons of the first presentation, e.g. there is a unique zero, but now it has the con that you have to carry around a proof that it is in normal form. So it's quite unpleasant to have to do :</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="n">int.add</span> <span class="o">(</span><span class="n">Subtype.mk</span> <span class="n">zero.succ.succ</span> <span class="n">rfl</span><span class="o">)</span> <span class="o">(</span><span class="n">Subtype.mk</span> <span class="n">zero.succ.succ</span> <span class="n">rfl</span><span class="o">)</span>
+</code></pre></div>
+<p>instead of just:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="n">zero.succ.succ</span> <span class="bp">+</span> <span class="n">zero.succ.succ</span>
+</code></pre></div>
+<p>like you can do with a regular inductive type.</p>
+<p>I suppose I could create a notation that makes this easier:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">notation</span> <span class="s2">"↓"</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="o">((</span><span class="n">Subtype.mk</span> <span class="n">a</span> <span class="n">rfl</span><span class="o">)</span> <span class="o">:</span> <span class="n">int</span><span class="o">)</span>
+<span class="k">#check</span> <span class="n">int.add</span> <span class="o">(</span><span class="bp">↓</span><span class="n">zero.succ.succ</span><span class="o">)</span> <span class="o">(</span><span class="bp">↓</span><span class="n">zero.succ.succ</span><span class="o">)</span>
+</code></pre></div>
+<p>All of this preface is to ask, is there a type theory where one can define reduction rules within an inductive type? I'm thinking it would look something like this</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">pInt</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+<span class="n">where</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="bp">$</span> <span class="n">pred</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="bp">$</span> <span class="n">succ</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+</code></pre></div>
+<p>such that anytime I tried to a create term that matched my custom reduction patterns, it would automatically get reduced such that it would be impossible to create a term with a pattern like <code>zero.succ.pred</code> as it would automatically get reduced at the Kernel level to <code>zero</code>, e.g.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">some_int</span> <span class="o">:</span> <span class="n">int</span> <span class="o">:=</span> <span class="n">zero.pred.succ</span>
+<span class="k">#reduce</span> <span class="n">some_int</span> <span class="c1">-- zero.succ</span>
+</code></pre></div>
+<p>This new type forming mechanism would function just like my int subtype, except that now I don't need to prove that some int is in normal form as it is impossible to construct a non-normal int and I can use it as I would a regular inductive type. Note, to my eye this is different than a quotient or a higher-inductive type as there is no notion of equality here, I'm not intending to define equalities, I'm defining reductions.</p>
+
+
+
+<a name="241346137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241346137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241346137">(Jun 03 2021 at 03:58)</a>:</h4>
+<blockquote>
+<p>One minor con is that there are two zero representations: <code>pos zero</code> and <code>neg zero</code></p>
+</blockquote>
+<p>Rather than a con, I would call that evidence that this type is not the integers. The integers do not have two values that are both zero and not equal to each other. As you probably know, the real lean definition of the integers uses the two-constructor approach but shifts the <code>neg</code> constructor so that it doesn't cover zero (leading to the cumbersome name <code>neg_succ_of_nat</code>).</p>
+
+
+
+<a name="241346267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241346267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241346267">(Jun 03 2021 at 04:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243102">Brandon Brown</span> <a href="#narrow/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types/near/241345995">said</a>:</p>
+<blockquote>
+<p>This version of the integers doesn't have cons of the first presentation, e.g. there is a unique zero, but now it has the con that you have to carry around a proof that it is in normal form. So it's quite unpleasant to have to do :</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="n">int.add</span> <span class="o">(</span><span class="n">Subtype.mk</span> <span class="n">zero.succ.succ</span> <span class="n">rfl</span><span class="o">)</span> <span class="o">(</span><span class="n">Subtype.mk</span> <span class="n">zero.succ.succ</span> <span class="n">rfl</span><span class="o">)</span>
+</code></pre></div>
+<p>instead of just:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="n">zero.succ.succ</span> <span class="bp">+</span> <span class="n">zero.succ.succ</span>
+</code></pre></div>
+<p>like you can do with a regular inductive type.</p>
+</blockquote>
+<p>That isn't really a problem once you have built the API. You just define <code>int.zero</code> and <code>int.succ</code> so that <code>zero.succ.succ : int</code>, and define <code>int.add</code> and make it an instance of <code>has_add</code> so that <code>x + y : int</code> works. As long as you do these things <code>zero.succ.succ + zero.succ.succ</code> can be made to work regardless of how the type is actually defined</p>
+
+
+
+<a name="241346493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241346493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241346493">(Jun 03 2021 at 04:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243102">Brandon Brown</span> <a href="#narrow/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types/near/241345995">said</a>:</p>
+<blockquote>
+<p>All of this preface is to ask, is there a type theory where one can define reduction rules within an inductive type? I'm thinking it would look something like this</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">pInt</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="o">:</span> <span class="n">pInt</span> <span class="bp">→</span> <span class="n">pInt</span>
+<span class="n">where</span>
+<span class="bp">|</span> <span class="n">succ</span> <span class="bp">$</span> <span class="n">pred</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">pred</span> <span class="bp">$</span> <span class="n">succ</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">a</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>First, this is necessarily a higher inductive type (HIT) because you have an inductive type with some equalities. However, if you use HITs a la HoTT, you still won't get <em>reduction rules</em> because your equalities are defeqs rather than paths which freely generate the equality type on the inductive. I have not seen any type theory that validates this sort of thing, and while this specific example can be proved to exist I can already see lots of ways to prove false with an unrestricted mechanism of this form. What does the recursor for this type even look like?</p>
+
+
+
+<a name="241351034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241351034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nick Scheel <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241351034">(Jun 03 2021 at 05:52)</a>:</h4>
+<p>If you want to read more about (the subtleties of) defining integers as higher inductive types, there’s a whole paper on it: <a href="https://arxiv.org/abs/2007.00167">https://arxiv.org/abs/2007.00167</a></p>
+
+
+
+<a name="241354124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241354124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241354124">(Jun 03 2021 at 06:55)</a>:</h4>
+<p>There's also a recent talk by Thorsten Altenkirch which I think Alex Best posted a YT link to recently, which to be honest just made me feel that HoTT was totally unsuitable for defining regular mathematical objects (I'm on the Android app and can't figure out how to search for posts by a user)</p>
+
+
+
+<a name="241356205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241356205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241356205">(Jun 03 2021 at 07:24)</a>:</h4>
+<p>For the lazy: <a href="https://www.youtube.com/watch?v=Fov95A2bGDI">https://www.youtube.com/watch?v=Fov95A2bGDI</a></p>
+<div class="youtube-video message_inline_image"><a data-id="Fov95A2bGDI" href="https://www.youtube.com/watch?v=Fov95A2bGDI"><img src="https://uploads.zulipusercontent.net/43a2bf37201e7f67167439ae74f620d9c27cb26b/68747470733a2f2f692e7974696d672e636f6d2f76692f466f7639354132624744492f64656661756c742e6a7067"></a></div>
+
+
+
+<a name="241358642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241358642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241358642">(Jun 03 2021 at 07:55)</a>:</h4>
+<p>"Making the integers incomprehensible"</p>
+
+
+
+<a name="241414051"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414051" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Brandon Brown <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414051">(Jun 03 2021 at 16:15)</a>:</h4>
+<p>Thanks <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> for the point by point.I’m familiar with the integers as a HIT paper and presentation.  I didn’t think it would be quite like a HIT because I didn’t think I was postulating equality. That is, I want something of the form of succ $ pred a to be immediately reduced to ‘a ‘ without equating them. If they’re equal then I could do the reverse and turn ‘a’ into succ $ pred a and I don’t want that possibility. But in any case, I can see how making a better interface for subtypes can solve most of my issues.</p>
+
+
+
+<a name="241414229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414229">(Jun 03 2021 at 16:16)</a>:</h4>
+<p><code>succ(pred a)</code> has to be a term because <code>succ</code> and <code>pred</code> are functions. If one reduces to the other then they are necessarily equal by <code>rfl</code></p>
+
+
+
+<a name="241414381"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414381" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414381">(Jun 03 2021 at 16:17)</a>:</h4>
+<p>It's not crazy to have a reduction rule like that, that's more or less how reduction of recursive definitions on inductive types works</p>
+
+
+
+<a name="241414602"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414602" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414602">(Jun 03 2021 at 16:19)</a>:</h4>
+<p>If you have</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">nat</span> <span class="bp">-&gt;</span> <span class="n">nat</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">succ</span> <span class="n">n</span><span class="o">)</span> <span class="o">:=</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">2</span>
+</code></pre></div>
+<p>then <code>foo (succ n) ~&gt; foo n + 2</code>, i.e. there is a left-to-right reduction, but this implies that <code>foo (succ n) = foo n + 2</code> is an equality that is provable, and it's proof is <code>rfl</code></p>
+
+
+
+<a name="241414755"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414755" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414755">(Jun 03 2021 at 16:20)</a>:</h4>
+<p>Postulating the equality is a bit different from postulating a defeq, which is a bit different from postulating a reduction</p>
+
+
+
+<a name="241414816"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241414816" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241414816">(Jun 03 2021 at 16:20)</a>:</h4>
+<p>HITs in HoTT postulate the equality, and as a result they have to deal with coherence hell (see the integer HIT talk)</p>
+
+
+
+<a name="241415256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241415256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241415256">(Jun 03 2021 at 16:24)</a>:</h4>
+<p>Postulating the defeq, or the reduction, have the problem that the recursor can't be expressed without "defeq hypotheses", which is not a thing that exists in lean. Cubical type theory is based on a type <code>Path A a b</code> which is like the subtype <code>{f : [0,1] -&gt; A // f 0 = a /\ f 1 = b}</code>, except the two equalities are defeqs. So the introduction and elimination rules for the type have to be built into the foundations, and there are a ton of novel consequences</p>
+
+
+
+<a name="241415421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241415421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241415421">(Jun 03 2021 at 16:25)</a>:</h4>
+<p>So I can believe that cubical type theory would either be able to simulate such a defeq-HIT or could be extended to support one. I'm sure they would be interested to investigate something like that</p>
+
+
+
+<a name="241416159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241416159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241416159">(Jun 03 2021 at 16:30)</a>:</h4>
+<p>Postulating a reduction is more or less the same thing, except it has additional consequences for the decidability of defeq and strong normalization / canonicity. For example you would want to know that every closed term of type <code>int</code> reduces to <code>succ^n 0</code> or <code>pred^n 0</code>, and the reduction rules are confluent and don't cause infinite loops. As far as I know there is no general method for checking arbitrary rules supplied by the user to ensure these properties, you basically have to redo the analysis with each new reduction rule that is added. I don't think your proposed reduction rules for the integers are problematic, but it's always hard to tell if there won't be some problematic interaction with a corner of the type theory you weren't thinking about</p>
+
+
+
+<a name="241443103"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/241443103" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Brandon Brown <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#241443103">(Jun 03 2021 at 19:49)</a>:</h4>
+<p>Very interesting, thank you- maybe some future proof assistant will have this. For now, I will use a subtype</p>
+
+
+
+<a name="246293321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/246293321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Bond <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#246293321">(Jul 17 2021 at 00:02)</a>:</h4>
+<p>This is perfectly valid Cubical Agda.<br>
+<a href="https://agdapad.quasicoherent.io/#PassionateOutsidesDecorateGradually">https://agdapad.quasicoherent.io/#PassionateOutsidesDecorateGradually</a></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">{</span><span class="bp">-#</span> <span class="n">OPTIONS</span> <span class="c1">--cubical #-}</span>
+<span class="n">module</span> <span class="n">cube</span> <span class="n">where</span>
+
+<span class="kn">open</span> <span class="kn">import</span> <span class="n">Data.Nat</span>
+
+<span class="kn">open</span> <span class="kn">import</span> <span class="n">Cubical.Foundations.Prelude</span>
+
+<span class="n">data</span> <span class="n">Int</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">where</span>
+    <span class="n">pos</span> <span class="o">:</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="bp">-&gt;</span> <span class="n">Int</span>
+    <span class="n">neg</span> <span class="o">:</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="bp">-&gt;</span> <span class="n">Int</span>
+    <span class="n">z</span> <span class="o">:</span> <span class="n">pos</span> <span class="mi">0</span> <span class="bp">≡</span> <span class="n">neg</span> <span class="mi">0</span>
+</code></pre></div>
+
+
+
+<a name="246293376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/246293376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Bond <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#246293376">(Jul 17 2021 at 00:03)</a>:</h4>
+<p>Also doable in Arend<br>
+(both languages are based on cubical type theories)</p>
+
+
+
+<a name="246295081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/236446-Type%20theory/topic/Type%20theory%20w/%20custom%20reduction%20rules%20in%20inductive%20types/near/246295081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/236446-Type-theory/topic/Type.20theory.20w.2F.20custom.20reduction.20rules.20in.20inductive.20types.html#246295081">(Jul 17 2021 at 00:41)</a>:</h4>
+<p>But ≡ is "typal" not definitional equality in Agda, right?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,155 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html">how am I getting infinite recursion?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="236729606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236729606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236729606">(Apr 29 2021 at 19:17)</a>:</h4>
+<p>Hi,</p>
+<p>I'm learning to write tactics to traverse the structure of an expr and extract certain bits. It seems that a tactic I wrote is leading to the error: "excessive memory consumption detected at 'vm' (potential solution: increase memory consumption threshold)". This sounds to me like it's running a bottomless recursion and it runs out of memory, but looking at my code I can't see how it would fail to reach the base case which ends the recursion. Perhaps what I wrote doesn't mean what I think it does. I would appreciate some guidance on how to fix it. Thanks!</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">expr</span>
+<span class="kn">open</span> <span class="n">tactic</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">extract_bindings</span> <span class="o">(</span><span class="n">e</span><span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">expr</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">lam</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="n">body</span> <span class="o">:=</span> <span class="n">lam</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="n">body</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">pi</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="n">body</span> <span class="o">:=</span> <span class="n">pi</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="n">body</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.var</span> <span class="n">tt</span> <span class="mi">0</span><span class="o">)</span>
+  <span class="kd">end</span>
+
+<span class="c1">-- this one is fine</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.var</span> <span class="n">tt</span> <span class="mi">0</span><span class="o">))</span>
+
+<span class="c1">-- this one produces the error</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">extract_bindings</span>
+ <span class="o">(</span><span class="n">expr.lam</span> <span class="o">(</span><span class="n">mk_simple_name</span> <span class="s2">"α"</span><span class="o">)</span> <span class="n">binder_info.implicit</span> <span class="o">(</span><span class="n">expr.sort</span> <span class="bp">$</span> <span class="n">level.succ</span> <span class="n">level.zero</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">expr.lam</span> <span class="o">(</span><span class="n">mk_simple_name</span> <span class="s2">"β"</span><span class="o">)</span> <span class="n">binder_info.implicit</span> <span class="o">(</span><span class="n">expr.sort</span> <span class="bp">$</span> <span class="n">level.succ</span> <span class="n">level.zero</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.var</span> <span class="n">tt</span> <span class="mi">0</span><span class="o">))</span>
+ <span class="o">))</span>
+
+<span class="kd">end</span> <span class="n">expr</span>
+</code></pre></div>
+
+
+
+<a name="236732884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236732884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236732884">(Apr 29 2021 at 19:39)</a>:</h4>
+<p>Can you express your function using <code>expr.fold</code>?</p>
+
+
+
+<a name="236733031"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236733031" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236733031">(Apr 29 2021 at 19:40)</a>:</h4>
+<p>If your thing truly recurses properly, you wouldn't need to write is as a <code>meta def</code>, just <code>def</code></p>
+
+
+
+<a name="236748694"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236748694" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236748694">(Apr 29 2021 at 21:18)</a>:</h4>
+<p>Thanks for the suggestion. I'll try to rewrite it with fold</p>
+
+
+
+<a name="236765150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236765150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236765150">(Apr 29 2021 at 23:56)</a>:</h4>
+<p>Okay this is a weird one. Here's a working version:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">expr</span>
+<span class="kn">open</span> <span class="n">tactic</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">extract_bindings</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">expr</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">e</span><span class="o">,</span>
+  <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">lam</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="n">body</span> <span class="o">:=</span> <span class="n">lam</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="n">body</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">pi</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="n">body</span> <span class="o">:=</span> <span class="n">pi</span> <span class="n">var_name</span> <span class="n">b_info</span> <span class="n">var_type</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="n">body</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.var</span> <span class="n">tt</span> <span class="mi">0</span><span class="o">)</span>
+  <span class="kd">end</span>
+
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">extract_bindings</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.var</span> <span class="n">tt</span> <span class="mi">0</span><span class="o">))</span>
+
+<span class="kd">run_cmd</span> <span class="n">trace</span> <span class="bp">$</span>
+    <span class="n">extract_bindings</span> <span class="bp">$</span>
+      <span class="n">lam</span> <span class="bp">`</span><span class="n">α</span> <span class="n">binder_info.default</span> <span class="o">(</span><span class="n">expr.sort</span> <span class="n">level.zero</span><span class="o">)</span> <span class="bp">$</span>
+      <span class="n">lam</span> <span class="bp">`</span><span class="n">β</span> <span class="n">binder_info.default</span> <span class="o">(</span><span class="n">expr.sort</span> <span class="n">level.zero</span><span class="o">)</span> <span class="bp">$</span>
+      <span class="n">var</span> <span class="mi">0</span>
+
+<span class="kd">end</span> <span class="n">expr</span>
+</code></pre></div>
+<p>The difference is in the definition of <code>extract_bindings</code>. Arguments before the colon, like <code>e</code> in your version, are treated as parameters in definitions, meaning they are fixed in recursive calls. But I don't understand why Lean even accepted your definition in the first place. Usually, <code>extract_bindings</code> should have type <code>expr</code> in the body of its definition (since the <code>e</code> is fixed), so <code>extract_bindings body</code> should be a type error.</p>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> can you tell what's going on here?</p>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/239415-metaprogramming-.2F.20tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F/near/236733031">said</a>:</p>
+<blockquote>
+<p>If your thing truly recurses properly, you wouldn't need to write is as a <code>meta def</code>, just <code>def</code></p>
+</blockquote>
+<p>In this case, <code>expr</code> is already <code>meta</code>, so the definition must be <code>meta</code> as well.</p>
+
+
+
+<a name="236797926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236797926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236797926">(Apr 30 2021 at 07:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="256311">Jannis Limperg</span> <a href="#narrow/stream/239415-metaprogramming-.2F.20tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F/near/236765150">said</a>:</p>
+<blockquote>
+<p>But I don't understand why Lean even accepted your definition in the first place. Usually, <code>extract_bindings</code> should have type <code>expr</code> in the body of its definition (since the <code>e</code> is fixed), so <code>extract_bindings body</code> should be a type error.</p>
+</blockquote>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/expr.has_coe_to_fun">docs#expr.has_coe_to_fun</a> <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="236819465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236819465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236819465">(Apr 30 2021 at 11:17)</a>:</h4>
+<p>Ha! That explains the infinite recursion. Thanks!</p>
+
+
+
+<a name="236847272"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236847272" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236847272">(Apr 30 2021 at 14:59)</a>:</h4>
+<p>Wow, I didn't expect the problem to be in the function signature...</p>
+
+
+
+<a name="236850518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236850518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236850518">(Apr 30 2021 at 15:11)</a>:</h4>
+<p>So <code>(extract_bindings body)</code> was being expanded to <code>(expr.app extract_bindings body)</code>. Also extract_bindings had an implicit argument (causing infinite recursion), but <code>has_coe_to_fun</code> prevented a type error from showing up on <code>(extract_bindings body)</code> because of the extra <code>expr.app</code>...</p>
+
+
+
+<a name="236851414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236851414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236851414">(Apr 30 2021 at 15:15)</a>:</h4>
+<p>I hope I'm understanding correctly here.</p>
+<p>How can you prevent <code>has_coe_to_fun</code> from doing that? When does <code>has_coe_to_fun</code> apply? Was the change to the function signature enough to inhibit it? Because I don't see an extra <code>expr.app</code> in the resulting expression now that the program works</p>
+
+
+
+<a name="236853246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236853246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236853246">(Apr 30 2021 at 15:26)</a>:</h4>
+<p><code>local attribute [-instance] expr.has_coe_to_fun</code></p>
+
+
+
+<a name="236857514"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/how%20am%20I%20getting%20infinite%20recursion%3F/near/236857514" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F.html#236857514">(Apr 30 2021 at 15:52)</a>:</h4>
+<p>Your understanding seems correct. </p>
+<p><span class="user-mention silent" data-user-id="337523">Joe Palermo</span> <a href="#narrow/stream/239415-metaprogramming-.2F.20tactics/topic/how.20am.20I.20getting.20infinite.20recursion.3F/near/236851414">said</a>:</p>
+<blockquote>
+<p>When does <code>has_coe_to_fun</code> apply? </p>
+</blockquote>
+<p>Whenever Lean sees an application <code>x y</code> with <code>x : T</code> and <code>T</code> not a function type, it tries to look for an instance of <code>has_coe_to_fun T</code>. (There are probably nasty details to consider, but that's the idea.) For <code>expr</code> specifically, this allows you to write <code>f x</code> with <code>f, x : expr</code> and <code>f</code> presumably of function type, which is occasionally handy.</p>
+<blockquote>
+<p>Was the change to the function signature enough to inhibit it? Because I don't see an extra <code>expr.app</code> in the resulting expression now that the program works</p>
+</blockquote>
+<p>With the change to the function signature, <code>extract_bindings</code> has type <code>expr -&gt; expr</code> in the body of its definition, so it's already a function and the <code>has_coe_to_fun</code> business doesn't apply.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

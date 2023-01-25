@@ -1,0 +1,264 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html">The Lean C/C++ API</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="252933266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252933266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252933266">(Sep 11 2021 at 20:29)</a>:</h4>
+<p>So I was in the process of updating <a href="https://github.com/tydeu/lean4-papyrus">Papyrus</a> to the latest Lean nightly and noticed a number of breaking changes had been made in the past few days to the Lean C/C++ API.  For one, it appears that the C++ interface has been completely removed from the distribution. The manner of linking to Lean also appears to have changed. As such, I am a little at a loss on how to update Papyrus. </p>
+<p>Lean 4 devs (e.g., <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>  and Leo) is there any advice you can give on how to migrate? Also are their any guidelines on how C/C++ bindings should be written going forward to make them more future proof?</p>
+
+
+
+<a name="252934140"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252934140" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252934140">(Sep 11 2021 at 20:43)</a>:</h4>
+<p>Two particularly large point pain points are the absence of <code>mpz</code> and <code>utf8</code> (and <code>mpz_object</code> from <code>object</code>), which I needed to convert between Lean <code>Int</code>s and <code>Nat</code>s and LLVM <code>APInt</code>s and between Lean <code>String</code>s and LLVM <code>StringRef</code>s/<code>Twine</code>s.</p>
+
+
+
+<a name="252935668"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252935668" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252935668">(Sep 11 2021 at 21:09)</a>:</h4>
+<p>Also the absence of the <code>std::string</code> to <code>lean_object</code> converters hurts.</p>
+
+
+
+<a name="252936178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252936178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252936178">(Sep 11 2021 at 21:18)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> Sorry about that, we assumed nobody was using the C++ .h files in the Lean distribution. These files were originally written to support the Lean implementation. This was not a random decision. It was done to simplify <a href="https://github.com/leanprover/lean4/pull/659">https://github.com/leanprover/lean4/pull/659</a><br>
+This PR is critical because it will allow us to have a Lean distribution that does not depend on a C compiler in the user machine. We believe Lake + this PR will dramatically improve the user experience.<br>
+I think Papyrus is also an important project. Could you "survive" with the C API? If not, do you want to volunteer to maintain a C++ API for Lean.<br>
+BTW, we do hope one day Lean runtime will be pure C, and everything else will be written in Lean.</p>
+
+
+
+<a name="252937116"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937116" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937116">(Sep 11 2021 at 21:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Ah, makes sense. I think I can largely do without the C++ API. As you said, most of it used to implement Lean and very little needs to be used by third parties.  Most of the useful C++ helpers can also be rewritten relatively easily.</p>
+<p>The only critical things I am missing are <code>utf8_strlen</code> and <code>mpz</code>. The former is  currently needed to needed to convert things like <code>std::string</code> (i.e., potentially non-null terminated strings with a known size) into a <code>lean_object</code>. However, it could likely be replaced with an alternative C <code>lean_mk_string</code> that takes both a pointer and a size. </p>
+<p>For <code>mpz</code>, I was actually hacking around the existing Lean C++ API to get at the C <code>mpz_t</code>, so if there was C API <code>lean_mpz_value</code> which returned the <code>mpz_t</code>, that would be sufficient. Similar methods could also exist for <code>mpq</code> and <code>mpfp</code> to get at their <code>mpq_t</code> and <code>mpfp_t</code>. They could probably be located in a separate <code>.h</code> that includes <code>gmp</code> so that <code>gmp</code> is only a dependency for those who need such an API.</p>
+
+
+
+<a name="252937228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937228">(Sep 11 2021 at 21:38)</a>:</h4>
+<blockquote>
+<p>The only critical things I am missing are are utf8_strlen </p>
+</blockquote>
+<p>I will this one to the C API.</p>
+
+
+
+<a name="252937253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937253">(Sep 11 2021 at 21:39)</a>:</h4>
+<p>Now, the <code>mpz</code>, do you need big numbers?</p>
+
+
+
+<a name="252937267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937267">(Sep 11 2021 at 21:39)</a>:</h4>
+<p>Yes, for LLVM's <code>APInt</code>.</p>
+
+
+
+<a name="252937385"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937385" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937385">(Sep 11 2021 at 21:41)</a>:</h4>
+<p>Would a function that returns the Lean Nat/Int as a string be good enough?<br>
+How do you create <code>APInt</code>objects in LLVM? Is it based on GMP too?</p>
+
+
+
+<a name="252937483"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937483" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937483">(Sep 11 2021 at 21:43)</a>:</h4>
+<p>LLVM has its own numeric representation for <code>APInt</code> which is also an array of limbs, so I was using <code>mpz_import</code>/<code>mpz_export</code> to convert between the two efficiently (without having to construct and parse an intermediary string).</p>
+
+
+
+<a name="252937658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937658">(Sep 11 2021 at 21:46)</a>:</h4>
+<p>how about an interface to get the nth limb (with a radix of 2^8, 2^32 or 2^64 as convenient)? That would be relatively efficient for this kind of conversion</p>
+
+
+
+<a name="252937689"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937689" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937689">(Sep 11 2021 at 21:47)</a>:</h4>
+<p>I would think exposing the already existing<code>mpz_t</code> would be the simplest and most powerful solution.</p>
+
+
+
+<a name="252937715"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937715" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937715">(Sep 11 2021 at 21:47)</a>:</h4>
+<p>That would also work, but imposes a dependency on <code>gmp</code>, and I'm guessing they are considering alternative backends</p>
+
+
+
+<a name="252937770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937770">(Sep 11 2021 at 21:48)</a>:</h4>
+<p>Hence why I said splitting it into a separate header. I am more than happy to rewrite my conversion code if the backend representation changes.</p>
+
+
+
+<a name="252937816"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937816" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937816">(Sep 11 2021 at 21:49)</a>:</h4>
+<p>And its not like C interface doesn't expose implementation details for other types of objects (e.g., arrays, strings, etc.)</p>
+
+
+
+<a name="252937877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937877">(Sep 11 2021 at 21:50)</a>:</h4>
+<p>those are all exposed via structs in lean.h though</p>
+
+
+
+<a name="252937892"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937892" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937892">(Sep 11 2021 at 21:51)</a>:</h4>
+<p>I don't know if something similar is possible for mpz unless you leave it as a <code>void *</code></p>
+
+
+
+<a name="252937903"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252937903" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252937903">(Sep 11 2021 at 21:51)</a>:</h4>
+<p>My ideal interface would be <code>lean_object* lean_alloc_mpz(mpz_t)</code> and <code>mpz_t* lean_mpz_value(lean_object*)</code></p>
+
+
+
+<a name="252938065"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938065" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938065">(Sep 11 2021 at 21:54)</a>:</h4>
+<p>The motivation to eliminate the GMP dependency was PR <a href="https://github.com/leanprover/lean4/pull/659">https://github.com/leanprover/lean4/pull/659</a><br>
+<span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> told me Zig was having trouble finding <code>gmp.h</code>. We don't want to re-distribute <code>gmp.h</code> with Lean. It would be great to just avoid <code>gmp.h</code> in the header, and as <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> suggested, it would allow us to use different bignum libraries in the future without affecting user code.</p>
+
+
+
+<a name="252938273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938273">(Sep 11 2021 at 21:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> my confusion is thus. Couldn't a separate header providing these methods <code>#include &lt;gmp.h&gt;</code> without Lean actually distributing <code>gmp.h</code>? That way it would not bloat Lean and would only be usable to libraries that need to be manually built with a separate C/C++ compiler anyway.</p>
+
+
+
+<a name="252938548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938548">(Sep 11 2021 at 22:03)</a>:</h4>
+<p>However, the limb indexing method <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> suggested would probably work too. But that would need at multiple API methods. That is, allocating a number of a given bit width, setting limbs, getting the bit width of a number and getting limbs.</p>
+
+
+
+<a name="252938619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938619">(Sep 11 2021 at 22:04)</a>:</h4>
+<p>Also, in that cast, it would probably be helpful to mention that LLVM uses a 64-bit limb size, so that would be the most pertinent size of limb to set (at least for me).</p>
+
+
+
+<a name="252938658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938658">(Sep 11 2021 at 22:05)</a>:</h4>
+<p>Yes, <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> 's solution is the best long-term solution, but just adding an extra <code>lean_gmp.h</code> is an easier fix for now.</p>
+
+
+
+<a name="252938705"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938705" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938705">(Sep 11 2021 at 22:06)</a>:</h4>
+<p>I wouldn't be surprised if GMP uses 32 bit limbs on 32 bit and 64 bit limbs on 64 bit</p>
+
+
+
+<a name="252938724"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938724" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938724">(Sep 11 2021 at 22:06)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> that's a good point, I did not check if LLVM's is also architecture dependent.</p>
+
+
+
+<a name="252938755"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252938755" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252938755">(Sep 11 2021 at 22:07)</a>:</h4>
+<p>On closer examination, <a href="https://llvm.org/doxygen/APInt_8h_source.html#l00077">it does not appear to be </a>.</p>
+
+
+
+<a name="252939054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252939054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252939054">(Sep 11 2021 at 22:13)</a>:</h4>
+<p>gmp's <code>mp_limb_t</code> is apparently one of <code>unsigned int</code>, <code>unsigned long int</code> and <code>unsigned long long int</code>, which I think puts it somewhere between 8 and 64 bits</p>
+
+
+
+<a name="252939477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252939477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252939477">(Sep 11 2021 at 22:21)</a>:</h4>
+<p>Ah</p>
+
+
+
+<a name="252939544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252939544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252939544">(Sep 11 2021 at 22:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Just to clarify, the relevant <code>utf8_strlen</code> for me is the one that takes both a pointer and a size (though the one that takes a pointer may be useful to have for other users of the API).</p>
+
+
+
+<a name="252939984"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252939984" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252939984">(Sep 11 2021 at 22:30)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> One other utility that seems to be missing from the C API that feels like it would fit is <code>decode_io_error</code> (as, for one, it is using C errnums).</p>
+
+
+
+<a name="252940655"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252940655" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252940655">(Sep 11 2021 at 22:44)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> Pushed the missing APIs.</p>
+
+
+
+<a name="252942190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252942190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252942190">(Sep 11 2021 at 23:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Thank you so much!</p>
+
+
+
+<a name="252943813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252943813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252943813">(Sep 11 2021 at 23:48)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Two final notes I have from porting the Papyrus C/C++ lib to the new API:</p>
+<ol>
+<li>You might want to expose <code>mk_io_user_error</code> somewhere now that the convenience methods for constructing an <code>IO</code> from string error messages are gone (i.e., expose it through a <code>lean_mk_io_user_error</code>).</li>
+<li>It also might be worth renaming <code>lean_mpz_value</code> to  something like<code>lean_extract_mpz_value</code> due to its signature being very different from other <code>lean_*_value</code> functions.</li>
+</ol>
+
+
+
+<a name="252946085"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252946085" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252946085">(Sep 12 2021 at 00:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Oh, and on a related note, today's nightly (09-12) is missing a Windows binary because the CI build failed with timeout on one of the tests.</p>
+
+
+
+<a name="252946143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/252946143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#252946143">(Sep 12 2021 at 00:36)</a>:</h4>
+<p>(it is the editor completion test which seems to hang non-deterministically on Windows leading to some nightlies missing a Windows binary.)</p>
+
+
+
+<a name="253137286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/253137286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#253137286">(Sep 13 2021 at 18:30)</a>:</h4>
+<p>I personally found the C++ API super useful for quickly interfacing with C++ libraries, which in turn I think is one of the fastest ways to add useful non-trivial library functionality. I was able to modify the C++ bindings I'm working on to not use it,  but using List, Tuples now is harder. Regarding Zig integration, the zig compiler contains a 1:1 copy of the clang driver, could one not "just" distribute clang with Lean, or is that unreasonable.</p>
+
+
+
+<a name="253138187"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/253138187" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#253138187">(Sep 13 2021 at 18:36)</a>:</h4>
+<p>Compare <a href="https://github.com/ziglang/zig/blob/master/src/zig_clang_driver.cpp">https://github.com/ziglang/zig/blob/master/src/zig_clang_driver.cpp</a>, with <a href="https://github.com/llvm/llvm-project/blob/main/clang/tools/driver/driver.cpp">https://github.com/llvm/llvm-project/blob/main/clang/tools/driver/driver.cpp</a></p>
+
+
+
+<a name="253416604"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20Lean%20C/C%2B%2B%20API/near/253416604" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20Lean.20C.2FC.2B.2B.20API.html#253416604">(Sep 15 2021 at 13:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="130511">@Christian Pehle</span> See <a href="https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html">https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html</a> for why Zig is a great choice for what C compiler to ship with a language. </p>
+<p>Regarding the C++ API, we didn't really have one. They were just a bunch of helper files we used in the Lean implementation. Moreover,  one of our ambitions is to have a Lean repo that does not use C++. The runtime will be written in C and everything else in Lean. I can see the C++ API may be useful for some users, but we don't have cycles to maintain a solid C++ API for Lean.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,404 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html">question about monad type inference</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="294180105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294180105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294180105">(Aug 18 2022 at 22:32)</a>:</h4>
+<p>Can someone explain how these 2 type instances interact exactly?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">{</span><span class="n">ε</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">m</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span>  <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">:</span> <span class="n">Monad</span> <span class="o">(</span><span class="n">ExceptT</span> <span class="n">ε</span> <span class="n">m</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">pure</span> <span class="o">:=</span> <span class="n">ExceptT.pure</span>
+  <span class="n">bind</span> <span class="o">:=</span> <span class="n">ExceptT.bind</span>
+  <span class="n">map</span>  <span class="o">:=</span> <span class="n">ExceptT.map</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Monad</span> <span class="o">(</span><span class="n">Except</span> <span class="n">ε</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">pure</span> <span class="o">:=</span> <span class="n">Except.pure</span>
+  <span class="n">bind</span> <span class="o">:=</span> <span class="n">Except.bind</span>
+  <span class="n">map</span>  <span class="o">:=</span> <span class="n">Except.map</span>
+</code></pre></div>
+<p>When I create <code>ExceptT String Id</code> it must be triggering the first instance and when I use <code>Except String</code> it must be triggering the second.  But where my brain is exploding is when I realize the fact that logically in a type reduction kind of way <code>ExceptT String Id</code> is equal to <code>Except String</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="n">ExceptT</span> <span class="n">String</span> <span class="n">Id</span> <span class="c1">-- Except String α</span>
+</code></pre></div>
+<p>So how does lean decide which of the above instances to use?  Are there multiple phases of type inferencing or something, one that operates on non-reduced types and another that operates on reduced types, or does type inference never operate on reduced types? Or is the fact that I have to write the first instance above a kind of hack working around limitations in lean compiler?  Or is the fact that I CAN write the first instance and redirect all the type inferencing to ExceptT.pure and ExceptT.bind and <a href="http://ExceptT.map">ExceptT.map</a> a feature of Lean, it allows me to catch things before any kind of type resolution/reduction and change the game... ? How should I think about this...?</p>
+
+
+
+<a name="294180220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294180220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294180220">(Aug 18 2022 at 22:33)</a>:</h4>
+<p>One important thing that affects the answer to this question is whether <code>ExceptT</code>  and/or <code>Except</code> is defined to be an <code>abbrev</code> of the other</p>
+
+
+
+<a name="294180541"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294180541" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294180541">(Aug 18 2022 at 22:37)</a>:</h4>
+<p>They are not, I'd assume abbreviations would be transparent to all this, and that I would not be able to create an instance that does one thing for the abbreviated type and something different for the abbreviation?</p>
+
+
+
+<a name="294181542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181542">(Aug 18 2022 at 22:49)</a>:</h4>
+<p>Since they are not abbreviations, they act essentially as completely different types for the purpose of type class inference. If you infer the monad instance of an <code>ExceptT</code> you get the <code>ExceptT</code> instance and if you infer <code>Except</code> you get the <code>Except</code> instance</p>
+
+
+
+<a name="294181669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181669">(Aug 18 2022 at 22:51)</a>:</h4>
+<p>So this is because ExceptT is a <code>def</code> instead of an <code>abbrev</code> ?</p>
+
+
+
+<a name="294181687"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181687" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181687">(Aug 18 2022 at 22:51)</a>:</h4>
+<p>If they were abbreviations, then the two type class instances would be overlapping, and you may get one or the other depending on which one is declared first / with higher priority, or perhaps only one applies in a particular case. Lean does not attempt to prevent overlapping instances from being declared, although they are generally a bad idea</p>
+
+
+
+<a name="294181723"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181723" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181723">(Aug 18 2022 at 22:51)</a>:</h4>
+<p>So type inference happens before any type resolution (computation, reduction, elaboration?  whatever the right term is)...</p>
+
+
+
+<a name="294181809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181809">(Aug 18 2022 at 22:52)</a>:</h4>
+<p>for instance you could declare <code>instance : Monad (Except String)</code> and that would get picked up in preference to the <code>instance : Monad (Except ε)</code> if you declared it afterward</p>
+
+
+
+<a name="294181841"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181841" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181841">(Aug 18 2022 at 22:52)</a>:</h4>
+<p>That helps - thanks.</p>
+
+
+
+<a name="294181844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181844">(Aug 18 2022 at 22:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="434989">Chris Lovett</span> <a href="#narrow/stream/270676-lean4/topic/question.20about.20monad.20type.20inference/near/294181723">said</a>:</p>
+<blockquote>
+<p>So type inference happens before any type resolution (computation, reduction, elaboration?  whatever the right term is)...</p>
+</blockquote>
+<p>No, everything is kind of interdependent</p>
+
+
+
+<a name="294181864"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181864" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181864">(Aug 18 2022 at 22:53)</a>:</h4>
+<p>it's all part of elaboration</p>
+
+
+
+<a name="294181877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181877">(Aug 18 2022 at 22:53)</a>:</h4>
+<p>I just tried abbreviations, and they work too ...</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">MyMath</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">plus</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">-&gt;</span> <span class="n">a</span> <span class="bp">-&gt;</span> <span class="n">a</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">MyMath</span> <span class="n">Nat</span> <span class="n">where</span>
+  <span class="n">plus</span> <span class="o">:=</span> <span class="n">Nat.add</span>
+
+<span class="kd">def</span> <span class="n">doubleIt</span> <span class="o">[</span><span class="n">MyMath</span> <span class="n">a</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="o">:=</span>
+  <span class="n">MyMath.plus</span> <span class="n">x</span> <span class="n">x</span>
+
+<span class="k">#eval</span> <span class="n">doubleIt</span> <span class="mi">5</span> <span class="bp">-</span> <span class="mi">10</span>
+
+<span class="n">abbrev</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">MyMath</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">Nat</span> <span class="n">where</span>
+  <span class="n">plus</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="c1">-- &lt;&lt;&lt; redurect to multiply!</span>
+
+<span class="kn">open</span> <span class="n">MyMath</span>
+
+<span class="kd">def</span> <span class="n">fooIt</span> <span class="o">[</span><span class="n">Foo</span> <span class="n">a</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="o">:=</span>
+  <span class="n">plus</span> <span class="n">x</span> <span class="n">x</span>
+
+<span class="k">#eval</span> <span class="n">fooIt</span> <span class="mi">5</span> <span class="c1">-- 25</span>
+</code></pre></div>
+
+
+
+<a name="294181898"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181898" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181898">(Aug 18 2022 at 22:53)</a>:</h4>
+<p>Note that reduction in the sense of <code>#reduce</code> is not something that lean does at all during elaboration</p>
+
+
+
+<a name="294181960"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181960" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181960">(Aug 18 2022 at 22:54)</a>:</h4>
+<p>it will do some limited reduction when needed to fix type errors</p>
+
+
+
+<a name="294181994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294181994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294181994">(Aug 18 2022 at 22:54)</a>:</h4>
+<p>like if you have a function that accepts a <code>ExceptT</code> and you give it <code>Except</code> then it will unfold stuff to try to resolve that</p>
+
+
+
+<a name="294182066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182066">(Aug 18 2022 at 22:55)</a>:</h4>
+<p>but <code>inferType</code> generally doesn't unfold anything unless it is forced to, so the <code>ExceptT</code> definition will stay fairly stable and typeclass inference is predictable on it</p>
+
+
+
+<a name="294182119"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182119" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182119">(Aug 18 2022 at 22:56)</a>:</h4>
+<p>So <code>unfold</code> is the term I was looking for thanks... In other languages I always think about type equivalence.  Seems in Lean I have to forget about that and take Type expressions more literally...</p>
+
+
+
+<a name="294182172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182172">(Aug 18 2022 at 22:56)</a>:</h4>
+<p>your example <code>plus := Nat.mul</code> is showing lean doing unfolding to fix what would otherwise be a type error</p>
+
+
+
+<a name="294182199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182199">(Aug 18 2022 at 22:56)</a>:</h4>
+<p>yeah, <code>def</code> is not like a type alias</p>
+
+
+
+<a name="294182222"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182222" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182222">(Aug 18 2022 at 22:56)</a>:</h4>
+<p><code>abbrev</code> is closer to a type alias and <code>notation</code> is closer still</p>
+
+
+
+<a name="294182224"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182224" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182224">(Aug 18 2022 at 22:56)</a>:</h4>
+<p>Tell me more about why plus in my Foo instance would be a type error?</p>
+
+
+
+<a name="294182269"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182269" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182269">(Aug 18 2022 at 22:57)</a>:</h4>
+<p>ah, actually there isn't any unfolding needed there</p>
+
+
+
+<a name="294182333"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182333" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182333">(Aug 18 2022 at 22:58)</a>:</h4>
+<p>it does have to unfold <code>Foo</code> to see why <code>where plus := ...</code> is a proof of it</p>
+
+
+
+<a name="294182361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182361">(Aug 18 2022 at 22:58)</a>:</h4>
+<p>that is, to uncover that <code>Foo</code> is actually the class <code>MyMath</code> with field <code>plus</code></p>
+
+
+
+<a name="294182380"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182380" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182380">(Aug 18 2022 at 22:58)</a>:</h4>
+<p>Sure.  But you can see from my example that you can even specify more specific type instances on abbreviations! (so why did you ask about abbreviations earlier?)</p>
+
+
+
+<a name="294182581"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182581" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182581">(Aug 18 2022 at 23:00)</a>:</h4>
+<p>Here's a better example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">MyMath</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">plus</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">-&gt;</span> <span class="n">a</span> <span class="bp">-&gt;</span> <span class="n">a</span>
+
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">Nat</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">MyMath</span> <span class="n">Nat</span> <span class="n">where</span>
+  <span class="n">plus</span> <span class="o">:=</span> <span class="n">Nat.mul</span>
+
+<span class="kn">open</span> <span class="n">MyMath</span>
+
+<span class="kd">def</span> <span class="n">fooIt</span> <span class="o">[</span><span class="n">MyMath</span> <span class="n">a</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="o">:=</span>
+  <span class="n">plus</span> <span class="n">x</span> <span class="n">x</span>
+
+<span class="kd">def</span> <span class="n">five</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="o">(</span><span class="mi">5</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">fooIt</span> <span class="mi">5</span> <span class="c1">-- 25</span>
+<span class="k">#eval</span> <span class="n">fooIt</span> <span class="n">five</span> <span class="c1">-- failed</span>
+</code></pre></div>
+
+
+
+<a name="294182619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182619">(Aug 18 2022 at 23:01)</a>:</h4>
+<p>If you change <code>Foo</code> to an <code>abbrev</code> then the second eval works</p>
+
+
+
+<a name="294182643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182643">(Aug 18 2022 at 23:01)</a>:</h4>
+<p>and the definition of <code>five</code> also doesn't need the type ascription</p>
+
+
+
+<a name="294182810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182810">(Aug 18 2022 at 23:02)</a>:</h4>
+<p>Very good, so can I conclude from your example that type inference does not <code>unfold</code> defs.</p>
+
+
+
+<a name="294182955"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182955" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182955">(Aug 18 2022 at 23:04)</a>:</h4>
+<p>Here's another fun example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">IsFoo</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">isFoo</span> <span class="o">:</span> <span class="n">Bool</span>
+<span class="kn">open</span> <span class="n">IsFoo</span>
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">Nat</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">IsFoo</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">false</span><span class="o">⟩</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">IsFoo</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">true</span><span class="o">⟩</span>
+
+<span class="k">#eval</span> <span class="n">isFoo</span> <span class="n">Nat</span> <span class="c1">-- false</span>
+<span class="k">#eval</span> <span class="n">isFoo</span> <span class="n">Foo</span> <span class="c1">-- true</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">=</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">rfl</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">isFoo</span> <span class="n">Nat</span> <span class="bp">≠</span> <span class="n">isFoo</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">decide</span>
+</code></pre></div>
+
+
+
+<a name="294182972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294182972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294182972">(Aug 18 2022 at 23:04)</a>:</h4>
+<p>Interesting I also cannot use a def in square brackets, this fails:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">MyMath</span>
+<span class="kd">def</span> <span class="n">fooIt</span> <span class="o">[</span><span class="n">Foo</span> <span class="n">a</span><span class="o">]</span><span class="bp">...</span>          <span class="c1">-- invalid binder annotation, type is not a class instance</span>
+</code></pre></div>
+
+
+
+<a name="294183097"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183097" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183097">(Aug 18 2022 at 23:06)</a>:</h4>
+<p>You can only use something which is a <code>class</code> (up to unfolding reducible definitions) in instance brackets</p>
+
+
+
+<a name="294183266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183266">(Aug 18 2022 at 23:08)</a>:</h4>
+<p>well, it's just a lint, you can turn it off if you want to but instances that don't have <code>class</code> type can never be inferred</p>
+
+
+
+<a name="294183533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183533">(Aug 18 2022 at 23:11)</a>:</h4>
+<p>Ha, so this works, ok, thanks:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[reducible]</span>
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">MyMath</span>
+</code></pre></div>
+<p>So I wonder if the ExceptT instance exists mostly because <code>def ExceptT</code> is not reducible... but there seems to be some other minor differences in it's implementation, using <code>pure</code> more often... but otherwise looks very similar, almost like a shadow hierarchy.  I wonder if monad transformers have this shadow instancing going on in general...</p>
+
+
+
+<a name="294183611"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183611" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183611">(Aug 18 2022 at 23:12)</a>:</h4>
+<p>yes, many <code>def</code>s will inherit their instances from the underlying definition. Just search for uses of <code>inferInstanceAs</code></p>
+
+
+
+<a name="294183662"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183662" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183662">(Aug 18 2022 at 23:13)</a>:</h4>
+<p>Not always though: in fact one of the reasons to use a <code>def</code> on types is to equip a type with a non-standard instance</p>
+
+
+
+<a name="294183755"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183755" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183755">(Aug 18 2022 at 23:14)</a>:</h4>
+<p>for example mathlib has the <code>with_top A</code> type that is a wrapper around <code>option A</code> with an ordering that puts <code>none</code> as the greatest element, and another <code>with_bot A</code> type that is also <code>option A</code> but puts <code>none</code> at the bottom instead</p>
+
+
+
+<a name="294183786"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183786" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183786">(Aug 18 2022 at 23:14)</a>:</h4>
+<p>if those were abbrevs then it would be very confusing since you might get the <code>with_top</code> order on <code>with_bot</code> and vice versa</p>
+
+
+
+<a name="294183915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183915">(Aug 18 2022 at 23:16)</a>:</h4>
+<p>In your example though I wouldn't expect <code>ExceptT</code> and <code>Except</code> to have the same monad instance: <code>ExceptT</code>  is wrapping another monad so it has to call the operations for that monad too</p>
+
+
+
+<a name="294183924"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294183924" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294183924">(Aug 18 2022 at 23:16)</a>:</h4>
+<p>OOooh, yes I see now that abbrev is dangerous, it also changed my original <code>#eval doubleIt 5 -- 25 </code> !!  So my second instance operating on Foo was not operating on Foo it was operating on MyMath, changing the behavior of the earlier instance!  Wow yes this could lead to all kinds of trouble... and this is also the case with the <code>@[reducible] def Foo</code>, so def here didn't help me.</p>
+
+
+
+<a name="294184108"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184108" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184108">(Aug 18 2022 at 23:19)</a>:</h4>
+<p>yes, <code>abbrev</code> is just a shorthand for <code>@[reducible, inline] def</code> IIRC</p>
+
+
+
+<a name="294184156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184156">(Aug 18 2022 at 23:20)</a>:</h4>
+<p>the important thing is the reducibility setting: <code>reducible</code> for abbrevs, <code>semireducible</code> for regular defs and <code>irreducible</code> for... <code>@[irreducible] def</code></p>
+
+
+
+<a name="294184232"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184232" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184232">(Aug 18 2022 at 23:20)</a>:</h4>
+<p><code>irreducible</code> defs won't be unfolded by normal elaboration / unification, but you can explicitly unfold it by calling the <code>unfold</code> tactic</p>
+
+
+
+<a name="294184305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184305">(Aug 18 2022 at 23:21)</a>:</h4>
+<p>and then <code>opaque</code> is the most irreducible: even the kernel doesn't think that the opaque definition unfolds, only the compiler will use the equation when generating code</p>
+
+
+
+<a name="294184547"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184547" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184547">(Aug 18 2022 at 23:24)</a>:</h4>
+<p>So back to my earlier question, even though this is true:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">ExceptT</span> <span class="n">α</span> <span class="n">Id</span> <span class="bp">=</span> <span class="n">Except</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="kd">by</span> <span class="n">simp</span><span class="o">[</span><span class="n">ExceptT</span><span class="o">,</span> <span class="n">Except</span><span class="o">,</span> <span class="n">Id</span><span class="o">]</span> <span class="c1">-- Goals accomplished 🎉</span>
+</code></pre></div>
+<p>it has no bearing on how type inference works, since type inference doesn't care about type equivalence...</p>
+
+
+
+<a name="294184603"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184603" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184603">(Aug 18 2022 at 23:25)</a>:</h4>
+<p>it cares about definitional equality up to unfolding reducibles</p>
+
+
+
+<a name="294184656"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184656" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184656">(Aug 18 2022 at 23:25)</a>:</h4>
+<p>which is the "weakest" kind of unfolding, which you will see in most things that want to be mostly syntactic</p>
+
+
+
+<a name="294184673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184673">(Aug 18 2022 at 23:26)</a>:</h4>
+<p><code>rw</code> and <code>simp</code> match up to reducible defs too</p>
+
+
+
+<a name="294184722"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184722" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184722">(Aug 18 2022 at 23:26)</a>:</h4>
+<p>Thanks, this info seems to be missing from: <a href="https://leanprover.github.io/theorem_proving_in_lean4/type_classes.html">https://leanprover.github.io/theorem_proving_in_lean4/type_classes.html</a></p>
+
+
+
+<a name="294184925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/question%20about%20monad%20type%20inference/near/294184925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/question.20about.20monad.20type.20inference.html#294184925">(Aug 18 2022 at 23:28)</a>:</h4>
+<p>Indeed, <code>abbrev</code> isn't mentioned in the book at all. This is reasonable considering that it didn't exist in lean 3 when TPIL was first written, and it was merely syntax-upgraded to lean 4 IIUC</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

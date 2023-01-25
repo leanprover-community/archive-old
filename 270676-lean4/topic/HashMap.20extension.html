@@ -1,0 +1,316 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/HashMap.20extension.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html">HashMap extension</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="294763698"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294763698" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294763698">(Aug 22 2022 at 20:41)</a>:</h4>
+<p>Playing with environment extensions, I realized I kept using extensions whose states were lists of pairs and searching in the list elements with a given first component. So I feel like I want extensions where the state is a hash map. But my understanding of environment extensions is very shallow. The following code seems to be doing what I want, but I'm not confident at all that I'm not doing something very stupid.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">import</span> <span class="n">Std.Data.HashMap</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Std</span>
+
+<span class="kd">def</span> <span class="n">HashMapExtension</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:=</span> <span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">inferInstanceAs</span> <span class="o">(</span><span class="n">Inhabited</span> <span class="o">(</span><span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)))</span>
+
+<span class="kd">def</span> <span class="n">mkHashMapExtension</span> <span class="o">(</span><span class="n">name</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span>  <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">registerSimplePersistentEnvExtension</span> <span class="o">{</span>
+    <span class="n">name</span>          <span class="o">:=</span> <span class="n">name</span><span class="o">,</span>
+    <span class="n">addImportedFn</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">as</span> <span class="bp">=&gt;</span> <span class="n">HashMap.ofList</span> <span class="o">(</span><span class="n">as.concatMap</span> <span class="n">id</span><span class="o">)</span><span class="bp">.</span><span class="n">toList</span><span class="o">,</span>
+    <span class="n">addEntryFn</span>    <span class="o">:=</span> <span class="k">fun</span> <span class="n">s</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">s.insert</span> <span class="n">n.1</span> <span class="n">n.2</span> <span class="o">,</span>
+    <span class="n">toArrayFn</span>     <span class="o">:=</span> <span class="k">fun</span> <span class="n">es</span> <span class="bp">=&gt;</span> <span class="n">es.toArray</span>
+  <span class="o">}</span>
+
+<span class="c1">-- Now I'll write some tests</span>
+
+<span class="n">initialize</span> <span class="n">testExt</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">Nat</span> <span class="n">String</span> <span class="bp">←</span> <span class="n">mkHashMapExtension</span> <span class="bp">`</span><span class="n">my_test</span> <span class="n">Nat</span> <span class="n">String</span>
+
+<span class="n">elab</span> <span class="s2">"#add_test"</span> <span class="n">name</span><span class="o">:</span><span class="n">num</span> <span class="n">content</span><span class="o">:</span><span class="n">str</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="n">modifyEnv</span> <span class="o">(</span><span class="n">testExt.addEntry</span> <span class="bp">·</span> <span class="o">(</span><span class="n">name.getNat</span><span class="o">,</span> <span class="n">content.getString</span><span class="o">))</span>
+
+<span class="n">elab</span> <span class="s2">"#list_tests"</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:=</span> <span class="n">testExt.getState</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span>
+  <span class="n">dbg_trace</span> <span class="n">s.toList</span>
+
+<span class="n">elab</span> <span class="s2">"#get_test"</span> <span class="n">n</span><span class="o">:</span><span class="n">num</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:=</span> <span class="n">testExt.getState</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span>
+  <span class="n">dbg_trace</span> <span class="n">s.find</span><span class="bp">?</span> <span class="n">n.getNat</span>
+</code></pre></div>
+
+
+
+<a name="294768908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294768908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294768908">(Aug 22 2022 at 21:21)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> while you're here, do you have any comment about this thread?</p>
+
+
+
+<a name="294769618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294769618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294769618">(Aug 22 2022 at 21:27)</a>:</h4>
+<p>Looks good I think. You can use <code>mkStateFromImportedEntries</code> to simplify and optimize your <code>addImportedFn</code>.</p>
+
+
+
+<a name="294769899"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294769899" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294769899">(Aug 22 2022 at 21:29)</a>:</h4>
+<p>I was especially worried about that <code>addImportedFn</code> indeed. Now I need to decipher what <code>mkStateFromImportedEntries</code> does...</p>
+
+
+
+<a name="294770459"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294770459" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294770459">(Aug 22 2022 at 21:34)</a>:</h4>
+<p>Do you mean</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">import</span> <span class="n">Std.Data.HashMap</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Std</span>
+
+<span class="kd">def</span> <span class="n">HashMapExtension</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:=</span> <span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">inferInstanceAs</span> <span class="o">(</span><span class="n">Inhabited</span> <span class="o">(</span><span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)))</span>
+
+<span class="kd">def</span> <span class="n">HashMapExtension.addEntryFn</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span>
+<span class="n">s.insert</span> <span class="n">n.1</span> <span class="n">n.2</span>
+
+<span class="kd">def</span> <span class="n">mkHashMapExtension</span> <span class="o">(</span><span class="n">name</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span>  <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">registerSimplePersistentEnvExtension</span> <span class="o">{</span>
+    <span class="n">name</span>          <span class="o">:=</span> <span class="n">name</span><span class="o">,</span>
+    <span class="n">addImportedFn</span> <span class="o">:=</span> <span class="n">mkStateFromImportedEntries</span> <span class="n">HashMapExtension.addEntryFn</span> <span class="o">{},</span>
+    <span class="n">addEntryFn</span>    <span class="o">:=</span> <span class="n">HashMapExtension.addEntryFn</span><span class="o">,</span>
+    <span class="n">toArrayFn</span>     <span class="o">:=</span> <span class="k">fun</span> <span class="n">es</span> <span class="bp">=&gt;</span> <span class="n">es.toArray</span>
+  <span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="294772677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294772677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294772677">(Aug 22 2022 at 21:55)</a>:</h4>
+<p>Yes, though I would probably have inlined the new function as a lambda :)</p>
+
+
+
+<a name="294774527"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/294774527" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#294774527">(Aug 22 2022 at 22:12)</a>:</h4>
+<p>Thanks!</p>
+
+
+
+<a name="300784691"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300784691" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300784691">(Sep 26 2022 at 12:12)</a>:</h4>
+<p>I'm returning to this old thread. Now that I try to actually use this HashMap extension idea I see that it doesn't work. I have a file <code>HashMapExt.lean</code> with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Std</span>
+
+<span class="kd">def</span> <span class="n">HashMapExtension</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:=</span> <span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">inferInstanceAs</span> <span class="o">(</span><span class="n">Inhabited</span> <span class="o">(</span><span class="n">SimplePersistentEnvExtension</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">HashMap</span> <span class="n">α</span> <span class="n">β</span><span class="o">)))</span>
+
+<span class="kd">def</span> <span class="n">mkHashMapExtension</span> <span class="o">(</span><span class="n">name</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span>  <span class="o">:</span> <span class="n">IO</span> <span class="o">(</span><span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">registerSimplePersistentEnvExtension</span> <span class="o">{</span>
+    <span class="n">name</span>          <span class="o">:=</span> <span class="n">name</span><span class="o">,</span>
+    <span class="n">addImportedFn</span> <span class="o">:=</span> <span class="n">mkStateFromImportedEntries</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">s.insert</span> <span class="n">n.1</span> <span class="n">n.2</span><span class="o">)</span> <span class="o">{},</span>
+    <span class="n">addEntryFn</span>    <span class="o">:=</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">s.insert</span> <span class="n">n.1</span> <span class="n">n.2</span><span class="o">),</span>
+    <span class="n">toArrayFn</span>     <span class="o">:=</span> <span class="k">fun</span> <span class="n">es</span> <span class="bp">=&gt;</span> <span class="n">es.toArray</span>
+  <span class="o">}</span>
+
+<span class="kn">namespace</span> <span class="n">HashMapExtension</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">m</span><span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MonadEnv</span> <span class="n">m</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">find</span><span class="bp">?</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="bp">$</span> <span class="n">Option</span> <span class="n">β</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">ext.getState</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">))</span><span class="bp">.</span><span class="n">find</span><span class="bp">?</span> <span class="n">a</span>
+
+<span class="kd">def</span> <span class="n">insert</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="n">modifyEnv</span> <span class="o">(</span><span class="n">ext.modifyState</span> <span class="bp">·</span> <span class="o">(</span><span class="bp">·.</span><span class="n">insert</span> <span class="n">a</span> <span class="n">b</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">update</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="n">modifyEnv</span> <span class="o">(</span><span class="n">ext.modifyState</span> <span class="bp">·</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">hm</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">hm.erase</span> <span class="n">a</span><span class="o">)</span><span class="bp">.</span><span class="n">insert</span> <span class="n">a</span> <span class="n">b</span><span class="o">))</span>
+
+<span class="kd">end</span> <span class="n">HashMapExtension</span>
+</code></pre></div>
+<p>and then a second file <code>test0.lean</code> with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">HashMapExt</span>
+
+<span class="n">initialize</span> <span class="n">testExt</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">Nat</span> <span class="n">String</span> <span class="bp">←</span> <span class="n">mkHashMapExtension</span> <span class="bp">`</span><span class="n">test</span> <span class="n">Nat</span> <span class="n">String</span>
+
+<span class="n">elab</span> <span class="s2">"Test"</span> <span class="n">n</span><span class="o">:</span><span class="n">num</span> <span class="n">s</span><span class="o">:</span><span class="n">str</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">testExt.insert</span> <span class="n">n.getNat</span> <span class="n">s.getString</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">elab</span> <span class="s2">"PrintTests"</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">logInfo</span> <span class="bp">$</span> <span class="n">repr</span> <span class="bp">$</span> <span class="o">(</span><span class="n">testExt.getState</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">))</span><span class="bp">.</span><span class="n">toList</span>
+</code></pre></div>
+<p>and <code>test1.lean</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">test0</span>
+
+<span class="n">Test</span> <span class="mi">3</span> <span class="s2">"Foo"</span>
+
+<span class="n">PrintTests</span>
+</code></pre></div>
+<p>so far everything seems to work. But when I create <code>test2.lean</code> with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">test1</span>
+
+<span class="n">Test</span> <span class="mi">4</span> <span class="s2">"Bar"</span>
+
+<span class="n">PrintTests</span>
+</code></pre></div>
+<p>I see only the entry created in <code>test2</code>, not two entries as I expected.</p>
+
+
+
+<a name="300801323"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300801323" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300801323">(Sep 26 2022 at 12:21)</a>:</h4>
+<p>Sebastian, do you see what I'm doing wrong?</p>
+
+
+
+<a name="300802265"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300802265" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300802265">(Sep 26 2022 at 12:27)</a>:</h4>
+<p>Not directly, I'd have to take a closer look</p>
+
+
+
+<a name="300812482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300812482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300812482">(Sep 26 2022 at 13:18)</a>:</h4>
+<p>Should I create an issue then?</p>
+
+
+
+<a name="300814657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300814657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300814657">(Sep 26 2022 at 13:31)</a>:</h4>
+<p>For people who want to investigate this, <a href="/user_uploads/3121/SOQI7jihhW10MwF97pMfXZIq/issue.zip">issue.zip</a>  contains a folder <code>issue</code> with a Lean project showing my problem in the <code>Issue</code> lib.</p>
+
+
+
+<a name="300841937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300841937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300841937">(Sep 26 2022 at 15:38)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="300879497"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300879497" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300879497">(Sep 26 2022 at 18:49)</a>:</h4>
+<p>Your issue is with the <code>HashMapExtension.insert</code> and <code>update</code> functions.</p>
+
+
+
+<a name="300879582"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300879582" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300879582">(Sep 26 2022 at 18:49)</a>:</h4>
+<p>The <code>SimplePersistentEnvExtension.modifyState</code> should never be used because the state is not persisted.</p>
+
+
+
+<a name="300879765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300879765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300879765">(Sep 26 2022 at 18:50)</a>:</h4>
+<p>(It's obvious that it can't be persisted: what is being written to the olean file is the <em>entries</em>, while <code>modifyState</code> applies some opaque function to the state.  It doesn't know which entries to store to recreate the state modification.)</p>
+
+
+
+<a name="300879820"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300879820" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300879820">(Sep 26 2022 at 18:51)</a>:</h4>
+<p>This should fix your issues:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">insert</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="n">modifyEnv</span> <span class="o">(</span><span class="n">ext.addEntry</span> <span class="bp">·</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">update</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">HashMapExtension</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="n">modifyEnv</span> <span class="o">(</span><span class="n">ext.addEntry</span> <span class="bp">·</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">))</span>
+</code></pre></div>
+
+
+
+<a name="300881152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881152">(Sep 26 2022 at 18:59)</a>:</h4>
+<p>Indeed it works much better!</p>
+
+
+
+<a name="300881162"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881162" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881162">(Sep 26 2022 at 18:59)</a>:</h4>
+<p>Thanks a lot Gabriel!</p>
+
+
+
+<a name="300881412"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881412" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881412">(Sep 26 2022 at 19:01)</a>:</h4>
+<p><code>SimplePersistentEnvExtension.modifyState</code> is indeed rather misleading. Should I PR a docstring with a warning or do you think it should be completely removed?</p>
+
+
+
+<a name="300881720"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881720" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881720">(Sep 26 2022 at 19:03)</a>:</h4>
+<p>Yes. At least a docstring would be good.</p>
+
+
+
+<a name="300881913"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881913" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881913">(Sep 26 2022 at 19:04)</a>:</h4>
+<p>It has nothing to do with "Simple". Already <code>PersistentExtension.modifyState</code> is implemented as</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">modifyState</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">ext</span> <span class="o">:</span> <span class="n">PersistentEnvExtension</span> <span class="n">α</span> <span class="n">β</span> <span class="n">σ</span><span class="o">)</span> <span class="o">(</span><span class="n">env</span> <span class="o">:</span> <span class="n">Environment</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→</span> <span class="n">σ</span><span class="o">)</span> <span class="o">:</span> <span class="n">Environment</span> <span class="o">:=</span>
+  <span class="n">ext.toEnvExtension.modifyState</span> <span class="n">env</span> <span class="k">fun</span> <span class="n">ps</span> <span class="bp">=&gt;</span> <span class="o">{</span> <span class="n">ps</span> <span class="k">with</span> <span class="n">state</span> <span class="o">:=</span> <span class="n">f</span> <span class="o">(</span><span class="n">ps.state</span><span class="o">)</span> <span class="o">}</span>
+</code></pre></div>
+<p>where <code>ext.toEnvExtension</code> very much sounds like to first step is to forget about persistance...</p>
+
+
+
+<a name="300881968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300881968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300881968">(Sep 26 2022 at 19:04)</a>:</h4>
+<p>Yeah, that function should get a docstring as well.</p>
+
+
+
+<a name="300882055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300882055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300882055">(Sep 26 2022 at 19:05)</a>:</h4>
+<p>I believe the only use of these dangerous functions is to implement <code>ScopedEnvExtension</code> .</p>
+
+
+
+<a name="300882099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300882099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300882099">(Sep 26 2022 at 19:05)</a>:</h4>
+<p>Actually the same projection occurs in <code>addEntry</code> so it doesn't explain why your version works</p>
+
+
+
+<a name="300882139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300882139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300882139">(Sep 26 2022 at 19:05)</a>:</h4>
+<p>Maybe it's best to just remove both sets of them, and then have <code>ScopedEnvExtension</code> break the abstraction barrier explicitly.</p>
+
+
+
+<a name="300882462"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300882462" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300882462">(Sep 26 2022 at 19:07)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/270676-lean4/topic/HashMap.20extension/near/300882099">said</a>:</p>
+<blockquote>
+<p>Actually the same projection occurs in <code>addEntry</code> so it doesn't explain why your version works</p>
+</blockquote>
+<p>If you look at the <code>addEntry</code> function, it calls the <code>addEntryFn</code> field.  And the <code>addEntryFn</code> is set by <code>registerSimplePersistentEnvExtension</code> to a function that updates <em>both</em> the state as well as the entries.</p>
+
+
+
+<a name="300885268"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20extension/near/300885268" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20extension.html#300885268">(Sep 26 2022 at 19:25)</a>:</h4>
+<p>I opened <a href="https://github.com/leanprover/lean4/pull/1649">https://github.com/leanprover/lean4/pull/1649</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,267 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Trouble.20with.20old.20structures.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html">Trouble with old structures</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="253364585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253364585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253364585">(Sep 15 2021 at 05:31)</a>:</h4>
+<p>I've run into trouble with apparently duplicated copies of ancestor fields for an old structure, and would like some help!</p>
+<p>I've been experimenting with strengthening the definition of <code>div_inv_monoid</code>, to add the requirement that "division is sensible when it can be", that is, adding a field:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">div_eq</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">/</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span><span class="o">)</span>
+</code></pre></div>
+<p>(Notice this is true for all groups, for all groups-with-zero, and for <code>nat</code>. Leave aside the question of whether adding this field is a good idea.)</p>
+<p>In fact, as this doesn't have anything to do with <code>inv</code>, I broke this out as an ancestor of <code>div_inv_monoid</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">div_monoid</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">monoid</span> <span class="n">G</span><span class="o">,</span> <span class="n">has_div</span> <span class="n">G</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">div_eq</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">/</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span><span class="o">)</span>
+</code></pre></div>
+<p>With a few tweaks, which you can see on <a href="https://github.com/leanprover-community/mathlib/tree/div_monoid">branch#div_monoid</a>, we can make <code>src/algebra/group/defs.lean</code> compile.<br>
+However, I would really like to add a default field for <code>group</code> that provides the proof of <code>div_eq</code>.</p>
+<p>When doing so, however, we find ourselves with a context that contains (besides much else):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">a</span><span class="o">:</span> <span class="n">div_inv_monoid</span> <span class="n">G</span>
+<span class="n">mul</span><span class="o">:</span> <span class="n">G</span> <span class="bp">→</span> <span class="n">G</span> <span class="bp">→</span> <span class="n">G</span>
+<span class="n">mul_left_inv</span><span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a_1</span> <span class="o">:</span> <span class="n">G</span><span class="o">),</span> <span class="n">a_1</span><span class="bp">⁻¹</span> <span class="bp">*</span> <span class="n">a_1</span> <span class="bp">=</span> <span class="mi">1</span>
+<span class="n">h</span><span class="o">:</span> <span class="n">z</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span>
+</code></pre></div>
+<p>and the terrifying thing is that the multiplication in <code>mul_left_inv</code> refers to <code>a</code>, while the multiplication in <code>h</code> refers to <code>mul</code>, but we have no way of saying they are related!</p>
+
+
+
+<a name="253364716"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253364716" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253364716">(Sep 15 2021 at 05:33)</a>:</h4>
+<p>(diff at <a href="https://github.com/leanprover-community/mathlib/compare/master..div_monoid">https://github.com/leanprover-community/mathlib/compare/master..div_monoid</a> if that's easier to read)</p>
+
+
+
+<a name="253365367"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253365367" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253365367">(Sep 15 2021 at 05:43)</a>:</h4>
+<p>I think I saw something like this when providing a default for one of the ordered algebra classes. I think the goal view might be lying to you, and you should ignore <code>a</code> entirely</p>
+
+
+
+<a name="253365845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253365845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253365845">(Sep 15 2021 at 05:50)</a>:</h4>
+<p>But I can't, because my hypothesis <code>mul_left_inv</code> is using it!</p>
+
+
+
+<a name="253365873"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253365873" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253365873">(Sep 15 2021 at 05:50)</a>:</h4>
+<p>When I try to write the sensible proof I get unification errors between the two different multiplications.</p>
+
+
+
+<a name="253365894"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253365894" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253365894">(Sep 15 2021 at 05:50)</a>:</h4>
+<p>I suspect it may be a Lean bug here.</p>
+
+
+
+<a name="253365905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253365905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253365905">(Sep 15 2021 at 05:51)</a>:</h4>
+<p>So I guess I should be trying to minimise...</p>
+
+
+
+<a name="253366669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253366669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253366669">(Sep 15 2021 at 06:01)</a>:</h4>
+<p>I'll see if I can find my previous thread...</p>
+
+
+
+<a name="253369280"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253369280" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253369280">(Sep 15 2021 at 06:38)</a>:</h4>
+<p>Found it, <a href="#narrow/stream/113488-general/topic/Parent.20instance.20arguments.20in.20auto_param.20.2F.20opt_param/near/221832405">https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Parent.20instance.20arguments.20in.20auto_param.20.2F.20opt_param/near/221832405</a></p>
+
+
+
+<a name="253369354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253369354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253369354">(Sep 15 2021 at 06:39)</a>:</h4>
+<p>And the workaround I needed:</p>
+<p><a href="https://github.com/leanprover-community/mathlib/blob/e0fcb15c88cfed8e2a69a71e41725a0b0b0c2f15/src/algebra/ordered_monoid.lean#L52-L64">https://github.com/leanprover-community/mathlib/blob/e0fcb15c88cfed8e2a69a71e41725a0b0b0c2f15/src/algebra/ordered_monoid.lean#L52-L64</a></p>
+
+
+
+<a name="253372290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372290">(Sep 15 2021 at 07:14)</a>:</h4>
+<p>Is that on a branch? I'm having trouble checking it out.</p>
+
+
+
+<a name="253372297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372297">(Sep 15 2021 at 07:14)</a>:</h4>
+<p>I agree it looks similar!</p>
+
+
+
+<a name="253372509"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372509" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372509">(Sep 15 2021 at 07:16)</a>:</h4>
+<p>Oh! I see, I deleted that proof recently, when I fixed the definition of ordered_monoid. :-)</p>
+
+
+
+<a name="253372562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372562">(Sep 15 2021 at 07:17)</a>:</h4>
+<p>In any case, I think I see what's going on now, and hopefully can imitate your solution. How on earth did you realise that this would solve the problem?</p>
+
+
+
+<a name="253372684"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372684" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372684">(Sep 15 2021 at 07:18)</a>:</h4>
+<p>Actually, no, this isn't going to solve the problem.</p>
+
+
+
+<a name="253372754"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253372754" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253372754">(Sep 15 2021 at 07:19)</a>:</h4>
+<p>The current situation is worse than the one you encountered: the field <code>mul_left_inv</code>, which we're absolutely going to need to complete the proof, <em>already</em> refers to the inaccessible <code>a</code> hypothesis.</p>
+
+
+
+<a name="253373037"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253373037" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253373037">(Sep 15 2021 at 07:22)</a>:</h4>
+<p>It's not relevant to your problem, but I don't really understand why you want <code>div_monoid</code> here (vs just adding the field to div_inv_monoid); do you have a type in mind that is a div_monoid but not also a div_inv_monoid?</p>
+
+
+
+<a name="253373161"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253373161" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253373161">(Sep 15 2021 at 07:23)</a>:</h4>
+<p>Ah of course, nat would be a <code>sub_monoid</code></p>
+
+
+
+<a name="253373326"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253373326" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253373326">(Sep 15 2021 at 07:25)</a>:</h4>
+<p>There are lots of interesting <code>sub_add_monoid</code>s. I've been thinking a lot about <code>fin n \to \nat</code> recently. :-)</p>
+
+
+
+<a name="253373453"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253373453" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253373453">(Sep 15 2021 at 07:27)</a>:</h4>
+<p>I think I've found one work-around: define <code>group_aux</code>, in which we add the <code>(mul_left_inv : ∀ a : G, a⁻¹ * a = 1)</code> field, and then extend that with <code>group</code> in which we fill in the default value of <code>div_eq</code>. I haven't actually written out the proof, but the instances now match up.</p>
+
+
+
+<a name="253373718"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253373718" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253373718">(Sep 15 2021 at 07:30)</a>:</h4>
+<p>It's a bit unpleasant to have to add an extra intermediate typeclass to achieve this.</p>
+
+
+
+<a name="253374220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253374220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253374220">(Sep 15 2021 at 07:35)</a>:</h4>
+<p>You could probably make the intermediate step a structure so that it doesn't make typeclass terms longer</p>
+
+
+
+<a name="253375331"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375331" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375331">(Sep 15 2021 at 07:48)</a>:</h4>
+<p>Ah, good call!</p>
+
+
+
+<a name="253375585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375585">(Sep 15 2021 at 07:52)</a>:</h4>
+<p>And I found a hack that avoids introducing the intermediate structure:</p>
+
+
+
+<a name="253375631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375631">(Sep 15 2021 at 07:52)</a>:</h4>
+<p>use your <code>letI</code> trick in the <code>mul_left_inv</code> field as well.</p>
+
+
+
+<a name="253375659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375659">(Sep 15 2021 at 07:52)</a>:</h4>
+<p>That is, in the <em>type</em> of that field.</p>
+
+
+
+<a name="253375693"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375693" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375693">(Sep 15 2021 at 07:53)</a>:</h4>
+<p>It feels a little ugly to break into tactic mode to specify the type of a field. (Particularly when we're defining something as fundamental as a group...)</p>
+
+
+
+<a name="253375935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253375935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253375935">(Sep 15 2021 at 07:55)</a>:</h4>
+<p>If you look at mathlib's definition of a group right now it's already far far more complicated than one might guess, for technical reasons involving definitional equality. Nowadays I just show people the API rather than the internals</p>
+
+
+
+<a name="253376094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253376094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253376094">(Sep 15 2021 at 07:57)</a>:</h4>
+<p>I get the feeling there _is_ a bug here, and the bug is that the context contains <code>a: div_inv_monoid G</code> and not <code>a: div_inv_monoid G := {mul := mul, ...}</code>.</p>
+
+
+
+<a name="253376861"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253376861" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253376861">(Sep 15 2021 at 08:04)</a>:</h4>
+<p>Sounds very plausible. Perhaps <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> will be able to tell us if it could be changed to work that way.</p>
+
+
+
+<a name="253386654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253386654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253386654">(Sep 15 2021 at 09:38)</a>:</h4>
+<p>In any case, after some more playing with adding the field directly to <code>div_inv_monoid</code> (or an ancestor) I'm losing enthusiasm. Even when I can provide the default value at <code>group</code>, it is very fragile and often breaks when instantiating a group. </p>
+<p>I think I'll try a <code>lawful_div</code> mixin typeclass with <code>(div_eq : ∀ a b c : G, c * b = a → a / b = c)</code> instead.</p>
+
+
+
+<a name="253386901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253386901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253386901">(Sep 15 2021 at 09:41)</a>:</h4>
+<p>Are you working on adding <code>has_ordered_div : a / b ≤ c ↔ a ≤ c * b</code>?</p>
+
+
+
+<a name="253387399"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253387399" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253387399">(Sep 15 2021 at 09:46)</a>:</h4>
+<p>No.</p>
+
+
+
+<a name="253387779"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253387779" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253387779">(Sep 15 2021 at 09:50)</a>:</h4>
+<p>Oh oops <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span></p>
+
+
+
+<a name="253392737"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253392737" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253392737">(Sep 15 2021 at 10:37)</a>:</h4>
+<p>I guess <code>nat</code> is an example of <code>div_monoid</code> that is not a <code>div_inv_monoid</code>?</p>
+
+
+
+<a name="253392752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253392752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253392752">(Sep 15 2021 at 10:37)</a>:</h4>
+<p>But using <code>lawful_div</code> as a mixin might indeed be a lot smoother.</p>
+
+
+
+<a name="253393904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253393904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253393904">(Sep 15 2021 at 10:49)</a>:</h4>
+<p>Yes, <code>\nat</code> and <code>fin n \to \nat</code> are the main applications.</p>
+
+
+
+<a name="253400776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Trouble%20with%20old%20structures/near/253400776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Trouble.20with.20old.20structures.html#253400776">(Sep 15 2021 at 11:56)</a>:</h4>
+<p>This class will let us eliminate <a href="https://leanprover-community.github.io/mathlib_docs/find/finsupp.nat_sub_self">docs#finsupp.nat_sub_self</a> in favor of <a href="https://leanprover-community.github.io/mathlib_docs/find/sub_self">docs#sub_self</a>, right?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

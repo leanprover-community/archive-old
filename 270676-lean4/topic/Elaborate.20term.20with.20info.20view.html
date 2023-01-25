@@ -1,0 +1,121 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html">Elaborate term with info view</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="294767217"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294767217" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294767217">(Aug 22 2022 at 21:08)</a>:</h4>
+<p>One last meta question for today. I have no problem creating commands that consume terms but I can't use tactic mode. How do commands like <code>def</code> or <code>theorem</code> tell Lean the type they expect? If I type:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span>
+
+<span class="n">elab</span> <span class="s2">"Test"</span> <span class="n">typ</span><span class="o">:</span><span class="n">term</span> <span class="s2">":="</span> <span class="n">val</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="c1">-- actually do something here?</span>
+  <span class="n">pure</span> <span class="o">()</span>
+
+<span class="n">Test</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">-- I'd like the info view to show "⊢ Nat" here.</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+<p>I know I can define aliases for <code>def</code> and <code>theorem</code> but this isn't what I want to do here.</p>
+
+
+
+<a name="294767795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294767795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294767795">(Aug 22 2022 at 21:12)</a>:</h4>
+<p>It's the expected type when elaborating <code>val</code> (which you currently don't do), i.e. from <code>elabTerm</code></p>
+
+
+
+<a name="294767823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294767823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294767823">(Aug 22 2022 at 21:12)</a>:</h4>
+<p>I tried things like calling term elaboration inside the command. For instance</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="s2">"Test"</span> <span class="n">typ</span><span class="o">:</span><span class="n">term</span> <span class="s2">":="</span> <span class="n">val</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">liftTermElabM</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">typ</span> <span class="bp">←</span> <span class="n">elabTerm</span> <span class="n">typ</span> <span class="n">none</span>
+    <span class="n">return</span> <span class="o">(</span><span class="bp">←</span> <span class="n">elabTermEnsuringType</span> <span class="n">val</span> <span class="n">typ</span><span class="o">)</span>
+  <span class="n">pure</span> <span class="o">()</span>
+
+<span class="n">Test</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">exact</span> <span class="s2">"Yo"</span>
+</code></pre></div>
+<p>But there is no error at all in this example</p>
+
+
+
+<a name="294767897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294767897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294767897">(Aug 22 2022 at 21:13)</a>:</h4>
+<p>and no info view display either.</p>
+
+
+
+<a name="294768268"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294768268" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294768268">(Aug 22 2022 at 21:16)</a>:</h4>
+<p>I was expecting something similar to work as well:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="s2">"Test"</span> <span class="n">typ</span><span class="o">:</span><span class="n">term</span> <span class="s2">":="</span> <span class="n">val</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">ty</span> <span class="bp">←</span> <span class="n">liftTermElabM</span> <span class="bp">&lt;|</span> <span class="n">Term.elabType</span> <span class="n">typ</span>
+  <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span> <span class="n">liftTermElabM</span> <span class="bp">&lt;|</span> <span class="n">Term.elabTermEnsuringType</span> <span class="n">val</span> <span class="n">ty</span>
+  <span class="n">IO.println</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{ty}, {res}"</span>
+</code></pre></div>
+<p>it surprises me quite a lot that this doesn't error as patrick expects, why is that?</p>
+
+
+
+<a name="294768488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294768488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294768488">(Aug 22 2022 at 21:17)</a>:</h4>
+<p>You also need to wrap it in <code>withSynthesize</code> to actually force the tactic block to run</p>
+
+
+
+<a name="294768626"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294768626" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294768626">(Aug 22 2022 at 21:18)</a>:</h4>
+<p>This seems to work much better!</p>
+
+
+
+<a name="294768827"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294768827" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294768827">(Aug 22 2022 at 21:20)</a>:</h4>
+<p>Thanks Sebastian!</p>
+
+
+
+<a name="294769035"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294769035" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294769035">(Aug 22 2022 at 21:22)</a>:</h4>
+<p>Not sure if <code>liftTermElabM</code> should imply <code>withSynthesize</code>. It's also worth mentioning that you need <code>runTermElabM</code> instead for proper support of <code>variable</code>s.</p>
+
+
+
+<a name="294769216"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294769216" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294769216">(Aug 22 2022 at 21:24)</a>:</h4>
+<p>Thanks. I know this variable handling difference between <code>liftTermElabM</code> and <code>runTermElabM</code>, Leo explained it a couple of weeks ago and he took the opportunity to write docstrings for those two functions.</p>
+
+
+
+<a name="294769288"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294769288" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294769288">(Aug 22 2022 at 21:24)</a>:</h4>
+<p>Maybe those docstrings should mention <code>withSynthesize</code>.</p>
+
+
+
+<a name="294769405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaborate%20term%20with%20info%20view/near/294769405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaborate.20term.20with.20info.20view.html#294769405">(Aug 22 2022 at 21:25)</a>:</h4>
+<p>Those docstrings are definitely helpful. Without them I wouldn't have known the difference either, haha.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

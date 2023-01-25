@@ -1,0 +1,127 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html">Proofs with opaque Bool functions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="262288139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262288139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262288139">(Nov 22 2021 at 07:57)</a>:</h4>
+<p>How does one prove results utilizing opaque Bool functions? For example, <code>String.contains "zero" 'e'</code>? My guess was to use <code>Lean.ofReduceBool</code>, but I couldn't figure out how exactly one uses it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">String.contains</span> <span class="s2">"zero"</span> <span class="sc">'e'</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">apply</span> <span class="n">Lean.ofReduceBool</span> <span class="n">_</span>
+  <span class="c1">-- what goes here to do the kernel reduction?</span>
+  <span class="n">done</span>
+</code></pre></div>
+<p>Neither <code>rfl</code>, <code>simp</code>, or <code>decide</code> work. I am probably missing something basic, but I unfortunately don't know what.</p>
+
+
+
+<a name="262290139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262290139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262290139">(Nov 22 2021 at 08:22)</a>:</h4>
+<p>I don't think it's possible yet to prove anything about <code>partial def</code>s, on the logical side they look exactly like constants.  (The partial def in question here is String.anyAux btw.)</p>
+
+
+
+<a name="262290497"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262290497" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262290497">(Nov 22 2021 at 08:27)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span>  While I get that it is not possible to prove much of anything about the implementation of <code>String.contains</code> due to <code>String.anyAux</code>, shouldn't constant expressions using it still be reducible through <a href="https://github.com/leanprover/lean4/blob/3f867acfd70f97d7fd25217b1881f4820d1192c3/src/Init/Core.lean#L1054"><code>reduceBool</code></a>, since that invokes the Lean interpreter to reduce it (and the interpreter can evaluate such an expression)?</p>
+
+
+
+<a name="262292519"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262292519" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262292519">(Nov 22 2021 at 08:54)</a>:</h4>
+<p>Now I see what you mean.  There are still some rough edges here, but this works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">x</span> <span class="o">:=</span> <span class="s2">"zero"</span><span class="bp">.</span><span class="n">contains</span> <span class="sc">'e'</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">Lean.reduceBool</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+
+
+
+<a name="262292564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262292564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262292564">(Nov 22 2021 at 08:54)</a>:</h4>
+<blockquote>
+<p>When the kernel tries to reduce a term <code>Lean.reduceBool c</code>, it will invoke the Lean interpreter to evaluate <code>c</code>.<br>
+  The kernel will not use the interpreter if <code>c</code> is not a constant.</p>
+</blockquote>
+
+
+
+<a name="262295750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262295750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262295750">(Nov 22 2021 at 09:28)</a>:</h4>
+<p>I think there is a macro that does that for you</p>
+
+
+
+<a name="262295870"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262295870" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262295870">(Nov 22 2021 at 09:29)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="s2">"zero"</span><span class="bp">.</span><span class="n">contains</span> <span class="sc">'e'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">nativeDecide</span>
+</code></pre></div>
+
+
+
+<a name="262307213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262307213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262307213">(Nov 22 2021 at 11:31)</a>:</h4>
+<p>So, I used <code>nativeDecide</code> in my use case and it worked like a charm -- or so I thought. But then I got this error:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">name10.arr</span> <span class="o">:=</span>
+  <span class="bp">#</span><span class="o">[</span><span class="s2">"zero"</span><span class="o">,</span><span class="s2">"one"</span><span class="o">,</span><span class="s2">"two"</span><span class="o">,</span><span class="s2">"three"</span><span class="o">,</span><span class="s2">"four"</span><span class="o">,</span><span class="s2">"five"</span><span class="o">,</span><span class="s2">"six"</span><span class="o">,</span><span class="s2">"seven"</span><span class="o">,</span><span class="s2">"eight"</span><span class="o">,</span><span class="s2">"nine"</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">name10</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Fin</span> <span class="mi">10</span><span class="o">)</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span>
+  <span class="n">name10.arr.get</span> <span class="n">n</span>
+
+<span class="kd">theorem</span> <span class="n">name10_mod_2_contains_e</span> <span class="o">:</span>
+<span class="bp">∀</span> <span class="n">n</span><span class="o">,</span> <span class="n">name10</span> <span class="n">n</span> <span class="bp">|&gt;.</span><span class="n">contains</span> <span class="sc">'e'</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">intro</span> <span class="n">n</span>
+  <span class="n">cases</span> <span class="n">n</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">mk</span> <span class="n">n</span> <span class="n">h</span> <span class="bp">=&gt;</span>
+    <span class="n">repeat</span> <span class="o">(</span><span class="n">cases</span> <span class="n">n</span><span class="bp">;</span> <span class="n">simp</span> <span class="o">[</span><span class="n">name10</span><span class="o">,</span> <span class="n">Array.get</span><span class="o">,</span> <span class="n">List.get</span><span class="o">]</span><span class="bp">;</span> <span class="n">nativeDecide</span><span class="bp">;</span> <span class="n">rename_i</span> <span class="n">n</span><span class="o">)</span>
+    <span class="n">contradiction</span>
+
+<span class="sd">/--</span>
+<span class="sd">application type mismatch</span>
+<span class="sd">  Lean.ofReduceBool name10_mod_2_contains_e._nativeDecide_3 true (Eq.refl true)</span>
+<span class="sd">argument has type</span>
+<span class="sd">  true = true</span>
+<span class="sd">but function has type</span>
+<span class="sd">  Lean.reduceBool name10_mod_2_contains_e._nativeDecide_3 = true → name10_mod_2_contains_e._nativeDecide_3 = true</span>
+<span class="sd">-/</span>
+</code></pre></div>
+<p>Any idea what is going on here?</p>
+
+
+
+<a name="262323741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262323741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262323741">(Nov 22 2021 at 14:15)</a>:</h4>
+<p><del>it looks like the apply bug</del></p>
+
+
+
+<a name="262324413"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262324413" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262324413">(Nov 22 2021 at 14:20)</a>:</h4>
+<p>reduced:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">name10_mod_2_contains_e</span> <span class="o">:</span>
+  <span class="n">String.contains</span> <span class="s2">"two"</span> <span class="sc">'e'</span> <span class="bp">=</span> <span class="n">true</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">nativeDecide</span>
+</code></pre></div>
+<p>It appears the issue is that <code>"two"</code> does not in fact contain the letter <code>e</code></p>
+
+
+
+<a name="262327366"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proofs%20with%20opaque%20Bool%20functions/near/262327366" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proofs.20with.20opaque.20Bool.20functions.html#262327366">(Nov 22 2021 at 14:41)</a>:</h4>
+<p>oops! forgot to add the condition that it is only suppose to be the odd ones <span aria-label="laughing" class="emoji emoji-1f606" role="img" title="laughing">:laughing:</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

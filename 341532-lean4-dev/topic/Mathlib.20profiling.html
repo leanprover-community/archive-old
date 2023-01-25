@@ -1,0 +1,76 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/341532-lean4-dev/topic/Mathlib.20profiling.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/index.html">lean4 dev</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html">Mathlib profiling</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="320441738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320441738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320441738">(Jan 10 2023 at 12:44)</a>:</h4>
+<p>I thought it might make sense to start looking into possibly optimizing mathlib4 compile times now that they are non-negligible. My first observation though is an unexpected per-file overhead independent of the file size: <a href="/user_uploads/3121/JPibManQAImvRtGxdgPMANoV/image.png">image.png</a> <br>
+This slice takes about 140ms, though it might take longer for later files. Because what I think is happening in at least the first half is that we have the interpreter run an <code>initialize addLinter ...</code> block (from std4?)... and since a linter is a lambda and a lambda from the interpreter must contain certain metadata, the Lean object <code>mark_mt</code> is spending all that time on presumably is the entire <code>Environment</code>.</p>
+<div class="message_inline_image"><a href="/user_uploads/3121/JPibManQAImvRtGxdgPMANoV/image.png" title="image.png"><img src="/user_uploads/3121/JPibManQAImvRtGxdgPMANoV/image.png"></a></div>
+
+
+
+<a name="320442562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320442562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320442562">(Jan 10 2023 at 12:49)</a>:</h4>
+<p>It's harder to tell what's happening in the second part, but it certainly looks very similar. Unfortunate that we would go through the effort of upgrading the Environment to MT and then immediately persistent afterwards</p>
+
+
+
+<a name="320445999"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320445999" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320445999">(Jan 10 2023 at 13:06)</a>:</h4>
+<p>Precompilation obviously would avoid this, as would storing linters in an (additional) attribute for the first part. I don't see a way to optimize this in the interpreter in general.</p>
+
+
+
+<a name="320527872"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320527872" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320527872">(Jan 10 2023 at 19:25)</a>:</h4>
+<p>Thanks for looking into this, indeed it seems like there should now be enough data for some optimization.</p>
+
+
+
+<a name="320530817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320530817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320530817">(Jan 10 2023 at 19:41)</a>:</h4>
+<p>Pardon the beginner question but how do you read this graph? Is time the y-axis (going down)? What is the x-axis?</p>
+
+
+
+<a name="320531855"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320531855" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320531855">(Jan 10 2023 at 19:47)</a>:</h4>
+<p>This is a "flame graph." The width of each box is proportional to how long a particular function took, and stacked on top of it are the functions that that function itself called. This way, you can see how much time during a function's execution is attributed to waiting for other functions to complete.</p>
+
+
+
+<a name="320532228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320532228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320532228">(Jan 10 2023 at 19:49)</a>:</h4>
+<p>I <em>think</em> that this one is showing aggregate data. There are also versions where you see every single function call through time as a history of program execution.</p>
+
+
+
+<a name="320572437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320572437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320572437">(Jan 11 2023 at 00:44)</a>:</h4>
+<p>I think it's not aggregated actually... but Sebastian is the only one who can say there haha</p>
+
+
+
+<a name="320663332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Mathlib%20profiling/near/320663332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Mathlib.20profiling.html#320663332">(Jan 11 2023 at 10:26)</a>:</h4>
+<p>It might be (it does say so at the bottom), but I'm not sure to be honest. This is Hotspot.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

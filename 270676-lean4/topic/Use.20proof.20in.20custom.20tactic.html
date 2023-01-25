@@ -1,0 +1,229 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html">Use proof in custom tactic</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="266379931"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266379931" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266379931">(Dec 29 2021 at 21:23)</a>:</h4>
+<p>I'm trying to write a tactic that obtains a proof of some statement and then uses that proof to apply a lemma.<br>
+As an example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">some_lemma</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">5</span><span class="o">)</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">≠</span> <span class="mi">10</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab.Tactic</span> <span class="k">in</span>
+<span class="n">elab</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">solveNEq10</span><span class="o">)</span> <span class="s2">"solveNEq10"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="bp">...</span>
+  <span class="k">let</span> <span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">5</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="n">evalTactic</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span><span class="n">exact</span> <span class="n">some_lemma</span> <span class="bp">$</span><span class="n">h</span><span class="o">))</span> <span class="c1">-- ?</span>
+</code></pre></div>
+<p>The <code>solveNEq10</code> should solve a a goal of the form <code>n ≠ 10</code>. It's able to obtain a proof of <code>n = 5</code> and is supposed to use the <code>some_lemma</code> with that fact. I can't figure out how to actually use <code>h</code> here though. <br>
+So far I've only used <code>evalTactic</code> which works using <code>Syntax</code>. Is that appropriate here, or are there other mechanisms I should be using?</p>
+
+
+
+<a name="266383499"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266383499" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266383499">(Dec 29 2021 at 22:16)</a>:</h4>
+<p>How does the <code>let h : n = 5 := sorry</code> part work? It is mixing meta levels: I would expect something more like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">solveNEq10</span><span class="o">)</span> <span class="s2">"solveNEq10"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="bp">...</span>
+  <span class="n">evalTactic</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="o">(</span>
+    <span class="k">let</span> <span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">5</span> <span class="o">:=</span> <span class="gr">sorry</span>
+    <span class="n">exact</span> <span class="n">some_lemma</span> <span class="n">h</span><span class="o">)))</span>
+</code></pre></div>
+
+
+
+<a name="266419436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266419436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266419436">(Dec 30 2021 at 10:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic/near/266383499">said</a>:</p>
+<blockquote>
+<p>How does the <code>let h : n = 5 := sorry</code> part work? It is mixing meta levels: I would expect something more like</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">solveNEq10</span><span class="o">)</span> <span class="s2">"solveNEq10"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="bp">...</span>
+  <span class="n">evalTactic</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="o">(</span>
+    <span class="k">let</span> <span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">5</span> <span class="o">:=</span> <span class="gr">sorry</span>
+    <span class="n">exact</span> <span class="n">some_lemma</span> <span class="n">h</span><span class="o">)))</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>I guess I'll have to explain my real world project a bit more for this. Like in <a href="https://github.com/dwrensha/lean4-maze">lean4-maze</a> I'm defining a game that is played by proving that a level (an instance of <code>Game</code>) is completable (using a sequence of moves):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Game</span> <span class="n">where</span> <span class="bp">...</span>
+
+<span class="kd">inductive</span> <span class="n">Move</span> <span class="bp">|</span> <span class="n">up</span> <span class="bp">|</span> <span class="n">down</span> <span class="bp">|</span> <span class="n">left</span> <span class="bp">|</span> <span class="n">right</span>
+
+<span class="c1">-- Performing a move can fail!</span>
+<span class="kd">def</span> <span class="n">Game.move</span> <span class="o">:</span> <span class="n">Game</span> <span class="bp">→</span> <span class="n">Move</span> <span class="bp">→</span> <span class="n">Option</span> <span class="n">Game</span> <span class="o">:=</span> <span class="bp">...</span>
+
+<span class="kd">inductive</span> <span class="n">Game.completable</span> <span class="o">:</span> <span class="n">Game</span> <span class="bp">→</span> <span class="kt">Prop</span>
+  <span class="bp">|</span> <span class="n">completed</span> <span class="o">{</span><span class="n">g</span><span class="o">}</span> <span class="o">:</span> <span class="bp">&lt;</span><span class="n">completion</span> <span class="n">conditions</span><span class="bp">&gt;</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g</span>
+  <span class="bp">|</span> <span class="n">move</span> <span class="o">{</span><span class="n">g₁</span> <span class="n">g₂</span> <span class="o">:</span> <span class="n">Game</span><span class="o">}</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">g₁.move</span> <span class="n">m</span> <span class="bp">=</span> <span class="n">some</span> <span class="n">g₂</span><span class="o">)</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g₂</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g₁</span>
+
+<span class="k">let</span> <span class="n">level1</span> <span class="o">:</span> <span class="n">Game</span> <span class="o">:=</span> <span class="bp">...</span>
+
+<span class="kd">theorem</span> <span class="n">level1_completable</span> <span class="o">:</span> <span class="n">level1.completable</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">move</span> <span class="n">Move.up</span> <span class="c1">-- This move tactic is what I'm trying to define.</span>
+  <span class="n">move</span> <span class="n">Move.left</span>
+  <span class="bp">...</span>
+</code></pre></div>
+<p>I'm now trying to define the <code>move</code> tactic, such that it:</p>
+<ol>
+<li>Gets the <code>Game</code> instance (let's call it <code>g</code>) for which we're trying to prove <code>g.completable</code>.</li>
+<li>Performs the move (let's call it <code>m</code>) that was passed to the tactic: <code>let g? := g.move m</code>.</li>
+<li>If the move was invalid (<code>g? = Option.none</code>), fails.</li>
+<li>If the move was successful (<code>g? = some g'</code>), use this fact (this is the <code>h</code> from before) to apply <code>Game.completable.move</code>.</li>
+</ol>
+<p>The remaining goal would then require us to prove the remaining condition for <code>Game.completable.move</code>, which is to show that <code>g'</code> is also completable.</p>
+<p>I don't see how to do this in "pure syntax", since I wouldn't know how to get hold of <code>g</code> and hence <code>let g? := g.move m</code>.</p>
+
+
+
+<a name="266423671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266423671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266423671">(Dec 30 2021 at 12:04)</a>:</h4>
+<p>What's wrong with doing <code>apply Game.completable.move (m := Move.up) rfl</code> inside the quotation? It should succeed iff <code>move Move.up</code> evaluates to <code>some _</code>. If you want a nicer error message on failure, you can <em>additionally</em> evaluate <code>move</code> outside of the quotation as you apparently planned to do, but these two <code>move</code> invocations are otherwise independent. Because of proof irrelevance, it is not directly possible to reflect a proof back into syntax, i.e. we cannot implement <code>Quote p</code> for <code>p : Prop</code>.</p>
+
+
+
+<a name="266424921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266424921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266424921">(Dec 30 2021 at 12:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic/near/266423671">said</a>:</p>
+<blockquote>
+<p>What's wrong with doing <code>apply Game.completable.move (m := Move.up) rfl</code> inside the quotation? It should succeed iff <code>move Move.up</code> evaluates to <code>some _</code>. If you want a nicer error message on failure, you can <em>additionally</em> evaluate <code>move</code> outside of the quotation as you apparently planned to do, but these two <code>move</code> invocations are otherwise independent. Because of proof irrelevance, it is not directly possible to reflect a proof back into syntax, i.e. we cannot implement <code>Quote p</code> for <code>p : Prop</code>.</p>
+</blockquote>
+<p>If I do:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab.Tactic</span> <span class="k">in</span>
+<span class="n">elab</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">move</span><span class="o">)</span> <span class="s2">"move "</span> <span class="n">m</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">evalTactic</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">apply</span> <span class="n">Game.completable.move</span> <span class="o">(</span><span class="n">m</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">m</span><span class="o">)</span> <span class="n">rfl</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">level1</span> <span class="o">:</span> <span class="n">Game</span> <span class="o">:=</span> <span class="bp">...</span>
+
+<span class="kd">theorem</span> <span class="n">level1_completable</span> <span class="o">:</span> <span class="n">level1.completable</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">move</span> <span class="n">Move.up</span>
+</code></pre></div>
+<p>I get :</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">Game.completable.move</span> <span class="n">rfl</span>
+<span class="n">argument</span>
+  <span class="n">rfl</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="n">Game.move</span> <span class="bp">?</span><span class="n">m.2730</span> <span class="n">Move.up</span> <span class="bp">=</span> <span class="n">Game.move</span> <span class="bp">?</span><span class="n">m.2730</span> <span class="n">Move.up</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">Game.move</span> <span class="bp">?</span><span class="n">m.2730</span> <span class="n">Move.up</span> <span class="bp">=</span> <span class="n">Option.some</span> <span class="bp">?</span><span class="n">m.2731</span> <span class="o">:</span> <span class="kt">Prop</span>
+</code></pre></div>
+<p>(<em>Side Note</em>: In my real project I'm not using <code>Option</code> but a <code>Result</code> type as the return type from <code>Game.move</code>.)</p>
+
+
+
+<a name="266425015"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266425015" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266425015">(Dec 30 2021 at 12:28)</a>:</h4>
+<p>And in order to prove <code>Game.move ?m.2730 Move.up = Option.some ?m.2731</code> I would need Lean to execute/reduce the call to <code>Game.move</code> completely, because then it would see that the result is <code>some _</code>.<br>
+But I don't know how to express that.</p>
+
+
+
+<a name="266425150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266425150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266425150">(Dec 30 2021 at 12:31)</a>:</h4>
+<p>I've thought about simping with all the definitions involved in <code>Game.move</code>, but that got out of hand quickly.<br>
+The <code>decide</code> tactic also doesn't work because <code>expected type must not contain free or meta variables</code>.</p>
+
+
+
+<a name="266427412"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266427412" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266427412">(Dec 30 2021 at 13:11)</a>:</h4>
+<p>My bad, you'll want something like <code>refine Game.completable.move (m := $m) rfl ?_</code> instead of <code>apply</code> so that the <code>Game</code> term gets inferred from the goal</p>
+
+
+
+<a name="266428229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266428229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266428229">(Dec 30 2021 at 13:25)</a>:</h4>
+<p>Hm, so in this MWE your approach works perfectly:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Game</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span>
+
+<span class="kd">inductive</span> <span class="n">Move</span> <span class="bp">|</span> <span class="n">up</span> <span class="bp">|</span> <span class="n">down</span> <span class="bp">|</span> <span class="n">left</span> <span class="bp">|</span> <span class="n">right</span>
+
+<span class="kd">def</span> <span class="n">Game.move</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">Game</span><span class="o">)</span> <span class="o">:</span> <span class="n">Move</span> <span class="bp">→</span> <span class="n">Option</span> <span class="n">Game</span>
+  <span class="bp">|</span> <span class="n">Move.up</span> <span class="bp">=&gt;</span>    <span class="n">some</span> <span class="o">⟨</span><span class="n">g.x</span><span class="o">,</span> <span class="n">g.y</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">⟩</span>
+  <span class="bp">|</span> <span class="n">Move.right</span> <span class="bp">=&gt;</span> <span class="n">some</span> <span class="o">⟨</span><span class="n">g.x</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">,</span> <span class="n">g.y</span><span class="o">⟩</span>
+  <span class="bp">|</span> <span class="n">Move.down</span> <span class="bp">=&gt;</span>  <span class="k">if</span> <span class="n">g.y</span> <span class="bp">==</span> <span class="mi">0</span> <span class="k">then</span> <span class="n">none</span> <span class="k">else</span> <span class="n">some</span> <span class="o">⟨</span><span class="n">g.x</span><span class="o">,</span> <span class="n">g.y</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">⟩</span>
+  <span class="bp">|</span> <span class="n">Move.left</span> <span class="bp">=&gt;</span>  <span class="k">if</span> <span class="n">g.x</span> <span class="bp">==</span> <span class="mi">0</span> <span class="k">then</span> <span class="n">none</span> <span class="k">else</span> <span class="n">some</span> <span class="o">⟨</span><span class="n">g.x</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">,</span> <span class="n">g.y</span><span class="o">⟩</span>
+
+<span class="kd">inductive</span> <span class="n">Game.completable</span> <span class="o">:</span> <span class="n">Game</span> <span class="bp">→</span> <span class="kt">Prop</span>
+  <span class="bp">|</span> <span class="n">completed</span> <span class="o">{</span><span class="n">g</span><span class="o">}</span> <span class="o">:</span> <span class="n">g.x</span> <span class="bp">&gt;</span> <span class="mi">5</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g</span>
+  <span class="bp">|</span> <span class="n">move</span> <span class="o">{</span><span class="n">g₁</span> <span class="n">g₂</span> <span class="o">:</span> <span class="n">Game</span><span class="o">}</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">g₁.move</span> <span class="n">m</span> <span class="bp">=</span> <span class="n">some</span> <span class="n">g₂</span><span class="o">)</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g₂</span> <span class="bp">→</span> <span class="n">completable</span> <span class="n">g₁</span>
+
+<span class="kd">def</span> <span class="n">level1</span> <span class="o">:</span> <span class="n">Game</span> <span class="o">:=</span> <span class="o">⟨</span><span class="mi">0</span><span class="o">,</span> <span class="mi">0</span><span class="o">⟩</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab.Tactic</span> <span class="n">Game.Move</span> <span class="k">in</span>
+<span class="n">elab</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">move</span><span class="o">)</span> <span class="s2">"move "</span> <span class="n">m</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">evalTactic</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">refine</span> <span class="n">Game.completable.move</span> <span class="o">(</span><span class="n">m</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">m</span><span class="o">)</span> <span class="n">rfl</span> <span class="bp">?</span><span class="n">_</span><span class="o">))</span>
+
+<span class="kd">theorem</span> <span class="n">level1_completable</span> <span class="o">:</span> <span class="n">level1.completable</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">move</span> <span class="n">Move.right</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">Game.completable.completed</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="266428476"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266428476" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266428476">(Dec 30 2021 at 13:28)</a>:</h4>
+<p>In my real world project I still get:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">Game.completable.move</span> <span class="n">rfl</span>
+<span class="n">argument</span>
+  <span class="n">rfl</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="n">Game.move</span> <span class="n">level1</span> <span class="n">Move.up</span> <span class="bp">=</span> <span class="n">Game.move</span> <span class="n">level1</span> <span class="n">Move.up</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">Game.move</span> <span class="n">level1</span> <span class="n">Move.up</span> <span class="bp">=</span> <span class="n">Game.Move.Result.success</span> <span class="bp">?</span><span class="n">m.2747</span> <span class="o">:</span> <span class="kt">Prop</span>
+</code></pre></div>
+
+
+
+<a name="266428727"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266428727" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266428727">(Dec 30 2021 at 13:32)</a>:</h4>
+<p>Hard to say without knowing more about <code>move</code>. Are you positive that term does in fact evaluate to <code>success _</code>? :)</p>
+
+
+
+<a name="266429001"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266429001" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266429001">(Dec 30 2021 at 13:36)</a>:</h4>
+<p>Unfortunately <code>Game.move</code> is too big to reduce sensibly. But I can do:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="o">(</span><span class="n">level1.move</span> <span class="n">Move.up</span><span class="o">)</span><span class="bp">.</span><span class="n">get</span><span class="bp">!</span>
+</code></pre></div>
+<p>And get a <code>success _</code>. </p>
+<p>Does the fact that <code>Game.move</code> is <code>partial</code> mess things up?</p>
+
+
+
+<a name="266429046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266429046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266429046">(Dec 30 2021 at 13:37)</a>:</h4>
+<p>Yes! You cannot prove anything about <code>partial</code>.</p>
+
+
+
+<a name="266429145"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Use%20proof%20in%20custom%20tactic/near/266429145" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Use.20proof.20in.20custom.20tactic.html#266429145">(Dec 30 2021 at 13:38)</a>:</h4>
+<p>Thanks for your patience :D</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,74 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html">User attribute caching</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="237841054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237841054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237841054">(May 07 2021 at 15:24)</a>:</h4>
+<p>I'm writing a tactic that'll make fairly heavy use of user attributes. As a result, I'm running into two limitations of the user attribute cache API (<a href="https://leanprover-community.github.io/mathlib_docs/find/user_attribute_cache_cfg">docs#user_attribute_cache_cfg</a>):</p>
+<p>1) The function that creates a cache receives the list of declarations to which the attribute was applied, but not the parameters gives to those attributes. So if you write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[attr 42]</span> <span class="kd">def</span> <span class="n">d</span> <span class="o">:=</span> <span class="bp">...</span>
+</code></pre></div>
+<p>you can cache the fact that <code>d</code> was tagged with <code>attr</code>, but not that it was tagged with 42. This is annoying for my use case because I rely a lot on attribute parameters, so a lot of work ends up uncached.</p>
+<p>2) As far as I can tell, cache construction is not incremental: the cache-constructing function is given a list of tagged declarations, but there is no way to add or remove declarations. I suspect this leads to a lot of duplicate work. In particular, I believe the construction of the simp set is a significant cost center, which is no surprise if it is reconstructed from scratch all the time.</p>
+<p>Any chance one of our resident C++ wizards would like to take a look at this?</p>
+
+
+
+<a name="237848112"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237848112" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237848112">(May 07 2021 at 16:07)</a>:</h4>
+<p>The main performance footgun is described here: <a href="https://leanprover-community.github.io/mathlib_docs/notes.html#user%20attribute%20parameters">https://leanprover-community.github.io/mathlib_docs/notes.html#user%20attribute%20parameters</a></p>
+
+
+
+<a name="237850047"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237850047" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237850047">(May 07 2021 at 16:19)</a>:</h4>
+<p>That's a good note, thanks! So can I use <code>get_param_untyped</code> in the function that constructs the attribute cache, then parse that <code>expr</code> by hand? Can I assume that this <code>expr</code> is fully evaluated? That would solve problem 1.</p>
+
+
+
+<a name="237850505"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237850505" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237850505">(May 07 2021 at 16:22)</a>:</h4>
+<p>Yes you should parse it by hand.  It is fully elaborated.</p>
+
+
+
+<a name="237850629"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237850629" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237850629">(May 07 2021 at 16:22)</a>:</h4>
+<p>(By providing a custom reflected instance, you can also store the data as an ill-typed expression.)</p>
+
+
+
+<a name="237851012"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237851012" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237851012">(May 07 2021 at 16:25)</a>:</h4>
+<p>Okay, very nice. That'll be a bunch of work, but not too bad. Any comments on the non-incrementality issue?</p>
+
+
+
+<a name="237852285"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237852285" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237852285">(May 07 2021 at 16:34)</a>:</h4>
+<p>Worry about it later?</p>
+
+
+
+<a name="237859606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/User%20attribute%20caching/near/237859606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/User.20attribute.20caching.html#237859606">(May 07 2021 at 17:21)</a>:</h4>
+<p>Fair enough. At the current rate, the tactic won't be done until we're all on Lean 4 anyway. <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,157 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html">Takeaways from proving Advent of Code solutions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="321756245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321756245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Salwen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321756245">(Jan 17 2023 at 05:26)</a>:</h4>
+<p>A month ago, I started working on a project to write provably correct solutions to the <a href="https://adventofcode.com/">2022 Advent of Code</a>. At this point I had no experience with any theorem prover besides working through the first two volumes of <a href="https://softwarefoundations.cis.upenn.edu/">Software Foundations</a> in Coq a few years ago.  Today I just finished proving the correctness of my solution to the first part of the first problem of Advent of Code.  I have been taking notes about what I found difficult or confusing, as well as missing pieces of Std or Mathlib that I needed to implement myself.  Some of these things may be rehashing questions  that I asked on the Zulip chat (THANK YOU everyone who answered all my questions!), but I'm listing everything here for completeness.</p>
+<ol>
+<li>The <a href="https://leanprover-community.github.io/mathlib4_docs/">library docs</a> were incredibly useful, but I only found the link by <a href="#narrow/stream/113489-new-members/topic/API.20Documentation">asking on Zulip</a>.  Google "lean4 docs" brings me to <a href="https://leanprover.github.io/documentation/">this page</a> which doesn't link the library docs.</li>
+<li>There are two searches on the library docs, the autocomplete search, and the google site search.  I rarely found the google site search helpful, but I often wished that I could see the complete list of autocomplete possibilities.  It also would be nice to be able to search for theorems vs defs, since a huge number of matching theorems can make it hard to search for a function.</li>
+<li><code>#find</code> and <code>library_search</code> are also essential for newbies, but aren't mentioned in the <a href="https://leanprover.github.io/theorem_proving_in_lean4/introduction.html">theorem proving tutorial</a></li>
+<li>I ended up relying on <code>#find</code> mostly, because <code>library_search</code>populates the results with spam that can drown out legitimate results. (see <a href="#narrow/stream/270676-lean4/topic/Proof.20automation">this discussion</a>).</li>
+<li><code>library_search</code> also often fails because of the heartbeat limit, but setting the heartbeat limit option mentioned in the error message does not seem to have any effect.</li>
+<li>List and Array conversions were sometimes tricky for me, because I often ended up with expressions mixing Array and List operations.  I found that using <code>simp [Array.ext_iff]</code>as <a href="#narrow/stream/287929-mathlib4/topic/Array/near/320527362">suggested by Eric</a> was the best technique, but was still not perfect.  Further discussion of the general problem of translating between isomorphic theories is discussed <a href="#narrow/stream/287929-mathlib4/topic/A.20translate.20tactic">here</a></li>
+<li>I loved using <code>simp</code>, but then it would slow down my proofs. The best way I found to combat this was to use <code>simp?</code> and replace <code>simp</code> with <code>simp only</code>.  However, the list of lemmas is generally pretty large, creating clutter in my proofs.  It also is pretty tedious.  I wonder if it would be possible to automate this?</li>
+<li>I spent a lot of time manually doing <code>Nat</code> arithmetic, because it felt like the automated tactics didn't really help. For example,  <code>s + (d+ t) - (d- 1) - (s + d) = t - (d- 1)</code> Is true over the <code>Nat</code>s, but no combination of arithmetic automation solves it (ring, ring_nf, zify, linarith). I wish there were a tactic that solved equations over <code>Z</code> and generated goals for the inequalities that were necessary to make the equality hold over <code>Nat</code>.  (<a href="#narrow/stream/270676-lean4/topic/Tactics.20for.20Nat.20arithmetic">earlier discussion here</a>)</li>
+<li>This is likely more an issue with the VSCode extension (maybe not), but when you start a new tactic block, e.g. after <code>by</code>, <code>case _ =&gt;</code>, etc, the Lean Infoview will not update with the new tactics state until <em>after</em> you have put the first tactic in the block. So I'm basically forced to put in a dummy tactic at the start of every block that I delete later, so that I can see the goal state.</li>
+<li>When rewriting under binders or with dependent types, <code>rw</code> will fail, but <code>simp only</code> will succeed.  However, <code>rw</code> gives a nice error message when it fails to rewrite, but simp doesn't.  The error messages are very helpful for newbies like me.  <code>rw</code> also only rewrites a single expression, but <code>simp</code> will rewrite multiple expressions, even with <code>singlePass := true</code>, which makes it less convenient to work with.  (<a href="#narrow/stream/270676-lean4/topic/.22motive.20is.20not.20type.20correct.22.20meaning">discussed here</a>)</li>
+<li><code>if</code> and <code>match</code> in <code>conv</code> mode were important for me, but I had to copy and paste the code from <a href="#narrow/stream/270676-lean4/topic/If.20and.20match.20in.20conv.20mode">this discussion</a> to get them to work.</li>
+<li><code>partial</code> functions blocked me from proving anything about my program, so I had to avoid the <code>partial</code> library functions that I would otherwise want to use.  Because of this, I avoided using <code>String</code> altogether and did everything as a <code>List Char</code>.  For <code>Nat</code> and <code>Int</code>, I was forced to implement a non-<code>partial</code> version of the following functions: <code>Int.repr</code>, <code>String.toInt</code>,  along with appropriate lemmas.</li>
+<li>There were also a few functions that I felt were "missing" from the library, which I implemented myself: <code>Nat.digit</code> <code>List.lastN</code> <code>List.splitOnList</code> <code>Array.modifyHead</code> <code>Array.modifyLast</code> <code>List.isInfixOf</code>, along with appropriate lemmas.</li>
+<li>I had to prove many lemmas about my new functions, but also a large number of lemmas about the existing functions.  They generally fell into the following categories:</li>
+</ol>
+<ul>
+<li>Lemmas about <code>Nat.toDigits</code>, and round tripping of Int-&gt;List Char-&gt;Int</li>
+<li>Lemmas about List <code>isInfix``isPrefix</code> and <code>isSuffix</code>, including their relations to each-other, simp lemmas, decidability, and case splitting lemmas.</li>
+<li>Lemmas about the relationship of <code>isInfix</code> and <code>mem</code> to string manipulation functions like <code>intercalate</code>, <code>intersperse</code>, <code>join</code>,<code>count</code>, etc.</li>
+<li>Lemmas about second tier list manipulation functions, like <code>modifyNth</code>, <code>modifyLast</code>, <code>dropLast</code>, <code>getLast?</code>, <code>get?</code>, <code>getD</code>, and <code>getRest</code>.</li>
+<li>Commutators of  List <code>modifyNth</code>, <code>set</code>, and <code>get</code></li>
+<li>Basic lemmas about <code>splitOnP</code> and <code>splitOn</code></li>
+<li>Basic <code>WithTop</code> lemmas</li>
+<li>This lemma: <code>lemma Nat.sub_sub_eq_add_sub_of_le  {a b c:ℕ} (h:c≤ b): a - (b-c) = a + c - b</code> which I still believe is hiding somewhere in the library I just haven't found it. <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span></li>
+</ul>
+<p>You can see the full implementation here: <a href="https://github.com/jeremysalwen/advent_of_lean_2022/blob/master/one.lean">https://github.com/jeremysalwen/advent_of_lean_2022/blob/master/one.lean</a><br>
+I would like to contribute back as much as possible!  Are there any areas where my contributions would be valuable?</p>
+
+
+
+<a name="321756938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321756938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321756938">(Jan 17 2023 at 05:35)</a>:</h4>
+<p>I'm pretty sure Std would happily add the List and Array lemmas you described. Super cool work!</p>
+
+
+
+<a name="321777851"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321777851" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321777851">(Jan 17 2023 at 08:38)</a>:</h4>
+<p>Here are some partial answers:</p>
+<ol>
+<li>Unfortunately it's not clear to people at first that Lean and mathlib are separate things. We sure could ask the Lean devs to link back to Zulip, but they really are different projects</li>
+<li>Separating <code>def</code>s and <code>lemma</code>s seems very useful, yes!</li>
+<li>Dummy line</li>
+<li>Dummy line</li>
+<li>Dummy line</li>
+<li>Dummy line</li>
+<li>The automation on finding the list generated by <code>simp?</code> is... <code>simp</code>. If it significantly slowed down your proof, it's probably that you were either calling it on not such a simpable goal, or it tried to use bad simp lemmas that you added.</li>
+<li>This problem should be solved once someone has reimplemented <code>omega</code>, but in the meantime <code>zify</code> i indeed what you want to use and maintain.</li>
+<li>Dummy line</li>
+<li>Do you know about <code>simp_rw</code>? It's a call to <code>simp</code> configured to feel like <code>rw</code>.</li>
+<li>Dummy line</li>
+<li>Dummy line</li>
+<li>Is your <code>Nat.digit</code> <a href="https://leanprover-community.github.io/mathlib_docs/find/nat.digits">docs#nat.digits</a>? It hasn't been ported yet.</li>
+<li>
+<p>More specific feedback:</p>
+<ul>
+<li>Lemmas about <code>IsInfix</code>/<code>IsPrefix</code>/<code>IsSuffix</code> are in file4#Mathlib/Data/List/Infix. They might not have been ported when you looked for them.</li>
+<li>What basic <code>WithTop</code> lemmas?</li>
+<li>Weirdly enough, we seem not to have your <code>Nat.sub_sub_eq_add_sub_of_le</code>. It should be called <code>tsub_tsub_eq_add_tsub</code>, and the closest I could find is <a href="https://leanprover-community.github.io/mathlib_docs/find/tsub_tsub_le_tsub_add">docs#tsub_tsub_le_tsub_add</a></li>
+</ul>
+</li>
+</ol>
+
+
+
+<a name="321777945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321777945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321777945">(Jan 17 2023 at 08:39)</a>:</h4>
+<p>Ugh, it renumbered everything <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+<a name="321788031"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321788031" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321788031">(Jan 17 2023 at 09:38)</a>:</h4>
+<p>Regarding your item 9, I usually put a <code>_</code> to see what the tactic state really is.</p>
+
+
+
+<a name="321904512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321904512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Salwen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321904512">(Jan 17 2023 at 19:04)</a>:</h4>
+<p>1  I don't see any place besides <a href="https://leanprover-community.github.io/mathlib4_docs/">https://leanprover-community.github.io/mathlib4_docs/</a> where <code>Std</code> is documented.  The <a href="https://leanprover.github.io/documentation/">lean documentation page</a> links the Zulip chat, but doesn't link the mathlib4_docs page, which I think it should, regardless of the organizational separateness of lean and mathlib.<br>
+....<br>
+7 I didn't mean automating the simplification, but automating the textual replacement.   I was thinking of llike a vscode shortcut that would replace <code>simp</code> with the <code>simp only form</code>.  I will experiment more to see what is actually causing the slowdown, because I was seeing simps of over a second, and I don't think I was doing anything pathological.<br>
+...<br>
+10  I have tried <code>simp_rw</code>, but it behaves too much like <code>simp</code> in the ways I didn't like (repeated rewriting,  no error messages).<br>
+...<br>
+13 I think <code>nat.digits</code> is already ported to <code>Nat.toDigits</code>. My  <code>Nat.digit</code> is just <code>def Nat.digit (base:ℕ) (n:ℕ) (index:ℕ): ℕ := (n / base^index) % base</code><br>
+...<br>
+14 Ahh, I may have also missed some lemmas due to the two names used for the same relation (<code>isInfix</code> and <code>infix</code>).  Is there a reason why it's this way?</p>
+<p>The WithTop lemmas were <code>lemma WithTop.untop'_min_left [LinearOrder α] (x: α) (y: WithTop α): untop' d (min ↑x y) = min x (untop' x y)</code> and the symmetric one.</p>
+<p>More generally, how should I go about contributing to Mathlib4/Std4? What's the next step, just opening a PR with all the lemmas I think would be useful?</p>
+
+
+
+<a name="321905180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321905180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321905180">(Jan 17 2023 at 19:07)</a>:</h4>
+<p>Right now mathlib4 isn't seeking new contributions (unless you want to also backport them to mathlib3) -- we're trying to keep mathlib3 and mathlib4 completely in sync during the porting process.</p>
+
+
+
+<a name="321906238"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321906238" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321906238">(Jan 17 2023 at 19:12)</a>:</h4>
+<p>I think Std4 is available for contributing though, right?</p>
+
+
+
+<a name="321922329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321922329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Dan Velleman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321922329">(Jan 17 2023 at 20:42)</a>:</h4>
+<p>Another solution for item 9 is to put <code>done</code> after <code>by</code>, and then write your proof between <code>by</code> and <code>done</code>.  There will be a red squiggle under <code>done</code> until the proof is complete, at which point the red squiggle will disappear.</p>
+
+
+
+<a name="321931919"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321931919" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321931919">(Jan 17 2023 at 21:46)</a>:</h4>
+<p>Please provide an example for 9), there have been various bug fixes regarding that</p>
+
+
+
+<a name="321943908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/321943908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Salwen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#321943908">(Jan 17 2023 at 23:10)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions/near/321931919">said</a>:</p>
+<blockquote>
+<p>Please provide an example for 9), there have been various bug fixes regarding that</p>
+</blockquote>
+<p>I could have sworn that like yesterday this was happening to me every time, but now I can't even get it to happen once. Was there a recent bugfix?</p>
+
+
+
+<a name="322002845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Takeaways%20from%20proving%20Advent%20of%20Code%20solutions/near/322002845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Takeaways.20from.20proving.20Advent.20of.20Code.20solutions.html#322002845">(Jan 18 2023 at 09:12)</a>:</h4>
+<p>Not in the last month or so</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

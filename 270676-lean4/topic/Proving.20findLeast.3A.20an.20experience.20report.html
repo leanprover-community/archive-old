@@ -1,0 +1,1386 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html">Proving findLeast: an experience report</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="233923963"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/233923963" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#233923963">(Apr 10 2021 at 04:10)</a>:</h4>
+<p>This originated in a question by <span class="user-mention silent" data-user-id="110865">Jeremy Avigad</span> about how to prove that this function:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">findLeast</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">smallest</span> <span class="o">:=</span> <span class="n">a</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
+  <span class="n">for</span> <span class="n">i</span> <span class="k">in</span> <span class="o">[</span><span class="mi">1</span><span class="o">:</span><span class="n">a.size</span><span class="o">]</span> <span class="k">do</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span> <span class="bp">≤</span> <span class="n">smallest</span> <span class="k">then</span>
+      <span class="n">smallest</span> <span class="o">:=</span> <span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+  <span class="n">return</span> <span class="n">smallest</span>
+
+<span class="k">#eval</span> <span class="n">findLeast</span> <span class="bp">#</span><span class="o">[</span><span class="mi">8</span><span class="o">,</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">10</span><span class="o">,</span> <span class="mi">4</span><span class="o">,</span> <span class="mi">6</span><span class="o">]</span>
+</code></pre></div>
+<p>actually computes the least element of the array. The complete proof is here: <a href="https://gist.github.com/digama0/404b4a49ccf378847b7ad2c12374bae2">https://gist.github.com/digama0/404b4a49ccf378847b7ad2c12374bae2</a></p>
+<p>My experience report: There are still huge missing pieces and a lot of things are significantly more painful compared to lean 3. (Warning: this will come off a bit harsh, but I've tried to turn the unfocused frustration into as actionable items as I could.)</p>
+<ul>
+<li>The <code>trustme</code> tactic is a hack to work around the lack of equation lemmas. It acts like <code>exact</code> except it doesn't check that the given term has the correct type; it's safe because the kernel will catch you if you do something wrong, but it lets us implement <code>delta</code> in this case, to prove <code>loop_eq</code>, which would be <code>by delta loop</code> in lean 3.<ul>
+<li>This relates to <a href="#narrow/stream/270676-lean4/topic/Smart.20unfolding.20produces.20ununfoldable.20terms">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Smart.20unfolding.20produces.20ununfoldable.20terms</a> . As far as I know, there is no way in lean 4 currently to prove the theorem without this "cheating" tactic.</li>
+</ul>
+</li>
+<li>Stating the type of <code>loop_eq</code> is a challenge. Taking the result of <code>#print loop</code> directly doesn't work for a number of type inference reasons. It seems that the delaborator still needs some more work.</li>
+<li>I originally tried to prove <code>findLeast_min</code> with a single large theorem, but local let was not as powerful as I first thought, so I eventually abandoned it and this version uses a definition <code>findLeastRec</code> for the inner let instead.<ul>
+<li>More specifically, I found that using local definitions with <code>theorem foo := ... where bar := ...</code>, the definition of <code>bar</code> is not available in <code>foo</code>, it only appears as a local hypothesis, like <code>have bar := ...</code> which is no good for a definition like <code>findLeastRec</code>.</li>
+</ul>
+</li>
+<li><code>cases</code> and the <code>match</code> tactic seem to do approximately the same thing, but they are each limited in different ways. The <code>match</code> tactic inherits from the <code>match</code> term the undesirable behavior that it does not generalize other variables in the context dependent on the one being pattern matched, unlike <code>cases</code> - for example if <code>h : x &lt; y</code> is in the context, <code>match x with | 0 =&gt; ...</code>, you lose the fact that <code>0 &lt; y</code>. On the other hand, <code>cases</code> apparently does not support nested pattern matches or the ability to use other expressions in the branches, for example matching a <code>Nat</code> as <code>0</code> and <code>n+1</code> instead of <code>zero</code> and <code>succ n</code> (and putting those terms in the goal).</li>
+<li>
+<p>Keeping the tactic proof well formed is a challenge, and sometimes the whitespace sensitivity causes surprises. I particularly miss being able to use <code>{ }</code> to create blocks; lean 4 <code>{}</code> blocks don't work well with the indentation rules.</p>
+<ul>
+<li>
+<p>More specifically:</p>
+<div class="codehilite"><pre><span></span><code>have foo : type
+{ tac
+  tac }
+</code></pre></div>
+
+<p>doesn't work like it would in lean 3, the indentation level of the two tactics is different and this messes things up.</p>
+</li>
+<li>
+<p><code>have : type</code> doesn't work as a tactic without <code>from</code> or <code>by</code> afterward.</p>
+</li>
+<li><code>have := term</code> doesn't work. I use this all the time in lean 3 and <code>have _ from term</code> is not a great substitute. This is nothing that a mathlib prelude can't solve, though. (Can we just eliminate <code>from</code> here in the syntax? I'd rather it just always use <code>:=</code>.)</li>
+<li>Implicit lambdas caused a number of issues because they get eagerly applied everywhere and it's difficult to control this behavior. I ended up having to avoid them entirely in things like the induction hypothesis. We need semi-implicits, I think.</li>
+<li>I should find a more specific example here, but implicit lambda introduction was something I had to force-disable more often than use.</li>
+<li>There are lots and lots of inaccessible names, which makes quick and dirty proving much more onerous. I generally write proofs in quick and dirty mode first and then clean them up once the proof is complete, because iteration on a dirty proof is a lot faster. Lean 4 makes you be a lot more explicit in each step which makes this harder.</li>
+<li>Writing tactics and finding things is very difficult. In lean 3, even without anything imported the entire tactic framework is available in <code>init</code> and everything is in namespace <code>tactic</code>. In lean 4 there are a ton of different files and all the prominent constants like <code>CoreM</code>, <code>ElabTermM</code>, <code>elabTerm</code> are in different namespaces and require different files to be imported, and I had to go spelunking through the lean 4 source to find where anything is.</li>
+<li>There are no tactic writing docs in the lean 4 reference, almost no tactic writing examples in tests, and looking through the lean 4 source for examples is of limited utility when many of the tools used inside lean 4 are of the <code>builtin</code> variety and you the user are supposed to be using something else.</li>
+</ul>
+</li>
+</ul>
+
+
+
+<a name="233931245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/233931245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#233931245">(Apr 10 2021 at 06:33)</a>:</h4>
+<p>About <code>have _ := _</code> vs <code>have _, from _</code> in lean3 (sorry for semi-offtopic). When I write <code>have a = 5, from h _</code>, it is guaranteed to fail unless Lean can find <code>_</code>. With <code>have a = 5 := h _</code> it creates extra goals.</p>
+
+
+
+<a name="233939099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/233939099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#233939099">(Apr 10 2021 at 08:44)</a>:</h4>
+<p>Actually, that brings me to another point of note: <code>refine</code> in lean 4 acts basically like lean 3 <code>exact</code>, in that any <code>_</code> get red squiggles on them and the tactic does not proceed. In order to recover lean 3 <code>refine</code> you have to use <code>?_</code> instead. At the same time <code>exact</code> also does that, except it has a much worse error reporting - any error and the whole <code>exact</code> line gets highlighted. As a result, it seems like it might be better to just ditch <code>exact</code> and make it a synonym for <code>refine</code>, since it supports both modes explicitly.</p>
+
+
+
+<a name="234190524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234190524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234190524">(Apr 12 2021 at 16:37)</a>:</h4>
+<blockquote>
+<p>More specifically, I found that using local definitions with theorem foo := ... where bar := ..., the definition of bar is not available in foo, it only appears as a local hypothesis, like have bar := ... which is no good for a definition like findLeastRec.</p>
+</blockquote>
+<p>FYI</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">lookAtLetDef</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">bar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="k">have</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">bar</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- ok</span>
+  <span class="gr">sorry</span>
+
+<span class="kd">theorem</span> <span class="n">lookAtWhereDef</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">have</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">bar</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- type error</span>
+  <span class="gr">sorry</span>
+  <span class="n">where</span> <span class="n">bar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span>
+
+<span class="kd">theorem</span> <span class="n">lookAtLetRecDef</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">rec</span> <span class="n">bar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="k">have</span> <span class="n">foo</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">bar</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- type error</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="234192198"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234192198" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234192198">(Apr 12 2021 at 16:48)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">lbar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="k">let</span> <span class="n">rec</span> <span class="n">lrbar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="n">lbar</span> <span class="n">n</span> <span class="bp">+</span> <span class="n">lrbar</span> <span class="n">n</span> <span class="bp">+</span> <span class="n">wbar</span> <span class="n">n</span> <span class="n">where</span> <span class="n">wbar</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span>
+
+<span class="k">#print</span> <span class="n">foo</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def foo : Nat → Nat :=</span>
+<span class="cm">fun (n : Nat) =&gt;</span>
+<span class="cm">  (fun (wbar : Nat → Nat) =&gt;</span>
+<span class="cm">      let lbar : Nat → Nat := fun (n : Nat) =&gt; n + 1;</span>
+<span class="cm">      (fun (lrbar : Nat → Nat) =&gt; lbar n + lrbar n + wbar n) foo.lrbar)</span>
+<span class="cm">    foo.wbar</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>So both <code>let rec</code> and <code>where</code> use auxiliary definitions, and my guess is that there is good reason to treat them as opaque while elaborating <code>foo</code>. But maybe <code>where</code> could notice when it is not recursive and be elaborated as a regular <code>let</code>.</p>
+
+
+
+<a name="234193192"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234193192" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234193192">(Apr 12 2021 at 16:54)</a>:</h4>
+<p>In my case, I wanted the <code>let rec</code> to turn into an auxiliary definition, not a local constant</p>
+
+
+
+<a name="234193211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234193211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234193211">(Apr 12 2021 at 16:54)</a>:</h4>
+<blockquote>
+<p>It seems that the delaborator still needs some more work.</p>
+</blockquote>
+<p>The delaborator definitely needs more work (<a href="https://github.com/leanprover/lean4/issues/368">https://github.com/leanprover/lean4/issues/368</a>) but it should be rare to need to elaborate <code>brecOn</code>s once equation lemmas are being generated.</p>
+
+
+
+<a name="234193477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234193477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234193477">(Apr 12 2021 at 16:56)</a>:</h4>
+<p>specifically, I would like the delaborator to <em>always</em> produce a term that typechecks. For anything with a higher order matching problem it should make the <code>motive := ...</code> explicit</p>
+
+
+
+<a name="234193806"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234193806" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234193806">(Apr 12 2021 at 16:58)</a>:</h4>
+<p>That is indeed the stated goal in the issue I linked to above. "round trip" means it re-elaborates to the original term.</p>
+
+
+
+<a name="234194094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234194094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234194094">(Apr 12 2021 at 17:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234193192">said</a>:</p>
+<blockquote>
+<p>In my case, I wanted the <code>let rec</code> to turn into an auxiliary definition, not a local constant</p>
+</blockquote>
+<p>In your case, the function wasn't recursive.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">False</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">findLeastRec</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">lo</span> <span class="n">hi</span> <span class="n">z</span> <span class="n">j</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+    <span class="n">Std.Range.forIn.loop</span> <span class="o">(</span><span class="n">m</span> <span class="o">:=</span> <span class="n">Id</span><span class="o">)</span> <span class="o">[</span><span class="n">lo</span><span class="o">:</span><span class="n">hi</span><span class="o">]</span>
+      <span class="o">(</span><span class="k">fun</span> <span class="n">i</span> <span class="n">r</span> <span class="bp">=&gt;</span> <span class="k">if</span> <span class="n">f</span> <span class="n">i</span> <span class="bp">≤</span> <span class="n">r</span> <span class="k">then</span> <span class="n">yield</span> <span class="o">(</span><span class="n">f</span> <span class="n">i</span><span class="o">)</span> <span class="k">else</span> <span class="n">yield</span> <span class="n">r</span><span class="o">)</span> <span class="n">z</span> <span class="n">j</span> <span class="n">b</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="234194243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234194243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234194243">(Apr 12 2021 at 17:01)</a>:</h4>
+<p>Oh I guess that's true. I think it was in another version of the proof</p>
+
+
+
+<a name="234194684"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234194684" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234194684">(Apr 12 2021 at 17:03)</a>:</h4>
+<blockquote>
+<p>In my case, I wanted the let rec to turn into an auxiliary definition, not a local constant</p>
+</blockquote>
+<p>I think the issue is that it could be mutually recursive with the top-level definition. So similar to my suggestion that <code>where</code> detect when it is not recursive, perhaps <code>letrec</code> and <code>where</code> could also detect when it is "self-contained recursive", i.e. safe to turn into an auxiliary definition that does not refer to the current one.</p>
+
+
+
+<a name="234195144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234195144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234195144">(Apr 12 2021 at 17:06)</a>:</h4>
+<p>Oh, that's interesting. How commonly is that used? Maybe there should be a special indicator for that, like <code>where mutual</code> or something</p>
+
+
+
+<a name="234195337"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234195337" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234195337">(Apr 12 2021 at 17:08)</a>:</h4>
+<p>detecting self-contained recursive is tough because you have to first run the tactics to find out what the term is, and the data given to the tactics depends on the result of the analysis (since they would be able to see whether an auxiliary definition was created)</p>
+
+
+
+<a name="234196102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234196102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234196102">(Apr 12 2021 at 17:13)</a>:</h4>
+<p>Currently, both of these work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+ <span class="n">partial</span> <span class="kd">def</span> <span class="n">mfoo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">mbar</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span>
+ <span class="n">partial</span> <span class="kd">def</span> <span class="n">mbar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">mfoo</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span>
+<span class="kd">end</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">wbar</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">wbar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="234196907"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234196907" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234196907">(Apr 12 2021 at 17:19)</a>:</h4>
+<p>I think <code>where mutual</code> is tricky because you might batch many different functions in a <code>where</code> clause. But what about function-specific prefix?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">partial</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="n">base</span> <span class="k">else</span> <span class="n">wbar</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="n">where</span>
+  <span class="kd">mutual</span> <span class="n">wbar</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span>
+  <span class="n">base</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="mi">0</span>
+</code></pre></div>
+
+
+
+<a name="234197677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234197677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234197677">(Apr 12 2021 at 17:24)</a>:</h4>
+<p>I was thinking you would either make all of them mutual or none</p>
+
+
+
+<a name="234197974"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234197974" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234197974">(Apr 12 2021 at 17:26)</a>:</h4>
+<p>but your version reads well</p>
+
+
+
+<a name="234198205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234198205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234198205">(Apr 12 2021 at 17:28)</a>:</h4>
+<p>if you could put <code>def</code> or <code>let</code> or <code>have</code> on definitions in where clauses that would also let you control whether they show up as local constants, auxiliary definitions, or let bindings</p>
+
+
+
+<a name="234198407"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234198407" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234198407">(Apr 12 2021 at 17:29)</a>:</h4>
+<blockquote>
+<p>for example if h : x &lt; y is in the context, match x with | 0 =&gt; ..., you lose the fact that 0 &lt; y. </p>
+</blockquote>
+<p>And presumably you think it is too annoying to match on <code>h</code> explicitly as in:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">n</span><span class="o">,</span> <span class="n">h</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span><span class="o">,</span>   <span class="n">h2</span> <span class="bp">=&gt;</span> <span class="n">h2</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">h2</span> <span class="bp">=&gt;</span> <span class="n">h2</span>
+</code></pre></div>
+<p>I think it is good practice to match on the <code>h</code> explicitly, but agree it is annoying to need to put it in every branch. What about a macro:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">n</span> <span class="n">generalizing</span> <span class="n">h</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+
+<span class="c1">-- could turn into:</span>
+<span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">n</span><span class="o">,</span>  <span class="n">h</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span><span class="o">,</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+</code></pre></div>
+
+
+
+<a name="234199249"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234199249" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234199249">(Apr 12 2021 at 17:35)</a>:</h4>
+<p>In <code>cases</code> , you just use <code>cases n</code> and it generalizes everything in the context that depends on <code>n</code>. I've never seen a situation where this was undesirable</p>
+
+
+
+<a name="234199376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234199376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234199376">(Apr 12 2021 at 17:36)</a>:</h4>
+<p><code>induction</code> is another matter, but <code>match</code> doesn't support induction anyway</p>
+
+
+
+<a name="234199593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234199593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234199593">(Apr 12 2021 at 17:37)</a>:</h4>
+<p>Note that <code>induction</code> will automatically add <code>generalizing h</code> whenever <code>h</code> depends on the induction variable</p>
+
+
+
+<a name="234199624"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234199624" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234199624">(Apr 12 2021 at 17:38)</a>:</h4>
+<p>so you actually have to use <code>clear</code> if you don't want that</p>
+
+
+
+<a name="234205676"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234205676" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234205676">(Apr 12 2021 at 18:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234198205">said</a>:</p>
+<blockquote>
+<p>if you could put <code>def</code> or <code>let</code> or <code>have</code> on definitions in where clauses that would also let you control whether they show up as local constants, auxiliary definitions, or let bindings</p>
+</blockquote>
+<p>I tentatively like this proposal</p>
+
+
+
+<a name="234206402"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234206402" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234206402">(Apr 12 2021 at 18:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234199624">said</a>:</p>
+<blockquote>
+<p>so you actually have to use <code>clear</code> if you don't want that</p>
+</blockquote>
+<p>Seems like apples-to-oranges since <code>match</code> is term mode, not tactic mode. </p>
+<blockquote>
+<p>On the other hand, cases apparently does not support nested pattern matches or the ability to use other expressions in the branches, for example matching a Nat as 0 and n+1 instead of zero and succ n (and putting those terms in the goal).</p>
+</blockquote>
+<p>Can you write the syntax you would  want for <code>cases</code> and <code>induction</code>?</p>
+
+
+
+<a name="234207501"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234207501" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234207501">(Apr 12 2021 at 18:28)</a>:</h4>
+<blockquote>
+<p>Writing tactics and finding things is very difficult.</p>
+</blockquote>
+<p>FYI here is the API for builtin tactics designed for interactive mode: <a href="https://github.com/leanprover/lean4/blob/master/src/Init/Notation.lean#L189-L325">https://github.com/leanprover/lean4/blob/master/src/Init/Notation.lean#L189-L325</a></p>
+
+
+
+<a name="234207938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234207938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234207938">(Apr 12 2021 at 18:31)</a>:</h4>
+<blockquote>
+<p>Writing tactics and finding things is very difficult.</p>
+</blockquote>
+<p>I agree, though one doesn't need to find nearly as much when there are working, illustrative examples to copy-paste-tweak. How about we start collecting a set of informative examples in mathlib-prelude?</p>
+
+
+
+<a name="234208506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234208506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234208506">(Apr 12 2021 at 18:34)</a>:</h4>
+<p>Here's an example of a macro that took me very long to figure out. I'm sure it's still buggy. How does one use <code>lemma</code> instead of <code>theorem</code>?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="s2">":="</span> <span class="n">s</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="bp">$</span><span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s</span><span class="o">:</span><span class="n">term</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="234208930"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234208930" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234208930">(Apr 12 2021 at 18:37)</a>:</h4>
+<p>Also, there are a few tricks we can put in a doc, e.g. to find how a command (e.g. <code>namespace</code>) is elaborated, </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">$</span> <span class="n">grep</span> <span class="bp">-</span><span class="n">rni</span> <span class="s2">"commandElab.*namespace"</span> <span class="bp">../../</span><span class="n">lean4</span><span class="bp">/</span><span class="n">src</span><span class="bp">/</span><span class="n">Lean</span>
+<span class="bp">../../</span><span class="n">lean4</span><span class="bp">/</span><span class="n">src</span><span class="bp">/</span><span class="n">Lean</span><span class="bp">/</span><span class="n">Elab</span><span class="bp">/</span><span class="n">Command.lean</span><span class="o">:</span><span class="mi">376</span><span class="o">:</span><span class="kd">@[builtinCommandElab «namespace»]</span> <span class="kd">def</span> <span class="n">elabNamespace</span> <span class="o">:</span> <span class="n">CommandElab</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="bp">=&gt;</span>
+</code></pre></div>
+<p>or parsed:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">$</span> <span class="n">grep</span> <span class="bp">-</span><span class="n">rni</span> <span class="s2">"commandParser.*namespace"</span> <span class="bp">../../</span><span class="n">lean4</span><span class="bp">/</span><span class="n">src</span><span class="bp">/</span><span class="n">Lean</span><span class="bp">/</span>
+<span class="bp">../../</span><span class="n">lean4</span><span class="bp">/</span><span class="n">src</span><span class="bp">/</span><span class="n">Lean</span><span class="bp">/</span><span class="n">Parser</span><span class="bp">/</span><span class="n">Command.lean</span><span class="o">:</span><span class="mi">67</span><span class="o">:</span><span class="kd">@[builtinCommandParser]</span> <span class="kd">def</span> <span class="bp">«</span><span class="kn">namespace</span><span class="bp">»</span>    <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"namespace "</span> <span class="bp">&gt;&gt;</span> <span class="n">ident</span>
+</code></pre></div>
+
+
+
+<a name="234209992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234209992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234209992">(Apr 12 2021 at 18:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234206402">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234199624">said</a>:</p>
+<blockquote>
+<p>so you actually have to use <code>clear</code> if you don't want that</p>
+</blockquote>
+<p>Seems like apples-to-oranges since <code>match</code> is term mode, not tactic mode. </p>
+</blockquote>
+<p>My original comment was about the <code>match</code> <em>tactic</em> as compared to the <code>cases</code> tactic</p>
+
+
+
+<a name="234210388"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234210388" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234210388">(Apr 12 2021 at 18:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234206402">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>On the other hand, cases apparently does not support nested pattern matches or the ability to use other expressions in the branches, for example matching a Nat as 0 and n+1 instead of zero and succ n (and putting those terms in the goal).</p>
+</blockquote>
+<p>Can you write the syntax you would  want for <code>cases</code> and <code>induction</code>?</p>
+</blockquote>
+<p>here's a start:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">cases</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+<span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+</code></pre></div>
+<p><code>induction</code> is harder since it has the extra <code>ih</code> argument hanging off.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">induction</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+<span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">ih</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+</code></pre></div>
+
+
+
+<a name="234211282"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211282" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211282">(Apr 12 2021 at 18:54)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234208506">said</a>:</p>
+<blockquote>
+<p>Here's an example of a macro that took me very long to figure out. I'm sure it's still buggy. How does one use <code>lemma</code> instead of <code>theorem</code>?</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="s2">":="</span> <span class="n">s</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="bp">$</span><span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s</span><span class="o">:</span><span class="n">term</span><span class="o">)</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>The only issue I see with yours is that <code>theorem</code> is actually a bit more powerful than that: <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Parser/Command.lean#L40">https://github.com/leanprover/lean4/blob/master/src/Lean/Parser/Command.lean#L40</a> After adding a line to that file to export the <code>declVal</code> shorthand, you can write:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="n">val</span><span class="o">:</span><span class="n">declVal</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span> <span class="bp">$</span><span class="n">sig</span> <span class="bp">$</span><span class="n">val</span><span class="o">)</span>
+</code></pre></div>
+<p>I believe this will make <code>lemma</code> and <code>theorem</code> equivalent.</p>
+
+
+
+<a name="234211582"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211582" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211582">(Apr 12 2021 at 18:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234208506">said</a>:</p>
+<blockquote>
+<p>Here's an example of a macro that took me very long to figure out. I'm sure it's still buggy. How does one use <code>lemma</code> instead of <code>theorem</code>?</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="s2">":="</span> <span class="n">s</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="bp">$</span><span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s</span><span class="o">:</span><span class="n">term</span><span class="o">)</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>Based on the <code>theorem</code> parser, I think you want the last bit to be <code>declVal</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="n">val</span><span class="o">:</span><span class="n">declVal</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="bp">$</span><span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="bp">$</span><span class="n">val</span><span class="o">:</span><span class="n">declVal</span><span class="o">)</span>
+</code></pre></div>
+<p>However, this causes the same quotation panic that I've triggered in two other threads</p>
+
+
+
+<a name="234211681"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211681" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211681">(Apr 12 2021 at 18:57)</a>:</h4>
+<p>Right, so the working one I have is weaker, but functional. I didn't file a bug report on the panic, rather tried to find a stopgap partial replacement.</p>
+
+
+
+<a name="234211710"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211710" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211710">(Apr 12 2021 at 18:57)</a>:</h4>
+<blockquote>
+<p>After adding a line to that file to export the declVal shorthand,</p>
+</blockquote>
+<p>Oh, that sounds problematic</p>
+
+
+
+<a name="234211768"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211768" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211768">(Apr 12 2021 at 18:58)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234211710">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>After adding a line to that file to export the declVal shorthand, you can write:</p>
+</blockquote>
+<p>Oh, that sounds problematic</p>
+</blockquote>
+<p>I will PR it.</p>
+
+
+
+<a name="234211882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234211882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234211882">(Apr 12 2021 at 18:59)</a>:</h4>
+<p>This actually relates to another issue I've hit on: there are a lot of <code>private</code> functions in lean 4. I had to kill these with fire in lean 3 because they really hamper reuse</p>
+
+
+
+<a name="234212072"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212072" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212072">(Apr 12 2021 at 19:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234211882">said</a>:</p>
+<blockquote>
+<p>This actually relates to another issue I've hit on: there are a lot of <code>private</code> functions in lean 4. I had to kill these with fire in lean 3 because they really hamper reuse</p>
+</blockquote>
+<p>Can you please explain the issue?</p>
+
+
+
+<a name="234212082"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212082" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212082">(Apr 12 2021 at 19:00)</a>:</h4>
+<p>I recently tried to get the parsed <code>PreDeclaration</code> for a theorem. In order to do so, I had to bring in 15 or so (large) private definitions, before eventually getting stuck on a private macro, which I have no idea how to duplicate</p>
+
+
+
+<a name="234212116"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212116" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212116">(Apr 12 2021 at 19:00)</a>:</h4>
+<p>You can't call private functions</p>
+
+
+
+<a name="234212244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212244">(Apr 12 2021 at 19:01)</a>:</h4>
+<p>so that means if you want to adapt a function that calls a private function, you have to copy and paste it, as well as any private functions it calls and so on transitively</p>
+
+
+
+<a name="234212251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212251">(Apr 12 2021 at 19:01)</a>:</h4>
+<p>it's a huge pain</p>
+
+
+
+<a name="234212449"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212449" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212449">(Apr 12 2021 at 19:02)</a>:</h4>
+<p>I think <code>private</code> should never be used. You never know when someone is going to want to use your function</p>
+
+
+
+<a name="234212503"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212503" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212503">(Apr 12 2021 at 19:02)</a>:</h4>
+<p>Is this just for debugging?</p>
+
+
+
+<a name="234212542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212542">(Apr 12 2021 at 19:03)</a>:</h4>
+<p>Yes and no</p>
+
+
+
+<a name="234212652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212652">(Apr 12 2021 at 19:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234212449">said</a>:</p>
+<blockquote>
+<p>I think <code>private</code> should never be used. You never know when someone is going to want to use your function</p>
+</blockquote>
+<p>This seems pretty extreme. Encapsulation is generally considered good design.</p>
+
+
+
+<a name="234212746"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212746" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212746">(Apr 12 2021 at 19:04)</a>:</h4>
+<p>In that particular example it was for debugging, but it's totally legitimate to want to work with <code>PreDefinition</code> or any other implementation item</p>
+
+
+
+<a name="234212798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212798">(Apr 12 2021 at 19:04)</a>:</h4>
+<p>Not in a theorem prover that is meant to be hacked on by users</p>
+
+
+
+<a name="234212803"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212803" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212803">(Apr 12 2021 at 19:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234212244">said</a>:</p>
+<blockquote>
+<p>so that means if you want to adapt a function that calls a private function, you have to copy and paste it, as well as any private functions it calls and so on transitively</p>
+</blockquote>
+<p>Personally, I tweak lean4 and rebuild all the time for things like this. The slow recompilation speed is annoying but my own fault for not having a threadripper.</p>
+
+
+
+<a name="234212835"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212835" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212835">(Apr 12 2021 at 19:04)</a>:</h4>
+<p>Yeah, I'm worried I'm going to need to fork lean 4</p>
+
+
+
+<a name="234212905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234212905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234212905">(Apr 12 2021 at 19:05)</a>:</h4>
+<p>Ultimately I thought the idea was that we don't need to</p>
+
+
+
+<a name="234213489"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234213489" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234213489">(Apr 12 2021 at 19:08)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234212652">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234212449">said</a>:</p>
+<blockquote>
+<p>I think <code>private</code> should never be used. You never know when someone is going to want to use your function</p>
+</blockquote>
+<p>This seems pretty extreme. Encapsulation is generally considered good design.</p>
+</blockquote>
+<p>If there was a way to open a namespace and get at the private functions this would be fine. But lean is intentionally designed to be modified and I don't think there is a single component of the system that isn't "incomplete" in the sense that users may want to add functionality to what is already there, and work with the data structures of that file</p>
+
+
+
+<a name="234213783"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234213783" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234213783">(Apr 12 2021 at 19:11)</a>:</h4>
+<p>Certainly in mathlib <em>every single time</em> someone thought it would be a good idea to put <code>private</code> it turned out to be a mistake. At minimum, it is difficult to prove theorems about a private function, so in the far future when someone decides to prove e.g. the parser correct, they will get stuck on any "encapsulation"</p>
+
+
+
+<a name="234213927"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234213927" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234213927">(Apr 12 2021 at 19:12)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234212835">said</a>:</p>
+<blockquote>
+<p>Yeah, I'm worried I'm going to need to fork lean 4</p>
+</blockquote>
+<p>FWIW I don't think it would be so bad for there to be a lean-community:lean4 as long as the patches were small enough that it could be frequently rebased.</p>
+
+
+
+<a name="234213962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234213962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234213962">(Apr 12 2021 at 19:12)</a>:</h4>
+<p>I can live with that if others can</p>
+
+
+
+<a name="234214091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234214091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234214091">(Apr 12 2021 at 19:13)</a>:</h4>
+<p>At least then I can get the mountain of PRs I'm holding off on off my back</p>
+
+
+
+<a name="234214548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234214548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234214548">(Apr 12 2021 at 19:16)</a>:</h4>
+<p>Even if the goal is to keep the lean-community version exactly equal to the main one, it may still make sense to fork now and experiment with your suggested changes. Leo will be much more likely to consider a PR down the road if it has been stress-tested and if there is community consensus on its value.</p>
+
+
+
+<a name="234214657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234214657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234214657">(Apr 12 2021 at 19:17)</a>:</h4>
+<p>(okay, not a mountain, a few pebbles. But I don't know how to build the mountain when I can't place the first pebble.)</p>
+
+
+
+<a name="234214753"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234214753" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234214753">(Apr 12 2021 at 19:18)</a>:</h4>
+<p>Can someone who knows how to do so set up a community lean 4 nightly?</p>
+
+
+
+<a name="234226274"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234226274" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234226274">(Apr 12 2021 at 20:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/233923963">said</a>:</p>
+<blockquote>
+<ul>
+<li>Keeping the tactic proof well formed is a challenge, and sometimes the whitespace sensitivity causes surprises.</li>
+</ul>
+</blockquote>
+<p>Note that you can also use braces and semicolons:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span>
+   <span class="k">match</span> <span class="n">n</span> <span class="k">with</span>
+ <span class="bp">|</span> <span class="mi">0</span>   <span class="bp">=&gt;</span> <span class="n">_</span>
+    <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">_</span><span class="bp">;</span> <span class="n">exact</span> <span class="gr">sorry</span><span class="bp">;</span>
+     <span class="n">exact</span> <span class="gr">sorry</span>
+<span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="234227025"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227025" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227025">(Apr 12 2021 at 20:42)</a>:</h4>
+<p>not quite:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span>
+   <span class="k">match</span> <span class="n">n</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="mi">0</span>   <span class="bp">=&gt;</span> <span class="n">_</span>
+    <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">_</span><span class="bp">;</span> <span class="n">exact</span> <span class="gr">sorry</span><span class="bp">;</span>
+     <span class="n">exact</span> <span class="gr">sorry</span>
+<span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="234227163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227163">(Apr 12 2021 at 20:44)</a>:</h4>
+<p>Ah, it looks like all subsequent bars after the first need to have at least as much offset, even in tactic-mode-with-bars</p>
+
+
+
+<a name="234227264"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227264" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227264">(Apr 12 2021 at 20:44)</a>:</h4>
+<p>I haven't found a whitespace insensitive version of the syntax either</p>
+
+
+
+<a name="234227472"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227472" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227472">(Apr 12 2021 at 20:46)</a>:</h4>
+<p>Oh, also it seems like <code>_</code> is a tactic now? I have a macro in my test file for that</p>
+
+
+
+<a name="234227565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227565">(Apr 12 2021 at 20:46)</a>:</h4>
+<p>I used <code>refine _</code> as the expansion because that gives a red squiggle and tells you the type, but also eats a goal and allows the rest to proceed, like <code>sorry</code></p>
+
+
+
+<a name="234227705"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227705" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227705">(Apr 12 2021 at 20:48)</a>:</h4>
+<p>This is also the reason why</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">have</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">type</span>
+<span class="o">{</span> <span class="n">tac</span>
+  <span class="n">tac</span> <span class="o">}</span>
+</code></pre></div>
+<p>didn't work: inside braces, you <em>must</em> use semicolons. I've written a fair chunk of tactic proofs in Lean 4, but I never noticed that one because I tend to use Lean 4's new structuring techniques (all the stuff with <code>=&gt;</code>) instead of braces.</p>
+
+
+
+<a name="234227847"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227847" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227847">(Apr 12 2021 at 20:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234227565">said</a>:</p>
+<blockquote>
+<p>I used <code>refine _</code> as the expansion because that gives a red squiggle and tells you the type, but also eats a goal and allows the rest to proceed, like <code>sorry</code></p>
+</blockquote>
+<p>The <code>match</code> tactic calls <code>refine</code> automatically (<a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Match.lean#L66">https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Match.lean#L66</a>) and has for 6 months according to GitHub's blame</p>
+
+
+
+<a name="234227853"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227853" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227853">(Apr 12 2021 at 20:49)</a>:</h4>
+<p>I'm fine with using the new structuring techniques, but it's awkward around <code>have</code> because of the <code>by</code></p>
+
+
+
+<a name="234227892"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227892" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227892">(Apr 12 2021 at 20:49)</a>:</h4>
+<p>I mean the <code>_</code> tactic, as in <code>by _</code></p>
+
+
+
+<a name="234227909"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227909" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227909">(Apr 12 2021 at 20:49)</a>:</h4>
+<p>that did not work a few weeks ago</p>
+
+
+
+<a name="234227920"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227920" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227920">(Apr 12 2021 at 20:49)</a>:</h4>
+<p>But indentation should work for that, right?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">have</span> <span class="n">t</span> <span class="kd">by</span>
+  <span class="n">t'1</span>
+  <span class="n">t'2</span>
+<span class="n">t</span>
+</code></pre></div>
+
+
+
+<a name="234227929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227929">(Apr 12 2021 at 20:49)</a>:</h4>
+<p>It does</p>
+
+
+
+<a name="234227982"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234227982" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234227982">(Apr 12 2021 at 20:50)</a>:</h4>
+<p>I just want to drop the <code>by</code></p>
+
+
+
+<a name="234228003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228003">(Apr 12 2021 at 20:50)</a>:</h4>
+<p>lean 3 doesn't need it</p>
+
+
+
+<a name="234228134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228134">(Apr 12 2021 at 20:51)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234227892">said</a>:</p>
+<blockquote>
+<p>I mean the <code>_</code> tactic, as in <code>by _</code></p>
+</blockquote>
+<p><code>theorem foo : True := by _</code> gives me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="sc">'{'</span> <span class="n">or</span> <span class="n">tactic</span>
+<span class="n">error</span><span class="o">:</span> <span class="n">unexpected</span> <span class="n">command</span>
+</code></pre></div>
+
+
+
+<a name="234228171"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228171" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228171">(Apr 12 2021 at 20:51)</a>:</h4>
+<p>Also, a common lean 3 proof style is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">have</span> <span class="o">:=</span> <span class="kd">lemma</span><span class="o">,</span>
+<span class="n">rw</span> <span class="o">[</span><span class="n">lemma2</span><span class="o">]</span> <span class="n">at</span> <span class="n">this</span><span class="o">,</span>
+<span class="n">exact</span> <span class="n">this</span>
+</code></pre></div>
+<p>This doesn't work in lean 4 because the <code>have</code> doesn't proceed until all the metavariables in <code>lemma</code> are filled (while the proof technique might be using <code>lemma2</code> and the <code>exact</code> to figure out the metavariables)</p>
+
+
+
+<a name="234228324"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228324" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228324">(Apr 12 2021 at 20:52)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> That's odd, since your badly formatted code example uses the <code>_</code> tactic twice</p>
+
+
+
+<a name="234228353"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228353" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228353">(Apr 12 2021 at 20:52)</a>:</h4>
+<p>No, because the <code>match</code> tactic is transforming the syntax to call <code>refine</code></p>
+
+
+
+<a name="234228414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228414">(Apr 12 2021 at 20:53)</a>:</h4>
+<p>you what now?</p>
+
+
+
+<a name="234228439"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228439" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228439">(Apr 12 2021 at 20:53)</a>:</h4>
+<p>how does that work?</p>
+
+
+
+<a name="234228495"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228495" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228495">(Apr 12 2021 at 20:54)</a>:</h4>
+<p>This is the link I posted a few comments above: <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Match.lean#L66-L68">https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Match.lean#L66-L68</a></p>
+
+
+
+<a name="234228630"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228630" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228630">(Apr 12 2021 at 20:55)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234227920">said</a>:</p>
+<blockquote>
+<p>But indentation should work for that, right?</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">have</span> <span class="n">t</span> <span class="kd">by</span>
+  <span class="n">t'1</span>
+  <span class="n">t'2</span>
+<span class="n">t</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>FWIW I like the <code>by</code> here.</p>
+
+
+
+<a name="234228863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228863">(Apr 12 2021 at 20:56)</a>:</h4>
+<p>Does the <code>by</code> create a new tactic scope like in lean 3?</p>
+
+
+
+<a name="234228928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234228928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234228928">(Apr 12 2021 at 20:57)</a>:</h4>
+<p>if so that might explain the reason why the <code>rwa</code> proof style fails</p>
+
+
+
+<a name="234229374"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234229374" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234229374">(Apr 12 2021 at 21:00)</a>:</h4>
+<p>Thoughts on <code>=&gt;</code> as alternative / in addition to <code>by</code>?</p>
+
+
+
+<a name="234229487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234229487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234229487">(Apr 12 2021 at 21:00)</a>:</h4>
+<p>and <code>:=</code> as alternative to <code>from</code> as I mentioned before</p>
+
+
+
+<a name="234230403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234230403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234230403">(Apr 12 2021 at 21:03)</a>:</h4>
+<p>I'm not a fan of the many syntaxes for introducing subgoals, <code>by</code> to start, <code>=&gt;</code> after cases, match, induction, <code>;</code> after refine (actually I haven't figured out how to select refine subgoals using multiple blocks yet)</p>
+
+
+
+<a name="234230671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234230671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234230671">(Apr 12 2021 at 21:04)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">refine</span> <span class="n">foo</span> <span class="bp">?</span><span class="n">_</span> <span class="bp">?</span><span class="n">_</span> <span class="bp">?</span><span class="n">_</span>
+  <span class="n">tac1a</span>
+  <span class="n">tac1b</span>
+  <span class="n">done</span>
+  <span class="n">tac2a</span>
+  <span class="n">tac2b</span>
+  <span class="n">done</span>
+  <span class="n">tac3a</span>
+  <span class="n">tac3b</span>
+  <span class="n">done</span>
+</code></pre></div>
+
+
+
+<a name="234230864"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234230864" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234230864">(Apr 12 2021 at 21:05)</a>:</h4>
+<p>With lean 3 style blocks this would be</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">refine</span> <span class="n">foo</span> <span class="bp">?</span><span class="n">_</span> <span class="bp">?</span><span class="n">_</span> <span class="bp">?</span><span class="n">_</span>
+<span class="o">{</span> <span class="n">tac1a</span>
+  <span class="n">tac1b</span> <span class="o">}</span>
+<span class="o">{</span> <span class="n">tac2a</span>
+  <span class="n">tac2b</span> <span class="o">}</span>
+<span class="o">{</span> <span class="n">tac3a</span>
+  <span class="n">tac3b</span> <span class="o">}</span>
+</code></pre></div>
+<p>all the lean 4 options seem to be a lot more verbose</p>
+
+
+
+<a name="234231414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231414">(Apr 12 2021 at 21:08)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234227705">said</a>:</p>
+<blockquote>
+<p>This is also the reason why</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">have</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">type</span>
+<span class="o">{</span> <span class="n">tac</span>
+  <span class="n">tac</span> <span class="o">}</span>
+</code></pre></div>
+<p>didn't work: inside braces, you <em>must</em> use semicolons.</p>
+</blockquote>
+<p>Can we make that work with whitespace sensitivity? The rule I want is that the column starts at the first token after the <code>{</code></p>
+
+
+
+<a name="234231537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231537">(Apr 12 2021 at 21:08)</a>:</h4>
+<p>They look both pretty bad to me. How about naming them and using <code>case</code>?</p>
+
+
+
+<a name="234231625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231625">(Apr 12 2021 at 21:09)</a>:</h4>
+<p>because they don't have names</p>
+
+
+
+<a name="234231656"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231656" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231656">(Apr 12 2021 at 21:09)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> This works for me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">A</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+<span class="kd">structure</span> <span class="n">B</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+<span class="kd">structure</span> <span class="n">C</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+
+<span class="kd">axiom</span> <span class="n">AB</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">B</span>
+<span class="kd">axiom</span> <span class="n">BC</span> <span class="o">:</span> <span class="n">B</span> <span class="bp">→</span> <span class="n">C</span>
+
+<span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">∧</span> <span class="n">C</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">refine</span> <span class="n">And.intro</span> <span class="bp">?</span><span class="n">x</span> <span class="bp">?</span><span class="n">y</span>
+  <span class="o">{</span> <span class="n">apply</span> <span class="n">BC</span><span class="bp">;</span> <span class="n">apply</span> <span class="n">AB</span><span class="bp">;</span> <span class="n">assumption</span> <span class="o">}</span>
+  <span class="o">{</span> <span class="n">apply</span> <span class="n">BC</span><span class="bp">;</span> <span class="n">apply</span> <span class="n">AB</span><span class="bp">;</span> <span class="n">assumption</span> <span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="234231752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231752">(Apr 12 2021 at 21:09)</a>:</h4>
+<p>Yes that works, but it means I have to give up whitespace sensitive lines</p>
+
+
+
+<a name="234231845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231845">(Apr 12 2021 at 21:10)</a>:</h4>
+<p>which screws up the overall formatting if I'm using it elsewhere</p>
+
+
+
+<a name="234231976"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234231976" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234231976">(Apr 12 2021 at 21:10)</a>:</h4>
+<p>if some tactic lines end in <code>;</code> and others don't that will read weirdly</p>
+
+
+
+<a name="234232121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232121">(Apr 12 2021 at 21:11)</a>:</h4>
+<p>This also works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">C</span> <span class="bp">∧</span> <span class="n">C</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">refine</span> <span class="n">And.intro</span> <span class="bp">?</span><span class="n">x</span> <span class="bp">?</span><span class="n">y</span>
+  <span class="n">focus</span>
+    <span class="n">apply</span> <span class="n">BC</span>
+    <span class="n">apply</span> <span class="n">AB</span>
+    <span class="n">assumption</span>
+  <span class="n">focus</span>
+    <span class="n">apply</span> <span class="n">BC</span>
+    <span class="n">apply</span> <span class="n">AB</span>
+    <span class="n">assumption</span>
+</code></pre></div>
+
+
+
+<a name="234232190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232190">(Apr 12 2021 at 21:11)</a>:</h4>
+<p>oh that's not bad</p>
+
+
+
+<a name="234232204"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232204" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232204">(Apr 12 2021 at 21:11)</a>:</h4>
+<p>And there can probably be a variant where you name the focus branches</p>
+
+
+
+<a name="234232240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232240">(Apr 12 2021 at 21:11)</a>:</h4>
+<p>that's the version sebastian was suggesting</p>
+
+
+
+<a name="234232250"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232250" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232250">(Apr 12 2021 at 21:11)</a>:</h4>
+<p>like <code>case ?x</code> instead of <code>focus</code></p>
+
+
+
+<a name="234232339"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232339" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232339">(Apr 12 2021 at 21:12)</a>:</h4>
+<p>but I don't want to give names to goals where the best name is an ordinal</p>
+
+
+
+<a name="234232640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232640">(Apr 12 2021 at 21:13)</a>:</h4>
+<p>Also, can <code>?</code> work instead of <code>?_</code>? It's an extra character compared to lean 3</p>
+
+
+
+<a name="234232711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232711">(Apr 12 2021 at 21:14)</a>:</h4>
+<p>You can use <code>refine' foo _ _ _</code> :)</p>
+
+
+
+<a name="234232718"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232718" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232718">(Apr 12 2021 at 21:14)</a>:</h4>
+<p>I am pro-names in general</p>
+
+
+
+<a name="234232752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232752">(Apr 12 2021 at 21:14)</a>:</h4>
+<p>I want to be able to keep the structure of lean 3 proofs for the most part</p>
+
+
+
+<a name="234232781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232781">(Apr 12 2021 at 21:15)</a>:</h4>
+<p>names should be an option</p>
+
+
+
+<a name="234232799"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232799" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232799">(Apr 12 2021 at 21:15)</a>:</h4>
+<p>meaning the same lack of structure?</p>
+
+
+
+<a name="234232813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232813">(Apr 12 2021 at 21:15)</a>:</h4>
+<p>They are structured</p>
+
+
+
+<a name="234232827"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232827" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232827">(Apr 12 2021 at 21:15)</a>:</h4>
+<p>they are block structured proofs</p>
+
+
+
+<a name="234232842"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232842" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232842">(Apr 12 2021 at 21:15)</a>:</h4>
+<p>We are pretty strict about that</p>
+
+
+
+<a name="234232966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234232966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234232966">(Apr 12 2021 at 21:16)</a>:</h4>
+<p>I'm not about to rewrite all lean 3 proofs for style in the middle of a giant port</p>
+
+
+
+<a name="234233200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233200">(Apr 12 2021 at 21:19)</a>:</h4>
+<p>You can write unstructured proofs in lean 3 but I'm not talking about those</p>
+
+
+
+<a name="234233216"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233216" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233216">(Apr 12 2021 at 21:19)</a>:</h4>
+<p>Got it</p>
+
+
+
+<a name="234233310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233310">(Apr 12 2021 at 21:20)</a>:</h4>
+<p>in fact it seems like lean 4's support for unstructured proofs is pretty much the same</p>
+
+
+
+<a name="234233401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233401">(Apr 12 2021 at 21:21)</a>:</h4>
+<p>It does seem so. I thought at some point the plan was to require names and <code>case ?x</code> but I guess that was ditched.</p>
+
+
+
+<a name="234233471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233471">(Apr 12 2021 at 21:21)</a>:</h4>
+<p>I like the current setup: you can write names and case if you want but you don't have to</p>
+
+
+
+<a name="234233601"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233601" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233601">(Apr 12 2021 at 21:22)</a>:</h4>
+<p>lean 3 also cultivated (at least) two distinct styles: mathlib's block structured proofs and NNG's unstructured proofs (plus term mode proofs, which have several different styles)</p>
+
+
+
+<a name="234233654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233654">(Apr 12 2021 at 21:23)</a>:</h4>
+<p>I can imagine having a style linter to ensure adherence to one style or another</p>
+
+
+
+<a name="234233673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233673">(Apr 12 2021 at 21:23)</a>:</h4>
+<p>but the core syntax should be multi-paradigm</p>
+
+
+
+<a name="234233864"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234233864" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234233864">(Apr 12 2021 at 21:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234232966">said</a>:</p>
+<blockquote>
+<p>I'm not about to rewrite all lean 3 proofs for style in the middle of a giant port</p>
+</blockquote>
+<p>Then that should be discussed in a different topic. I don't mind if mathport implements its own tactic compatibility layer. But this topic started as an experience report on Lean 4, not porting, so it should discuss the best solutions for Lean 4 irrespective of Lean 3 solutions. Which always was our modus operandi for Lean 4.</p>
+
+
+
+<a name="234234057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234234057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234234057">(Apr 12 2021 at 21:27)</a>:</h4>
+<p>Fair enough. I guess I'm saying that even for green field lean 4 projects I'm not sold on the <code>| =&gt;</code> stuff</p>
+
+
+
+<a name="234234090"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234234090" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234234090">(Apr 12 2021 at 21:27)</a>:</h4>
+<p>in coq I think the equivalent is <code>- </code></p>
+
+
+
+<a name="234234202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234234202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234234202">(Apr 12 2021 at 21:28)</a>:</h4>
+<p>I really want a way to not waste a line saying "here's a goal"</p>
+
+
+
+<a name="234234579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234234579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234234579">(Apr 12 2021 at 21:32)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> </p>
+<blockquote>
+<p>I've written a fair chunk of tactic proofs in Lean 4</p>
+</blockquote>
+<p>Are these on GitHub somewhere?</p>
+
+
+
+<a name="234234737"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234234737" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234234737">(Apr 12 2021 at 21:33)</a>:</h4>
+<p>Not publicly, unfortunately, since they are the solutions to our course project <span aria-label="frowning" class="emoji emoji-1f626" role="img" title="frowning">:frowning:</span></p>
+
+
+
+<a name="234235157"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234235157" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234235157">(Apr 12 2021 at 21:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234234090">said</a>:</p>
+<blockquote>
+<p>in coq I think the equivalent is <code>- </code></p>
+</blockquote>
+<p>I kind of like that, I think it would be a better fit for the whitespace-sensitive syntax than braces</p>
+
+
+
+<a name="234239640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234239640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234239640">(Apr 12 2021 at 22:23)</a>:</h4>
+<p><a href="https://coq.inria.fr/refman/proof-engine/ssreflect-proof-language.html#indentation-and-bullets">Coq syntax</a></p>
+
+
+
+<a name="234240307"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234240307" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234240307">(Apr 12 2021 at 22:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/233923963">said</a>:</p>
+<blockquote>
+<ul>
+<li>Implicit lambdas caused a number of issues because they get eagerly applied everywhere and it's difficult to control this behavior. I ended up having to avoid them entirely in things like the induction hypothesis. We need semi-implicits, I think.<ul>
+<li>I should find a more specific example here, but implicit lambda introduction was something I had to force-disable more often than use.</li>
+</ul>
+</li>
+</ul>
+</blockquote>
+<p>I am curious about this one. I don't see any <code>@fun</code>s in the file you posted so I am guessing it was earlier in development.</p>
+
+
+
+<a name="234241231"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234241231" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234241231">(Apr 12 2021 at 22:41)</a>:</h4>
+<p>I was curious about when coq uses <code>-</code> vs <code>*</code>; It is discussed in the "bullets" section, and it seems like you can use any of <code>-</code>, <code>+</code> and <code>*</code> to select subgoals, where I guess the idea is that you can use different delimiters at different levels. (I assume all delimiters at a given subgoal splitting have to agree.) Personally I think it would be better to just use one of them, since users might come up with some other meaning for the other sigils</p>
+
+
+
+<a name="234241902"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234241902" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234241902">(Apr 12 2021 at 22:49)</a>:</h4>
+<p>I can't replicate the <code>@fun</code> issues. I think I was forgetting <code>fun {i} =&gt;</code></p>
+
+
+
+<a name="234241978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234241978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234241978">(Apr 12 2021 at 22:50)</a>:</h4>
+<p>Oh there was a bug in a tactic involving implicit lambdas, let me see if I can replicate</p>
+
+
+
+<a name="234242559"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234242559" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234242559">(Apr 12 2021 at 22:57)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">i</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">},</span> <span class="n">i</span> <span class="bp">&lt;</span> <span class="mi">0</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">-- ⊢ ∀ {i : Nat}, i &lt; 0</span>
+  <span class="k">have</span> <span class="n">_</span> <span class="k">from</span> <span class="mi">1</span>
+  <span class="c1">-- i✝ this : Nat ⊢ i✝ &lt; 0</span>
+  <span class="n">skip</span>
+</code></pre></div>
+<p>The same thing happens with <code>let</code> and <code>match</code></p>
+
+
+
+<a name="234246837"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234246837" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Zygimantas Straznickas <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234246837">(Apr 12 2021 at 23:43)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234241231">said</a>:</p>
+<blockquote>
+<p>I was curious about when coq uses <code>-</code> vs <code>*</code>; It is discussed in the "bullets" section, and it seems like you can use any of <code>-</code>, <code>+</code> and <code>*</code> to select subgoals, where I guess the idea is that you can use different delimiters at different levels. (I assume all delimiters at a given subgoal splitting have to agree.) Personally I think it would be better to just use one of them, since users might come up with some other meaning for the other sigils</p>
+</blockquote>
+<p>Yup, any bullet can be used in any nesting level as long as the same bullet is used for the same level. Also, indentation doesn't matter when using bullets -- these are all legal (though obviously only the first one is a good idea):</p>
+<div class="codehilite" data-code-language="Coq"><pre><span></span><code><span class="kn">Theorem</span> <span class="n">ex</span> <span class="o">:</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span> <span class="o">/\</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span><span class="o">)</span> <span class="o">/\</span> <span class="n">True</span><span class="o">).</span>
+<span class="kn">Proof</span><span class="o">.</span>
+  <span class="k">split</span><span class="o">;</span> <span class="o">[|</span><span class="k">split</span><span class="o">];</span> <span class="o">[|</span> <span class="o">|</span><span class="k">split</span><span class="o">].</span> <span class="c">(* split into multiple goals for demonstration*)</span>
+
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+  <span class="o">*</span> <span class="k">split</span><span class="o">.</span>
+    <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span>
+    <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span>
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+<span class="kn">Qed</span><span class="o">.</span>
+
+<span class="kn">Theorem</span> <span class="n">ex2</span> <span class="o">:</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span> <span class="o">/\</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span><span class="o">)</span> <span class="o">/\</span> <span class="n">True</span><span class="o">).</span>
+<span class="kn">Proof</span><span class="o">.</span>
+  <span class="k">split</span><span class="o">;</span> <span class="o">[|</span><span class="k">split</span><span class="o">];</span> <span class="o">[|</span> <span class="o">|</span><span class="k">split</span><span class="o">].</span> <span class="c">(* split into multiple goals for demonstration*)</span>
+
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+    <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+<span class="o">*</span> <span class="k">split</span><span class="o">.</span>
+  <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span> <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span>
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+<span class="kn">Qed</span><span class="o">.</span>
+
+<span class="kn">Theorem</span> <span class="n">ex3</span> <span class="o">:</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span> <span class="o">/\</span> <span class="o">(</span><span class="n">True</span> <span class="o">/\</span> <span class="n">True</span><span class="o">)</span> <span class="o">/\</span> <span class="n">True</span><span class="o">).</span>
+<span class="kn">Proof</span><span class="o">.</span>
+  <span class="k">split</span><span class="o">;</span> <span class="o">[|</span><span class="k">split</span><span class="o">];</span> <span class="o">[|</span> <span class="o">|</span><span class="k">split</span><span class="o">].</span> <span class="c">(* split into multiple goals for demonstration*)</span>
+
+  <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span> <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span> <span class="o">*</span> <span class="k">split</span><span class="o">.</span> <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span> <span class="o">-</span> <span class="k">constructor</span><span class="o">.</span> <span class="o">*</span> <span class="k">constructor</span><span class="o">.</span>
+<span class="kn">Qed</span><span class="o">.</span>
+</code></pre></div>
+<p>One limitation of this notation is that you can do at most three levels of nesting. But one might argue that if you need more, your proof is too complicated and you need to refactor :)</p>
+
+
+
+<a name="234249060"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234249060" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234249060">(Apr 13 2021 at 00:08)</a>:</h4>
+<p>Oh I see, it's not whitespace sensitive so the different sigils are required</p>
+
+
+
+<a name="234256598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234256598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234256598">(Apr 13 2021 at 01:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report/near/234242559">said</a>:</p>
+<blockquote>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">i</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">},</span> <span class="n">i</span> <span class="bp">&lt;</span> <span class="mi">0</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">-- ⊢ ∀ {i : Nat}, i &lt; 0</span>
+  <span class="k">have</span> <span class="n">_</span> <span class="k">from</span> <span class="mi">1</span>
+  <span class="c1">-- i✝ this : Nat ⊢ i✝ &lt; 0</span>
+  <span class="n">skip</span>
+</code></pre></div>
+<p>The same thing happens with <code>let</code> and <code>match</code></p>
+</blockquote>
+<p>This is really weird. Here are some more examples:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="n">P</span><span class="o">},</span> <span class="n">P</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">exact</span> <span class="n">id</span> <span class="c1">-- error: type mismatch, expected type P</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="n">P</span><span class="o">},</span> <span class="n">P</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">exact</span> <span class="bp">@</span><span class="n">id</span> <span class="n">_</span> <span class="c1">-- works</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="n">P</span><span class="o">},</span> <span class="n">P</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">apply</span> <span class="n">id</span> <span class="c1">-- works</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="n">P</span><span class="o">},</span> <span class="n">P</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="k">have</span> <span class="n">_</span> <span class="k">from</span> <span class="mi">1</span>
+  <span class="n">apply</span> <span class="n">id</span> <span class="c1">-- error: unsolved goals |- P</span>
+</code></pre></div>
+
+
+
+<a name="234257028"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234257028" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234257028">(Apr 13 2021 at 01:58)</a>:</h4>
+<p>yeah, I think that first example was the issue I hit that caused me to abandon the approach</p>
+
+
+
+<a name="234257046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234257046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234257046">(Apr 13 2021 at 01:58)</a>:</h4>
+<p>I don't even understand what is happening there.</p>
+
+
+
+<a name="234257051"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234257051" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234257051">(Apr 13 2021 at 01:59)</a>:</h4>
+<p>the type just felt very unstable, as if looking at it wrong causes it to get instantiated</p>
+
+
+
+<a name="234260714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234260714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234260714">(Apr 13 2021 at 02:55)</a>:</h4>
+<p><span class="user-mention" data-user-id="308899">@Yakov Pechersky</span> FYI <code>declVal</code> is exposed now on master so </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"lemma"</span> <span class="n">n</span><span class="o">:</span><span class="n">declId</span> <span class="n">sig</span><span class="o">:</span><span class="n">declSig</span> <span class="n">val</span><span class="o">:</span><span class="n">declVal</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="kd">theorem</span> <span class="bp">$</span><span class="n">n</span> <span class="bp">$</span><span class="n">sig</span> <span class="bp">$</span><span class="n">val</span><span class="o">)</span>
+</code></pre></div>
+<p>should work.</p>
+
+
+
+<a name="234261791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234261791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234261791">(Apr 13 2021 at 03:10)</a>:</h4>
+<p>I just read over the implicit-lambda code. It is surprisingly aggressive but based on relatively simple rules. Basically, any variant of the above examples will have a lambda inserted, unless it (a) doesn't involve elaborating a term with the expected type or (b) explicitly disables it. The reason the <code>apply id</code> example works is that <code>apply</code> (unlike <code>exact</code>) detects that <code>id</code> is an identifier and doesn't actually elaborate it using the expected type.</p>
+
+
+
+<a name="234346586"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234346586" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234346586">(Apr 13 2021 at 15:19)</a>:</h4>
+<p>Sorry to be late to this party, but regarding the "private" keyword, would it help to keep their names but prefix the namespace with "private"? They could then be filtered by documentation and search, but determined users could still access them. The main problem would be name clashes -- users would have to use <code>private foo</code> and <code>private foo1</code> and <code>private foo2</code> in the namespace where they could just use <code>private foo</code> repeatedly before.</p>
+
+
+
+<a name="234349966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234349966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234349966">(Apr 13 2021 at 15:38)</a>:</h4>
+<p>The names are preserved, including namespaces: <a href="https://github.com/leanprover/lean4/blob/bf4b9b0ccd7688d3d4024bc06a0c7a3b207124bd/src/Lean/Modifiers.lean#L24-L27">https://github.com/leanprover/lean4/blob/bf4b9b0ccd7688d3d4024bc06a0c7a3b207124bd/src/Lean/Modifiers.lean#L24-L27</a><br>
+A dedicated meta hacker could write a <code>tear_open_private</code> command that walks through the declarations of a specified module and creates accessible aliases of such names. But there would be no guarantee that this will keep working indefinitely, of course. For example, it is incompatible with any kind of module system where private declarations are not part of the "signature" .olean file to begin with (though the full .olean file should still be around to load instead). At that point private declarations would also become much more useful: you could add new ones without having to recompile (some) downstream modules.</p>
+
+
+
+<a name="234350827"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234350827" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234350827">(Apr 13 2021 at 15:43)</a>:</h4>
+<p>FWIW I am skeptical that <code>private</code> is a real issue right now. For random experiments and traces, locally rebuilding Lean is fine.</p>
+
+
+
+<a name="234355239"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234355239" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234355239">(Apr 13 2021 at 16:09)</a>:</h4>
+<p><code>tear_open_private</code> is called <a href="https://leanprover-community.github.io/mathlib_docs/commands.html#import_private"><code>import_private</code></a> right now. <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="234355369"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234355369" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234355369">(Apr 13 2021 at 16:10)</a>:</h4>
+<p>(and if there are some <code>private</code> defs that are deemed important to expose, these can be changed on case-by-case basis)</p>
+
+
+
+<a name="234355561"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234355561" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234355561">(Apr 13 2021 at 16:11)</a>:</h4>
+<blockquote>
+<p>For example, it is incompatible with any kind of module system where private declarations are not part of the "signature" .olean file to begin with</p>
+</blockquote>
+<p>I don't think that is realistic.  Private definitions are part of the public interface because they are exposed during unification.  In particular, changing private definitions is a breaking change because it affects definitional equality.<br>
+On the other hand, leaving out "definitions" of constants would be fair game.</p>
+
+
+
+<a name="234356922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234356922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234356922">(Apr 13 2021 at 16:19)</a>:</h4>
+<p>Ah, but the module system that only exists in my head would also seal (make opaque) public definitions by default... it might be mostly useful for programming and not proving, so it would most likely be opt-in and the standard <code>import</code> would keep its current lax semantics.</p>
+
+
+
+<a name="234357296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234357296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234357296">(Apr 13 2021 at 16:21)</a>:</h4>
+<p>Using private declarations from a <code>reducible</code> or otherwise exposed declaration should ideally be a compiler error</p>
+
+
+
+<a name="234357424"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234357424" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234357424">(Apr 13 2021 at 16:22)</a>:</h4>
+<p>Would type-checking also be restricted to reducible transparency?</p>
+
+
+
+<a name="234357784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234357784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234357784">(Apr 13 2021 at 16:24)</a>:</h4>
+<p>For imported definitions? <em>If</em> you imported them via say <code>import signature</code> <em>and</em> they don't have some other attribute that says "transparent in signature imports but not <code>reducible</code>", then yes.</p>
+
+
+
+<a name="234358065"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234358065" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234358065">(Apr 13 2021 at 16:26)</a>:</h4>
+<p>So it's not really a change in the transparency predicate, but <code>import signature</code> importing definitions as value-less constants by default.</p>
+
+
+
+<a name="234358617"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234358617" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234358617">(Apr 13 2021 at 16:29)</a>:</h4>
+<p>And then you'd just need some content-addressed build system to actually make use of that... it's as thought-out as it sounds, yes</p>
+
+
+
+<a name="234358679"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Proving%20findLeast%3A%20an%20experience%20report/near/234358679" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Proving.20findLeast.3A.20an.20experience.20report.html#234358679">(Apr 13 2021 at 16:30)</a>:</h4>
+<p>Ah, so things like <code>def Options := KVMap</code> would still reduce because they're not imported as signature.  It's an interesting dialect, but probably not that useful if you want to keep theorems close to your definitions.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

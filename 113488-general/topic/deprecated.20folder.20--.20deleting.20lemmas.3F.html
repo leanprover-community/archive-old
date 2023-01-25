@@ -1,0 +1,614 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html">deprecated folder -- deleting lemmas?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="246854196"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246854196" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246854196">(Jul 22 2021 at 14:26)</a>:</h4>
+<p>I am always a bit annoyed by the <code>deprecated</code> directory, and so I spent some time over the last few weeks changing all the main classes in there (<code>is_submonoid</code>, <code>is_subgroup</code> etc, and <code>is_group_hom</code>, <code>is_ring_hom</code> etc) to structures (my understanding is that we still want these things around but not in the typeclass system). My <code>undeprecate</code> branch just compiled for the first time the other day; I changed 87 files. It's <a href="https://github.com/leanprover-community/mathlib/issues/8178">#8178</a> .</p>
+<p>There are still some loose ends here however, and I thought that maybe I should get some community input. What I would imagine the next step would be is to start removing imports of deprecated files. I had it in my head that there were a few places where these structures were really useful, however I am now less sure about this. The main examples where you see the advantage of the unbundled approach is in the rare-but-they-do-exist cases where <code>R</code> is, say, a ring, and (in the middle of a long tactic proof) you define some <code>S : add_subgroup R</code> and then do some stuff with it and then later on manage to show that it's closed under R's multiplication. With the deprecated system you had <code>S : set R</code> with <code>[is_add_subgroup S]</code> and you just add an instance of <code>[is_add_subring S]</code> and keep going. With the new system you need to make a new <code>S' : subring R</code> and all your hypotheses about <code>S</code> now need to be beefed up to apply to <code>S'</code> or else you can't rewrite with them. This turns out to be only a minor annoyance.</p>
+<p>But the real reason I'm bringing this up is that once this change is made, there are some definitions and results in mathlib which are much harder to state, or rather can in theory be stated but only in a convoluted way. An example is <code>subtype.monoid</code>, which looks like <a href="https://github.com/leanprover-community/mathlib/blob/6f88eecaf787d46fa4c37dc660d32b1b2c87414c/src/deprecated/submonoid.lean#L226">this</a> in master (clean, but using the fact that <code>is_submonoid</code> is a class) and like <a href="https://github.com/leanprover-community/mathlib/blob/7b824c17232271ddeec8fa316ee3afc644743690/src/deprecated/submonoid.lean#L236">this</a> on the branch where <code>is_submonoid</code> becomes a structure. Notice the weird <code>[fact (is_submonoid s)]</code>. Why is this here? Well, if I just wrote <code>(hs : is_submonoid s)</code> then I could get <code>subtype.monoid</code> compiling no problem, but the problems all start later when we're doing things like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">is_submonoid.coe_mul</span> <span class="o">[</span><span class="n">fact</span> <span class="o">(</span><span class="n">is_submonoid</span> <span class="n">s</span><span class="o">)]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span>
+ <span class="o">((</span><span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">M</span><span class="o">)</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>This is the version on my branch, which works fine. But without using <code>fact</code> Lean has no way of figuring out what the multiplication is, because <code>M</code> is a monoid but <code>s : set M</code> so it's hard to get the _statement_ to typecheck.</p>
+<p>As I say, the branch compiles right now, so one can look through the changed files and see the facts I've added. There aren't that many, and I know for sure that these results cannot really be used anywhere because these facts will not be in the typeclass system in general, I didn't make an instance of <code>fact (is_submonoid s)]</code> anywhere. So one way forward would be simply to <em>delete</em> lemmas like <code>is_submonoid.coe_mul</code> completely. Basically they have become unusable because of the change, and I see little point in keeping them. I'm aware that deleting lemmas is not something which is usually done so this is why I wanted to ask about it.</p>
+<p>Some early work of Kenny on Galois theory used <code>is_add_subgroup</code> and because I knew the material well and was confident that analogous <code>add_subgroup</code> versions weren't there, I took the trouble to refactor them and remove a deprecated import. If there are any other areas of mathlib where people want me to make the refactor from is_X to X then I'm in quite a good position to work on this stuff now because I know the tricks (and by this time next month I'll have forgotten them). However another point of view might be that because I made a PR which touches 87 files it might be best to get it merged ASAP. However I can certainly work on completely deleting those deprecated lemmas today or tomorrow.</p>
+
+
+
+<a name="246854854"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246854854" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246854854">(Jul 22 2021 at 14:31)</a>:</h4>
+<p>Wowowow! Thanks a lot for this massive effort!<br>
+My first reaction is: we should get rid of those <code>fact</code>-lemmas, and merge the rest ASAP.</p>
+
+
+
+<a name="246857148"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857148" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857148">(Jul 22 2021 at 14:47)</a>:</h4>
+<p>OK I will remove the lemmas which cannot be being used because they have facty typeclasses; I can do it at Xena tonight.</p>
+
+
+
+<a name="246857175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857175">(Jul 22 2021 at 14:47)</a>:</h4>
+<p>I think we should get rid of all these lemmas about <code>is_submonoid</code> (at least, if there is a <code>submonoid</code> alternative, which should be the case almost always). The only things we really want to keep are the translations between <code>is_submonoid</code> and <code>submonoid</code>: <code>submonoid.of</code> (which maybe should be renamed <code>is_submonoid.submonoid</code> to enable projection notation) and <code>submonoid.is_submonoid</code>.<br>
+All declarations <code>foo</code> about <code>is_submonoid</code> that can be proven by <code>M.submonoid.foo</code> should be removed.</p>
+
+
+
+<a name="246857269"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857269" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857269">(Jul 22 2021 at 14:48)</a>:</h4>
+<p>Should this be done in this PR or in another one? Thanks for the input!</p>
+
+
+
+<a name="246857335"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857335" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857335">(Jul 22 2021 at 14:48)</a>:</h4>
+<p>In general PR's which touch a huge number of files are really scary, but actually I'm only changing things which nobody else is working on so it's much less scary than you think.</p>
+
+
+
+<a name="246857662"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857662" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857662">(Jul 22 2021 at 14:51)</a>:</h4>
+<p>If you make separate PRs, you're changing the statement of a lot of lemmas in this PR that will be removed in the next PR. <br>
+So it will at least be easier to review if you decide to make a single PR. It also depends on how likely merge conflicts are (and your willingness to resolve them).</p>
+
+
+
+<a name="246857918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246857918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246857918">(Jul 22 2021 at 14:52)</a>:</h4>
+<p>If you think that a lot of proofs of lemmas that we want to keep use lemmas that we are removing, then it might be easier to make separate PRs.</p>
+
+
+
+<a name="246859625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246859625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246859625">(Jul 22 2021 at 15:02)</a>:</h4>
+<p><code>is_submonoid.coe_mul</code> is an API lemma about some <code>has_mul</code> instance that you are also deleting, right?</p>
+
+
+
+<a name="246860153"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246860153" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246860153">(Jul 22 2021 at 15:06)</a>:</h4>
+<p>Oh that's the <code>subtype.monoid</code> you mentioned</p>
+
+
+
+<a name="246860953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246860953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246860953">(Jul 22 2021 at 15:11)</a>:</h4>
+<p>Oh I'm confused now. <code>subtype.monoid</code> used to be a def, but now it is an instance; how come?</p>
+
+
+
+<a name="246864363"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246864363" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246864363">(Jul 22 2021 at 15:38)</a>:</h4>
+<p>We want to remove <code>subtype.monoid</code> and instead use <code>(hM : is_submonoid M).submonoid.monoid</code> (if really needed).</p>
+
+
+
+<a name="246868796"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246868796" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246868796">(Jul 22 2021 at 16:12)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110032">Reid Barton</span> <a href="#narrow/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F/near/246860953">said</a>:</p>
+<blockquote>
+<p>Oh I'm confused now. <code>subtype.monoid</code> used to be a def, but now it is an instance; how come?</p>
+</blockquote>
+<p>My impression is that it used to be dangerous in some way to make it an instance; it was occasionally made a local instance IIRC.</p>
+
+
+
+<a name="246869923"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246869923" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246869923">(Jul 22 2021 at 16:21)</a>:</h4>
+<p>Like for example about 12 lines after its definition, on your branch <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+<a name="246871473"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246871473" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246871473">(Jul 22 2021 at 16:33)</a>:</h4>
+<p>So just to be clear -- we have <a href="https://leanprover-community.github.io/mathlib_docs/find/is_subgroup.normal_in_normalizer">docs#is_subgroup.normal_in_normalizer</a> stating in a deprecated way that a subgroup is normal in its normalizer, and this is never used in mathlib, and we also have <a href="https://leanprover-community.github.io/mathlib_docs/find/subgroup.normal_in_normalizer">docs#subgroup.normal_in_normalizer</a>, which states this in the non-deprecated way, and the statement uses <code>subtype.group</code> which is going to be removed, and so I am also going to remove <code>is_subgroup.normal_in_normalizer</code>.</p>
+
+
+
+<a name="246871568"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246871568" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246871568">(Jul 22 2021 at 16:34)</a>:</h4>
+<p>PS I think merge conflicts are highly unlikely unless there's some big refactor of algebra going on that I don't know about.</p>
+
+
+
+<a name="246877361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246877361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246877361">(Jul 22 2021 at 17:14)</a>:</h4>
+<p>OK so that was less painful than expected -- all the facts I added are removed now.</p>
+
+
+
+<a name="246884989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246884989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246884989">(Jul 22 2021 at 18:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> or anyone else who understands this stuff: right now <code>ring_theory.subring</code> imports <code>deprecated.subring</code>, but it's the other way around for submonoids. I propose switching this, having <code>deprecated.subring</code> import <code>ring_theory.subring</code>,  and moving <a href="https://leanprover-community.github.io/mathlib_docs/find/set.to_subring">docs#set.to_subring</a> into <code>deprecated.subring</code> and renaming it to <code>is_subring.subring</code>. This way I can work on removing all <code>import deprecated.subring</code> from undeprecated mathlib. I have already achieved this with <code>deprecated.subfield</code>.</p>
+
+
+
+<a name="246885309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246885309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246885309">(Jul 22 2021 at 18:13)</a>:</h4>
+<p>Wouldn't it be easier to move <code>deprecated.*</code> back into the main tree? Because that's the end goal anyway, right?</p>
+
+
+
+<a name="246901634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246901634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246901634">(Jul 22 2021 at 20:36)</a>:</h4>
+<p>I agree with Johan that we eventually want to remove the <code>deprecated</code> folder entirely. My thought is to have 20-30 lines at the end of <br>
+<a href="https://github.com/leanprover-community/mathlib/blob/master/src/group_theory/submonoid/basic.lean">https://github.com/leanprover-community/mathlib/blob/master/src/group_theory/submonoid/basic.lean</a><br>
+(or perhaps in a separate file) about <code>is_submonoid</code>, with just the results in<br>
+<a href="https://github.com/leanprover-community/mathlib/blob/468328daee53ea78e8522daa20893a434ce30b57/src/deprecated/submonoid.lean#L34-L59">https://github.com/leanprover-community/mathlib/blob/468328daee53ea78e8522daa20893a434ce30b57/src/deprecated/submonoid.lean#L34-L59</a><br>
+and<br>
+<a href="https://github.com/leanprover-community/mathlib/blob/468328daee53ea78e8522daa20893a434ce30b57/src/deprecated/submonoid.lean#L410-L415">https://github.com/leanprover-community/mathlib/blob/468328daee53ea78e8522daa20893a434ce30b57/src/deprecated/submonoid.lean#L410-L415</a><br>
+There might be a little bit more that we want to keep, if it doesn't have a good bundled analogue. But something like <a href="https://leanprover-community.github.io/mathlib_docs/find/is_submonoid.inter">docs#is_submonoid.inter</a> can be removed since we can take meets of bundled submonoids.</p>
+<p>The same can be true about rings.</p>
+
+
+
+<a name="246902359"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246902359" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246902359">(Jul 22 2021 at 20:43)</a>:</h4>
+<p>In the long run I'd be tempted to extract the proofs from things like <code>submonoid.has_inf</code> and move them back out to <code>is_submonoid.inter</code></p>
+
+
+
+<a name="246904826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246904826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246904826">(Jul 22 2021 at 21:01)</a>:</h4>
+<p>But right now we prove the same thing from scratch in both places, so we may as well throw out the one we don't use</p>
+
+
+
+<a name="246914069"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914069" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914069">(Jul 22 2021 at 22:41)</a>:</h4>
+<p>so right now I have removed all <code>import.deprecated.*</code> from all mathlib files other than those in <code>src/deprecated</code> (and <code>test</code>), and a bunch of stuff has broken again, so in some sense I feel like I'm back to square one. I am now creating diffs like the following screenshot:</p>
+<p><a href="/user_uploads/3121/uClQrYNbkati0KSEWxZCCm90/diff.png">diff.png</a> </p>
+<div class="message_inline_image"><a href="/user_uploads/3121/uClQrYNbkati0KSEWxZCCm90/diff.png" title="diff.png"><img src="/user_uploads/3121/uClQrYNbkati0KSEWxZCCm90/diff.png"></a></div><p>There are random places all over mathlib where people prove <code>is_group_hom</code> for a map, and I'm replacing them with defs (if they don't seem to be there already) and adding a simp lemma. Am I going the right way? I could just add some deprecated imports back in and I'd have everything compiling again. So far I've added set.singleton_mul_hom to replace <a href="https://leanprover-community.github.io/mathlib_docs/find/set.singleton.is_mul_hom">docs#set.singleton.is_mul_hom</a>, multiset.map_add_monoid_hom to replace <code>is_add_monoid_hom (multiset.map f)</code>, <code>countp_add_monoid_hom</code> to replace <a href="https://leanprover-community.github.io/mathlib_docs/find/multiset.countp.is_add_monoid_hom">docs#multiset.countp.is_add_monoid_hom</a> and so on. Should I cut my losses and stop or is this what we want?</p>
+
+
+
+<a name="246914198"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914198" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914198">(Jul 22 2021 at 22:43)</a>:</h4>
+<p>Shouldn't simps take care of making the simp lemma for you?</p>
+
+
+
+<a name="246914260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914260">(Jul 22 2021 at 22:44)</a>:</h4>
+<p>I don't understand <code>simps</code>. Is this what it does?</p>
+
+
+
+<a name="246914291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914291">(Jul 22 2021 at 22:44)</a>:</h4>
+<p>attribute#simps</p>
+
+
+
+<a name="246914305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914305">(Jul 22 2021 at 22:45)</a>:</h4>
+<p>I'm not very good at attributes.</p>
+
+
+
+<a name="246914325"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914325" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914325">(Jul 22 2021 at 22:45)</a>:</h4>
+<p>Simps makes the boilerplate lemmas for equivs and I think bundled homs</p>
+
+
+
+<a name="246914347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914347">(Jul 22 2021 at 22:45)</a>:</h4>
+<p>I didn't get it before but I just put <code>@[simps?]</code> before any definition and if the lemmas look reasonable I keep it in</p>
+
+
+
+<a name="246914416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914416">(Jul 22 2021 at 22:46)</a>:</h4>
+<p>Right now my question is whether I should be going down this rabbithole at all. I've changed 86 files, got mathlib compiling, then I deleted a few imports and now it's all broken again.</p>
+
+
+
+<a name="246914422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914422">(Jul 22 2021 at 22:46)</a>:</h4>
+<p>works fine most of the time, you can also make it <code>simp</code> the RHS before making a lemma (I can't remember how though)</p>
+
+
+
+<a name="246914605"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914605" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914605">(Jul 22 2021 at 22:48)</a>:</h4>
+<p>simps {rhs := true} iirc</p>
+
+
+
+<a name="246914612"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914612" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914612">(Jul 22 2021 at 22:49)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="246914848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246914848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246914848">(Jul 22 2021 at 22:52)</a>:</h4>
+<p>Kevin, if you manage to convince some maintainer to merge <a href="https://github.com/leanprover-community/mathlib/issues/8317">#8317</a> then you'll have less deprecated group homs to handle.</p>
+
+
+
+<a name="246915276"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246915276" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246915276">(Jul 22 2021 at 22:58)</a>:</h4>
+<p>Apparently you should be tagging <code>to_compl</code> with <code>simps</code></p>
+
+
+
+<a name="246915320"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246915320" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246915320">(Jul 22 2021 at 22:59)</a>:</h4>
+<p>Me? Why?</p>
+
+
+
+<a name="246949493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/246949493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#246949493">(Jul 23 2021 at 07:51)</a>:</h4>
+<p>Because above I was replacing <code>is_monoid_hom (foo : X -&gt; Y) := ...</code> with <code>foo_monoid_hom : X -&gt;* Y := ...</code> and then <code>@[simp] lemma foo_monoid_hom_coe : (foo_monoid_hom : X -&gt; Y) = foo := rfl</code> and Yakov told me I should be using <code>@[simps]</code>.</p>
+
+
+
+<a name="247090469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247090469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247090469">(Jul 24 2021 at 19:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F/near/246914198">said</a>:</p>
+<blockquote>
+<p>Shouldn't simps take care of making the simp lemma for you?</p>
+</blockquote>
+<p>Wait a minute. I'm now doing this <code>simps</code> thing and I've noticed that it's not making <code>coe</code> lemmas, it's making <code>apply</code> lemmas. For example in the deprecated days we had <code>multiset.map_is_add_monoid_hom</code> (a proof that <code>map f : multiset α → multiset β</code> preserves 0 and addition) and I'm changing it to </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">multiset.map_add_monoid_hom</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">multiset</span> <span class="n">α</span> <span class="bp">→+</span> <span class="n">multiset</span> <span class="n">β</span> <span class="o">:=</span> <span class="bp">...</span>
+</code></pre></div>
+<p>If I <code>@[simps]</code> this I get</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">multiset.map_add_monoid_hom_apply</span><span class="o">:</span> <span class="bp">⇑</span><span class="o">(</span><span class="n">map_add_monoid_hom</span> <span class="n">f</span><span class="o">)</span> <span class="n">s</span> <span class="bp">=</span> <span class="n">map</span> <span class="n">f</span> <span class="n">s</span>
+</code></pre></div>
+<p>whereas I was proposing</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">map_add_monoid_hom_coe</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">map_add_monoid_hom</span> <span class="n">f</span> <span class="o">:</span> <span class="n">multiset</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">multiset</span> <span class="n">β</span><span class="o">)</span> <span class="bp">=</span> <span class="n">map</span> <span class="n">f</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>and of course the linter doesn't like both. Which one should be in mathlib? Or isn't it as simple as that?</p>
+
+
+
+<a name="247096812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247096812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247096812">(Jul 24 2021 at 22:31)</a>:</h4>
+<p><code>simps</code> hasn't been taught to distinguish coe from apply (yet)</p>
+
+
+
+<a name="247096868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247096868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247096868">(Jul 24 2021 at 22:32)</a>:</h4>
+<p>IMO we should teach it to though</p>
+
+
+
+<a name="247098542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247098542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247098542">(Jul 24 2021 at 23:26)</a>:</h4>
+<p>You can get those lemmas with <code>@[simps {fully_applied := ff}]</code>. See <a href="https://leanprover-community.github.io/mathlib_docs/find/simps_cfg">docs#simps_cfg</a> for more info.<br>
+There is no way yet to tell simps that for certain projections you should always have <code>{fully_applied := ff}</code>.</p>
+
+
+
+<a name="247115114"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247115114" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247115114">(Jul 25 2021 at 08:11)</a>:</h4>
+<p>Thanks! I don't know whether they are good simp lemmas in practice but if we're moving away from the <code>is_</code> structures completely then one of them at least seems to be necessary</p>
+
+
+
+<a name="247116134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247116134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247116134">(Jul 25 2021 at 08:38)</a>:</h4>
+<p>Can you tell it to call the unapplied lemmas <code>coe_foo</code> rather than <code>foo_apply</code> though Floris?</p>
+
+
+
+<a name="247128772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247128772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Stevens <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247128772">(Jul 25 2021 at 14:24)</a>:</h4>
+<p>A piece of GitHub usage you might not have known: if you are deciding whether or not to use two PRs, A and then B (which depends on A), one option is to make PR A, then raise PR B with a base of A rather than a base of <code>master</code>. (That is, it is a pull request for merging B into A, not into master.) That way, both PRs can be reviewed independently, with PR B being reviewed as though A had already been merged into master, but really you haven't actually merged A into master. When the whole stack of PRs is ready to merge, you can merge B into A, and then Bors squash-merge A into master. See <a href="https://blog.logrocket.com/using-stacked-pull-requests-in-github/">https://blog.logrocket.com/using-stacked-pull-requests-in-github/</a> for a longer-form explanation with screenshots. (This workflow may or may not be any use for what you want to do here; I just saw some words upthread which suggested this might be appropriate.)</p>
+
+
+
+<a name="247129166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247129166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247129166">(Jul 25 2021 at 14:36)</a>:</h4>
+<p>Was that intended for a different thread?</p>
+
+
+
+<a name="247137868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247137868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247137868">(Jul 25 2021 at 18:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F/near/247116134">said</a>:</p>
+<blockquote>
+<p>Can you tell it to call the unapplied lemmas <code>coe_foo</code> rather than <code>foo_apply</code> though Floris?</p>
+</blockquote>
+<p>Currently the setup is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">initialize_simps_projections</span> <span class="n">add_hom</span> <span class="o">(</span><span class="n">to_fun</span> <span class="bp">→</span> <span class="n">apply</span><span class="o">)</span>
+</code></pre></div>
+<p>If you want the <code>coe</code> naming uniformly, you can replace it with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">initialize_simps_projections</span> <span class="n">add_hom</span> <span class="o">(</span><span class="n">to_fun</span> <span class="bp">→</span> <span class="n">coe</span> <span class="n">as_prefix</span><span class="o">)</span>
+</code></pre></div>
+<p>Not sure if that is preferred throughout the whole library, though.</p>
+
+
+
+<a name="247143771"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247143771" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247143771">(Jul 25 2021 at 20:43)</a>:</h4>
+<p>Sure, but what I'm asking is how to make <code>@[simps apply]</code> output <code>f_hom_apply : ⇑f_hom x = f x</code> and <code>@[simps coe]</code> output <code>coe_f_hom : ⇑f_hom = f</code></p>
+
+
+
+<a name="247143834"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247143834" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247143834">(Jul 25 2021 at 20:44)</a>:</h4>
+<p>Or at least, a way to get both via simps, the exact spelling needed doesn't matter, only the lemmas it generates</p>
+
+
+
+<a name="247148847"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247148847" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247148847">(Jul 25 2021 at 22:26)</a>:</h4>
+<p>This is possible, as long as you write the <code>coe</code> projection as <code>[simps? coe {fully_applied := ff}]</code><br>
+You have to change the initialization to the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- See Note [custom simps projection] -/</span>
+<span class="kd">def</span> <span class="n">add_hom.simps.coe</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→+</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">e</span>
+
+<span class="n">initialize_simps_projections</span> <span class="n">add_hom</span> <span class="o">(</span><span class="n">to_fun</span> <span class="bp">→</span> <span class="n">apply</span><span class="o">,</span> <span class="n">to_fun</span> <span class="bp">→</span> <span class="n">coe</span><span class="o">,</span> <span class="bp">-</span><span class="n">coe</span> <span class="n">as_prefix</span><span class="o">)</span>
+</code></pre></div>
+<p>(apparently you have to give the coercion explicitly for the second name of the <code>to_fun</code> projection)</p>
+<p>Here is a full example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.simps</span>
+
+<span class="kd">structure</span> <span class="n">equiv</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">to_fun</span>    <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kn">local</span> <span class="kd">infix</span> <span class="bp">`</span> <span class="bp">≃</span> <span class="bp">`</span><span class="o">:</span><span class="mi">25</span> <span class="o">:=</span> <span class="n">equiv</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">γ</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">has_coe_to_fun</span> <span class="bp">$</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">equiv.to_fun</span><span class="o">⟩</span>
+
+<span class="sd">/-- See Note [custom simps projection] -/</span>
+<span class="kd">def</span> <span class="n">equiv.simps.coe</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">e</span>
+
+<span class="n">initialize_simps_projections</span><span class="bp">?</span> <span class="n">equiv</span> <span class="o">(</span><span class="n">to_fun</span> <span class="bp">→</span> <span class="n">apply</span><span class="o">,</span> <span class="n">to_fun</span> <span class="bp">→</span> <span class="n">coe</span><span class="o">,</span> <span class="bp">-</span><span class="n">coe</span> <span class="n">as_prefix</span><span class="o">)</span>
+
+<span class="sd">/-- Composition of equivalences `e₁ : α ≃ β` and `e₂ : β ≃ γ`. -/</span>
+<span class="kn">protected</span> <span class="kd">def</span> <span class="n">equiv.trans</span> <span class="o">(</span><span class="n">e₁</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">e₂</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">≃</span> <span class="n">γ</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">γ</span> <span class="o">:=</span>
+<span class="o">⟨</span><span class="n">e₂</span> <span class="bp">∘</span> <span class="n">e₁</span><span class="o">⟩</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">simps</span><span class="bp">?</span> <span class="n">coe</span> <span class="o">{</span><span class="n">fully_applied</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">}]</span> <span class="n">equiv.trans</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">[simps] &gt; adding projection equiv.coe_trans:</span>
+<span class="cm">        &gt; ∀ {α : Sort u_1} {β : Sort u_2} {γ : Sort u_3} (e₁ : α ≃ β) (e₂ : β ≃ γ),</span>
+<span class="cm">  ⇑(e₁.trans e₂) = ⇑e₂ ∘ ⇑e₁</span>
+<span class="cm">-/</span>
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">simps</span><span class="bp">?</span><span class="o">]</span> <span class="n">equiv.trans</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">[simps] &gt; adding projection equiv.trans_apply:</span>
+<span class="cm">        &gt; ∀ {α : Sort u_1} {β : Sort u_2} {γ : Sort u_3} (e₁ : α ≃ β) (e₂ : β ≃ γ) (ᾰ : α),</span>
+<span class="cm">  ⇑(e₁.trans e₂) ᾰ = (⇑e₂ ∘ ⇑e₁) ᾰ</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>This is assuming that with <code>@[simps]</code> (without options) you want to generate the <code>apply</code> lemma and not the <code>coe</code> lemma.</p>
+
+
+
+<a name="247149606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247149606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247149606">(Jul 25 2021 at 22:49)</a>:</h4>
+<p>I guess the only thing that would be left to ask for would be for <code>coe</code> to imply <code>fully_applied:=ff</code></p>
+
+
+
+<a name="247165234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/247165234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#247165234">(Jul 26 2021 at 05:43)</a>:</h4>
+<p>That's a todo in <a href="https://github.com/leanprover-community/mathlib/issues/5489">#5489</a></p>
+
+
+
+<a name="248737171"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248737171" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248737171">(Aug 07 2021 at 21:47)</a>:</h4>
+<p>I was just thinking about ways the ways we tend to attach properties to terms.</p>
+<ul>
+<li>Typeclasses let you associate data to a term more or less syntactically: if a term has a particular form, then you can provide some additional structure.  A downside is that rewriting an expression tends to break the connection.</li>
+<li>"Bundling" the property by defining a structure along with coercions to the underlying data.  This solves the rewrite problem, but the structure isn't <em>literally</em> the data.  Attaching multiple different kinds of data can require a carefully designed hierarchy.</li>
+</ul>
+<p>One that doesn't seem to be used much is tagging.  This is a general tagging function I was just playing with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[reducible]</span> <span class="kd">def</span> <span class="n">attach</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">x</span>
+</code></pre></div>
+<p>You can use this to define sets with an attached proof that they are subgroups:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">abbreviation</span> <span class="n">the_subgroup</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">attach</span> <span class="n">is_subgroup</span> <span class="n">s</span> <span class="n">h</span>
+</code></pre></div>
+<p>Then, for example,</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">the_subgroup.mem_inter_iff</span>
+  <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">s'</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s'</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h''</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">)</span> <span class="n">h''</span> <span class="bp">↔</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∧</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s'</span> <span class="n">h'</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="n">set.mem_inter_iff</span>
+</code></pre></div>
+<p>Theoretically, the <code>the_subgroup</code> terms in an expression are able to help you apply lemmas that need a proof of <code>is_subgroup</code>, but otherwise the tags will be ignored.</p>
+<p>Here are some basic examples (sorry, it's for an older version of mathlib, before <span class="user-mention" data-user-id="110038">@Kevin Buzzard</span>'s recent changes...).  I haven't really tested the idea, but I thought I'd throw it out there in case it's somehow interesting.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.int.parity</span>
+<span class="kn">import</span> <span class="n">deprecated.subgroup</span>
+<span class="kn">import</span> <span class="n">tactic</span>
+
+<span class="kd">@[reducible]</span>
+<span class="kd">def</span> <span class="n">attach</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">x</span>
+
+<span class="kd">abbreviation</span> <span class="n">the_even</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">even</span> <span class="n">n</span><span class="o">)</span> <span class="o">:=</span> <span class="n">attach</span> <span class="n">even</span> <span class="n">n</span> <span class="n">h</span>
+<span class="kd">abbreviation</span> <span class="n">the_odd</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">odd</span> <span class="n">n</span><span class="o">)</span> <span class="o">:=</span> <span class="n">attach</span> <span class="n">odd</span> <span class="n">n</span> <span class="n">h</span>
+
+<span class="kd">lemma</span> <span class="n">the_even_add_one_eq</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">even</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">the_even</span> <span class="n">n</span> <span class="n">h</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">the_odd</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">int.even_add_one</span><span class="o">,</span> <span class="n">h</span><span class="o">])</span> <span class="o">:=</span>
+<span class="n">rfl</span>
+
+<span class="kd">abbreviation</span> <span class="n">the_subgroup</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">attach</span> <span class="n">is_subgroup</span> <span class="n">s</span> <span class="n">h</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="o">(</span><span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span><span class="o">)</span> <span class="o">:=</span> <span class="n">h</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup_attach</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">is_subgroup</span> <span class="n">s</span><span class="o">]</span> <span class="o">:</span> <span class="n">s</span> <span class="bp">=</span> <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">infer_instance</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup.inter</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">s'</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s'</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∩</span> <span class="n">the_subgroup</span> <span class="n">s'</span> <span class="n">h'</span> <span class="bp">=</span> <span class="n">the_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">)</span> <span class="n">infer_instance</span> <span class="o">:=</span>
+<span class="n">rfl</span>
+
+<span class="kd">lemma</span> <span class="n">subgroup.of_eq</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">]</span> <span class="o">:</span> <span class="o">(</span><span class="n">subgroup.of</span> <span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="bp">=</span> <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span> <span class="o">:=</span>
+<span class="n">rfl</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup.mem_inter_iff</span>
+  <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">s'</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s'</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h''</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">)</span> <span class="n">h''</span> <span class="bp">↔</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∧</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s'</span> <span class="n">h'</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="n">set.mem_inter_iff</span>
+</code></pre></div>
+
+
+
+<a name="248745366"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248745366" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248745366">(Aug 08 2021 at 01:22)</a>:</h4>
+<p>Aren't these just subtypes of "set X"?</p>
+
+
+
+<a name="248746549"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248746549" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248746549">(Aug 08 2021 at 01:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="308899">@Yakov Pechersky</span> A term with <code>attach</code>ed data is definitionally equal to that term -- there aren't any new types here -- for the subgroup example, <code>the_subgroup s h</code> is trivially defeq to <code>s</code>.  It's true that the terms for which you can write a <code>the_subgroup</code> term correspond to terms of a subtype (in particular, <code>{s : set α // is_subgroup s}</code>), but nothing is explicitly constructed.  This lets you manipulate tagged terms easier, I think. For example you can sort the attached data:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">attach_swap</span>
+  <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">β</span> <span class="n">β'</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">β'</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">attach</span> <span class="n">β</span> <span class="o">(</span><span class="n">attach</span> <span class="n">β'</span> <span class="n">x</span> <span class="n">h'</span><span class="o">)</span> <span class="n">h</span> <span class="bp">=</span> <span class="n">attach</span> <span class="n">β'</span> <span class="o">(</span><span class="n">attach</span> <span class="n">β</span> <span class="n">x</span> <span class="n">h</span><span class="o">)</span> <span class="n">h'</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>In principle, you can also attach data other than proofs, and then they would in a sense "just" be sigma types.  One difference from a sigma type is that the additional data is sort of discarded, and it's only used to help fill in implicit arguments during elaboration or when proving things.</p>
+
+
+
+<a name="248746649"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248746649" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248746649">(Aug 08 2021 at 02:01)</a>:</h4>
+<p>So your attach is like constructing a term of a subtype then instantly coercing it back to the original type</p>
+
+
+
+<a name="248747084"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747084" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747084">(Aug 08 2021 at 02:13)</a>:</h4>
+<p>Sure, if you want there to be a type involved to explain it. (Are you suggesting it would be better that way?  This is just meant add some data to the AST that's easy to access and easy to ignore. Also, if it were using subtypes, it would have to be done in a way that that coercion you describe doesn't get <code>simp</code>ed away.)</p>
+
+
+
+<a name="248747432"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747432" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747432">(Aug 08 2021 at 02:20)</a>:</h4>
+<p>I'm saying that <code>attach</code> is fine for constructing such tagged terms. What about requiring such tagged terms, as an argument for a def or a proof? Then you are proving the data and the proof separately, to be able to say <code>lemma ex (x : X) (h : P x) : Q (attach x h) := ...</code>. I guess I'm not fully understanding what <code>attach</code> gives you that subtypes do not.</p>
+
+
+
+<a name="248747454"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747454" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747454">(Aug 08 2021 at 02:21)</a>:</h4>
+<p>I am not saying that subtypes are the solution to the problem, but rather, I want to appreciate what you propose!</p>
+
+
+
+<a name="248747789"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747789" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747789">(Aug 08 2021 at 02:26)</a>:</h4>
+<p>Ah, here's a difference where your approach is "trivially defeq" but the subtype one isn't:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">deprecated.subgroup</span>
+<span class="kn">import</span> <span class="n">tactic</span>
+
+<span class="kd">abbreviation</span> <span class="n">the_subgroup</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="o">(⟨</span><span class="n">s</span><span class="o">,</span> <span class="n">h</span><span class="o">⟩</span> <span class="o">:</span> <span class="n">subtype</span> <span class="n">is_subgroup</span><span class="o">)</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="kd">class</span><span class="o">]</span> <span class="n">is_subgroup</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup.mem_inter_iff</span>
+  <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">s'</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s'</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h''</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">)</span> <span class="n">h''</span> <span class="bp">↔</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∧</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup</span> <span class="n">s'</span> <span class="n">h'</span> <span class="o">:=</span>
+<span class="c1">-- by rw set.mem_inter_iff</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">set.mem_inter_iff</span><span class="o">,</span> <span class="c1">-- fails</span>
+  <span class="gr">sorry</span>
+<span class="kd">end</span>
+
+<span class="kd">@[reducible]</span>
+<span class="kd">def</span> <span class="n">attach</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">x</span>
+
+<span class="kd">abbreviation</span> <span class="n">the_subgroup'</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="n">attach</span> <span class="n">is_subgroup</span> <span class="n">s</span> <span class="n">h</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup'.mem_inter_iff</span>
+  <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">s'</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="n">s'</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h''</span> <span class="o">:</span> <span class="n">is_subgroup</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup'</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">s'</span><span class="o">)</span> <span class="n">h''</span> <span class="bp">↔</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup'</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∧</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">the_subgroup'</span> <span class="n">s'</span> <span class="n">h'</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="n">set.mem_inter_iff</span> <span class="c1">-- works</span>
+</code></pre></div>
+
+
+
+<a name="248747799"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747799" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747799">(Aug 08 2021 at 02:27)</a>:</h4>
+<p>The subtype approach requires a <code>by convert set.mem_inter_iff _ _ _</code></p>
+
+
+
+<a name="248747969"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248747969" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248747969">(Aug 08 2021 at 02:30)</a>:</h4>
+<p>This is all very untested, but the design constraints I was going for are (1) that rewrites should work with tagged data, and (2) that the tags don't unintentionally disappear (I suspect <code>simp</code> will gobble them up if they were subtypes).  Using subtypes is an interesting idea, but I think things tend to work out better following the principle "if a function could take a sigma type, existential, or subtype, make it take the components separately."</p>
+
+
+
+<a name="248748115"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248748115" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248748115">(Aug 08 2021 at 02:33)</a>:</h4>
+<p>Another way tagged data works is, of course, with structures.</p>
+
+
+
+<a name="248748154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248748154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248748154">(Aug 08 2021 at 02:34)</a>:</h4>
+<p>Which are inherently even more opaque than subtypes.</p>
+
+
+
+<a name="248748347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248748347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248748347">(Aug 08 2021 at 02:40)</a>:</h4>
+<p>A place tags are sort of used already in mathlib is to create "new" types for having a different collection of instances.  There's a variation I haven't seen (though it's possible it's there somewhere, mathlib is big!) where there are additional unused arguments whose purpose is to parameterize instances.  One example might be where you want to take a <a href="https://leanprover-community.github.io/mathlib_docs/find/add_torsor">docs#add_torsor</a>, choose an origin, and treat it like an additive group.</p>
+
+
+
+<a name="248748623"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248748623" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248748623">(Aug 08 2021 at 02:48)</a>:</h4>
+<p>This could potentially also be a way to have a set remember that it comes from a <code>set_like</code>, which might be an alternative to things like <code>is_subgroup</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">sets</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">set_like</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">set</span> <span class="o">(</span><span class="n">set</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">β</span> <span class="bp">|</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">s</span> <span class="bp">=</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">set</span> <span class="n">β</span><span class="o">)}</span>
+
+<span class="kd">abbreviation</span> <span class="n">the</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">set_like</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">s</span> <span class="bp">∈</span> <span class="n">sets</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">attach</span> <span class="n">_</span> <span class="n">s</span> <span class="n">h</span>
+
+<span class="kd">lemma</span> <span class="n">some_set</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">set_like</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">β</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">s</span> <span class="bp">∈</span> <span class="n">sets</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">h.some</span> <span class="o">:</span> <span class="n">set</span> <span class="n">β</span><span class="o">)</span> <span class="bp">=</span> <span class="n">s</span> <span class="o">:=</span> <span class="n">h.some_spec.symm</span>
+
+<span class="kd">lemma</span> <span class="n">the_subgroup.inter</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="n">t</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">s</span> <span class="bp">∈</span> <span class="n">sets</span> <span class="o">(</span><span class="n">subgroup</span> <span class="n">α</span><span class="o">))</span> <span class="o">(</span><span class="n">h'</span> <span class="o">:</span> <span class="n">t</span> <span class="bp">∈</span> <span class="n">sets</span> <span class="o">(</span><span class="n">subgroup</span> <span class="n">α</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">the</span> <span class="o">(</span><span class="n">subgroup</span> <span class="n">α</span><span class="o">)</span> <span class="n">s</span> <span class="n">h</span> <span class="bp">∩</span> <span class="n">the</span> <span class="o">(</span><span class="n">subgroup</span> <span class="n">α</span><span class="o">)</span> <span class="n">t</span> <span class="n">h'</span> <span class="bp">=</span>
+    <span class="n">the</span> <span class="o">(</span><span class="n">subgroup</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">t</span><span class="o">)</span> <span class="o">(</span><span class="kd">by</span> <span class="o">{</span> <span class="n">use</span> <span class="n">h.some</span> <span class="bp">⊓</span> <span class="n">h'.some</span><span class="o">,</span> <span class="n">simp</span> <span class="o">[</span><span class="n">some_set</span><span class="o">]})</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+
+
+
+<a name="248748693"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deprecated%20folder%20--%20deleting%20lemmas%3F/near/248748693" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deprecated.20folder.20--.20deleting.20lemmas.3F.html#248748693">(Aug 08 2021 at 02:50)</a>:</h4>
+<p>(There's probably some way to not have to write lemmas like <code>the_subgroup.inter</code>.  I just chose it for demonstration.)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

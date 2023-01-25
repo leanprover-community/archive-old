@@ -1,0 +1,627 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html">Adding logging for cases where oleans are not picked up</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="259857126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857126">(Nov 01 2021 at 12:24)</a>:</h4>
+<p>This is a question to Lean 3 maintainers mostly, but I am having a lot of difficulties to understand why Lean 3 makes some decisions in respect to olean reuse vs lean compilation from source.</p>
+<p>From what I gather:</p>
+<ul>
+<li>A module can be marked as: it has to be compiled from source, this is the case when I do: <code>lean --make src</code> and <code>src</code> must be compiled from source ;</li>
+<li>Some flag <code>can_use_oleans</code> is passed through the machinery to allow or not oleans, sometimes, it gets set, sometimes it does not.</li>
+<li>If an olean can be found and its hash is compatible, then it gets reused.</li>
+</ul>
+<p>Initially, I was making the changes to support emscripten v2 and <code>file_exists</code> relied on <code>stat</code> syscall to find out if a file existed or not, though emscripten didn't export <code>$ERRNO_CODES</code> properly, so in JavaScript, whenever there was an error with an FS syscall: the table <code>this.ERRNO_CODES[t.code]</code> returned <code>undefined</code>, then an exception with undefined errno was thrown, and it bubbled incorrectly as the file existed (error code: 0, which means everything is fine :&gt;), making believe Lean that the <code>.lean</code> existed when it didn't because next it tried to read the file, and it failed. (hinting on the <code>stat</code> issue, thanks the modern DevTools for being able to debug WASM!)</p>
+<p>It helped a lot during the debugging to have debug traces of the <code>module_mgr</code> class, now I'm doing something similar except that I'm not in the browser anymore, but I have a family of symlinks: <a href="https://github.com/RaitoBezarius/nixexprs/blob/master/pkgs/science/lean/make-lean-game.nix#L57-L66">https://github.com/RaitoBezarius/nixexprs/blob/master/pkgs/science/lean/make-lean-game.nix#L57-L66</a></p>
+<p>Where I layer the source of a Lean repo containing a <code>src/</code> and all of its dependencies (a family of symlinks of the form <code>_target/deps/${dep}</code>, with a special behavior for mathlib where I go get the Azure cache in addition).</p>
+<p>What happens specifically for mathlib is the following:</p>
+<div class="codehilite" data-code-language="Bash Session"><pre><span></span><code><span class="go">/nix/store/5ip4qjgmxxn7zfr9m2iy3vk6mi7lqbfh-Natural-Number-Game-library-src-bundle/_target/deps</span>
+<span class="go">└──mathlib -&gt; /nix/store/di71hzh91zkv6jj7bvnfmg3c3fq1f02q-mathlib-with-cached-olean</span>
+</code></pre></div>
+<p>This derivation <code>mathlib-with-cached-olean</code> shows for example:</p>
+<div class="codehilite" data-code-language="Bash Session"><pre><span></span><code><span class="go">&gt; ls -lah /nix/store/5ip4qjgmxxn7zfr9m2iy3vk6mi7lqbfh-Natural-Number-Game-library-src-bundle/_target/deps/mathlib/src/logic</span>
+<span class="go">Permissions Size User Date Modified  Name</span>
+<span class="go">lrwxrwxrwx    67 root  1 janv.  1970 basic.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/basic.lean</span>
+<span class="go">lrwxrwxrwx    68 root  1 janv.  1970 basic.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/basic.olean</span>
+<span class="go">lrwxrwxrwx    71 root  1 janv.  1970 embedding.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/embedding.lean</span>
+<span class="go">lrwxrwxrwx    72 root  1 janv.  1970 embedding.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/embedding.olean</span>
+<span class="go">lrwxrwxrwx    70 root  1 janv.  1970 function.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/function.lean</span>
+<span class="go">lrwxrwxrwx    71 root  1 janv.  1970 function.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/function.olean</span>
+<span class="go">lrwxrwxrwx    70 root  1 janv.  1970 relation.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/relation.lean</span>
+<span class="go">lrwxrwxrwx    71 root  1 janv.  1970 relation.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/relation.olean</span>
+<span class="go">lrwxrwxrwx    69 root  1 janv.  1970 relator.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/relator.lean</span>
+<span class="go">lrwxrwxrwx    70 root  1 janv.  1970 relator.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/relator.olean</span>
+<span class="go">lrwxrwxrwx    68 root  1 janv.  1970 unique.lean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/unique.lean</span>
+<span class="go">lrwxrwxrwx    69 root  1 janv.  1970 unique.olean -&gt; /nix/store/3wrkkns24gsbpir93nrw0jx9aflif1g9-source/logic/unique.olean</span>
+</code></pre></div>
+<p>Which is sane, but for some reason, it looks like it do not get picked by <code>lean --make src</code> and mathlib gets recompiled. Plus, as the compilation gets done in a Nix sandbox, it seems like <code>isatty(STDOUT_FILENO)</code> is false (?), therefore, no progress can be shown (or I'm wrong on what progress means).</p>
+<p>Leading me to this topic:</p>
+<ul>
+<li>Could there be a way to design a debugging machinery for oleans non-reuse in Lean?</li>
+<li>Could there be a way to show progress with: which file is getting compiled atm?</li>
+</ul>
+<p>Thanks!</p>
+
+
+
+<a name="259857341"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857341" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857341">(Nov 01 2021 at 12:26)</a>:</h4>
+<p>Bonus question: what to do of very old Lean versions? It seems like NNG was made for 3.4.2, I guess 3.5.0 could work, but it seems like the olean machinery relies on mtime, so I guess Nix timestamps are not an issue here.</p>
+
+
+
+<a name="259857404"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857404" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857404">(Nov 01 2021 at 12:27)</a>:</h4>
+<blockquote>
+<p>NNG was made for 3.4.2</p>
+</blockquote>
+<p>Can we upgrade it?  That seems like the easiest solution here.  3.4.2 is <em>ancient</em></p>
+
+
+
+<a name="259857433"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857433" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857433">(Nov 01 2021 at 12:27)</a>:</h4>
+<blockquote>
+<p>olean machinery relies on mtime</p>
+</blockquote>
+<p>No, it only relies on file hashes.</p>
+
+
+
+<a name="259857528"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857528" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857528">(Nov 01 2021 at 12:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259857433">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>olean machinery relies on mtime</p>
+</blockquote>
+<p>No, it only relies on file hashes.</p>
+</blockquote>
+<p>Even for old versions like 3.5.0 ?</p>
+<div class="codehilite" data-code-language="C++"><pre><span></span><code><span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">olean_fn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">olean_of_lean</span><span class="p">(</span><span class="n">lean_fn</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">shared_file_lock</span><span class="w"> </span><span class="nf">olean_lock</span><span class="p">(</span><span class="n">olean_fn</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">olean_mtime</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get_mtime</span><span class="p">(</span><span class="n">olean_fn</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">olean_mtime</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">-1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">olean_mtime</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">lean_mtime</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">            </span><span class="n">can_use_olean</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">            </span><span class="o">!</span><span class="n">m_modules_to_load_from_source</span><span class="p">.</span><span class="n">count</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">            </span><span class="n">is_candidate_olean_file</span><span class="p">(</span><span class="n">olean_fn</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">module_info</span><span class="o">&gt;</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">read_file</span><span class="p">(</span><span class="n">olean_fn</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">ios_base</span><span class="o">::</span><span class="n">binary</span><span class="p">),</span><span class="w"> </span><span class="n">module_src</span><span class="o">::</span><span class="n">OLEAN</span><span class="p">,</span><span class="w"> </span><span class="n">olean_mtime</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>seems to be hinting that?</p>
+
+
+
+<a name="259857531"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857531" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857531">(Nov 01 2021 at 12:28)</a>:</h4>
+<blockquote>
+<p>Could there be a way to show progress with: which file is getting compiled atm?</p>
+</blockquote>
+<p>This is indeed shown, but only if stdout is a tty as you've discovered.</p>
+
+
+
+<a name="259857552"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857552" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857552">(Nov 01 2021 at 12:28)</a>:</h4>
+<blockquote>
+<blockquote>
+<p>No, it only relies on file hashes.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<p>Even for old versions like 3.5.0 ?</p>
+</blockquote>
+<p>No, 3.5.0 is ancient.</p>
+
+
+
+<a name="259857611"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857611" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857611">(Nov 01 2021 at 12:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259857404">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>NNG was made for 3.4.2</p>
+</blockquote>
+<p>Can we upgrade it?  That seems like the easiest solution here.  3.4.2 is <em>ancient</em></p>
+</blockquote>
+<p>I think that's definitely the best solution, my NUR compiles and caches all versions starting 3.24.0 (<a href="https://github.com/RaitoBezarius/nixexprs/blob/master/pkgs/science/lean/default.nix#L16-L30">https://github.com/RaitoBezarius/nixexprs/blob/master/pkgs/science/lean/default.nix#L16-L30</a>) and 3.5.0 too (but disabling tests as some libleanshared stuff is not picked up correctly by Nix I think).</p>
+
+
+
+<a name="259857650"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857650" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857650">(Nov 01 2021 at 12:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259857552">said</a>:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>No, it only relies on file hashes.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<p>Even for old versions like 3.5.0 ?</p>
+</blockquote>
+<p>No, 3.5.0 is ancient.</p>
+</blockquote>
+<p>What would you say is the "starting version" for modern Lean 3 :) — I used 3.24.0 as a boundary but unsure.</p>
+
+
+
+<a name="259857734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857734">(Nov 01 2021 at 12:30)</a>:</h4>
+<p>When it comes to oleans and recompilation I don't think much has changed since 3.7.2</p>
+
+
+
+<a name="259857878"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857878" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857878">(Nov 01 2021 at 12:32)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259857531">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>Could there be a way to show progress with: which file is getting compiled atm?</p>
+</blockquote>
+<p>This is indeed shown, but only if stdout is a tty as you've discovered.</p>
+</blockquote>
+<p>I didn't get that far: is that a necessary condition for stdout to be a tty?</p>
+
+
+
+<a name="259857926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259857926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259857926">(Nov 01 2021 at 12:32)</a>:</h4>
+<p>necessary and sufficient iirc</p>
+
+
+
+<a name="259858066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259858066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259858066">(Nov 01 2021 at 12:34)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259857926">said</a>:</p>
+<blockquote>
+<p>necessary and sufficient iirc</p>
+</blockquote>
+<p>Then, do you see a way to have an escape hatch for Nix builds or that might be too complicated?</p>
+
+
+
+<a name="259858235"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259858235" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259858235">(Nov 01 2021 at 12:36)</a>:</h4>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code>sed -i <span class="s1">'s/isatty(STDOUT_FILENO)/true/'</span> src/shell/lean.cpp
+</code></pre></div>
+<p><span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="259858245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259858245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259858245">(Nov 01 2021 at 12:36)</a>:</h4>
+<p>:D</p>
+
+
+
+<a name="259859337"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259859337" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259859337">(Nov 01 2021 at 12:50)</a>:</h4>
+<p>what about something like this <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> :</p>
+<div class="codehilite" data-code-language="Darcs Patch"><pre><span></span><code>From 0f07210d63cc668d9e130cc8163064dc932dcfd8 Mon Sep 17 00:00:00 2001
+From: Raito Bezarius &lt;masterancpp@gmail.com&gt;
+Date: Mon, 1 Nov 2021 13:47:56 +0100
+Subject: [PATCH] shell(progress): add a flag to force progress even if stdout
+ is not a tty
+
+<span class="gd">---</span>
+ src/shell/lean.cpp | 27 ++++++++++++++++-----------
+ 1 file changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/src/shell/lean.cpp b/src/shell/lean.cpp
+index 2a20bec60..37251e9b3 100644
+<span class="gd">--- a/src/shell/lean.cpp</span>
+<span class="gi">+++ b/src/shell/lean.cpp</span>
+@@ -243,6 +243,7 @@ static struct option g_long_options[] = {
+     {"deps",         no_argument,       0, 'd'},
+     {"test-suite",   no_argument,       0, 'e'},
+     {"timeout",      optional_argument, 0, 'T'},
+<span class="gi">+    {"force-show-progress", no_argument, 0, 'F'},</span>
+ #if defined(LEAN_JSON)
+     {"json",         no_argument,       0, 'J'},
+     {"path",         no_argument,       0, 'p'},
+@@ -260,7 +261,7 @@ static struct option g_long_options[] = {
+ };
+
+ static char const * g_opt_str =
+<span class="gd">-    "PdD:qpgvhet:012E:A:B:j:012rM:012T:012"</span>
+<span class="gi">+    "FPdD:qpgvhet:012E:A:B:j:012rM:012T:012"</span>
+ #if defined(LEAN_MULTI_THREAD)
+     "s:012"
+ #endif
+@@ -431,15 +432,16 @@ int main(int argc, char ** argv) {
+     LEAN_EMSCRIPTEN_FS
+ #endif
+     ::initializer init;
+<span class="gd">-    bool make_mode          = false;</span>
+<span class="gd">-    bool export_tlean       = false;</span>
+<span class="gd">-    bool export_ast         = false;</span>
+<span class="gd">-    bool use_old_oleans     = false;</span>
+<span class="gd">-    bool report_widgets     = true;</span>
+<span class="gd">-    bool recursive          = false;</span>
+<span class="gd">-    unsigned trust_lvl      = LEAN_BELIEVER_TRUST_LEVEL+1;</span>
+<span class="gd">-    bool only_deps          = false;</span>
+<span class="gd">-    bool test_suite         = false;</span>
+<span class="gi">+    bool make_mode           = false;</span>
+<span class="gi">+    bool export_tlean        = false;</span>
+<span class="gi">+    bool export_ast          = false;</span>
+<span class="gi">+    bool use_old_oleans      = false;</span>
+<span class="gi">+    bool report_widgets      = true;</span>
+<span class="gi">+    bool recursive           = false;</span>
+<span class="gi">+    unsigned trust_lvl       = LEAN_BELIEVER_TRUST_LEVEL+1;</span>
+<span class="gi">+    bool only_deps           = false;</span>
+<span class="gi">+    bool test_suite          = false;</span>
+<span class="gi">+    bool force_show_progress = false;</span>
+     unsigned num_threads    = 0;
+ #if defined(LEAN_MULTI_THREAD)
+     num_threads = hardware_concurrency();
+@@ -511,6 +513,9 @@ int main(int argc, char ** argv) {
+         case 'q':
+             opts = opts.update(lean::get_verbose_opt_name(), false);
+             break;
+<span class="gi">+   case 'F':</span>
+<span class="gi">+      force_show_progress = true;</span>
+<span class="gi">+      break;</span>
+         case 'd':
+             only_deps = true;
+             break;
+@@ -613,7 +618,7 @@ int main(int argc, char ** argv) {
+
+     log_tree lt;
+
+<span class="gd">-    bool show_progress = (make_mode || export_tlean) &amp;&amp; isatty(STDOUT_FILENO);</span>
+<span class="gi">+    bool show_progress = (make_mode || export_tlean) &amp;&amp; (isatty(STDOUT_FILENO) || force_show_progress);</span>
+     progress_message_stream msg_stream(std::cout, json_output, show_progress, lt.get_root());
+     if (json_output) ios.set_regular_channel(ios.get_diagnostic_channel_ptr());
+
+<span class="gd">--</span>
+2.33.0
+</code></pre></div>
+<p>(modulo formatting)?</p>
+
+
+
+<a name="259859361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259859361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259859361">(Nov 01 2021 at 12:50)</a>:</h4>
+<p>(except it might not apply very well across all versions hm)</p>
+
+
+
+<a name="259859421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259859421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259859421">(Nov 01 2021 at 12:51)</a>:</h4>
+<p>Looks reasonable as well.  If it's just for the one-off emscripten build, then I'd just do the sed version.</p>
+
+
+
+<a name="259859731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259859731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259859731">(Nov 01 2021 at 12:54)</a>:</h4>
+<p>It would get used when I make library.zip bundles, so it's for the Lean x86_64 builds and if I do the sed version, I'd need to compile twice Lean I believe.</p>
+<p>Now, I have a way to know which file is getting compiled during library making, all that's left is to understand why an olean is not picked up, would you be interested in a patch towards this with debugging traces for emscripten <em>and</em> x86_64? <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span></p>
+
+
+
+<a name="259859922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259859922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259859922">(Nov 01 2021 at 12:56)</a>:</h4>
+<p>Maybe you're not using the same lean version to compile the olean as you use for the javascript version (there's a check that you can disable with <code>-DCHECK_OLEAN_VERSION=OFF</code>).</p>
+
+
+
+<a name="259860130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259860130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259860130">(Nov 01 2021 at 12:59)</a>:</h4>
+<p>Hm, is there a way to find out which lean version was compiled for a given olean? I'm using the oleans from the Azure cache for mathlib, so it could be this.</p>
+
+
+
+<a name="259860652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259860652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259860652">(Nov 01 2021 at 13:03)</a>:</h4>
+<p>You can look in the <code>leanpkg.toml</code> file inside mathlib to figure out the correct Lean version to use.</p>
+
+
+
+<a name="259860772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259860772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259860772">(Nov 01 2021 at 13:05)</a>:</h4>
+<p>also see <a href="https://github.com/NixOS/nixpkgs/pull/124507">https://github.com/NixOS/nixpkgs/pull/124507</a></p>
+
+
+
+<a name="259861340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259861340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259861340">(Nov 01 2021 at 13:11)</a>:</h4>
+<p>Ha, nice!</p>
+
+
+
+<a name="259861785"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259861785" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259861785">(Nov 01 2021 at 13:16)</a>:</h4>
+<p>Many thanks for all the insights <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> !</p>
+
+
+
+<a name="259861904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259861904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259861904">(Nov 01 2021 at 13:17)</a>:</h4>
+<p>It's on my job list for this month to deal with natural number game issues, I can update lean as part of it. My guess is that it will be extremely easy to bump mathlib although perhaps I might need help if things like the tactic hack breaks</p>
+
+
+
+<a name="259862000"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259862000" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259862000">(Nov 01 2021 at 13:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259861904">said</a>:</p>
+<blockquote>
+<p>It's on my job list for this month to deal with natural number game issues, I can update lean as part of it. My guess is that it will be extremely easy to bump mathlib although perhaps I might need help if things like the tactic hack breaks</p>
+</blockquote>
+<p>To be honest, I quickly tried:<br>
+<a href="/user_uploads/3121/9KDOevE4Vjy-u8aowpQgcu-T/image.png">image.png</a> </p>
+<div class="message_inline_image"><a href="/user_uploads/3121/9KDOevE4Vjy-u8aowpQgcu-T/image.png" title="image.png"><img src="/user_uploads/3121/9KDOevE4Vjy-u8aowpQgcu-T/image.png"></a></div><p>For now, I'll start another Lean Game project from scratch to perform tests and come back to NNG to help porting it (and learn more about those tactic hacks!)</p>
+
+
+
+<a name="259868872"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259868872" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259868872">(Nov 01 2021 at 14:17)</a>:</h4>
+<p>Getting back to disabling olean version check, I added some logging, here's an example of a trace:<br>
+<code>olean /nix/store/r1cwxp6krlghnb30gn3g5nm68djhjqb7-mathlib-azure-olean-with-src/src/tactic/simp_result.olean was rejected (can use olean: no, does it exist: yes, is it a module to load from source: no).</code></p>
+
+
+
+<a name="259868888"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259868888" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259868888">(Nov 01 2021 at 14:17)</a>:</h4>
+<p>So it does exist, it's not a module to load from source, but for some reason, it cannot use olean, what are the causes of this?</p>
+
+
+
+<a name="259868990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259868990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259868990">(Nov 01 2021 at 14:18)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>            <span class="bp">//</span> <span class="n">If</span> <span class="n">anything</span> <span class="k">in</span> <span class="n">the</span> <span class="n">reflexive</span><span class="bp">-</span><span class="n">transitive</span> <span class="n">closure</span> <span class="n">of</span> <span class="n">this</span> <span class="n">module</span> <span class="n">under</span> <span class="n">the</span> <span class="kn">import</span> <span class="n">relation</span>
+            <span class="bp">//</span> <span class="n">has</span> <span class="n">changed</span><span class="o">,</span> <span class="n">rebuild</span> <span class="n">the</span> <span class="n">module.</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">mod</span><span class="bp">-&gt;</span><span class="n">m_trans_hash</span> <span class="bp">!=</span> <span class="n">actual_trans_hash</span> <span class="bp">&amp;&amp;</span> <span class="bp">!</span><span class="n">m_use_old_oleans</span><span class="o">)</span>
+                <span class="n">return</span> <span class="n">build_module</span><span class="o">(</span><span class="n">id</span><span class="o">,</span> <span class="n">false</span><span class="o">,</span> <span class="n">orig_module_stack</span><span class="o">)</span><span class="bp">;</span>
+</code></pre></div>
+<p>sounds like this is due to this</p>
+
+
+
+<a name="259869005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259869005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259869005">(Nov 01 2021 at 14:18)</a>:</h4>
+<p>so if I pass <code>--old-oleans</code> maybe I have a chance :D</p>
+
+
+
+<a name="259869891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259869891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259869891">(Nov 01 2021 at 14:25)</a>:</h4>
+<p>joy: <code>Added 1887 olean files from r1cwxp6krlghnb30gn3g5nm68djhjqb7-mathlib-azure-olean-with-src</code></p>
+
+
+
+<a name="259873569"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259873569" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259873569">(Nov 01 2021 at 14:54)</a>:</h4>
+<p>Okay, I quite got there through disabling olean version check and forcing old oleans, just unsure if the transitive hash thing might become a problem.</p>
+
+
+
+<a name="259895863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259895863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259895863">(Nov 01 2021 at 17:44)</a>:</h4>
+<p>In order to verify how these transitive hash works, I'd like to verify them externally using Python, so I tried to parse oleans, according to the C++ code, there should be:</p>
+<ul>
+<li>header (7s)</li>
+<li>version (27s in the case of <code>3.35.0, commit a68d251bfc57</code>)</li>
+<li>source hash (<code>unsigned</code> → <code>unsigned int</code>?)</li>
+<li>transitive hash (<code>unsigned</code>)</li>
+<li>claimed blob hash (<code>unsigned</code>)</li>
+<li>uses sorry or not (<code>bool</code>)</li>
+<li>number of imports (<code>unsigned</code>)</li>
+<li>for each import, a <code>module_name</code>, that is: a <code>name</code> structure and a <code>optional&lt;unsigned&gt;</code></li>
+</ul>
+<p>Assuming those are <code>unsigned short</code> in fact.<br>
+Just parsing up to the <code>sorry</code> field seems strange </p>
+<div class="codehilite" data-code-language="Python"><pre><span></span><code><span class="o">&gt;&gt;&gt;</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack_from</span><span class="p">(</span><span class="s1">'=9sx27sxHHH?H'</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+<span class="p">(</span><span class="sa">b</span><span class="s1">'oleanfile'</span><span class="p">,</span> <span class="sa">b</span><span class="s1">'3.35.0, commit a68d251bfc57'</span><span class="p">,</span> <span class="mi">39679</span><span class="p">,</span> <span class="mi">23212</span><span class="p">,</span> <span class="mi">65475</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="mi">46697</span><span class="p">)</span>
+</code></pre></div>
+<p>And 46697 imports (<code>dlist/basic.lean</code>) seems too much. Is there any doc on the technical details of these formats (or existing external code of parsing) ?</p>
+
+
+
+<a name="259896444"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896444" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896444">(Nov 01 2021 at 17:49)</a>:</h4>
+<p>Can you link to the relevant c++ code?</p>
+
+
+
+<a name="259896572"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896572" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896572">(Nov 01 2021 at 17:50)</a>:</h4>
+<p><code>H</code> is <code>short</code> not <code>int</code> though</p>
+
+
+
+<a name="259896795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896795">(Nov 01 2021 at 17:53)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259896572">said</a>:</p>
+<blockquote>
+<p><code>H</code> is <code>short</code> not <code>int</code> though</p>
+</blockquote>
+<p>Indeed, I wrote I'm assuming that those are <code>unsigned short</code> in fact instead of <code>unsigned int</code> (with <code>I</code>, it shows way bigger numbers).</p>
+
+
+
+<a name="259896830"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896830" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896830">(Nov 01 2021 at 17:53)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up/near/259896444">said</a>:</p>
+<blockquote>
+<p>Can you link to the relevant c++ code?</p>
+</blockquote>
+<p><a href="https://github.com/leanprover-community/lean/blob/master/src/library/module.cpp#L632-L649">https://github.com/leanprover-community/lean/blob/master/src/library/module.cpp#L632-L649</a></p>
+
+
+
+<a name="259896951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896951">(Nov 01 2021 at 17:54)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/lean/blob/65ad4ffdb3abac75be748554e3cbe990fb1c6500/src/util/serializer.h#L65-L72">https://github.com/leanprover-community/lean/blob/65ad4ffdb3abac75be748554e3cbe990fb1c6500/src/util/serializer.h#L65-L72</a></p>
+<p><a href="https://github.com/leanprover-community/lean/blob/65ad4ffdb3abac75be748554e3cbe990fb1c6500/src/util/serializer.cpp#L26-L37">https://github.com/leanprover-community/lean/blob/65ad4ffdb3abac75be748554e3cbe990fb1c6500/src/util/serializer.cpp#L26-L37</a></p>
+
+
+
+<a name="259896973"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259896973" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259896973">(Nov 01 2021 at 17:55)</a>:</h4>
+<p>It's a variable width format</p>
+
+
+
+<a name="259897192"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897192" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897192">(Nov 01 2021 at 17:56)</a>:</h4>
+<p>Indeed</p>
+
+
+
+<a name="259897288"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897288" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897288">(Nov 01 2021 at 17:57)</a>:</h4>
+<p>that will be ugly to parse</p>
+
+
+
+<a name="259897361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897361">(Nov 01 2021 at 17:58)</a>:</h4>
+<p>hm isn't just number in another endianness?</p>
+
+
+
+<a name="259897418"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897418" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897418">(Nov 01 2021 at 17:58)</a>:</h4>
+<p>(and in 64 bits no matter what)</p>
+
+
+
+<a name="259897425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897425">(Nov 01 2021 at 17:58)</a>:</h4>
+<p>The struct module is unsuitable for parsing this</p>
+
+
+
+<a name="259897456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897456">(Nov 01 2021 at 17:58)</a>:</h4>
+<p>No, it's 1 byte if the number is &lt;255, and 5 bytes if its greater</p>
+
+
+
+<a name="259897503"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897503" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897503">(Nov 01 2021 at 17:59)</a>:</h4>
+<p>I meant in the case where it's &gt;=255</p>
+
+
+
+<a name="259897511"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897511" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897511">(Nov 01 2021 at 17:59)</a>:</h4>
+<p>You don't care about efficiency I assume for checking the hashes, just write a simple tokenizer</p>
+
+
+
+<a name="259897513"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897513" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897513">(Nov 01 2021 at 17:59)</a>:</h4>
+<p>excluding the -1</p>
+
+
+
+<a name="259897530"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897530" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897530">(Nov 01 2021 at 17:59)</a>:</h4>
+<p>I indeed don't care</p>
+
+
+
+<a name="259897583"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259897583" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259897583">(Nov 01 2021 at 17:59)</a>:</h4>
+<p>but rather than write something new, maybe I will just create a new Lean executable <code>lean_check_olean</code> which will reuse the existing deserializing machinery</p>
+
+
+
+<a name="259898212"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259898212" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259898212">(Nov 01 2021 at 18:04)</a>:</h4>
+<p>We're talking around 15 lines, probably:</p>
+<div class="codehilite" data-code-language="Python"><pre><span></span><code><span class="k">def</span> <span class="nf">read_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">sofar</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">c</span> <span class="o">:=</span> <span class="nb">next</span><span class="p">(</span><span class="n">s</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">sofar</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">bytes</span><span class="p">([</span><span class="n">c</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">sofar</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+
+<span class="c1"># repeat for `read_unsigned`</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'some_olean'</span><span class="p">,</span> <span class="s1">'rb'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">version</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="c1"># etc</span>
+</code></pre></div>
+
+
+
+<a name="259898348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259898348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259898348">(Nov 01 2021 at 18:05)</a>:</h4>
+<p>The name deserializer won't be simple at all though</p>
+
+
+
+<a name="259898364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259898364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259898364">(Nov 01 2021 at 18:05)</a>:</h4>
+<p>And if I want to reproduce the transitive hash computations, I'll need it I believe</p>
+
+
+
+<a name="259898498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259898498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259898498">(Nov 01 2021 at 18:06)</a>:</h4>
+<p>Excluding shenanigans with transitive hashes of oleans (that is, <code>use_old_oleans=True</code> on emscripten bundle and Lean x86_64):<br>
+<a href="/user_uploads/3121/8Bw5fy05PeU-DgcDhpvMlePX/image.png">image.png</a> <br>
+it works fine :)</p>
+<div class="message_inline_image"><a href="/user_uploads/3121/8Bw5fy05PeU-DgcDhpvMlePX/image.png" title="image.png"><img src="/user_uploads/3121/8Bw5fy05PeU-DgcDhpvMlePX/image.png"></a></div>
+
+
+
+<a name="259898588"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259898588" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259898588">(Nov 01 2021 at 18:07)</a>:</h4>
+<p>(@ name deserializer: I mean this: <a href="https://github.com/leanprover-community/lean/blob/master/src/util/name.cpp#L515-L538">https://github.com/leanprover-community/lean/blob/master/src/util/name.cpp#L515-L538</a>)</p>
+
+
+
+<a name="259905251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259905251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259905251">(Nov 01 2021 at 18:57)</a>:</h4>
+<p>well, doing it quickly in C++ yields to:</p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code>reading /nix/store/r3iqrhwik0fx49b75vxhfkpfjdg50h4p-mathlib-with-cached-olean/src/algebra/abs.lean
+module loaded, is olean: yes
+olean parsed.
+transitive <span class="nb">hash</span> computed.
+mod trans hash: <span class="m">1918900608</span>
+actual trans hash: <span class="m">639958348</span>
+</code></pre></div>
+<p>so far so good :)</p>
+
+
+
+<a name="259922084"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259922084" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259922084">(Nov 01 2021 at 21:10)</a>:</h4>
+<p>For fun, here's a graph of valid/invalid transitive dependencies: <a href="/user_uploads/3121/7aReHvOmj1k6WpoR-yAe7mwO/graph.svg">graph.svg</a> </p>
+<p>I guess this is due to the fact that <code>src_hash = hash(remove_cr(lean_file))</code> changes due to the missing githash, which induces invalid transitive hash at some parts.</p>
+
+
+
+<a name="259936920"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259936920" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259936920">(Nov 01 2021 at 23:48)</a>:</h4>
+<p>Okay, implementing the same thing as upstream nixpkgs for githash made everything work just fine, :-).<br>
+I pushed most of the stuff there: <a href="https://github.com/RaitoBezarius/nixexprs/tree/master/pkgs/science/lean">https://github.com/RaitoBezarius/nixexprs/tree/master/pkgs/science/lean</a> if people are actually interested. I will now be able to focus more on frontend. Some patches are there to help for olean diagnostics over emscripten and x86_64 (hidden behind <code>debugOleans</code> attribute which enable very verbose logging.)</p>
+
+
+
+<a name="259936925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Adding%20logging%20for%20cases%20where%20oleans%20are%20not%20picked%20up/near/259936925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Adding.20logging.20for.20cases.20where.20oleans.20are.20not.20picked.20up.html#259936925">(Nov 01 2021 at 23:48)</a>:</h4>
+<p>Thanks everyone for your insights :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

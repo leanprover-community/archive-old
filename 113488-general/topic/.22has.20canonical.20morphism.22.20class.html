@@ -1,0 +1,141 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html">"has canonical morphism" class</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="280858081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/280858081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#280858081">(May 02 2022 at 10:49)</a>:</h4>
+<p>I've been thinking about my next big typeclass-based refactor for a bit, and since I don't have much time at the moment, I'll write it out here for anyone interested in picking it up:</p>
+<p>I have been using <a href="https://leanprover-community.github.io/mathlib_docs/find/algebra">docs#algebra</a> instances with a lot of success to denote that there is a canonical map (inclusion) between two rings. But there are some drawbacks:</p>
+<ul>
+<li><a href="https://leanprover-community.github.io/mathlib_docs/find/algebra.id">docs#algebra.id</a> gives diamonds with algebra instances such as <code>algebra R S → algebra R[X] S[X]</code> or <code>char_zero K → algebra ℚ K</code></li>
+<li>We can use the forgetful inheritance pattern to make the <code>smul</code> field work right, but the <code>to_fun</code> field causes diamonds</li>
+<li>Some of the "transitivity" instances like <a href="https://leanprover-community.github.io/mathlib_docs/find/subalgebra.algebra'">docs#subalgebra.algebra'</a> are hard to infer so we need to specialize them like <a href="https://leanprover-community.github.io/mathlib_docs/find/subalgebra.algebra">docs#subalgebra.algebra</a></li>
+<li>The definition works nicely if the map comes out of a <code>comm_semiring</code>, but not for <code>non_unital_non_assoc_semiring</code>s, let alone for denoting monoid homomorphisms.</li>
+</ul>
+<p>There have been some proposals before for defining <code>algebra_map R S x</code> to just be <code>(1 : S) \bu (x : R)</code>, but that breaks useful defeqs throughout mathlib. So I think we should not drop the canonical map part but instead split that off into its own class.</p>
+<p>Luckily, we have classes for expressing the existence of a canonical map: <a href="https://leanprover-community.github.io/mathlib_docs/find/has_coe_t">docs#has_coe_t</a> and/or <a href="https://leanprover-community.github.io/mathlib_docs/find/has_lift_t">docs#has_lift_t</a>! So the plan is to make subclasses of <a href="https://leanprover-community.github.io/mathlib_docs/find/has_coe_t">docs#has_coe_t</a> which state that the map <code>↑</code> is a ring/monoid/etc hom. Now starts a more speculative part:</p>
+<p>I think an unbundled subclass will work best, of the form:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">has_ring_hom_lift</span> <span class="o">(</span><span class="n">R</span> <span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">S</span><span class="o">]</span> <span class="o">[</span><span class="n">has_lift_t</span> <span class="n">R</span> <span class="n">S</span><span class="o">]</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">coe_add</span> <span class="o">:</span> <span class="bp">↑</span><span class="o">(</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">↑</span><span class="n">x</span> <span class="bp">+</span> <span class="bp">↑</span><span class="n">y</span><span class="o">)</span>
+<span class="c1">-- etc.</span>
+</code></pre></div>
+<p>This means we don't have to do tricks like declare <code>has_ring_hom_base</code> and <code>has_ring_hom_trans</code> classes to make transitivity work. Hopefully we can just declare one transitivity instance on <a href="https://leanprover-community.github.io/mathlib_docs/find/lift_trans">docs#lift_trans</a> without the <a href="https://leanprover-community.github.io/mathlib_docs/find/subalgebra.algebra'">docs#subalgebra.algebra'</a> style pattern.</p>
+<p>An immediate drawback I see is that we can't use <code>is_scalar_tower</code> to assert that a square of canonical maps commutes. We'll probably have to make a new class that does this instead.</p>
+<p>Another drawback is that this will break like thousands of lines of mathlib, so unless we find someone dedicated enough to keep such a humongous PR up to date we should probably design a backwards-compatible interface.</p>
+
+
+
+<a name="280858254"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/280858254" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#280858254">(May 02 2022 at 10:51)</a>:</h4>
+<p>Note that they couldn't use <code>is_scalar_tower</code> to do products of semilinear maps either so just made another typeclass.</p>
+
+
+
+<a name="280859579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/280859579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#280859579">(May 02 2022 at 11:06)</a>:</h4>
+<p>Do we have the <code>algebra R S → algebra R[X] S[X]</code> instance? I think that instance is just bad because it makes nasty things happen for <code>algebra R R[X] → algebra R[X] R[X][X]</code> that acts on the wrong Xs compared to the usual polynomial algebra instance</p>
+
+
+
+<a name="280862128"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/280862128" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#280862128">(May 02 2022 at 11:36)</a>:</h4>
+<p>Indeed we don't for those reasons.</p>
+
+
+
+<a name="281661565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281661565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281661565">(May 09 2022 at 09:58)</a>:</h4>
+<p>Just to be clear, are you proposing <a href="https://leanprover-community.github.io/mathlib_docs/find/algebra">docs#algebra</a> be changed to the following?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">algebra</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">has_lift_t</span> <span class="n">R</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">has_ring_hom_lift</span> <span class="n">R</span> <span class="n">A</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">has_scalar</span> <span class="n">R</span> <span class="n">A</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">commutes</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">r</span> <span class="n">x</span><span class="o">,</span> <span class="bp">↑</span><span class="n">r</span> <span class="bp">*</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">r</span><span class="o">)</span> <span class="c1">-- as before, but with coe instead of `algebra_map`</span>
+<span class="o">(</span><span class="n">smul_def</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">r</span> <span class="n">x</span><span class="o">,</span> <span class="n">r</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="bp">↑</span><span class="n">r</span> <span class="bp">*</span> <span class="n">x</span><span class="o">)</span> <span class="c1">-- as before, but with coe instead of `algebra_map`</span>
+</code></pre></div>
+<p>I would be in favor of that as a first step (and eliminating <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.C">docs#polynomial.C</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/matrix.scalar">docs#matrix.scalar</a> at the same time)</p>
+
+
+
+<a name="281662003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662003">(May 09 2022 at 10:02)</a>:</h4>
+<p>(although I would be tempted to extend <code>has_lift_t</code> to prevent argument explosion)</p>
+
+
+
+<a name="281662148"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662148" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662148">(May 09 2022 at 10:04)</a>:</h4>
+<p>I was thinking more like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">algebra</span> <span class="o">[</span><span class="n">non_unital_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">non_unital_semiring</span> <span class="n">A</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">module</span> <span class="n">R</span> <span class="n">A</span><span class="o">,</span> <span class="n">smul_comm_class</span> <span class="n">R</span> <span class="n">A</span> <span class="n">A</span><span class="o">,</span> <span class="n">is_scalar_tower</span> <span class="n">R</span> <span class="n">A</span> <span class="n">A</span>
+
+<span class="c1">-- Probably can't be an instance since we want to supply a `smul` that keeps diagrams commuting.</span>
+<span class="kd">def</span> <span class="n">has_ring_hom_lift.to_algebra</span> <span class="o">[</span><span class="n">has_ring_hom_lift</span> <span class="n">R</span> <span class="n">A</span><span class="o">]</span>
+  <span class="o">(</span><span class="n">smul</span> <span class="o">:</span> <span class="n">R</span> <span class="bp">→</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span><span class="o">)</span> <span class="o">(</span><span class="n">smul_def</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">r</span> <span class="n">x</span><span class="o">,</span> <span class="n">r</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="bp">↑</span><span class="n">r</span> <span class="bp">*</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="281662267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662267">(May 09 2022 at 10:05)</a>:</h4>
+<p>I feel like the <code>smul_def</code> lemma that links the smul and lift structure needs to be in an instance somewhere</p>
+
+
+
+<a name="281662270"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662270" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662270">(May 09 2022 at 10:05)</a>:</h4>
+<p>Since the existence of <code>algebra_map</code> is based on the fact that the rings are unital, we can generalize <code>algebra</code> to the non-unital case only if we don't depend on the <code>algebra_map</code>.</p>
+
+
+
+<a name="281662378"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662378" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662378">(May 09 2022 at 10:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class/near/281662267">said</a>:</p>
+<blockquote>
+<p>I feel like the <code>smul_def</code> lemma that links the smul and lift structure needs to be in an instance somewhere</p>
+</blockquote>
+<p>That's true, we do switch a lot between <code>smul</code> and <code>algebra_map</code> at the moment.</p>
+
+
+
+<a name="281662443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662443">(May 09 2022 at 10:07)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="238446">Anne Baanen</span> <a href="#narrow/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class/near/281662270">said</a>:</p>
+<blockquote>
+<p>Since the existence of <code>algebra_map</code> is based on the fact that the rings are unital, we can generalize <code>algebra</code> to the non-unital case only if we don't depend on the <code>algebra_map</code>.</p>
+</blockquote>
+<p>My mindset is still "<code>algebra</code> exists specifically to provide <code>algebra_map</code>". If we're really annoyed about <code>module R A, smul_comm_class R A A, is_scalar_tower R A A</code> being verbose, then we could introduce a new <code>n_algebra</code> typeclass to act as a shorthand, at the cost of adding about <del>75</del> 96 new instances (one for each <a href="https://leanprover-community.github.io/mathlib_docs/find/smul_comm_class">docs#smul_comm_class</a> we currently have)</p>
+
+
+
+<a name="281662498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662498">(May 09 2022 at 10:07)</a>:</h4>
+<p>Whereas canonical ring morphisms let us make a generalization we currently don't have at all</p>
+
+
+
+<a name="281662561"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662561" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662561">(May 09 2022 at 10:08)</a>:</h4>
+<p>Not having to mess around between C and algebra_map in polynomials feels like a big win to me</p>
+
+
+
+<a name="281662863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/%22has%20canonical%20morphism%22%20class/near/281662863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/.22has.20canonical.20morphism.22.20class.html#281662863">(May 09 2022 at 10:12)</a>:</h4>
+<p>Mhm, it should be fine to defer the decision on how much to change <code>algebra</code> until canonical ring homs are more stable.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

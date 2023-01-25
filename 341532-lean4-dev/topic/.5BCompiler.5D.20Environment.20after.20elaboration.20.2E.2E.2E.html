@@ -1,0 +1,358 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/index.html">lean4 dev</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html">[Compiler] Environment after elaboration ...</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="300382817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300382817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300382817">(Sep 23 2022 at 14:47)</a>:</h4>
+<p>The following are some notes I took trying to understand the the concrete representation in the Environment after elaboration. My goal is to fully understand the inputs to the compiler/LCNF. I am posting it here for the benefit of others and possibly get some feedback, if any.</p>
+<p>If is by no means complete, but possibly useful anyway.</p>
+
+
+
+<a name="300382937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300382937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300382937">(Sep 23 2022 at 14:48)</a>:</h4>
+<h1>Environment after elaboration</h1>
+<p>Lean has a large and extensible surface language that is elaborated into a smaller internal language (<a href="https://github.com/leanprover/lean4/blob/78927542b7f8222887b0277d52ed433d6a5f8e30/src/Lean/Declaration.lean#L368-L376">ConstantInfo</a> + <a href="https://github.com/leanprover/lean4/blob/c65a206d6ab4a8f0bee7cfd97bf87d02ff19de37/src/Lean/Expr.lean#L301-L512">Expr</a> + <a href="https://github.com/leanprover/lean4/blob/78927542b7f8222887b0277d52ed433d6a5f8e30/src/Lean/Declaration.lean#L154-L162">Declaration</a>: what is this representation named? Core?). This core language is the starting point for the compiler optimizations and code generation.</p>
+<p>So, after elaboration, what does this core representation looks like? Following are some examples to make this representation more concrete and keeping types as simple as possible.</p>
+<h2>Function definitions</h2>
+<p>Here is a rather simple function definition:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">double</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">x</span> <span class="bp">+</span> <span class="n">x</span>
+</code></pre></div>
+<p>Definitions have a direct representation in the Environment as <code>ConstantInfo.defnInfo</code>s. For each function<br>
+definition, there will be one <code>ConstantInfo.defnInfo</code> in the Environment.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.defnInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"double"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">x</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[])</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[])</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">)</span>
+    <span class="o">},</span>
+    <span class="n">value</span> <span class="o">:=</span> <span class="n">Lean.Expr.lam</span>
+               <span class="bp">`</span><span class="n">x</span>
+               <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[])</span>
+               <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                   <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                           <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">HAdd.hAdd</span> <span class="o">[</span><span class="n">Lean.Level.zero</span><span class="o">,</span> <span class="n">Lean.Level.zero</span><span class="o">,</span> <span class="n">Lean.Level.zero</span><span class="o">])</span>
+                           <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]))</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]))</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]))</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">instHAdd</span> <span class="o">[</span><span class="n">Lean.Level.zero</span><span class="o">])</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]))</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">instAddNat</span> <span class="o">[])))</span>
+                   <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+               <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">),</span>
+    <span class="n">hints</span> <span class="o">:=</span> <span class="n">Lean.ReducibilityHints.regular</span> <span class="mi">3</span><span class="o">,</span>
+    <span class="n">safety</span> <span class="o">:=</span> <span class="n">Lean.DefinitionSafety.safe</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"double"</span><span class="o">]</span>
+    <span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="300383008"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300383008" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300383008">(Sep 23 2022 at 14:48)</a>:</h4>
+<h2>Inductive definitions</h2>
+<p>Here is the simplest example of an inductive type:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Boolean</span>
+<span class="bp">|</span> <span class="n">true</span>
+<span class="bp">|</span> <span class="n">false</span>
+</code></pre></div>
+<p>An inductive data type, will be represented separately in the Environment as a <code>ConstantInfo.inductInfo</code> named <code>Boolean</code> and many <code>ConstantInfo.ctorInfo</code>s, one for each constructor.</p>
+<p>Here is the corresponding <code>ConstantInfo.inductInfo</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.inductInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">))</span>
+    <span class="o">},</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numIndices</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">],</span>
+    <span class="n">ctors</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">)</span> <span class="s2">"true"</span><span class="o">,</span>
+              <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">)</span> <span class="s2">"false"</span><span class="o">],</span>
+    <span class="n">isRec</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isReflexive</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isNested</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>And here are the corresponding <code>ConstantInfo.ctorsInfo</code>s, namely <code>Boolean.true</code> and <code>Boolean.false</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.ctorInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">)</span> <span class="s2">"true"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Boolean</span> <span class="o">[]</span>
+    <span class="o">},</span>
+    <span class="n">induct</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">,</span>
+    <span class="n">cidx</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numFields</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.ctorInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">)</span> <span class="s2">"false"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Boolean</span> <span class="o">[]</span>
+    <span class="o">},</span>
+    <span class="n">induct</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Boolean"</span><span class="o">,</span>
+    <span class="n">cidx</span> <span class="o">:=</span> <span class="mi">1</span><span class="o">,</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numFields</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>Note that <code>ConstantInfo.ctorInfo</code> do no have a value because it can be automatically generated from its type (?).</p>
+
+
+
+<a name="300383241"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300383241" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300383241">(Sep 23 2022 at 14:49)</a>:</h4>
+<h2>Structures</h2>
+<p>Structure are elaborated into <code>ConstantInfo.inductInfo</code> with a single constructor and with some extra support for default values and projections etc.</p>
+<p>For instance, here is an extremely simple structure with two fields:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Point</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span>
+</code></pre></div>
+<p>And here is the corresponding <code>ConstantInfo.inductInfo</code> in the environment. Note that the ctors field contains a single <code>Name</code> referencing the corresponding constructor.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.inductInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Point"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">))</span>
+    <span class="o">},</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numIndices</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Point"</span><span class="o">],</span>
+    <span class="n">ctors</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Point"</span><span class="o">)</span> <span class="s2">"mk"</span><span class="o">],</span>
+    <span class="n">isRec</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isReflexive</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isNested</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>And here is the corresponding <code>ConstantInfo.ctorInfo</code> containing the constructor type plus some additional metadata.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.ctorInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Point"</span><span class="o">)</span> <span class="s2">"mk"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">x</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[])</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">y</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[])</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Point</span> <span class="o">[])</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">)</span> <span class="o">},</span>
+    <span class="n">induct</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Point"</span><span class="o">,</span>
+    <span class="n">cidx</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numFields</span> <span class="o">:=</span> <span class="mi">2</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>TBD: add projections and other helper functions automatically generated.</p>
+
+
+
+<a name="300383317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300383317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300383317">(Sep 23 2022 at 14:49)</a>:</h4>
+<h2>Type classes</h2>
+<p>Type classes do not have an explicit representation in core but are elaborated into a <code>ConstantInfo.inductInfo</code> and a <code>ConstantInfo.ctorInfo</code>, and one <code>ConstantInfo.defnInfo</code> for each class method.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+    <span class="n">default</span> <span class="o">:</span> <span class="n">α</span>
+</code></pre></div>
+<p>The above type class is elaborated into the following <code>.inductInfo</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.inductInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"u"</span><span class="o">],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">α</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.sort</span>
+                    <span class="o">(</span><span class="n">Lean.Level.max</span> <span class="o">(</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">))</span> <span class="o">(</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">)))</span>
+        <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">)</span>
+    <span class="o">},</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">1</span><span class="o">,</span>
+    <span class="n">numIndices</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">],</span>
+    <span class="n">ctors</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">)</span> <span class="s2">"mk"</span><span class="o">],</span>
+    <span class="n">isRec</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isReflexive</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">isNested</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>And the <code>.ctorInfo</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.ctorInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">)</span> <span class="s2">"mk"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"u"</span><span class="o">],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">α</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">default</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">)</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.implicit</span><span class="o">)</span>
+    <span class="o">},</span>
+    <span class="n">induct</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">,</span>
+    <span class="n">cidx</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span>
+    <span class="n">numParams</span> <span class="o">:=</span> <span class="mi">1</span><span class="o">,</span>
+    <span class="n">numFields</span> <span class="o">:=</span> <span class="mi">1</span><span class="o">,</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>In addition, the single type class method <code>Inhabited.default</code> elaborates into the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.defnInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">)</span> <span class="s2">"default"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"u"</span><span class="o">],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">α</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.forallE</span>
+                    <span class="bp">`</span><span class="n">self</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">)</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.instImplicit</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.implicit</span><span class="o">)</span>
+    <span class="o">},</span>
+    <span class="n">value</span> <span class="o">:=</span> <span class="n">Lean.Expr.lam</span>
+               <span class="bp">`</span><span class="n">α</span>
+               <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">))</span>
+               <span class="o">(</span><span class="n">Lean.Expr.lam</span>
+                 <span class="bp">`</span><span class="n">self</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.param</span> <span class="bp">`</span><span class="n">u</span><span class="o">])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.proj</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="mi">0</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                 <span class="o">(</span><span class="n">Lean.BinderInfo.instImplicit</span><span class="o">))</span>
+               <span class="o">(</span><span class="n">Lean.BinderInfo.default</span><span class="o">),</span>
+    <span class="n">hints</span> <span class="o">:=</span> <span class="n">Lean.ReducibilityHints.abbrev</span><span class="o">,</span>
+    <span class="n">safety</span> <span class="o">:=</span> <span class="n">Lean.DefinitionSafety.safe</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Inhabited"</span><span class="o">)</span> <span class="s2">"default"</span><span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="300383488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300383488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300383488">(Sep 23 2022 at 14:50)</a>:</h4>
+<h2>Type class instances</h2>
+<p>Now consider the <code>Option</code> instance for <code>Inhabited</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">Option</span> <span class="n">α</span><span class="o">)</span> <span class="n">where</span>
+    <span class="n">default</span> <span class="o">:=</span> <span class="n">none</span>
+</code></pre></div>
+<p>This is the elaborated <code>ConstantInfo.defnInfo</code> for the above instance. Note that Lean automatically generated the name <code>instInhabitedOption</code> for it.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.defnInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Lean"</span><span class="o">)</span> <span class="s2">"instInhabitedOption"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.forallE</span>
+                    <span class="o">(</span><span class="n">Lean.Name.mkNum</span> <span class="bp">`</span><span class="n">a._</span><span class="bp">@.</span><span class="n">Lean.Data.Options._hyg</span> <span class="mi">1158</span><span class="o">)</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.forallE</span>
+                    <span class="o">(</span><span class="n">Lean.Name.mkNum</span> <span class="bp">`</span><span class="n">inst._</span><span class="bp">@.</span><span class="n">Lean.Data.Options._hyg</span> <span class="mi">1170</span><span class="o">)</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                        <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span>
+                        <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                        <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span>
+                        <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Lean.Option</span> <span class="o">[])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">)))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.instImplicit</span><span class="o">))</span>
+                    <span class="o">(</span><span class="n">Lean.BinderInfo.implicit</span><span class="o">)</span>
+    <span class="o">},</span>
+    <span class="n">value</span> <span class="o">:=</span> <span class="n">Lean.Expr.lam</span>
+               <span class="o">(</span><span class="n">Lean.Name.mkNum</span> <span class="bp">`</span><span class="n">a._</span><span class="bp">@.</span><span class="n">Lean.Data.Options._hyg</span> <span class="mi">1158</span><span class="o">)</span>
+               <span class="o">(</span><span class="n">Lean.Expr.sort</span> <span class="o">(</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)))</span>
+               <span class="o">(</span><span class="n">Lean.Expr.lam</span>
+                 <span class="o">(</span><span class="n">Lean.Name.mkNum</span> <span class="bp">`</span><span class="n">inst._</span><span class="bp">@.</span><span class="n">Lean.Data.Options._hyg</span> <span class="mi">1170</span><span class="o">)</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                   <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited.mk</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Lean.Option</span> <span class="o">[])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">)))</span>
+                   <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Lean.Option.mk</span> <span class="o">[])</span> <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">))</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                           <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited.default</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span>
+                           <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Lean.Name</span> <span class="o">[]))</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Lean.instInhabitedName</span> <span class="o">[])))</span>
+                     <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Inhabited.default</span> <span class="o">[</span><span class="n">Lean.Level.succ</span> <span class="o">(</span><span class="n">Lean.Level.zero</span><span class="o">)])</span>
+                         <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">1</span><span class="o">))</span>
+                       <span class="o">(</span><span class="n">Lean.Expr.bvar</span> <span class="mi">0</span><span class="o">))))</span>
+                 <span class="o">(</span><span class="n">Lean.BinderInfo.instImplicit</span><span class="o">))</span>
+               <span class="o">(</span><span class="n">Lean.BinderInfo.implicit</span><span class="o">),</span>
+    <span class="n">hints</span> <span class="o">:=</span> <span class="n">Lean.ReducibilityHints.regular</span> <span class="mi">2</span><span class="o">,</span>
+    <span class="n">safety</span> <span class="o">:=</span> <span class="n">Lean.DefinitionSafety.safe</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"Lean"</span><span class="o">)</span> <span class="s2">"instInhabitedOption"</span><span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>TBD: missing default instance method</p>
+
+
+
+<a name="300383540"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300383540" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300383540">(Sep 23 2022 at 14:50)</a>:</h4>
+<h2>Opaque definitions</h2>
+<p>Opaque definitions have a direct core representation <code>.opaqueInfo</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">opaque</span> <span class="n">O</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="mi">1</span>
+</code></pre></div>
+<p>Here is the corresponding core representation:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean.ConstantInfo.opaqueInfo</span> <span class="o">{</span>
+    <span class="n">toConstantVal</span> <span class="o">:=</span> <span class="o">{</span>
+        <span class="n">name</span> <span class="o">:=</span> <span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"O"</span><span class="o">,</span>
+        <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[],</span>
+        <span class="n">type</span> <span class="o">:=</span> <span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]</span>
+    <span class="o">},</span>
+    <span class="n">value</span> <span class="o">:=</span> <span class="n">Lean.Expr.app</span>
+               <span class="o">(</span><span class="n">Lean.Expr.app</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">OfNat.ofNat</span> <span class="o">[</span><span class="n">Lean.Level.zero</span><span class="o">])</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">Nat</span> <span class="o">[]))</span>
+                 <span class="o">(</span><span class="n">Lean.Expr.lit</span> <span class="o">(</span><span class="n">Lean.Literal.natVal</span> <span class="mi">1</span><span class="o">)))</span>
+               <span class="o">(</span><span class="n">Lean.Expr.app</span> <span class="o">(</span><span class="n">Lean.Expr.const</span> <span class="bp">`</span><span class="n">instOfNatNat</span> <span class="o">[])</span> <span class="o">(</span><span class="n">Lean.Expr.lit</span> <span class="o">(</span><span class="n">Lean.Literal.natVal</span> <span class="mi">1</span><span class="o">))),</span>
+    <span class="n">isUnsafe</span> <span class="o">:=</span> <span class="n">false</span><span class="o">,</span>
+    <span class="n">all</span> <span class="o">:=</span> <span class="o">[</span><span class="n">Lean.Name.str</span> <span class="o">(</span><span class="n">Lean.Name.anonymous</span><span class="o">)</span> <span class="s2">"O"</span><span class="o">]</span>
+<span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="300385721"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Environment%20after%20elaboration%20.../near/300385721" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Environment.20after.20elaboration.20.2E.2E.2E.html#300385721">(Sep 23 2022 at 15:00)</a>:</h4>
+<p>My next goal is to look into the type and value <code>Expr</code>s , and toLCNF/toLCNFType.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

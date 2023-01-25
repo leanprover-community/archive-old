@@ -1,0 +1,115 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html">missing MonadLift IO CommandElabM</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="293750653"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/missing%20MonadLift%20IO%20CommandElabM/near/293750653" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html#293750653">(Aug 16 2022 at 16:19)</a>:</h4>
+<p>Why is there no instance for  <code>MonadLift IO CommandElabM</code>? There is an instance for its transitive closure <code>MonadLiftT IO CommandElabM</code>.</p>
+<p>I want to write a function that recursively visits all files in the specified path and the lack of the above instance gives me trouble using the function <code>visitFiles</code>. To circumvent that I have to convert an instance of <code>MonadLiftT</code> to an instance <code>MonadLift</code>. </p>
+<p>mwe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span> <span class="n">System</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">visitFiles</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MonadLift</span> <span class="n">IO</span> <span class="n">m</span><span class="o">]</span> <span class="o">(</span><span class="n">fp</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">FilePath</span> <span class="bp">→</span> <span class="n">m</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">if</span> <span class="bp">←</span> <span class="n">fp.isDir</span> <span class="k">then</span>
+    <span class="n">for</span> <span class="n">dirEntry</span> <span class="k">in</span> <span class="bp">←</span> <span class="n">fp.readDir</span> <span class="k">do</span>
+      <span class="n">visitFiles</span> <span class="n">dirEntry.path</span> <span class="n">f</span>
+  <span class="k">else</span>
+    <span class="n">f</span> <span class="n">fp</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">visitFilesT</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">inst</span> <span class="o">:</span> <span class="n">MonadLiftT</span> <span class="n">IO</span> <span class="n">m</span><span class="o">]</span> <span class="o">(</span><span class="n">fp</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">FilePath</span> <span class="bp">→</span> <span class="n">m</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">have</span> <span class="n">_</span> <span class="o">:</span> <span class="n">MonadLift</span> <span class="n">IO</span> <span class="n">m</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">inst.monadLift</span><span class="o">⟩</span>
+  <span class="k">if</span> <span class="bp">←</span> <span class="n">fp.isDir</span> <span class="k">then</span>
+    <span class="n">for</span> <span class="n">dirEntry</span> <span class="k">in</span> <span class="bp">←</span> <span class="n">fp.readDir</span> <span class="k">do</span>
+      <span class="n">visitFiles</span> <span class="n">dirEntry.path</span> <span class="n">f</span>
+  <span class="k">else</span>
+    <span class="n">f</span> <span class="n">fp</span>
+
+
+<span class="kd">def</span> <span class="n">command</span> <span class="o">:</span> <span class="n">CommandElabM</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">dir</span> <span class="bp">←</span> <span class="n">IO.currentDir</span>
+  <span class="c1">-- visitFiles dir (λ p =&gt; IO.println p) -- failed to synthesize instance MonadLift IO CommandElabM</span>
+  <span class="n">visitFilesT</span> <span class="n">dir</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">p</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">command</span>
+</code></pre></div>
+
+
+
+<a name="293876421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/missing%20MonadLift%20IO%20CommandElabM/near/293876421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html#293876421">(Aug 17 2022 at 11:14)</a>:</h4>
+<p>This works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span> <span class="n">System</span>
+
+<span class="k">#check</span> <span class="n">inferInstanceAs</span> <span class="bp">$</span> <span class="n">MonadLift</span> <span class="n">BaseIO</span> <span class="n">IO</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">visitFiles</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MonadLiftT</span> <span class="n">IO</span> <span class="n">m</span><span class="o">]</span> <span class="o">(</span><span class="n">fp</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">FilePath</span> <span class="bp">→</span> <span class="n">m</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">MonadLiftT</span> <span class="n">BaseIO</span> <span class="n">m</span> <span class="o">:=</span> <span class="o">⟨</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">liftM</span> <span class="o">(</span><span class="n">liftM</span> <span class="o">(</span><span class="n">m</span> <span class="o">:=</span> <span class="n">BaseIO</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:=</span> <span class="n">IO</span><span class="o">)</span> <span class="n">x</span><span class="o">)⟩</span>
+  <span class="k">if</span> <span class="bp">←</span> <span class="n">liftM</span> <span class="n">fp.isDir</span> <span class="k">then</span>
+    <span class="n">for</span> <span class="n">dirEntry</span> <span class="k">in</span> <span class="bp">←</span> <span class="n">fp.readDir</span> <span class="k">do</span>
+      <span class="n">visitFiles</span> <span class="n">dirEntry.path</span> <span class="n">f</span>
+  <span class="k">else</span>
+    <span class="n">f</span> <span class="n">fp</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">CommandElabM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">dir</span> <span class="bp">←</span> <span class="n">IO.currentDir</span>
+  <span class="n">visitFiles</span> <span class="n">dir</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">p</span><span class="o">)</span>
+</code></pre></div>
+<p>In general:</p>
+<ul>
+<li><code>MonadLift</code> does one step of monad lifting, so e.g. we have <code>MonadLift m (ReaderT α m)</code> but not <code>MonadLift m (ReaderT α (ReaderT β m)))</code>.</li>
+<li><code>MonadLiftT</code> is the multi-step version (transitive closure) of <code>MonadLift</code>, so we have both <code>MonadLiftT m (ReaderT α m)</code> and<code>MonadLiftT m (ReaderT α (ReaderT β m)))</code>.</li>
+</ul>
+<p>The strange thing with this example is that Lean does not infer <code>MonadLiftT BaseIO m</code> from <code>MonadLift BaseIO IO</code> and <code>MonadLiftT IO m</code>. This seems to be a limitation of the way the <code>MonadLiftT</code> instances are constructed: Lean can infer <code>MonadLiftT m o</code> from <code>MonadLiftT m n</code> and <code>MonadLift n o</code> (extending the chain on the right), but not from <code>MonadLift m n</code> and <code>MonadLiftT n o</code> (extending the chain on the left). Not sure if anything can be done about this.</p>
+
+
+
+<a name="294025999"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/missing%20MonadLift%20IO%20CommandElabM/near/294025999" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html#294025999">(Aug 18 2022 at 07:36)</a>:</h4>
+<p>Nice observations, just one step lifting with <code>MonadLift</code> makes sense. </p>
+<p>Also the transitivity seems to behave the same as with coercion. <code>CoeTC A B</code> and <code>Coe B C</code> implies <code>CoeTC A C</code> but <code>Coe A B</code> and <code>CoeTC B C</code> does not imply <code>CoeTC A C</code>.</p>
+<p>But as a solution I like my approach <code>have _ : MonadLift IO m := ⟨inst.monadLift⟩</code> more as it is simpler and there is no need for <code>liftM</code> in <code>← fp.isDir</code>.</p>
+
+
+
+<a name="294029631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/missing%20MonadLift%20IO%20CommandElabM/near/294029631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/missing.20MonadLift.20IO.20CommandElabM.html#294029631">(Aug 18 2022 at 08:10)</a>:</h4>
+<p>As a general rule, always accept <code>MonadLiftT</code> and provide <code>MonadLift</code>.  My suggested solution:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span> <span class="n">System</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">visitFiles</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MonadLiftT</span> <span class="n">IO</span> <span class="n">m</span><span class="o">]</span> <span class="o">(</span><span class="n">fp</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">FilePath</span> <span class="bp">→</span> <span class="n">m</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">m</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">MonadLift</span> <span class="n">IO</span> <span class="n">m</span> <span class="o">:=</span> <span class="o">⟨(</span><span class="bp">·</span><span class="o">)⟩</span>
+  <span class="k">if</span> <span class="bp">←</span> <span class="n">fp.isDir</span> <span class="k">then</span>
+    <span class="n">for</span> <span class="n">dirEntry</span> <span class="k">in</span> <span class="bp">←</span> <span class="n">fp.readDir</span> <span class="k">do</span>
+      <span class="n">visitFiles</span> <span class="n">dirEntry.path</span> <span class="n">f</span>
+  <span class="k">else</span>
+    <span class="n">f</span> <span class="n">fp</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">CommandElabM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="n">visitFiles</span> <span class="o">(</span><span class="bp">←</span> <span class="n">IO.currentDir</span><span class="o">)</span> <span class="o">(</span><span class="n">IO.println</span> <span class="bp">·</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

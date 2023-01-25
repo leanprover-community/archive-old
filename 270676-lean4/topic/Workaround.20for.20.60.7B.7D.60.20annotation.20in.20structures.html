@@ -1,0 +1,303 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html">Workaround for `{}` annotation in structures</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="278993577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/278993577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#278993577">(Apr 14 2022 at 17:08)</a>:</h4>
+<p>The <code>{}</code> annotation has been disabled in inductive, structures and classes. I see how to work around it for inductive definitions, but I don't know how to easily work around it for structures and classes.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">is42</span> <span class="o">{}</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span>
+</code></pre></div>
+<p>used to give <code>Is42.is42 : ∀ (n : Nat) [self : Is42 n], n = 42</code>.</p>
+<p>The only way I found to reproduce the old behavior is to manually define the inductive:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="kd">inductive</span> <span class="n">Is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span> <span class="bp">→</span> <span class="n">Is42</span> <span class="n">n</span>
+
+<span class="kd">def</span> <span class="n">Is42.is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="o">[</span><span class="n">self</span> <span class="o">:</span> <span class="n">Is42</span> <span class="n">n</span><span class="o">]</span> <span class="bp">→</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">h</span>
+</code></pre></div>
+<p>Is there an easier way to do this?</p>
+
+
+
+<a name="279081063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279081063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279081063">(Apr 15 2022 at 13:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="119741">@François G. Dorais</span> We removed the feature because it was rarely used. All occurrences in the main repo were legacy (i.e., they are not necessary with the Lean 4 elaborator), and as far as we can tell this feature is not used in Mathlib 4. Haskell also seems to do well without having a similar feature. When removing this feature, we observed that every single existing instance looks now better without it. We are assuming that in most cases the <code>n</code> can be inferred from the expected type. In the rare cases where the expected type is not available, named arguments seem to be a reasonable alternative. Example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#check</span> <span class="n">Is42.is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:=</span> <span class="mi">42</span><span class="o">)</span>
+</code></pre></div>
+<p>If there are many instances where you have to use named arguments, an abbreviation is also a good solution.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">abbrev</span> <span class="n">Is42.is42'</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">[</span><span class="n">Is42</span> <span class="n">n</span><span class="o">]</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span> <span class="o">:=</span>
+  <span class="n">is42</span>
+</code></pre></div>
+<p>BTW, you don't have to use <code>class inductive</code>. Here is the full example</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">is42</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Is42</span> <span class="mi">42</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">rfl</span><span class="o">⟩</span>
+
+<span class="k">#check</span> <span class="n">Is42.is42</span> <span class="o">(</span><span class="n">n</span> <span class="o">:=</span> <span class="mi">42</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="o">(</span><span class="n">Is42.is42</span> <span class="o">:</span> <span class="mi">42</span> <span class="bp">=</span> <span class="mi">42</span><span class="o">)</span>
+
+<span class="n">abbrev</span> <span class="n">Is42.is42'</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">[</span><span class="n">Is42</span> <span class="n">n</span><span class="o">]</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">42</span> <span class="o">:=</span>
+  <span class="n">is42</span>
+
+<span class="k">#check</span> <span class="n">Is42.is42'</span> <span class="mi">42</span>
+</code></pre></div>
+<p>I realize this is an artificial example to explain the problem you hit. If this comment is not useful, could you please point us to your actual development? We assumed the impact of this change would be minimal (or zero), if we are mistaken, it would be useful to see the actual use-cases where the removed feature is useful.</p>
+
+
+
+<a name="279162831"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279162831" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279162831">(Apr 16 2022 at 11:10)</a>:</h4>
+<p>Thanks for the quick reply Leo!</p>
+<p>I only had a couple of uses for this feature. I was never a big fan of it, so I'm not mourning the loss. I was asking in case I could reproduce the exact behavior using a macro or something. </p>
+<p>The <code>abbrev</code> solution works in most cases but there is one thing that I miss. The <code>{}</code> annotation was smart about <code>outParam</code>. For example, I used generic classes for common identities as follows:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">OpRightInv</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">inv</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">))</span> <span class="o">(</span><span class="n">id</span> <span class="o">:</span> <span class="n">outParam</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+  <span class="n">op_right_inv</span> <span class="o">{}</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">op</span> <span class="n">x</span> <span class="o">(</span><span class="n">inv</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span>
+<span class="kn">export</span> <span class="n">OpRightInv</span> <span class="o">(</span><span class="n">op_right_inv</span><span class="o">)</span>
+</code></pre></div>
+<p>This automatically gives the desired signature:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">op_right_inv</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">id</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">self</span> <span class="o">:</span> <span class="n">OpRightInv</span> <span class="n">op</span> <span class="n">inv</span> <span class="n">id</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">op</span> <span class="n">x</span> <span class="o">(</span><span class="n">inv</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span>
+</code></pre></div>
+<p>This is really cool because I originally thought <code>{}</code> would also make <code>inv</code> and <code>id</code> explicit (as it does without <code>outParam</code>). Before I realized this, I wasn't using the <code>{}</code> annotation and would always specify <code>(op:=...)</code> since this type class needs at least this hook to trigger in most use cases. I was really happy when I noticed <code>{}</code> was smart about <code>outParam</code>. Ironically, this was just a few days before <code>{}</code> was dropped <span aria-label="disappointed" class="emoji emoji-1f61e" role="img" title="disappointed">:disappointed:</span></p>
+<p>Now, since <code>{}</code> was dropped, I use the <code>abbrev</code> trick as follows:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">OpRightInv</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">inv</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">))</span> <span class="o">(</span><span class="n">id</span> <span class="o">:</span> <span class="n">outParam</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">op_right_inv</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">op</span> <span class="n">x</span> <span class="o">(</span><span class="n">inv</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span>
+<span class="n">abbrev</span> <span class="n">op_right_inv</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">id</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">self</span> <span class="o">:</span> <span class="n">OpRightInv</span> <span class="n">op</span> <span class="n">inv</span> <span class="n">id</span><span class="o">]</span> <span class="o">:=</span> <span class="n">self.op_right_inv</span>
+</code></pre></div>
+<p>This works in the same way but I have to calculate the signature by hand. This is admittedly not hard to do but <code>{}</code> as definitely more convenient. I'll eventually make a macro to automate this but this works fine for now.</p>
+
+
+
+<a name="279163047"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279163047" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279163047">(Apr 16 2022 at 11:14)</a>:</h4>
+<p>A little shorter:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">abbrev</span> <span class="n">op_right_inv</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">OpRightInv.op_right_inv</span> <span class="o">(</span><span class="n">α</span> <span class="o">:=</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">op</span> <span class="o">:=</span> <span class="n">op</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="279166080"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279166080" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279166080">(Apr 16 2022 at 12:25)</a>:</h4>
+<p>Thanks Sebastian!</p>
+<p>I was thinking about how to make this into a macro, but I'm still pretty clumsy at macro writing. What's the idiomatic way to handle binders? Ideally, I would like a macro that expands something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">identity</span> <span class="n">op_right_inv</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">id</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">op</span> <span class="n">x</span> <span class="o">(</span><span class="n">inv</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span>
+</code></pre></div>
+<p>into</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">OpRightInv</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">inv</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">))</span> <span class="o">(</span><span class="n">id</span> <span class="o">:</span> <span class="n">outParam</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">op_right_inv</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">op</span> <span class="n">x</span> <span class="o">(</span><span class="n">inv</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">id</span>
+<span class="n">abbrev</span> <span class="n">op_right_inv</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">id</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">self</span> <span class="o">:</span> <span class="n">OpRightInv</span> <span class="n">op</span> <span class="n">inv</span> <span class="n">id</span><span class="o">]</span> <span class="o">:=</span> <span class="n">self.op_right_inv</span>
+</code></pre></div>
+
+
+
+<a name="279166237"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279166237" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279166237">(Apr 16 2022 at 12:29)</a>:</h4>
+<p>I'm starting to think a macro is not the right idea for this.</p>
+
+
+
+<a name="279276448"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279276448" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279276448">(Apr 18 2022 at 10:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>:  I've found another pattern where I used <code>{}</code>. These are classes that attempt to extract a normal form for objects that aren't of inductive type. My primary uses for these is to synthesize homomorphisms from a free algebra into a real-world algebra.</p>
+<p>For illustration, here is a simple but complete example. Here the free algebra is a <code>List</code> monoid and the real-world algebra is <code>Prop</code> with <code>And</code> and <code>True</code>. (This is the version with <code>{}</code> for the new version, delete that annotation and replace <code>all_eq x</code> with <code>all_eq (p:=x)</code> where necessary.)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">And.assoc</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="n">r</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="o">((</span><span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="bp">∧</span> <span class="n">r</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">p</span> <span class="bp">∧</span> <span class="o">(</span><span class="n">q</span> <span class="bp">∧</span> <span class="n">r</span><span class="o">))</span> <span class="o">:=</span>
+  <span class="n">propext</span> <span class="o">⟨</span><span class="bp">λ|</span> <span class="o">⟨⟨</span><span class="n">hp</span><span class="o">,</span><span class="n">hq</span><span class="o">⟩,</span><span class="n">hr</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">hp</span><span class="o">,⟨</span><span class="n">hq</span><span class="o">,</span><span class="n">hr</span><span class="o">⟩⟩,</span> <span class="bp">λ|</span> <span class="o">⟨</span><span class="n">hp</span><span class="o">,⟨</span><span class="n">hq</span><span class="o">,</span><span class="n">hr</span><span class="o">⟩⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨⟨</span><span class="n">hp</span><span class="o">,</span><span class="n">hq</span><span class="o">⟩,</span><span class="n">hr</span><span class="o">⟩⟩</span>
+
+<span class="kd">def</span> <span class="n">All</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">True</span>
+<span class="bp">|</span> <span class="n">p</span><span class="o">::</span><span class="n">ps</span> <span class="bp">=&gt;</span> <span class="n">p</span> <span class="bp">∧</span> <span class="n">All</span> <span class="n">ps</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.nil</span> <span class="o">:</span> <span class="n">All</span> <span class="o">[]</span> <span class="bp">=</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.single</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="n">All</span> <span class="o">[</span><span class="n">p</span><span class="o">]</span> <span class="bp">=</span> <span class="n">p</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.append</span> <span class="o">:</span> <span class="o">(</span><span class="n">ps</span> <span class="n">qs</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span><span class="o">)</span> <span class="bp">→</span> <span class="n">All</span> <span class="o">(</span><span class="n">ps</span> <span class="bp">++</span> <span class="n">qs</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">All</span> <span class="n">ps</span> <span class="bp">∧</span> <span class="n">All</span> <span class="n">qs</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">[],</span> <span class="n">qs</span> <span class="bp">=&gt;</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+<span class="bp">|</span> <span class="n">p</span><span class="o">::</span><span class="n">ps</span><span class="o">,</span> <span class="n">qs</span> <span class="bp">=&gt;</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">,</span> <span class="n">And.assoc</span><span class="o">,</span> <span class="n">All.append</span> <span class="n">ps</span> <span class="n">qs</span><span class="o">]</span>
+
+<span class="kd">class</span> <span class="n">AssocAnds</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span>
+  <span class="n">all_eq</span> <span class="o">{}</span> <span class="o">:</span> <span class="n">All</span> <span class="n">list</span> <span class="bp">=</span> <span class="n">p</span>
+
+<span class="kn">namespace</span> <span class="n">AssocAnds</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">prio</span><span class="o">:=</span><span class="n">low</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="n">p</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="o">[</span><span class="n">p</span><span class="o">]</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="n">All.single</span> <span class="n">p</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="n">True</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="o">[]</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="n">All.nil</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">p</span><span class="o">]</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">q</span><span class="o">]</span> <span class="o">:</span> <span class="n">LiftAnds</span> <span class="o">(</span><span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="n">list</span> <span class="n">p</span> <span class="bp">++</span> <span class="n">list</span> <span class="n">q</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">All.append</span><span class="o">,</span> <span class="n">all_eq</span> <span class="n">p</span><span class="o">,</span> <span class="n">all_eq</span> <span class="n">q</span><span class="o">]</span>
+
+<span class="kd">end</span> <span class="n">AssocAnds</span>
+</code></pre></div>
+<p>This example is not that useful since we can use <code>simp only [And.assoc]</code> to similar effect. Not quite though, since <code>simp</code> works bottom-up whereas <code>AssocAnds</code> works top-down and stops as soon as it hits a snag. Of course, there are more sophisticated examples of this pattern where <code>simp</code> isn't a viable alternative.</p>
+<p>In any case, the point is that <code>AssocAnds.all_eq</code> is not very useful with the parameter <code>p</code> as implicit. This was fixed by the <code>{}</code> annotation, now I must use <code>(p:=...)</code> in the majority use cases (e.g. all backwards rewrites). Adding an <code>abbrev</code> works too but <code>{}</code> was really the most convenient thing to have.</p>
+<p>Bottom line, the <code>{}</code> annotation was actually useful for fields in classes and structures (but not necessarily for other uses). I would really appreciate bringing it back for this use or providing an equivalent alternative. This is pretty low priority for me, so no rush! (I also won't be heartbroken if you decide not to bring this feature back.)</p>
+
+
+
+<a name="279283101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279283101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279283101">(Apr 18 2022 at 12:45)</a>:</h4>
+<blockquote>
+<p>For the new version, delete that annotation and replace all_eq x with all_eq (p:=x) where necessary.)</p>
+</blockquote>
+<p>It works for me without any annotation. That is, I did not have to write <code>(p := x)</code>. BTW, this was also our experience in other cases.</p>
+<blockquote>
+<p>In any case, the point is that AssocAnds.all_eq is not very useful with the parameter p as implicit. </p>
+</blockquote>
+<p>Do you have other examples where the parameter <code>(p := x)</code> is needed? I could remove all instances from your example.</p>
+<p>Here is your example without extra annotations.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">And.assoc</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="n">r</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="o">((</span><span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="bp">∧</span> <span class="n">r</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">p</span> <span class="bp">∧</span> <span class="o">(</span><span class="n">q</span> <span class="bp">∧</span> <span class="n">r</span><span class="o">))</span> <span class="o">:=</span>
+  <span class="n">propext</span> <span class="o">⟨</span><span class="bp">λ|</span> <span class="o">⟨⟨</span><span class="n">hp</span><span class="o">,</span><span class="n">hq</span><span class="o">⟩,</span><span class="n">hr</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">hp</span><span class="o">,⟨</span><span class="n">hq</span><span class="o">,</span><span class="n">hr</span><span class="o">⟩⟩,</span> <span class="bp">λ|</span> <span class="o">⟨</span><span class="n">hp</span><span class="o">,⟨</span><span class="n">hq</span><span class="o">,</span><span class="n">hr</span><span class="o">⟩⟩</span> <span class="bp">=&gt;</span> <span class="o">⟨⟨</span><span class="n">hp</span><span class="o">,</span><span class="n">hq</span><span class="o">⟩,</span><span class="n">hr</span><span class="o">⟩⟩</span>
+
+<span class="kd">def</span> <span class="n">All</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">True</span>
+<span class="bp">|</span> <span class="n">p</span><span class="o">::</span><span class="n">ps</span> <span class="bp">=&gt;</span> <span class="n">p</span> <span class="bp">∧</span> <span class="n">All</span> <span class="n">ps</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.nil</span> <span class="o">:</span> <span class="n">All</span> <span class="o">[]</span> <span class="bp">=</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.single</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="n">All</span> <span class="o">[</span><span class="n">p</span><span class="o">]</span> <span class="bp">=</span> <span class="n">p</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+
+<span class="kn">protected</span> <span class="kd">theorem</span> <span class="n">All.append</span> <span class="o">:</span> <span class="o">(</span><span class="n">ps</span> <span class="n">qs</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span><span class="o">)</span> <span class="bp">→</span> <span class="n">All</span> <span class="o">(</span><span class="n">ps</span> <span class="bp">++</span> <span class="n">qs</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">All</span> <span class="n">ps</span> <span class="bp">∧</span> <span class="n">All</span> <span class="n">qs</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">[],</span> <span class="n">qs</span> <span class="bp">=&gt;</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">]</span>
+<span class="bp">|</span> <span class="n">p</span><span class="o">::</span><span class="n">ps</span><span class="o">,</span> <span class="n">qs</span> <span class="bp">=&gt;</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All</span><span class="o">,</span> <span class="n">And.assoc</span><span class="o">,</span> <span class="n">All.append</span> <span class="n">ps</span> <span class="n">qs</span><span class="o">]</span>
+
+<span class="kd">class</span> <span class="n">AssocAnds</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Prop</span>
+  <span class="n">all_eq</span> <span class="o">:</span> <span class="n">All</span> <span class="n">list</span> <span class="bp">=</span> <span class="n">p</span>
+
+<span class="kn">namespace</span> <span class="n">AssocAnds</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">prio</span><span class="o">:=</span><span class="n">low</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="n">p</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="o">[</span><span class="n">p</span><span class="o">]</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="n">All.single</span> <span class="n">p</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="n">True</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="o">[]</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="n">All.nil</span>
+
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">p</span><span class="o">]</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">q</span><span class="o">]</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="o">(</span><span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="n">list</span> <span class="n">p</span> <span class="bp">++</span> <span class="n">list</span> <span class="n">q</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">All.append</span><span class="o">,</span> <span class="n">all_eq</span><span class="o">,</span> <span class="n">all_eq</span><span class="o">]</span>
+
+<span class="c1">-- Same `instance` with `simp`</span>
+<span class="kd">@[simp]</span> <span class="kd">instance</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">p</span><span class="o">]</span> <span class="o">[</span><span class="n">AssocAnds</span> <span class="n">q</span><span class="o">]</span> <span class="o">:</span> <span class="n">AssocAnds</span> <span class="o">(</span><span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">list</span> <span class="o">:=</span> <span class="n">list</span> <span class="n">p</span> <span class="bp">++</span> <span class="n">list</span> <span class="n">q</span>
+  <span class="n">all_eq</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">All.append</span><span class="o">,</span> <span class="n">all_eq</span><span class="o">]</span>
+
+<span class="kd">end</span> <span class="n">AssocAnds</span>
+</code></pre></div>
+
+
+
+<a name="279283831"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279283831" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279283831">(Apr 18 2022 at 12:55)</a>:</h4>
+<p>You're right! I gutted too much and should have left some sample uses of the class...</p>
+<p>The issue is with backwards rewrites <code>rw [←all_eq p]</code>. These don't work without the parameter. These are the most common when using these classes since we usually have the real world term <code>p</code> and we want to lift to the free algebra, which is <code>list</code> in this case. The free algebra is usually some inductive type or similar, so there's more tools to work with there than with the plain term <code>p</code>.</p>
+
+
+
+<a name="279284039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279284039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279284039">(Apr 18 2022 at 12:58)</a>:</h4>
+<p>Could you please paste here this use case?</p>
+
+
+
+<a name="279409981"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279409981" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279409981">(Apr 19 2022 at 13:39)</a>:</h4>
+<p>To avoid more errors gutting stuff, I've moved two full examples from a private to a public repo on github:</p>
+<ul>
+<li><a href="https://github.com/fgdorais/GMLInit/blob/main/GMLInit/Algebra/Reflect/Semigroup.lean">Semigroup.reflect</a>:</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">reflect</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">SemigroupSig</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">Semigroup</span> <span class="n">s</span><span class="o">]</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">a</span> <span class="n">xs</span><span class="o">]</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">b</span> <span class="n">xs</span><span class="o">]</span> <span class="o">:</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">a</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">=</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">b</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">intro</span> <span class="n">h</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">Reflect.eval_eq</span> <span class="o">(</span><span class="n">s</span><span class="o">:=</span><span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:=</span><span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">),</span> <span class="bp">←</span> <span class="n">Reflect.eval_eq</span> <span class="o">(</span><span class="n">s</span><span class="o">:=</span><span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:=</span><span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">),</span> <span class="n">h</span><span class="o">]</span>
+</code></pre></div>
+<ul>
+<li><a href="https://github.com/fgdorais/GMLInit/blob/main/GMLInit/Algebra/Reflect/Monoid.lean">Monoid.reflect</a>:</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">reflect</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">MonoidSig</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">s</span><span class="o">]</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">a</span> <span class="n">xs</span><span class="o">]</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">b</span> <span class="n">xs</span><span class="o">]</span> <span class="o">:</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">a</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">=</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">b</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">intro</span> <span class="n">h</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span><span class="n">Reflect.eval_eq</span> <span class="o">(</span><span class="n">s</span><span class="o">:=</span><span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:=</span><span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">),</span> <span class="bp">←</span><span class="n">Reflect.eval_eq</span> <span class="o">(</span><span class="n">s</span><span class="o">:=</span><span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:=</span><span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">),</span> <span class="n">h</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="279413848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279413848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279413848">(Apr 19 2022 at 14:08)</a>:</h4>
+<p>In both cases, the original implementation used <code>{}</code> at both <code>Reflect.expr</code> and <code>Reflect.eval_eq</code>.</p>
+
+
+
+<a name="279429533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279429533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279429533">(Apr 19 2022 at 15:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="119741">@François G. Dorais</span> Thanks for sharing the example. I didn't install it on my machine yet, but I browsed the sources. <br>
+I think they do not make a compelling case for adding <code>{}</code> back. Even if we do it, every example you had would still require the <code>←</code>. It feels natural to manually define an abbreviation <code>eq_eval</code> in this case that uses the explicit binder annotations and flips the equation. Then, you will be able to write </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">reflect</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">SemigroupSig</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">Semigroup</span> <span class="n">s</span><span class="o">]</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">a</span> <span class="n">xs</span><span class="o">]</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">s</span> <span class="n">b</span> <span class="n">xs</span><span class="o">]</span> <span class="o">:</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">a</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">=</span> <span class="n">Reflect.expr</span> <span class="n">s</span> <span class="n">b</span> <span class="o">(</span><span class="n">xs</span><span class="o">:=</span><span class="n">xs</span><span class="o">)</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">intro</span> <span class="n">h</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">eq_eval</span> <span class="n">s</span>  <span class="n">a</span> <span class="n">xs</span><span class="o">,</span> <span class="n">eq_eval</span> <span class="n">s</span> <span class="n">b</span> <span class="n">xs</span><span class="o">,</span> <span class="n">h</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="279449953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/279449953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#279449953">(Apr 19 2022 at 18:29)</a>:</h4>
+<p>OK. I can live with that. The issue with <code>Reflect.expr</code> is a bit more nagging. But it only ever needs just the <code>(xs:=...)</code> so I won't do a wrapper for that one.</p>
+
+
+
+<a name="280490823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Workaround%20for%20%60%7B%7D%60%20annotation%20in%20structures/near/280490823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Workaround.20for.20.60.7B.7D.60.20annotation.20in.20structures.html#280490823">(Apr 28 2022 at 13:10)</a>:</h4>
+<p>I got another question regarding this. I implemented the slim check port for mathlib4 and it contains a typeclass:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">SampleableExt</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">proxy</span> <span class="o">{}</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span>
+  <span class="o">[</span><span class="n">proxyRepr</span> <span class="o">:</span> <span class="n">Repr</span> <span class="n">proxy</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">shrink</span> <span class="o">:</span> <span class="n">Shrinkable</span> <span class="n">proxy</span><span class="o">]</span>
+  <span class="n">sample</span> <span class="o">{}</span> <span class="o">:</span> <span class="n">Gen</span> <span class="n">proxy</span>
+  <span class="n">interp</span> <span class="o">:</span> <span class="n">proxy</span> <span class="bp">→</span> <span class="n">α</span>
+</code></pre></div>
+<p>where I now have to remove the {} in order to get my type fixed, howver both fields dont allow the lean compiler to infer the alpha parameter over which the type class is actually declared so where I could previously write:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>        <span class="k">let</span> <span class="n">n</span> <span class="bp">←</span> <span class="n">sample</span> <span class="n">Nat</span>
+        <span class="n">pure</span> <span class="bp">$</span> <span class="n">Char.ofNat</span> <span class="n">n</span>
+</code></pre></div>
+<p>I now have to write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>        <span class="k">let</span> <span class="n">n</span> <span class="bp">←</span> <span class="n">sample</span>
+        <span class="n">pure</span> <span class="bp">$</span> <span class="n">Char.ofNat</span> <span class="n">n</span>
+</code></pre></div>
+<p>which the lean compiler cannot infer:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">Char.ofNat</span> <span class="n">n</span>
+<span class="n">argument</span>
+  <span class="n">n</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="n">proxy</span> <span class="bp">?</span><span class="n">m.9290</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">ℕ</span> <span class="o">:</span> <span class="kt">Type</span>
+</code></pre></div>
+<p>What's the recommended way to address this use case? Have a manual wrapper as well?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

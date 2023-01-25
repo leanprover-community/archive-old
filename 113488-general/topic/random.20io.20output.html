@@ -1,0 +1,704 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/random.20io.20output.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html">random io output</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="210310955"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210310955" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210310955">(Sep 16 2020 at 19:46)</a>:</h4>
+<p>I'm trying to return a bit to <a href="https://github.com/leanprover-community/leancrawler">leancrawler</a> but it seems mathlib is now too big for my old approach of using <code>tactic.trace</code> and redirect stderr. I can reliably lockdown my computer by trying to run it on present day mathlib. So I tried to switch to <code>io.fs.put_str_ln</code> as in <a href="https://github.com/leanprover-community/doc-gen/blob/master/src/export_json.lean">doc-gen</a>. But the result is randomly cut-off, even when I try to use the <a href="https://github.com/leanprover-community/doc-gen/blob/master/src/export_json.lean#L387">list splitting trick</a>. I also see mysterious output to terminal where I would expect only file ouput.  <span class="user-mention" data-user-id="110596">@Rob Lewis</span> could you have a look?</p>
+
+
+
+<a name="210311032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311032">(Sep 16 2020 at 19:46)</a>:</h4>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span> <span class="n">meta</span><span class="bp">.</span><span class="n">expr</span>
+<span class="kn">import</span> <span class="n">data</span><span class="bp">.</span><span class="n">list</span><span class="bp">.</span><span class="n">sort</span>
+
+
+<span class="kn">open</span> <span class="n">tactic</span> <span class="n">declaration</span> <span class="n">environment</span>
+
+<span class="c1">-- The next instance is there to prevent PyYAML trying to be too smart</span>
+<span class="n">meta</span> <span class="n">def</span> <span class="n">my_name_to_string</span> <span class="o">:</span> <span class="n">has_to_string</span> <span class="n">name</span> <span class="o">:=</span>
+<span class="bp">⟨λ</span> <span class="n">n</span><span class="o">,</span> <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">&quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">n</span> <span class="bp">++</span> <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="bp">⟩</span>
+
+<span class="n">local</span> <span class="n">attribute</span> <span class="o">[</span><span class="kn">instance</span><span class="o">]</span> <span class="n">my_name_to_string</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">expr</span><span class="bp">.</span><span class="n">get_pi_app_fn</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">expr</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">expr</span><span class="bp">.</span><span class="n">pi</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="n">e</span><span class="o">)</span> <span class="o">:=</span> <span class="n">e</span><span class="bp">.</span><span class="n">get_pi_app_fn</span>
+<span class="bp">|</span> <span class="n">e</span>                 <span class="o">:=</span> <span class="n">e</span><span class="bp">.</span><span class="n">get_app_fn</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">list_items</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">list</span> <span class="n">name</span> <span class="o">:=</span>
+<span class="n">e</span><span class="bp">.</span><span class="n">fold</span> <span class="o">[]</span> <span class="err">$</span> <span class="bp">λ</span> <span class="n">e</span> <span class="bp">_</span> <span class="n">cs</span><span class="o">,</span>
+<span class="k">if</span> <span class="n">e</span><span class="bp">.</span><span class="n">is_constant</span> <span class="bp">∧</span> <span class="bp">¬</span> <span class="n">e</span><span class="bp">.</span><span class="n">const_name</span> <span class="err">∈</span> <span class="n">cs</span>
+  <span class="k">then</span> <span class="n">e</span><span class="bp">.</span><span class="n">const_name</span> <span class="bp">::</span> <span class="n">cs</span>
+  <span class="k">else</span> <span class="n">cs</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">mnot</span> <span class="o">:</span> <span class="n">bool</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">bool</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">p</span><span class="o">,</span> <span class="n">return</span> <span class="o">(</span><span class="bp">¬</span> <span class="n">p</span><span class="o">)</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">pos_line</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">option</span> <span class="n">pos</span><span class="o">)</span> <span class="o">:</span> <span class="n">string</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">p</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="n">some</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">to_string</span> <span class="n">x</span><span class="bp">.</span><span class="n">line</span>
+<span class="bp">|</span> <span class="bp">_</span>      <span class="o">:=</span> <span class="s2">&quot;&quot;</span>
+<span class="kn">end</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">file_name</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">option</span> <span class="n">string</span><span class="o">)</span> <span class="o">:</span> <span class="n">string</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">p</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="n">some</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">x</span>
+<span class="bp">|</span> <span class="bp">_</span>      <span class="o">:=</span> <span class="s2">&quot;Unknown file&quot;</span>
+<span class="kn">end</span>
+
+<span class="kn">section</span>
+
+<span class="kn">structure</span> <span class="n">declaration</span><span class="bp">.</span><span class="n">modifiers</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">Class</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">Structure</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">StructureField</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">Inductive</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">Instance</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">IsRecursor</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+<span class="o">(</span><span class="n">IsConstructor</span> <span class="o">:=</span> <span class="n">ff</span><span class="o">)</span>
+
+<span class="n">def</span> <span class="n">bool</span><span class="bp">.</span><span class="n">to_string_python</span> <span class="o">:</span> <span class="n">has_to_string</span> <span class="n">bool</span> <span class="o">:=</span> <span class="bp">⟨λ</span> <span class="n">k</span><span class="o">,</span> <span class="k">match</span> <span class="n">k</span> <span class="k">with</span> <span class="n">tt</span> <span class="o">:=</span> <span class="s2">&quot;True&quot;</span> <span class="bp">|</span> <span class="n">ff</span> <span class="o">:=</span> <span class="s2">&quot;False&quot;</span> <span class="kn">end</span><span class="bp">⟩</span>
+<span class="n">local</span> <span class="n">attribute</span> <span class="o">[</span><span class="kn">instance</span><span class="o">]</span> <span class="n">bool</span><span class="bp">.</span><span class="n">to_string_python</span>
+
+<span class="kn">instance</span> <span class="o">:</span> <span class="n">has_to_string</span> <span class="n">declaration</span><span class="bp">.</span><span class="n">modifiers</span> <span class="o">:=</span> <span class="bp">⟨λ</span> <span class="n">m</span><span class="o">,</span>
+  <span class="s2">&quot;{ class: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">Class</span> <span class="bp">++</span>
+  <span class="s2">&quot;, structure: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">Structure</span> <span class="bp">++</span>
+  <span class="s2">&quot;, structure_field: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">StructureField</span> <span class="bp">++</span>
+  <span class="s2">&quot;, is_recursor: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">IsRecursor</span> <span class="bp">++</span>
+  <span class="s2">&quot;, is_constructor: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">IsConstructor</span> <span class="bp">++</span>
+  <span class="s2">&quot;, inductive: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">Inductive</span> <span class="bp">++</span>
+  <span class="s2">&quot;, instance: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">m</span><span class="bp">.</span><span class="n">Instance</span> <span class="bp">++</span> <span class="s2">&quot; }&quot;</span><span class="bp">⟩</span>
+
+<span class="kn">open</span>  <span class="n">tactic</span> <span class="n">declaration</span> <span class="n">environment</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">declaration</span><span class="bp">.</span><span class="n">get_kind_string</span> <span class="o">:</span> <span class="n">declaration</span> <span class="bp">→</span> <span class="n">string</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">thm</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span><span class="o">)</span> <span class="o">:=</span> <span class="s2">&quot;lemma&quot;</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">defn</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span><span class="o">)</span> <span class="o">:=</span> <span class="s2">&quot;definition&quot;</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">cnst</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span><span class="o">)</span> <span class="o">:=</span> <span class="s2">&quot;constant&quot;</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">ax</span> <span class="bp">_</span> <span class="bp">_</span> <span class="bp">_</span><span class="o">)</span> <span class="o">:=</span> <span class="s2">&quot;axiom&quot;</span>
+
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">environment</span><span class="bp">.</span><span class="n">get_modifiers</span> <span class="o">(</span><span class="n">env</span> <span class="o">:</span> <span class="n">environment</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">declaration</span><span class="bp">.</span><span class="n">modifiers</span> <span class="o">:=</span>
+<span class="n">do</span>
+  <span class="n">c</span> <span class="err">←</span> <span class="o">(</span><span class="n">has_attribute</span> <span class="bp">`</span><span class="n">class</span> <span class="n">n</span> <span class="bp">&gt;&gt;</span> <span class="n">return</span> <span class="n">tt</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">return</span> <span class="n">ff</span><span class="o">,</span>
+  <span class="n">i</span> <span class="err">←</span> <span class="o">(</span><span class="n">has_attribute</span> <span class="bp">`</span><span class="kn">instance</span> <span class="n">n</span> <span class="bp">&gt;&gt;</span> <span class="n">return</span> <span class="n">tt</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">return</span> <span class="n">ff</span><span class="o">,</span>
+  <span class="n">return</span> <span class="o">{</span>
+    <span class="n">Class</span> <span class="o">:=</span> <span class="n">c</span><span class="o">,</span>
+    <span class="n">Structure</span> <span class="o">:=</span> <span class="n">env</span><span class="bp">.</span><span class="n">is_structure</span> <span class="n">n</span><span class="o">,</span>
+    <span class="n">StructureField</span> <span class="o">:=</span> <span class="o">(</span><span class="n">env</span><span class="bp">.</span><span class="n">is_projection</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="n">is_some</span><span class="o">,</span>
+    <span class="n">IsConstructor</span> <span class="o">:=</span> <span class="n">env</span><span class="bp">.</span><span class="n">is_constructor</span> <span class="n">n</span><span class="o">,</span>
+    <span class="n">IsRecursor</span> <span class="o">:=</span> <span class="n">env</span><span class="bp">.</span><span class="n">is_recursor</span> <span class="n">n</span><span class="o">,</span>
+    <span class="n">Inductive</span> <span class="o">:=</span> <span class="n">env</span><span class="bp">.</span><span class="n">is_ginductive</span> <span class="n">n</span><span class="o">,</span>
+    <span class="n">Instance</span> <span class="o">:=</span> <span class="n">i</span> <span class="o">}</span>
+<span class="kn">end</span>
+
+
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">itersplit</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span> <span class="bp">→</span> <span class="bp">ℕ</span> <span class="bp">→</span> <span class="n">list</span> <span class="o">(</span><span class="n">list</span> <span class="n">α</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">l</span> <span class="mi">0</span> <span class="o">:=</span> <span class="o">[</span><span class="n">l</span><span class="o">]</span>
+<span class="bp">|</span> <span class="n">l</span> <span class="mi">1</span> <span class="o">:=</span> <span class="k">let</span> <span class="o">(</span><span class="n">l1</span><span class="o">,</span> <span class="n">l2</span><span class="o">)</span> <span class="o">:=</span> <span class="n">l</span><span class="bp">.</span><span class="n">split</span> <span class="k">in</span> <span class="o">[</span><span class="n">l1</span><span class="o">,</span> <span class="n">l2</span><span class="o">]</span>
+<span class="bp">|</span> <span class="n">l</span> <span class="o">(</span><span class="n">k</span><span class="bp">+</span><span class="mi">2</span><span class="o">)</span> <span class="o">:=</span> <span class="k">let</span> <span class="o">(</span><span class="n">l1</span><span class="o">,</span> <span class="n">l2</span><span class="o">)</span> <span class="o">:=</span> <span class="n">l</span><span class="bp">.</span><span class="n">split</span> <span class="k">in</span> <span class="n">itersplit</span> <span class="n">l1</span> <span class="o">(</span><span class="n">k</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">++</span> <span class="n">itersplit</span> <span class="n">l2</span> <span class="o">(</span><span class="n">k</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span>
+
+<span class="kn">open</span> <span class="n">io</span> <span class="o">(</span><span class="n">handle</span> <span class="n">run_tactic</span><span class="o">)</span> <span class="n">io</span><span class="bp">.</span><span class="n">fs</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">put_item_crawl</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">handle</span><span class="o">)</span> <span class="o">(</span><span class="n">env</span> <span class="o">:</span> <span class="n">environment</span><span class="o">)</span> <span class="o">(</span><span class="n">decl</span> <span class="o">:</span> <span class="n">declaration</span><span class="o">)</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">let</span> <span class="n">name</span> <span class="o">:=</span> <span class="n">decl</span><span class="bp">.</span><span class="n">to_name</span><span class="o">,</span>
+    <span class="n">pos</span> <span class="o">:=</span> <span class="n">pos_line</span> <span class="o">(</span><span class="n">env</span><span class="bp">.</span><span class="n">decl_pos</span> <span class="n">name</span><span class="o">),</span>
+    <span class="n">fname</span> <span class="o">:=</span> <span class="n">file_name</span> <span class="o">(</span><span class="n">env</span><span class="bp">.</span><span class="n">decl_olean</span> <span class="n">name</span><span class="o">)</span> <span class="k">in</span>
+<span class="n">do</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;- Name: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">name</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  File: &quot;</span> <span class="bp">++</span> <span class="n">fname</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Line: &quot;</span> <span class="bp">++</span> <span class="n">pos</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Kind: &quot;</span> <span class="bp">++</span> <span class="n">decl</span><span class="bp">.</span><span class="n">get_kind_string</span><span class="o">),</span>
+   <span class="n">mods</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="err">$</span> <span class="n">env</span><span class="bp">.</span><span class="n">get_modifiers</span> <span class="n">name</span><span class="o">,</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Modifiers: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">mods</span><span class="o">),</span>
+
+   <span class="n">pp_type</span> <span class="err">←</span> <span class="n">pp</span> <span class="n">decl</span><span class="bp">.</span><span class="n">type</span><span class="o">,</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Type: &quot;</span> <span class="bp">++</span> <span class="o">(</span><span class="n">to_string</span> <span class="n">pp_type</span><span class="o">)</span><span class="bp">.</span><span class="n">quote</span><span class="o">),</span>
+   <span class="n">type_proofs</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="err">$</span> <span class="o">(</span><span class="n">list_items</span> <span class="n">decl</span><span class="bp">.</span><span class="n">type</span><span class="o">)</span><span class="bp">.</span><span class="n">mfilter</span> <span class="err">$</span> <span class="bp">λ</span> <span class="n">c</span><span class="o">,</span> <span class="n">mk_const</span> <span class="n">c</span> <span class="bp">&gt;&gt;=</span> <span class="n">is_proof</span><span class="o">,</span>
+   <span class="n">type_others</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="err">$</span> <span class="o">(</span><span class="n">list_items</span> <span class="n">decl</span><span class="bp">.</span><span class="n">type</span><span class="o">)</span><span class="bp">.</span><span class="n">mfilter</span> <span class="err">$</span> <span class="bp">λ</span> <span class="n">c</span><span class="o">,</span> <span class="n">mk_const</span> <span class="n">c</span> <span class="bp">&gt;&gt;=</span> <span class="n">is_proof</span> <span class="bp">&gt;&gt;=</span> <span class="n">mnot</span><span class="o">,</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Type uses proofs: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">type_proofs</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Type uses others: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">type_others</span><span class="o">),</span>
+
+   <span class="n">pp_value</span> <span class="err">←</span> <span class="n">pp</span> <span class="n">decl</span><span class="bp">.</span><span class="n">value</span><span class="o">,</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Value: &quot;</span> <span class="bp">++</span> <span class="o">(</span><span class="n">to_string</span> <span class="n">pp_value</span><span class="o">)</span><span class="bp">.</span><span class="n">quote</span><span class="o">),</span>
+   <span class="n">value_proofs</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="err">$</span> <span class="o">(</span><span class="n">list_items</span> <span class="n">decl</span><span class="bp">.</span><span class="n">value</span><span class="o">)</span><span class="bp">.</span><span class="n">mfilter</span> <span class="err">$</span> <span class="bp">λ</span> <span class="n">c</span><span class="o">,</span> <span class="n">mk_const</span> <span class="n">c</span> <span class="bp">&gt;&gt;=</span> <span class="n">is_proof</span><span class="o">,</span>
+   <span class="n">value_others</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="err">$</span> <span class="o">(</span><span class="n">list_items</span> <span class="n">decl</span><span class="bp">.</span><span class="n">value</span><span class="o">)</span><span class="bp">.</span><span class="n">mfilter</span> <span class="err">$</span> <span class="bp">λ</span> <span class="n">c</span><span class="o">,</span> <span class="n">mk_const</span> <span class="n">c</span> <span class="bp">&gt;&gt;=</span> <span class="n">is_proof</span> <span class="bp">&gt;&gt;=</span> <span class="n">mnot</span><span class="o">,</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Value uses proofs: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">value_proofs</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Value uses others: &quot;</span> <span class="bp">++</span> <span class="n">to_string</span> <span class="n">value_others</span><span class="o">),</span>
+
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Target class: &quot;</span> <span class="bp">++</span> <span class="k">if</span> <span class="n">mods</span><span class="bp">.</span><span class="n">Instance</span> <span class="k">then</span> <span class="n">to_string</span> <span class="n">decl</span><span class="bp">.</span><span class="n">type</span><span class="bp">.</span><span class="n">get_pi_app_fn</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Parent: &quot;</span> <span class="bp">++</span>  <span class="k">match</span> <span class="n">env</span><span class="bp">.</span><span class="n">is_projection</span> <span class="n">name</span> <span class="k">with</span>
+                           <span class="bp">|</span> <span class="n">some</span> <span class="n">info</span> <span class="o">:=</span> <span class="n">to_string</span> <span class="n">info</span><span class="bp">.</span><span class="n">cname</span>
+                           <span class="bp">|</span> <span class="n">none</span> <span class="o">:=</span>  <span class="s2">&quot;&quot;</span>
+                           <span class="kn">end</span><span class="o">),</span>
+   <span class="n">put_str_ln</span> <span class="n">h</span> <span class="o">(</span><span class="s2">&quot;  Fields: &quot;</span> <span class="bp">++</span> <span class="o">(</span><span class="n">to_string</span> <span class="err">$</span> <span class="o">(</span><span class="n">env</span><span class="bp">.</span><span class="n">structure_fields_full</span> <span class="n">name</span><span class="o">)</span><span class="bp">.</span><span class="n">get_or_else</span> <span class="o">[]))</span>
+
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">print_all_content</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">do</span> <span class="n">curr_env</span> <span class="err">←</span> <span class="n">run_tactic</span> <span class="n">get_env</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">decls</span> <span class="o">:=</span> <span class="n">curr_env</span><span class="bp">.</span><span class="n">fold</span> <span class="o">[]</span> <span class="n">list</span><span class="bp">.</span><span class="n">cons</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">local_decls</span> <span class="o">:=</span> <span class="n">decls</span><span class="bp">.</span><span class="n">filter</span>
+     <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">not</span> <span class="o">(</span><span class="n">to_name</span> <span class="n">x</span><span class="o">)</span><span class="bp">.</span><span class="n">is_internal</span><span class="o">),</span>
+   <span class="n">handle</span> <span class="err">←</span> <span class="n">io</span><span class="bp">.</span><span class="n">mk_file_handle</span> <span class="s2">&quot;mathlib.yaml&quot;</span> <span class="n">io</span><span class="bp">.</span><span class="n">mode</span><span class="bp">.</span><span class="n">write</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">declss</span> <span class="o">:=</span> <span class="n">itersplit</span> <span class="n">local_decls</span> <span class="mi">8</span><span class="o">,</span>
+   <span class="n">declss</span><span class="bp">.</span><span class="n">mmap&#39;</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">l</span><span class="o">,</span> <span class="n">l</span><span class="bp">.</span><span class="n">mmap&#39;</span> <span class="err">$</span> <span class="n">put_item_crawl</span> <span class="n">handle</span> <span class="n">curr_env</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="210311128"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311128" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311128">(Sep 16 2020 at 19:47)</a>:</h4>
+<p>After putting that file somewhere I import it in <code>all.lean</code> and add</p>
+<div class="codehilite"><pre><span></span><code><span class="n">meta</span> <span class="n">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span>  <span class="n">print_all_conten</span>
+</code></pre></div>
+
+
+
+<a name="210311144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311144">(Sep 16 2020 at 19:47)</a>:</h4>
+<p>and use <code>lean --run all.lean</code></p>
+
+
+
+<a name="210311235"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311235" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311235">(Sep 16 2020 at 19:48)</a>:</h4>
+<p>The produced yaml file typically stops in the middle of a line (at around 40Mb)</p>
+
+
+
+<a name="210311748"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311748" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311748">(Sep 16 2020 at 19:52)</a>:</h4>
+<p>I don't have time to try it tonight but I can look tomorrow. At a quick glance I don't see anything suspicious. Does doc-gen do the same for you?</p>
+
+
+
+<a name="210311843"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210311843" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210311843">(Sep 16 2020 at 19:53)</a>:</h4>
+<p>I never tried to run doc-gen locally. I'll see if I can find instructions</p>
+
+
+
+<a name="210312113"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210312113" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210312113">(Sep 16 2020 at 19:55)</a>:</h4>
+<p>You only need to try to generate the json dump, just <code>lean --run whatever.lean</code> the obvious file in <code>src</code>.</p>
+
+
+
+<a name="210314620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210314620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210314620">(Sep 16 2020 at 20:15)</a>:</h4>
+<p>doc-gen seems to work fine.</p>
+
+
+
+<a name="210314789"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210314789" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210314789">(Sep 16 2020 at 20:16)</a>:</h4>
+<p>What's the size of the output file? Is it bigger than yours was dying on?</p>
+
+
+
+<a name="210314872"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210314872" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210314872">(Sep 16 2020 at 20:17)</a>:</h4>
+<p>Yes, 57Mb for the json export vs 43Mb for my biggest random ouput</p>
+
+
+
+<a name="210314901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210314901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210314901">(Sep 16 2020 at 20:17)</a>:</h4>
+<p>Wait, it depends</p>
+
+
+
+<a name="210314925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210314925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210314925">(Sep 16 2020 at 20:18)</a>:</h4>
+<p>The thing that really crashed my computer was smaller, but not using io.fs</p>
+
+
+
+<a name="210315025"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210315025" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210315025">(Sep 16 2020 at 20:18)</a>:</h4>
+<p>The code I posted tonight does not seem to crash, it simply randomly stops, at 40Mb or 43Mb depending on the run</p>
+
+
+
+<a name="210315900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210315900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210315900">(Sep 16 2020 at 20:25)</a>:</h4>
+<p>Sounds like super fun debugging time then! What's the relevant difference between your code and doc-gen? They both fold over the environment and dump a bunch of text.</p>
+
+
+
+<a name="210316029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210316029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210316029">(Sep 16 2020 at 20:26)</a>:</h4>
+<p>The main difference I can see is one of them has been written by some clueless functional programmer using cargo cult coding.</p>
+
+
+
+<a name="210433101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210433101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210433101">(Sep 17 2020 at 18:48)</a>:</h4>
+<p>Rob, did you find some time to have a look at this issue?</p>
+
+
+
+<a name="210437602"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210437602" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210437602">(Sep 17 2020 at 19:16)</a>:</h4>
+<p>I did not, it's been an extremely busy day.</p>
+
+
+
+<a name="210437667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210437667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210437667">(Sep 17 2020 at 19:17)</a>:</h4>
+<p>Is there a relevant difference to doc-gen in the printing code?</p>
+
+
+
+<a name="210437707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210437707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210437707">(Sep 17 2020 at 19:17)</a>:</h4>
+<p>They're doing essentially the same thing, and one of them seems to works on more data.</p>
+
+
+
+<a name="210437802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210437802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210437802">(Sep 17 2020 at 19:18)</a>:</h4>
+<p>I have no idea.</p>
+
+
+
+<a name="210437835"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210437835" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210437835">(Sep 17 2020 at 19:18)</a>:</h4>
+<p>I wouldn't really assume any sensible behavior here, but it would be sensible if this was caused by something being different, heh.</p>
+
+
+
+<a name="210440481"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210440481" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210440481">(Sep 17 2020 at 19:40)</a>:</h4>
+<p>I think this needs someone who knows more about how io is implemented to debug, sorry.</p>
+
+
+
+<a name="210440540"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210440540" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210440540">(Sep 17 2020 at 19:41)</a>:</h4>
+<p>There are clearly memory issues (clear from the fact that the itersplit hack is needed anywhere). And you're writing a huge amount of info to the file.</p>
+
+
+
+<a name="210440716"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210440716" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210440716">(Sep 17 2020 at 19:42)</a>:</h4>
+<p>You could try changing <code>put_item_crawl</code> to write a single string instead of a bunch of individual writes, I don't know if that will make a difference.</p>
+
+
+
+<a name="210442386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210442386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Peattie <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210442386">(Sep 17 2020 at 19:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110596">Rob Lewis</span> <a href="#narrow/stream/113488-general/topic/random.20io.20output/near/210440540">said</a>:</p>
+<blockquote>
+<p>There are clearly memory issues (clear from the fact that the itersplit hack is needed anywhere). And you're writing a huge amount of info to the file.</p>
+</blockquote>
+<p>Yeah I had a go at running the script and it was eating through memory (it hit 20GB+ when I killed it), so I guess you might be hitting an OOM issue Patrick?</p>
+<div class="message_inline_image"><a href="https://user-images.githubusercontent.com/636814/93521264-b9889c00-f927-11ea-821a-ff21c3a1a66d.png"><img src="https://user-images.githubusercontent.com/636814/93521264-b9889c00-f927-11ea-821a-ff21c3a1a66d.png"></a></div><p>One thing you could try is opening (and then closing) a different file handle for each part of the list? E.g. writing to <code>mathlib1.yaml</code>, <code>mathlib2.yaml</code>, which you could then stitch together subsequently? And seeing if that makes any difference re: memory usage?</p>
+
+
+
+<a name="210619906"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619906" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619906">(Sep 19 2020 at 15:13)</a>:</h4>
+<p>I returned to that and Rob's idea to write only one string per declaration seems to work. I still don't have a nice little graph for Quanta, but here is the current graph after removing logic.<br>
+<a href="/user_uploads/3121/fg44o79gtw3UMXIykDvAKFBP/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/fg44o79gtw3UMXIykDvAKFBP/image.png" title="image.png"><img src="/user_uploads/3121/fg44o79gtw3UMXIykDvAKFBP/image.png"></a></div>
+
+
+
+<a name="210619915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619915">(Sep 19 2020 at 15:13)</a>:</h4>
+<p>Who can guess what are the pieces that stick out?</p>
+
+
+
+<a name="210619928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619928">(Sep 19 2020 at 15:13)</a>:</h4>
+<p>The one on the left has to be meta land, right?</p>
+
+
+
+<a name="210619972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619972">(Sep 19 2020 at 15:14)</a>:</h4>
+<p>Heaven or hell depending on your perspective</p>
+
+
+
+<a name="210619977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619977">(Sep 19 2020 at 15:14)</a>:</h4>
+<p>Almost correct! Meta-land is on the right.</p>
+
+
+
+<a name="210619997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210619997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210619997">(Sep 19 2020 at 15:15)</a>:</h4>
+<p>what's that one point at the top-right just left of the blob</p>
+
+
+
+<a name="210620041"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620041" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620041">(Sep 19 2020 at 15:16)</a>:</h4>
+<p><code>name</code>!</p>
+
+
+
+<a name="210620063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620063">(Sep 19 2020 at 15:17)</a>:</h4>
+<p>Are the colors def/lemma or something else?</p>
+
+
+
+<a name="210620126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620126">(Sep 19 2020 at 15:18)</a>:</h4>
+<p>Yes.</p>
+
+
+
+<a name="210620240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620240">(Sep 19 2020 at 15:21)</a>:</h4>
+<p>I'm sure Mario can guess what is the upper-left blob.</p>
+
+
+
+<a name="210620310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620310">(Sep 19 2020 at 15:22)</a>:</h4>
+<p>So if meta land is mostly blue, that must be def. What substantial blob is more disconnected from everything else than meta land, has a lot of defs, and only connects to the rest along a few strands? Is it computability?</p>
+
+
+
+<a name="210620323"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620323" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620323">(Sep 19 2020 at 15:22)</a>:</h4>
+<p>I think you're vastly overestimating the size of computability in mathlib.</p>
+
+
+
+<a name="210620352"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620352" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620352">(Sep 19 2020 at 15:23)</a>:</h4>
+<p>I agree, but it's hard to get a sense of scale from the picture since I can't see individual dots in most of the big blob</p>
+
+
+
+<a name="210620392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620392">(Sep 19 2020 at 15:24)</a>:</h4>
+<p>Is it category theory?</p>
+
+
+
+<a name="210620404"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620404" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620404">(Sep 19 2020 at 15:24)</a>:</h4>
+<p>Hopefully this is about to change.</p>
+
+
+
+<a name="210620409"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620409" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620409">(Sep 19 2020 at 15:25)</a>:</h4>
+<p>that was my next guess as well. It's a little sad that it's so visibly separate</p>
+
+
+
+<a name="210620411"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620411" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620411">(Sep 19 2020 at 15:25)</a>:</h4>
+<p>Algebraic geometry starts to use category theory if I understand correctly.</p>
+
+
+
+<a name="210620463"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620463" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620463">(Sep 19 2020 at 15:26)</a>:</h4>
+<p>I would have expected meta land to be more distinct than category island.</p>
+
+
+
+<a name="210620618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620618">(Sep 19 2020 at 15:30)</a>:</h4>
+<p>Trying to remove meta gives:<br>
+<a href="/user_uploads/3121/GSybdJA60yXY6YRiwlNO716k/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/GSybdJA60yXY6YRiwlNO716k/image.png" title="image.png"><img src="/user_uploads/3121/GSybdJA60yXY6YRiwlNO716k/image.png"></a></div>
+
+
+
+<a name="210620659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620659">(Sep 19 2020 at 15:31)</a>:</h4>
+<p>What does the graph for <code>abelian_category</code> look like?</p>
+
+
+
+<a name="210620842"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620842" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620842">(Sep 19 2020 at 15:35)</a>:</h4>
+<p><a href="/user_uploads/3121/HqUAWyMMpvYcbBot9cfvELRK/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/HqUAWyMMpvYcbBot9cfvELRK/image.png" title="image.png"><img src="/user_uploads/3121/HqUAWyMMpvYcbBot9cfvELRK/image.png"></a></div>
+
+
+
+<a name="210620859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210620859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210620859">(Sep 19 2020 at 15:35)</a>:</h4>
+<p>The right-hand blob is <code>fintype</code> and its friends.</p>
+
+
+
+<a name="210621243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210621243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210621243">(Sep 19 2020 at 15:42)</a>:</h4>
+<p>That's a reasonably small graph. I was hoping that <code>add_group</code> and <code>category</code> would be distinct blobs.</p>
+
+
+
+<a name="210621269"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210621269" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210621269">(Sep 19 2020 at 15:43)</a>:</h4>
+<p>It's funny that <code>fintype</code> is showing up (-; The informal definition only mentions binary products (-; But of course we work with arbitrary finite ones (-;</p>
+
+
+
+<a name="210621275"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210621275" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210621275">(Sep 19 2020 at 15:43)</a>:</h4>
+<p>I don't know if this graph is "interesting" for Quanta</p>
+
+
+
+<a name="210623563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623563">(Sep 19 2020 at 16:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> yes, the definition of schemes uses categories, and if you look at the way that Ramon did it (presheaves of types, sheaves of types, presheaves of rings, sheaves of rings) and then the way we continued in the perfectoid project (presheaves of topological rings, sheaves of topological rings) you could see it was not going to scale. We want presheaves and sheaves of abelian groups, R-algebras, R-modules, \mathcal{R}-modules where \mathcal{R} is a sheaf of rings etc.</p>
+
+
+
+<a name="210623611"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623611" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623611">(Sep 19 2020 at 16:39)</a>:</h4>
+<p>Scott's approach gives us presheaves and sheaves taking values in an arbitrary category, and this looks like an appealing approach to me.</p>
+
+
+
+<a name="210623618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623618">(Sep 19 2020 at 16:39)</a>:</h4>
+<p>That all sounds good, and in particular it is an important source of applications that were sorely lacking back at the start of the category theory library</p>
+
+
+
+<a name="210623661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623661">(Sep 19 2020 at 16:40)</a>:</h4>
+<p>I think we should focus more on making category theory <em>applicable</em> to other areas by direct generalization of useful theorems in other areas</p>
+
+
+
+<a name="210623679"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623679" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623679">(Sep 19 2020 at 16:40)</a>:</h4>
+<p>Re: applications -- This is exactly why I'm flagging it. The acid test will be whether we can glue sheaves and schemes together, because now we're taking quotients and who knows if stuff will get hairy.</p>
+
+
+
+<a name="210623722"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623722" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623722">(Sep 19 2020 at 16:41)</a>:</h4>
+<p>"Lean has schemes" -&gt; "mathlib has schemes" took a really long time, and basically this is because I got it wrong twice and learnt a lot from my mistakes -- but we learnt that category theory had to be ready, and for a long time it wasn't.</p>
+
+
+
+<a name="210623795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623795">(Sep 19 2020 at 16:42)</a>:</h4>
+<p>I'm really hoping that Amelia will be able to use it [category theory] to start doing some serious cohomology theory like Ext and Tor in her forthcoming MSc.</p>
+
+
+
+<a name="210623818"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210623818" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210623818">(Sep 19 2020 at 16:43)</a>:</h4>
+<p>So I'm seeing that area of the graph as hopefully changing soon, it should be interesting. It might just all grind to a halt or it might work great.</p>
+
+
+
+<a name="210624169"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624169" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624169">(Sep 19 2020 at 16:51)</a>:</h4>
+<p>My student Shenyang Wu defined group cohomology but did not prove the long exact sequence of cohomology associated to a short exact sequence of abelian groups because he had to submit his thesis before he was able to learn how to use the new machinery. All the mathematical theorems were there though, as far as I could see; we just ran out of time before we got the machine going. We need the long exact sequence of cohomology associated to a short exact sequence of abelian groups/Z-modules/objects in some abelian category.  I think Shenyang must have written the API for this, so perhaps this is something we can hand over to the category people.</p>
+
+
+
+<a name="210624240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624240">(Sep 19 2020 at 16:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/random.20io.20output/near/210621243">said</a>:</p>
+<blockquote>
+<p>That's a reasonably small graph. I was hoping that <code>add_group</code> and <code>category</code> would be distinct blobs.</p>
+</blockquote>
+<p>They are. <code>add_group</code> is a the bottom-left</p>
+
+
+
+<a name="210624256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624256">(Sep 19 2020 at 16:53)</a>:</h4>
+<p>Can you make a graph for <code>Scheme</code>?</p>
+
+
+
+<a name="210624263"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624263" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624263">(Sep 19 2020 at 16:53)</a>:</h4>
+<p>Aha, now I notice that there are two blobs close together</p>
+
+
+
+<a name="210624539"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624539" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624539">(Sep 19 2020 at 17:00)</a>:</h4>
+<p>Schemes for Reid<br>
+<a href="/user_uploads/3121/Tond4Qu3BDCqgRUwKllwfl6F/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/Tond4Qu3BDCqgRUwKllwfl6F/image.png" title="image.png"><img src="/user_uploads/3121/Tond4Qu3BDCqgRUwKllwfl6F/image.png"></a></div>
+
+
+
+<a name="210624543"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624543" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624543">(Sep 19 2020 at 17:00)</a>:</h4>
+<p>colored by cluster</p>
+
+
+
+<a name="210624629"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624629" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624629">(Sep 19 2020 at 17:02)</a>:</h4>
+<p>Blue is category theory, orange is order and some topology,  green seems to be more category theory, grey is commutative algebra</p>
+
+
+
+<a name="210624666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624666">(Sep 19 2020 at 17:04)</a>:</h4>
+<p>Why order?  Is that because of filters?</p>
+
+
+
+<a name="210624738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624738">(Sep 19 2020 at 17:05)</a>:</h4>
+<p>We use order and lattices everywhere in mathlib.</p>
+
+
+
+<a name="210624742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624742">(Sep 19 2020 at 17:05)</a>:</h4>
+<p><a href="/user_uploads/3121/oqsmhpsgFFK11UEOPu5TNooz/screenshot_190450.png">screenshot_190450.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/oqsmhpsgFFK11UEOPu5TNooz/screenshot_190450.png" title="screenshot_190450.png"><img src="/user_uploads/3121/oqsmhpsgFFK11UEOPu5TNooz/screenshot_190450.png"></a></div>
+
+
+
+<a name="210624744"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624744" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624744">(Sep 19 2020 at 17:05)</a>:</h4>
+<p>This is a close-up view</p>
+
+
+
+<a name="210624800"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624800" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624800">(Sep 19 2020 at 17:06)</a>:</h4>
+<p>I guess the other relevant orders here might be on topologies and on subrings.</p>
+
+
+
+<a name="210624814"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624814" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624814">(Sep 19 2020 at 17:07)</a>:</h4>
+<p>And on open sets...</p>
+
+
+
+<a name="210624963"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624963" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624963">(Sep 19 2020 at 17:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="110031">@Patrick Massot</span> This looks really sweet! Thanks so much for doing this</p>
+
+
+
+<a name="210624980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624980">(Sep 19 2020 at 17:10)</a>:</h4>
+<p>We still need a more efficient way of pruning foundations.</p>
+
+
+
+<a name="210624989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624989">(Sep 19 2020 at 17:10)</a>:</h4>
+<p>Another idea for Quanta: The normed_ring instance on Z_p?</p>
+
+
+
+<a name="210624993"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210624993" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210624993">(Sep 19 2020 at 17:10)</a>:</h4>
+<p>Maybe a few of these could go on the website?</p>
+
+
+
+<a name="210625006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625006">(Sep 19 2020 at 17:11)</a>:</h4>
+<p>They are so pretty, and they capture the imagination.</p>
+
+
+
+<a name="210625017"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625017" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625017">(Sep 19 2020 at 17:11)</a>:</h4>
+<p>Looking at the scheme graph I still see stuff like <code>quotient</code>. This idea is important and indeed unifies a lot of things, but it makes it impossible to have nice clusters</p>
+
+
+
+<a name="210625160"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625160" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625160">(Sep 19 2020 at 17:15)</a>:</h4>
+<p>I would love to see Lie group (sometime, whenever you have time).</p>
+
+
+
+<a name="210625794"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625794" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625794">(Sep 19 2020 at 17:30)</a>:</h4>
+<p><a href="/user_uploads/3121/GYd3CoyFHzz7Xf_qTTqRFz9y/lie_group.png">lie_group.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/GYd3CoyFHzz7Xf_qTTqRFz9y/lie_group.png" title="lie_group.png"><img src="/user_uploads/3121/GYd3CoyFHzz7Xf_qTTqRFz9y/lie_group.png"></a></div>
+
+
+
+<a name="210625815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625815">(Sep 19 2020 at 17:31)</a>:</h4>
+<p>Can someone tell the difference between a Lie group and a perfectoid space?</p>
+
+
+
+<a name="210625889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210625889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210625889">(Sep 19 2020 at 17:32)</a>:</h4>
+<p>The weird thing in this case is that clusters don't seem to mean much. The graph is simply confusing for Gephi.</p>
+
+
+
+<a name="210627149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210627149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210627149">(Sep 19 2020 at 18:02)</a>:</h4>
+<p>I tried a more aggressive pruning strategy and the graph looks completely different.<br>
+<a href="/user_uploads/3121/XkwWUTm-u-mbbC5ANUaXtWDN/lie_group2.png">lie_group2.png</a> <br>
+This is all very unscientific</p>
+<div class="message_inline_image"><a href="/user_uploads/3121/XkwWUTm-u-mbbC5ANUaXtWDN/lie_group2.png" title="lie_group2.png"><img src="/user_uploads/3121/XkwWUTm-u-mbbC5ANUaXtWDN/lie_group2.png"></a></div>
+
+
+
+<a name="210627159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210627159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210627159">(Sep 19 2020 at 18:03)</a>:</h4>
+<p>But I post it anyway because it's kind of pretty</p>
+
+
+
+<a name="210627165"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210627165" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210627165">(Sep 19 2020 at 18:03)</a>:</h4>
+<p>and indeed removing more foundational stuff bring more structure</p>
+
+
+
+<a name="210636908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210636908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210636908">(Sep 19 2020 at 21:46)</a>:</h4>
+<p>Does Gephi know that these are directed (rather than undirected) graphs?  Are there clustering algorithms that take this into account?</p>
+
+
+
+<a name="210656251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210656251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210656251">(Sep 20 2020 at 08:39)</a>:</h4>
+<p>It knows they are directed. I don't know about the other questions. I actually don't know anything about graph analysis, I'm just clicking random buttons.</p>
+
+
+
+<a name="210658206"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random%20io%20output/near/210658206" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/random.20io.20output.html#210658206">(Sep 20 2020 at 09:39)</a>:</h4>
+<p>Are you training to be an ML researcher?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

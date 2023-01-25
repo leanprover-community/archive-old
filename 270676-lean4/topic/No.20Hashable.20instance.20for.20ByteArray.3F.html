@@ -1,0 +1,118 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html">No Hashable instance for ByteArray?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="258047233"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258047233" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258047233">(Oct 18 2021 at 15:28)</a>:</h4>
+<p>In Lake, I am trying to take the hash of a binary file  -- in particular, the lean executable (for <a href="https://github.com/leanprover/lake/issues/23">#23</a>) -- but this appears infeasible as there is no <code>Hashable ByteArray</code> instance. As such, I cannot <code>hash</code> the result of <code>IO.FS.readBinFile</code>. Is there some better approach I am missing?</p>
+
+
+
+<a name="258049451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258049451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258049451">(Oct 18 2021 at 15:42)</a>:</h4>
+<p>My current workaround is: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">computeByteHash</span> <span class="o">(</span><span class="n">bytes</span> <span class="o">:</span> <span class="n">ByteArray</span><span class="o">)</span> <span class="o">:=</span>
+   <span class="n">bytes.toList.foldl</span> <span class="o">(</span><span class="n">init</span> <span class="o">:=</span> <span class="mi">1723</span><span class="o">)</span> <span class="k">fun</span> <span class="n">h</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">mixHash</span> <span class="n">h</span> <span class="o">(</span><span class="n">hash</span> <span class="n">b.toNat</span><span class="o">)</span>
+</code></pre></div>
+<p>but I imagine this is quite inefficient</p>
+
+
+
+<a name="258070297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258070297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258070297">(Oct 18 2021 at 17:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I will try to improve the <code>ByteArray</code> primitives.</p>
+
+
+
+<a name="258120894"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258120894" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258120894">(Oct 19 2021 at 00:01)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I pushed new primitives for <code>ByteArray</code> and other goodies.<br>
+Now, the main loop of </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">computeByteHash</span> <span class="o">(</span><span class="n">bytes</span> <span class="o">:</span> <span class="n">ByteArray</span><span class="o">)</span> <span class="o">:=</span>
+   <span class="n">bytes.foldl</span> <span class="o">(</span><span class="n">init</span> <span class="o">:=</span> <span class="mi">1723</span><span class="o">)</span> <span class="k">fun</span> <span class="n">h</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">mixHash</span> <span class="n">h</span> <span class="o">(</span><span class="n">hash</span> <span class="n">b.toNat</span><span class="o">)</span>
+</code></pre></div>
+<p>is implemented by the following IR</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">ByteArray.foldlMUnsafe.fold._at.computeByteHash._spec_1</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="bp">@&amp;</span> <span class="n">obj</span><span class="o">)</span> <span class="o">(</span><span class="n">x_2</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_3</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_4</span> <span class="o">:</span> <span class="n">u64</span><span class="o">)</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">USize.decEq</span> <span class="n">x_2</span> <span class="n">x_3</span><span class="bp">;</span>
+  <span class="n">case</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="n">of</span>
+  <span class="n">Bool.false</span> <span class="bp">→</span>
+    <span class="k">let</span> <span class="n">x_6</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">ByteArray.uget</span> <span class="n">x_1</span> <span class="n">x_2</span> <span class="bp">◾;</span>
+    <span class="k">let</span> <span class="n">x_7</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">UInt8.toNat</span> <span class="n">x_6</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_8</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">UInt64.ofNat</span> <span class="n">x_7</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_7</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_9</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">mixHash</span> <span class="n">x_4</span> <span class="n">x_8</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_10</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="mi">1</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_11</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="n">USize.add</span> <span class="n">x_2</span> <span class="n">x_10</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_12</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">ByteArray.foldlMUnsafe.fold._at.computeByteHash._spec_1</span> <span class="n">x_1</span> <span class="n">x_11</span> <span class="n">x_3</span> <span class="n">x_9</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_12</span>
+  <span class="n">Bool.true</span> <span class="bp">→</span>
+    <span class="n">ret</span> <span class="n">x_4</span>
+</code></pre></div>
+<p>If the performance is not good enough, I see two options for improving it:<br>
+1- We add primitives for reading <code>UInt64</code> (and <code>UInt32</code>, <code>UInt16</code>) from a <code>ByteArray</code><br>
+2- We implement the hash function for ByteArray in C.</p>
+<p>Option 1 is my preferred choice right now.</p>
+
+
+
+<a name="258122027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258122027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258122027">(Oct 19 2021 at 00:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> cool! </p>
+<p>The one thing that appears missing to me in that solution is a  <code>Hashable</code> instance for<code>UInt8</code> (and <code>UInt16</code>, <code>UInt31</code>, etc.) so that the byte isn't converted to/from a <code>Nat</code> for hashing.</p>
+<p>Otherwise, the performance is fine and, as this hashing approach is just a stop-gap solution until we have a proper cryptographic hash function for Lean, it may not be worth it to spend much time on this (though I imagine these improvements will also be useful elsewhere).</p>
+
+
+
+<a name="258122134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258122134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258122134">(Oct 19 2021 at 00:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I will add the missing instances.</p>
+
+
+
+<a name="258122734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258122734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258122734">(Oct 19 2021 at 00:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> Pushed it.</p>
+
+
+
+<a name="258122739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258122739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258122739">(Oct 19 2021 at 00:22)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">ByteArray.foldlMUnsafe.fold._at.computeByteHash._spec_1</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="bp">@&amp;</span> <span class="n">obj</span><span class="o">)</span> <span class="o">(</span><span class="n">x_2</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_3</span> <span class="o">:</span> <span class="n">usize</span><span class="o">)</span> <span class="o">(</span><span class="n">x_4</span> <span class="o">:</span> <span class="n">u64</span><span class="o">)</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">USize.decEq</span> <span class="n">x_2</span> <span class="n">x_3</span><span class="bp">;</span>
+  <span class="n">case</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="n">of</span>
+  <span class="n">Bool.false</span> <span class="bp">→</span>
+    <span class="k">let</span> <span class="n">x_6</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">ByteArray.uget</span> <span class="n">x_1</span> <span class="n">x_2</span> <span class="bp">◾;</span>
+    <span class="k">let</span> <span class="n">x_7</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">UInt8.toUInt64</span> <span class="n">x_6</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_8</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">mixHash</span> <span class="n">x_4</span> <span class="n">x_7</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_9</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="mi">1</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_10</span> <span class="o">:</span> <span class="n">usize</span> <span class="o">:=</span> <span class="n">USize.add</span> <span class="n">x_2</span> <span class="n">x_9</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_11</span> <span class="o">:</span> <span class="n">u64</span> <span class="o">:=</span> <span class="n">ByteArray.foldlMUnsafe.fold._at.computeByteHash._spec_1</span> <span class="n">x_1</span> <span class="n">x_10</span> <span class="n">x_3</span> <span class="n">x_8</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_11</span>
+  <span class="n">Bool.true</span> <span class="bp">→</span>
+    <span class="n">ret</span> <span class="n">x_4</span>
+</code></pre></div>
+
+
+
+<a name="258123045"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/No%20Hashable%20instance%20for%20ByteArray%3F/near/258123045" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/No.20Hashable.20instance.20for.20ByteArray.3F.html#258123045">(Oct 19 2021 at 00:26)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> cool, thanks!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

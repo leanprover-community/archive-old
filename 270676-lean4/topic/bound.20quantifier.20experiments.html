@@ -1,0 +1,246 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/bound.20quantifier.20experiments.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html">bound quantifier experiments</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="243847074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243847074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243847074">(Jun 24 2021 at 21:09)</a>:</h4>
+<p>Has anyone tried implementing bounded quantifiers in Lean 4?</p>
+<p>For context, I am working with <code>mathlib4</code>, which has these:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kd">class</span> <span class="n">Mem</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">$</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">γ</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">mem</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">γ</span> <span class="bp">→</span> <span class="kt">Prop</span>
+
+<span class="kd">infix</span><span class="o">:</span><span class="mi">50</span> <span class="s2">" ∈ "</span> <span class="bp">=&gt;</span> <span class="n">Mem.mem</span>
+
+<span class="kd">notation</span><span class="o">:</span><span class="mi">50</span> <span class="n">x</span> <span class="s2">" ∉ "</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="bp">¬</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">s</span>
+
+<span class="kd">def</span> <span class="n">mem</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">False</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">b</span> <span class="o">::</span> <span class="n">l</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">∨</span> <span class="n">mem</span> <span class="n">a</span> <span class="n">l</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Mem</span> <span class="n">α</span> <span class="o">(</span><span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">mem</span><span class="o">⟩</span>
+</code></pre></div>
+<p>This seems to work reasonably well for parsing:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">forallb</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">∀</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span> <span class="bp">→</span> <span class="n">p</span> <span class="n">x</span>
+<span class="kd">def</span> <span class="n">existsb</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">∃</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">l</span> <span class="bp">∧</span> <span class="n">p</span> <span class="n">x</span>
+
+<span class="n">macro</span> <span class="s2">"∀ "</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">" ∈ "</span> <span class="n">t</span><span class="o">:</span><span class="n">term</span> <span class="s2">", "</span> <span class="n">p</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">forallb</span> <span class="bp">$</span><span class="n">t</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+<span class="n">macro</span> <span class="s2">"∃ "</span> <span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="s2">" ∈ "</span> <span class="n">t</span><span class="o">:</span><span class="n">term</span> <span class="s2">", "</span> <span class="n">p</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">existsb</span> <span class="bp">$</span><span class="n">t</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+<span class="k">#check</span> <span class="bp">∃</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+</code></pre></div>
+<p>I tried to see if I could get the expressions to pretty-print. This seems to have no effect:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[appUnexpander forallb]</span> <span class="kd">def</span> <span class="n">unexpandForallb</span> <span class="o">:</span> <span class="n">Lean.PrettyPrinter.Unexpander</span>
+ <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">forallb</span> <span class="bp">$</span><span class="n">l</span><span class="o">:</span><span class="n">term</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">l</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+ <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="kd">@[appUnexpander existsb]</span> <span class="kd">def</span> <span class="n">unexpandExistsb</span> <span class="o">:</span> <span class="n">Lean.PrettyPrinter.Unexpander</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">existsb</span> <span class="bp">$</span><span class="n">l</span><span class="o">:</span><span class="n">term</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">∃</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">l</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+<span class="k">#check</span> <span class="bp">∃</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+</code></pre></div>
+<p>These definitions work reasonably well, but they leave the body of the expression eta-expanded:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">section</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">PrettyPrinter.Delaborator</span>
+
+<span class="kd">@[delab app.forallb]</span> <span class="kd">def</span> <span class="n">delabForallb</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">guard</span> <span class="bp">$</span> <span class="n">e.getAppNumArgs</span> <span class="bp">==</span> <span class="mi">3</span>
+  <span class="k">let</span> <span class="n">t</span> <span class="bp">←</span> <span class="n">withAppFn</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">e.appArg</span><span class="bp">!.</span><span class="n">bindingName</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="n">n</span>
+  <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">t</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span> <span class="bp">$</span><span class="n">x</span><span class="o">)</span>
+
+<span class="kd">@[delab app.existsb]</span> <span class="kd">def</span> <span class="n">delabExistsb</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">guard</span> <span class="bp">$</span> <span class="n">e.getAppNumArgs</span> <span class="bp">==</span> <span class="mi">3</span>
+  <span class="k">let</span> <span class="n">t</span> <span class="bp">←</span> <span class="n">withAppFn</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">e.appArg</span><span class="bp">!.</span><span class="n">bindingName</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="n">n</span>
+  <span class="bp">`</span><span class="o">(</span><span class="bp">∃</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">t</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span> <span class="bp">$</span><span class="n">x</span><span class="o">)</span>
+
+<span class="kd">end</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+<span class="k">#check</span> <span class="bp">∃</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+</code></pre></div>
+<p>I thought using <code>withBindingBody</code> would extract the body of the lambda expression, but then I get the error message indicated below:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">section</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">PrettyPrinter.Delaborator</span>
+
+<span class="kd">@[delab app.forallb]</span> <span class="kd">def</span> <span class="n">delabForallb</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">guard</span> <span class="bp">$</span> <span class="n">e.getAppNumArgs</span> <span class="bp">==</span> <span class="mi">3</span>
+  <span class="k">let</span> <span class="n">t</span> <span class="bp">←</span> <span class="n">withAppFn</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">e.appArg</span><span class="bp">!.</span><span class="n">bindingName</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withBindingBody</span> <span class="n">n</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="n">n</span>
+  <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">t</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+
+<span class="kd">@[delab app.existsb]</span> <span class="kd">def</span> <span class="n">delabExistsb</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">guard</span> <span class="bp">$</span> <span class="n">e.getAppNumArgs</span> <span class="bp">==</span> <span class="mi">3</span>
+  <span class="k">let</span> <span class="n">t</span> <span class="bp">←</span> <span class="n">withAppFn</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">e.appArg</span><span class="bp">!.</span><span class="n">bindingName</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withBindingBody</span> <span class="n">n</span> <span class="bp">$</span> <span class="n">withAppArg</span> <span class="n">delab</span>
+  <span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="n">n</span>
+  <span class="bp">`</span><span class="o">(</span><span class="bp">∃</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">t</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+
+<span class="kd">end</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+<span class="k">#check</span> <span class="bp">∃</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span>
+
+<span class="c1">-- failed to pretty print expression (use 'set_option pp.rawOnError true' for raw representation) : Prop</span>
+</code></pre></div>
+<p>I'd be grateful for any help or suggestions.</p>
+
+
+
+<a name="243848082"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243848082" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243848082">(Jun 24 2021 at 21:17)</a>:</h4>
+<p><span class="user-mention" data-user-id="110865">@Jeremy Avigad</span> Your unexpander just needs to include the type of the binder:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[appUnexpander forallb]</span> <span class="kd">def</span> <span class="n">unexpandForallb</span> <span class="o">:</span> <span class="n">Lean.PrettyPrinter.Unexpander</span>
+ <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">forallb</span> <span class="bp">$</span><span class="n">l</span><span class="o">:</span><span class="n">term</span> <span class="k">fun</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">l</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+ <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">forallb</span> <span class="bp">$</span><span class="n">l</span><span class="o">:</span><span class="n">term</span> <span class="k">fun</span> <span class="o">(</span><span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">:</span><span class="bp">$</span><span class="n">ty</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">$</span><span class="n">p</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">l</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+ <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="o">()</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="c1">-- ∀ x ∈ [1, 2, 3], x = x : Prop</span>
+</code></pre></div>
+
+
+
+<a name="243848618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243848618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243848618">(Jun 24 2021 at 21:22)</a>:</h4>
+<p>Beautiful! Many thanks.</p>
+
+
+
+<a name="243848796"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243848796" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243848796">(Jun 24 2021 at 21:24)</a>:</h4>
+<p>Did you manage to get bounded existential to expand to what we want?</p>
+
+
+
+<a name="243849178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243849178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243849178">(Jun 24 2021 at 21:28)</a>:</h4>
+<p>The outcome of the <code>#check</code> is <code>∃ x ∈ [1, 2, 3], x = x : Prop</code>, but we have</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="bp">∃</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">∃</span> <span class="n">x</span><span class="o">,</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span> <span class="bp">∧</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>Is that what you were hoping for?</p>
+
+
+
+<a name="243849403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243849403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243849403">(Jun 24 2021 at 21:30)</a>:</h4>
+<p>Yes!</p>
+
+
+
+<a name="243849423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243849423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243849423">(Jun 24 2021 at 21:31)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> I am still curious as to why the longer code with <code>withBindingBody</code> did not work. (It is similar to the delaboration for dite expressions in <code>PrettyPrinter/Delaborator/Builtins.lean</code>. ) But if it is not easy to give me a quick answer, don't worry about it. I am just curious.</p>
+
+
+
+<a name="243849598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243849598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243849598">(Jun 24 2021 at 21:33)</a>:</h4>
+<p><span class="user-mention" data-user-id="110031">@Patrick Massot</span> We should be able to generalize the notation to other types and other kinds of bounding (like &lt;). I'll consult my oracle (Mario) as to how best to do it.</p>
+
+
+
+<a name="243850146"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243850146" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243850146">(Jun 24 2021 at 21:39)</a>:</h4>
+<p>You used the wrong order :)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withAppArg</span> <span class="bp">$</span> <span class="n">withBindingBody</span> <span class="n">n</span> <span class="n">delab</span>
+</code></pre></div>
+
+
+
+<a name="243850504"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243850504" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243850504">(Jun 24 2021 at 21:42)</a>:</h4>
+<p>Yes, this works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[delab app.forallb]</span> <span class="kd">def</span> <span class="n">delabForallb</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">guard</span> <span class="bp">$</span> <span class="n">e.getAppNumArgs</span> <span class="bp">==</span> <span class="mi">3</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">e.appArg</span><span class="bp">!.</span><span class="n">bindingName</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="n">n</span>
+  <span class="k">let</span> <span class="n">t</span> <span class="bp">←</span> <span class="n">withAppFn</span> <span class="o">(</span><span class="n">withAppArg</span> <span class="n">delab</span><span class="o">)</span>
+  <span class="k">let</span> <span class="n">p</span> <span class="bp">←</span> <span class="n">withAppArg</span> <span class="o">(</span><span class="n">withBindingBody</span> <span class="n">n</span> <span class="n">delab</span><span class="o">)</span>
+  <span class="bp">`</span><span class="o">(</span><span class="bp">∀</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">∈</span> <span class="bp">$</span><span class="n">t</span><span class="o">,</span> <span class="bp">$</span><span class="n">p</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">],</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="c1">-- ∀ x ∈ [1, 2, 3], x = x : Prop</span>
+</code></pre></div>
+
+
+
+<a name="243851277"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243851277" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243851277">(Jun 24 2021 at 21:49)</a>:</h4>
+<p>Whoa, all this monad trickery is above my pay grade. Initially, the expression being delaborated is of the form <code>forallb t p</code>. The <code>let t ← ...</code> picks out the <code>t</code> part. The next step is to get the body of <code>p</code>. Don't we have to get <code>p</code> first, and then get the binding body?</p>
+
+
+
+<a name="243851578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243851578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243851578">(Jun 24 2021 at 21:52)</a>:</h4>
+<p>The <code>with*</code> functions only change the <code>ReaderT</code> context, so when e.g. <code>let t ← withAppFn (withAppArg delab)</code> returns, the context is reset so that <code>delab</code> would refer back to the original expression.</p>
+
+
+
+<a name="243851743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243851743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243851743">(Jun 24 2021 at 21:54)</a>:</h4>
+<p>I may not have understood your question -- are you confused about the "resetting" or the order of the <code>with*</code> calls?</p>
+
+
+
+<a name="243851955"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243851955" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243851955">(Jun 24 2021 at 21:56)</a>:</h4>
+<p>That's what I thought -- so that after the <code>let t ← ...</code> returns, we should be back to the original expression <code>forallb t p</code>. Then I would use expect <code>withAppArg delab</code> to return <code>p</code>, and then <code>withBindingBody n (withAppArg delab)</code> to return the body of <code>p</code>. So I guess it is the order of the <code>with*</code> calls that is confusing me.</p>
+
+
+
+<a name="243852389"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243852389" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243852389">(Jun 24 2021 at 22:01)</a>:</h4>
+<p>Yes, it is confusing :) Here is the relevant code for application:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">descend</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">child</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">(</span><span class="n">childIdx</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">withReader</span> <span class="o">(</span><span class="k">fun</span> <span class="n">cfg</span> <span class="bp">=&gt;</span> <span class="o">{</span> <span class="n">cfg</span> <span class="k">with</span> <span class="n">expr</span> <span class="o">:=</span> <span class="n">child</span><span class="o">,</span> <span class="n">pos</span> <span class="o">:=</span> <span class="n">cfg.pos</span> <span class="bp">*</span> <span class="mi">3</span> <span class="bp">+</span> <span class="n">childIdx</span> <span class="o">})</span> <span class="n">d</span>
+
+<span class="kd">def</span> <span class="n">withAppFn</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">Expr.app</span> <span class="n">fn</span> <span class="n">_</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">getExpr</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="n">descend</span> <span class="n">fn</span> <span class="mi">0</span> <span class="n">d</span>
+
+<span class="kd">def</span> <span class="n">withAppArg</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">DelabM</span> <span class="n">α</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">Expr.app</span> <span class="n">_</span> <span class="n">arg</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">getExpr</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="n">descend</span> <span class="n">arg</span> <span class="mi">1</span> <span class="n">d</span>
+</code></pre></div>
+<p>So the line <code>withAppFn (withAppArg delab)</code> will evaluate <code>withAppArg delab</code> in the context of the app-function, which will evaluate <code>delab</code> in the context of the app-function's app-argument. So the "actions" go left-to-right.</p>
+
+
+
+<a name="243852635"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/bound%20quantifier%20experiments/near/243852635" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/bound.20quantifier.20experiments.html#243852635">(Jun 24 2021 at 22:04)</a>:</h4>
+<p>Ah, yes, that makes sense. Many thanks for the patient explanation.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

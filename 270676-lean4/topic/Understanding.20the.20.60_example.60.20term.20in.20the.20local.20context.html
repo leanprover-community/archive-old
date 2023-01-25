@@ -1,0 +1,60 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Understanding.20the.20.60_example.60.20term.20in.20the.20local.20context.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Understanding.20the.20.60_example.60.20term.20in.20the.20local.20context.html">Understanding the `_example` term in the local context</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="279167838"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Understanding%20the%20%60_example%60%20term%20in%20the%20local%20context/near/279167838" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anand Rao <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Understanding.20the.20.60_example.60.20term.20in.20the.20local.20context.html#279167838">(Apr 16 2022 at 13:11)</a>:</h4>
+<p>Aside from the usual variables in the local context, there always seems to be an extra variable that has the type of the main goal (this is called <code>_example</code> when the context is inspected in an <code>example</code> environment, and <code>&lt;def_name&gt;</code> when in a definition/theorem environment with name <code>&lt;def_name&gt;</code>). This is the code I used to list all the variables in a local declaration, along with their types:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">ctxtac</span><span class="o">)</span> <span class="s2">"ctxtac"</span> <span class="o">:</span> <span class="n">tactic</span>
+<span class="kd">@[tactic ctxtac]</span> <span class="kd">def</span> <span class="n">ctxtacT</span> <span class="o">:</span> <span class="n">Tactic</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">for</span> <span class="n">c</span> <span class="k">in</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getLCtx</span><span class="o">)</span> <span class="k">do</span>
+    <span class="n">logInfo</span> <span class="n">m</span><span class="bp">!</span><span class="s2">"{(c.userName, c.type)}"</span>
+
+  <span class="k">let</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">apply</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getMainGoal</span><span class="o">)</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Unit.unit</span><span class="o">)</span>
+  <span class="n">return</span> <span class="o">()</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Float</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ctxtac</span>
+
+<span class="kd">def</span> <span class="n">ctxtest</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Float</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ctxtac</span>
+</code></pre></div>
+<p>Could anyone explain what this additional variable is and why it needs to be present? Is there an easy way to erase it from the local context? Thank you in advance.</p>
+
+
+
+<a name="279168715"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Understanding%20the%20%60_example%60%20term%20in%20the%20local%20context/near/279168715" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Understanding.20the.20.60_example.60.20term.20in.20the.20local.20context.html#279168715">(Apr 16 2022 at 13:33)</a>:</h4>
+<p>1- <code>example &lt;decls&gt; := &lt;val&gt;</code> is elaborated as <code>def _example &lt;decls&gt; := &lt;val&gt;</code>, but we discard the definition after we type check it in the kernel.  <br>
+2- Definitions and theorems can be recursive, but the Lean kernel does not accept recursive definitions. Example:  <code>#print List.append</code> shows how <code>List.append</code> was compiled before being sent to the kernel. Nobody wants to use <code>List.brecOn</code> directly. Thus, we temporarily add a local declaration for each declaration being defined. Before sending it to the kernel, we eliminate them using <code>brecOn</code> or <code>WellFounded.fix</code>.  We "hide" these auxiliary declarations when printing goals.</p>
+<p>Note that this encoding allows us to write recursive examples:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">n</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">*</span> <span class="n">_example</span> <span class="n">n</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">as</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">as.length</span> <span class="bp">≥</span> <span class="mi">0</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">as</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">Nat.le_refl</span> <span class="n">_</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as</span> <span class="bp">=&gt;</span> <span class="n">Nat.le_trans</span> <span class="o">(</span><span class="n">_example</span> <span class="n">as</span><span class="o">)</span> <span class="o">(</span><span class="kd">by</span> <span class="n">simp_arith</span><span class="o">)</span>
+</code></pre></div>
+<p>We can remove <code>_example</code> before elaborating <code>&lt;val&gt;</code> at step 1, but the recursive examples would be gone.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

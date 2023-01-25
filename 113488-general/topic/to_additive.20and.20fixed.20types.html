@@ -1,0 +1,362 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/to_additive.20and.20fixed.20types.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html">to_additive and fixed types</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="241314348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241314348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241314348">(Jun 02 2021 at 20:21)</a>:</h4>
+<p><code>@[to_additive]</code> doesn't work well with fixed types, like <code>nat</code>, <code>real</code>, <code>ennreal</code>, ...  <br>
+This is described in issue <a href="https://github.com/leanprover-community/mathlib/issues/4210">#4210</a>, but here is a quick example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">prod_flip</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span>
+   <span class="bp">∏</span> <span class="n">r</span> <span class="k">in</span> <span class="n">range</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">f</span> <span class="o">(</span><span class="n">n</span> <span class="bp">-</span> <span class="n">r</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">∏</span> <span class="n">k</span> <span class="k">in</span> <span class="n">range</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">f</span> <span class="n">k</span>
+</code></pre></div>
+<p>If you try to <code>@[to_additive]</code> this, it tries to replace the <code>(1 : nat)</code> into <code>(0 : nat)</code>: definitely not intended.</p>
+<p>In <a href="https://github.com/leanprover-community/mathlib/issues/7792">#7792</a> I'm trying to fix it. First I used the following heuristic:</p>
+<blockquote>
+<p>Only replace a multiplicative constant (like <code>has_mul.mul</code>) by its additive version if its first argument doesn't contain any unapplied "constants" (definitions, inductives, etc.)</p>
+</blockquote>
+<p>The first argument is (usually) the type with the multiplicative structure, so if that contains <code>nat</code>, <code>real</code>, ..., we don't additivize it, and same if we work on <code>ℕ × ℕ</code>. We do want to allow constants applied to arguments, like <code>prod A B</code>, <code>monoid_hom A B</code>, etc.</p>
+<p>After some testing, I needed to relax this a little further. Some types, like <code>Monoid</code> have an additive counterpart (<code>AddMonoid</code>), and <code>@[to_additive]</code> works fine for them. So I relaxed the rule to</p>
+<blockquote>
+<p>Only replace a multiplicative constant by its additive version if its first argument doesn't contain any unapplied constants that don't have the <code>@[to_additive]</code> attribute.</p>
+</blockquote>
+<p>This works well for 90%+ of the library. I could fix a couple of workarounds we used, where we didn't use <code>@[to_additive]</code> on lemmas (like <code>prod_flip</code> above).</p>
+<p>However, I'm running into issues in <code>geometry.manifold.algebra.smooth_functions</code>. The reason is that here we're working addition and multiplication on <code>C^∞⟮I, N; I', G⟯</code>. The problem is that this <code>∞</code> lives in <code>with_top nat</code>, which means that the type we're working with involves <code>nat</code>. This means that the heuristic in this PR fails, but the old version did work.</p>
+<p>Now I can think of two solutions:</p>
+<ul>
+<li>Try to find a better heuristic that covers this case correctly</li>
+<li>Give options to <code>@[to_additive]</code> that tell it which heuristic to use (like <code>@[to_additive!]</code>).</li>
+</ul>
+<p>I'm leaning towards the second option, since I don't think we can find a heuristic that covers all cases. <br>
+Thoughts?</p>
+
+
+
+<a name="241316572"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241316572" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241316572">(Jun 02 2021 at 20:39)</a>:</h4>
+<p>My far more limited experience with to_additive makes me want to agree with you that it will be hard to find a heuristic that covers all cases.</p>
+
+
+
+<a name="241321396"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241321396" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241321396">(Jun 02 2021 at 21:20)</a>:</h4>
+<p>Could we instead mark exactly which types to additivize with <code>M : add_target Type</code> where add_target is just <code>id</code>?</p>
+
+
+
+<a name="241322874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241322874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241322874">(Jun 02 2021 at 21:34)</a>:</h4>
+<p>Interesting, but there might be some issues with that suggestion...<br>
+Where do you propose to stick these <code>add_target</code>? For <code>prod_flip</code>, does <code>β</code> have type <code>add_target Type</code>?<br>
+If I have a lemma that uses multiplication on <code>α × β</code>, how does <code>add_target</code> tell us whether I need to turn this into addition?<br>
+Also, inferring types of subterms in the middle of an <code>@[to_additive]</code> could be tricky...</p>
+
+
+
+<a name="241352446"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241352446" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241352446">(Jun 03 2021 at 06:24)</a>:</h4>
+<p>I do not know a better heuristic, but I also ran into a similar problem recently.  It is analogous to Floris' example above: to keep all the examples in the same place, this is what it was.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.group.defs</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">mul_one_class</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">@[to_additive]</span>
+<span class="kd">lemma</span> <span class="n">npow_rec_one</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">npow_rec</span> <span class="mi">2</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">congr_arg</span> <span class="n">_</span> <span class="o">(</span><span class="n">mul_one</span> <span class="n">_</span><span class="o">)</span>
+<span class="c1">-- red squiggle under 2:</span>
+<span class="c">/-</span><span class="cm"> type mismatch at application</span>
+<span class="cm">  0</span>
+<span class="cm">term</span>
+<span class="cm">  nat.has_one</span>
+<span class="cm">has type</span>
+<span class="cm">  has_one ℕ</span>
+<span class="cm">but is expected to have type</span>
+<span class="cm">  has_zero ℕ</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="241355886"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241355886" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241355886">(Jun 03 2021 at 07:20)</a>:</h4>
+<p>What about an attribute <code>always_do_to_additive_</code> that we would put on types such as <code>C^∞⟮I, N; I', G⟯</code>, and saying: when there is this attribute, <code>to_additive</code> should not bother checking the type for something like <code>nat</code> inside, and just do its thing?</p>
+
+
+
+<a name="241356087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241356087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241356087">(Jun 03 2021 at 07:22)</a>:</h4>
+<p>The heuristic would become:</p>
+<blockquote>
+<p>Only replace a multiplicative constant by its additive version if its first argument is a type with the <code>always_do_to_additive</code> attribute, or doesn't contain any unapplied constants that don't have the @[to_additive] attribute.</p>
+</blockquote>
+
+
+
+<a name="241357777"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241357777" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241357777">(Jun 03 2021 at 07:44)</a>:</h4>
+<p>I see that you've already implemented the <code>to_additive!</code> version in <a href="https://github.com/leanprover-community/mathlib/issues/7792">#7792</a>, and that it works fine. So please ignore my comment, your solution is perfect!</p>
+
+
+
+<a name="241357838"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241357838" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241357838">(Jun 03 2021 at 07:45)</a>:</h4>
+<p>what does the <code>!</code> mean?</p>
+
+
+
+<a name="241358079"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241358079" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241358079">(Jun 03 2021 at 07:48)</a>:</h4>
+<p>It means "try to be clever" (i.e., notice when some things should not be additivized, like <code>1 : ℕ</code>).</p>
+
+
+
+<a name="241358149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241358149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241358149">(Jun 03 2021 at 07:49)</a>:</h4>
+<p>I think it's insufficiently obvious, and some explicit option name is worth the extra typing here.</p>
+
+
+
+<a name="241358445"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241358445" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241358445">(Jun 03 2021 at 07:52)</a>:</h4>
+<p>I think it should be the default if at all possible</p>
+
+
+
+<a name="241358479"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241358479" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241358479">(Jun 03 2021 at 07:53)</a>:</h4>
+<p>I guess it's an option because it sometimes does the wrong thing?</p>
+
+
+
+<a name="241358603"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241358603" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241358603">(Jun 03 2021 at 07:54)</a>:</h4>
+<p>I don't really understand <span class="user-mention" data-user-id="111080">@Floris van Doorn</span>'s problem example</p>
+
+
+
+<a name="241359063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359063">(Jun 03 2021 at 08:00)</a>:</h4>
+<p>I'm not yet sure if what I'm doing in <a href="https://github.com/leanprover-community/mathlib/issues/7792">#7792</a> is good yet, since now the "dumb" option is the default one. I actually like <span class="user-mention" data-user-id="110050">@Sebastien Gouezel</span> 's suggestion quite well, and might make that the default one (and the "dumb" option as a fallback).</p>
+
+
+
+<a name="241359260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359260">(Jun 03 2021 at 08:02)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> In the PR if <code>@[to_additive]</code> sees something like <code>@has_mul.mul A _ x y</code> then it looks whether <code>A</code> contains any occurrence of <code>nat</code> (or another fixed type), and if so, it will not replace the <code>mul</code> by <code>add</code>. This heuristic works well almost everywhere, except when <code>A</code> is <code>C^∞⟮I, N; I', G⟯</code>, because there is a <code>nat</code> hidden in there, but we still want to turn the <code>mul</code> into the <code>add</code>.</p>
+
+
+
+<a name="241359317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359317">(Jun 03 2021 at 08:03)</a>:</h4>
+<p>Oh, we <em>want</em> that to go from mul to add?</p>
+
+
+
+<a name="241359393"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359393" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359393">(Jun 03 2021 at 08:04)</a>:</h4>
+<p>Surely we can't just deal with the add and mul structures on that type in the same way</p>
+
+
+
+<a name="241359398"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359398" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359398">(Jun 03 2021 at 08:04)</a>:</h4>
+<p>yes: <a href="https://leanprover-community.github.io/mathlib_docs/find/smooth_map.has_mul/src">src#smooth_map.has_mul</a></p>
+
+
+
+<a name="241359477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359477">(Jun 03 2021 at 08:05)</a>:</h4>
+<p>I think we can, it's the same as <code>prod</code>, just more complicated. And it has an additional argument  that happens to contain <code>nat</code>.</p>
+
+
+
+<a name="241359480"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359480" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359480">(Jun 03 2021 at 08:05)</a>:</h4>
+<p>You have Lie groups for which the notation is multiplicative, and other Lie groups (vector spaces, or tori) for which the notation is additive. And you want <code>to_additive</code> to work in this context.</p>
+
+
+
+<a name="241359588"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359588" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359588">(Jun 03 2021 at 08:06)</a>:</h4>
+<p>I would like to have some annotation that says that the <code>∞</code> argument in <code>C^∞⟮I, N; I', G⟯</code> is a "fixed parameter" and to_additive should not dig into it, but I suspect that might not be enough</p>
+
+
+
+<a name="241359621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359621">(Jun 03 2021 at 08:07)</a>:</h4>
+<p>since it will also get involved in theorems</p>
+
+
+
+<a name="241359889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359889">(Jun 03 2021 at 08:10)</a>:</h4>
+<p>I think, for the heuristic as described, it would suffice for the "first argument" to be modifiable to "argument n" where n is specified by the constant. That way we can just set it for this C function</p>
+
+
+
+<a name="241359921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359921">(Jun 03 2021 at 08:11)</a>:</h4>
+<p>That sounds like a more refined version of Sebastien's proposal: instead of always accepting <code>C^∞⟮I, N; I', G⟯</code> we will just look in some (but not other) arguments. <br>
+And yeah, you may be right that we need to tag a whole bunch of definitions (and lemmas?) with this information...</p>
+
+
+
+<a name="241359957"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241359957" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241359957">(Jun 03 2021 at 08:11)</a>:</h4>
+<p>If it defaults to argument 1, it sounds like this example is the only one that needs tagging</p>
+
+
+
+<a name="241360054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241360054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241360054">(Jun 03 2021 at 08:12)</a>:</h4>
+<p>since all the lemmas are explicitly about C infinity, they don't have a fixed parameter in the first position</p>
+
+
+
+<a name="241360127"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241360127" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241360127">(Jun 03 2021 at 08:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/to_additive.20and.20fixed.20types/near/241359889">said</a>:</p>
+<blockquote>
+<p>I think, for the heuristic as described, it would suffice for the "first argument" to be modifiable to "argument n" where n is specified by the constant. That way we can just set it for this C function</p>
+</blockquote>
+<p>I don't see what you mean:<br>
+We have <code>@has_mul.mul (C^∞⟮I, N; I', G⟯) _ x y</code>, and so we look into the first argument of <code>has_mul.mul</code> whether it contains <code>nat</code> anywhere. This is the type <code>C^∞⟮I, N; I', G⟯</code>. We don't look at argument numbers within this type (currently).</p>
+
+
+
+<a name="241360803"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241360803" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241360803">(Jun 03 2021 at 08:20)</a>:</h4>
+<p>I see. In that case, I think C needs an annotation that says "please don't look into argument 1 when asking whether there are constants in applications of me"</p>
+
+
+
+<a name="241360884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241360884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241360884">(Jun 03 2021 at 08:21)</a>:</h4>
+<p>I think this best matches the use case here, where we want to treat <code>C^∞</code> as a sort of composite constructor no different than <code>prod</code></p>
+
+
+
+<a name="241361477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241361477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241361477">(Jun 03 2021 at 08:29)</a>:</h4>
+<p>A more challenging task for <code>to_additive</code> might be <code>add_monoid_algebra</code> vs <code>monoid_algebra</code>, where only one of the two type-arguments is additive-ized</p>
+
+
+
+<a name="241361750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/241361750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#241361750">(Jun 03 2021 at 08:32)</a>:</h4>
+<p>I think the same mechanism would work there</p>
+
+
+
+<a name="242300375"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/242300375" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#242300375">(Jun 11 2021 at 04:35)</a>:</h4>
+<p>Ok, I implemented Mario's suggestion in <a href="https://github.com/leanprover-community/mathlib/issues/7792">#7792</a> and it works well.</p>
+
+
+
+<a name="268239237"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/268239237" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#268239237">(Jan 17 2022 at 08:18)</a>:</h4>
+<p><code>to_additive</code> tries turning <code>σ⁻¹</code> into <code>-σ</code> where <code>σ : equiv.perm ι</code>. Any chance we might extend your fix, <span class="user-mention" data-user-id="111080">@Floris van Doorn</span> ?</p>
+
+
+
+<a name="268262624"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/268262624" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#268262624">(Jan 17 2022 at 12:14)</a>:</h4>
+<p>Can you post/link some examples of multiplicative declarations involving <code>perm</code> that you want to be additivized?<br>
+Are there <em>any</em> multiplicative operations on <code>perm</code> that can be additivized? (I guess not.)</p>
+<p>If the rule is "treat <code>perm</code> like <code>ℕ</code> or <code>ℝ</code> and never additivize operations on this type, then this is easy to support.</p>
+
+
+
+<a name="268265258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/268265258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#268265258">(Jan 17 2022 at 12:42)</a>:</h4>
+<p><code>equiv.perm.prod_comp</code> in <a href="https://github.com/leanprover-community/mathlib/pull/11344">#11344</a></p>
+
+
+
+<a name="268268266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/268268266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#268268266">(Jan 17 2022 at 13:11)</a>:</h4>
+<p>I guess an informal rule of thumb would be "if multiplication is not commutative in general, mathematicians are unlikely to want to additivise it", but this might not be helpful here.</p>
+
+
+
+<a name="280922087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/280922087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#280922087">(May 02 2022 at 19:32)</a>:</h4>
+<p><code>to_additive</code> troubles again, but this time with <code>ℕ</code> <span aria-label="fear" class="emoji emoji-1f628" role="img" title="fear">:fear:</span></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">order.filter.pointwise</span>
+
+<span class="c1">-- just to avoid the `ℕ`-action diamond, unrelated to the present problem</span>
+<span class="kn">local</span> <span class="kn">attribute</span> <span class="o">[</span><span class="bp">-</span><span class="kd">instance</span><span class="o">]</span> <span class="n">filter.has_scalar_filter</span>
+
+<span class="kn">namespace</span> <span class="n">filter</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+
+<span class="c1">-- works fine</span>
+<span class="kd">lemma</span> <span class="n">nsmul_top'</span> <span class="o">[</span><span class="n">add_monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">},</span> <span class="n">n</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">n</span> <span class="bp">•</span> <span class="o">(</span><span class="bp">⊤</span> <span class="o">:</span> <span class="n">filter</span> <span class="n">α</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">⊤</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">h</span><span class="o">,</span> <span class="o">(</span><span class="n">h</span> <span class="n">rfl</span><span class="o">)</span><span class="bp">.</span><span class="n">elim</span>
+<span class="bp">|</span> <span class="mi">1</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">one_nsmul</span> <span class="o">(</span><span class="bp">⊤</span> <span class="o">:</span> <span class="n">filter</span> <span class="n">α</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">rw</span> <span class="o">[</span><span class="n">succ_nsmul</span><span class="o">,</span> <span class="n">nsmul_top</span> <span class="n">n.succ_ne_zero</span><span class="o">,</span> <span class="n">top_add_top</span><span class="o">]</span> <span class="o">}</span>
+
+<span class="c1">-- works fine</span>
+<span class="kd">lemma</span> <span class="n">top_pow'</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">},</span> <span class="n">n</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="o">(</span><span class="bp">⊤</span> <span class="o">:</span> <span class="n">filter</span> <span class="n">α</span><span class="o">)</span> <span class="bp">^</span> <span class="n">n</span> <span class="bp">=</span> <span class="bp">⊤</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">h</span><span class="o">,</span> <span class="o">(</span><span class="n">h</span> <span class="n">rfl</span><span class="o">)</span><span class="bp">.</span><span class="n">elim</span>
+<span class="bp">|</span> <span class="mi">1</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">pow_one</span> <span class="n">_</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">rw</span> <span class="o">[</span><span class="n">pow_succ</span><span class="o">,</span> <span class="n">top_pow</span> <span class="n">n.succ_ne_zero</span><span class="o">,</span> <span class="n">top_mul_top</span><span class="o">]</span> <span class="o">}</span>
+
+<span class="c1">-- `to_additive` tries to additize `ℕ`</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">type mismatch at application</span>
+<span class="cm">  0</span>
+<span class="cm">term</span>
+<span class="cm">  .nat.has_one</span>
+<span class="cm">has type</span>
+<span class="cm">  has_one ℕ</span>
+<span class="cm">but is expected to have type</span>
+<span class="cm">  has_zero .ℕ</span>
+<span class="cm">-/</span>
+<span class="kd">@[to_additive nsmul_top'']</span> <span class="kd">lemma</span> <span class="n">top_pow''</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">},</span> <span class="n">n</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="o">(</span><span class="bp">⊤</span> <span class="o">:</span> <span class="n">filter</span> <span class="n">α</span><span class="o">)</span> <span class="bp">^</span> <span class="n">n</span> <span class="bp">=</span> <span class="bp">⊤</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">h</span><span class="o">,</span> <span class="o">(</span><span class="n">h</span> <span class="n">rfl</span><span class="o">)</span><span class="bp">.</span><span class="n">elim</span>
+<span class="bp">|</span> <span class="mi">1</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">pow_one</span> <span class="n">_</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">rw</span> <span class="o">[</span><span class="n">pow_succ</span><span class="o">,</span> <span class="n">top_pow</span> <span class="n">n.succ_ne_zero</span><span class="o">,</span> <span class="n">top_mul_top</span><span class="o">]</span> <span class="o">}</span>
+
+<span class="kd">end</span> <span class="n">filter</span>
+</code></pre></div>
+
+
+
+<a name="280922810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/280922810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#280922810">(May 02 2022 at 19:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> <a href="#narrow/stream/113488-general/topic/to_additive.20and.20fixed.20types/near/268262624">said</a>:</p>
+<blockquote>
+<p>If the rule is "treat <code>perm</code> like <code>ℕ</code> or <code>ℝ</code> and never additivize operations on this type", then this is easy to support.</p>
+</blockquote>
+<p>Did you ever implement this in the end, Floris?</p>
+
+
+
+<a name="280930480"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/280930480" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#280930480">(May 02 2022 at 20:38)</a>:</h4>
+<p>No, I didn't implement that, and probably it's better to implement it directly in the Lean 4 version of to_additive.</p>
+
+
+
+<a name="280932400"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_additive%20and%20fixed%20types/near/280932400" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_additive.20and.20fixed.20types.html#280932400">(May 02 2022 at 20:53)</a>:</h4>
+<p>Your new error probably has something to do with some annotations the equation compiler is adding that interferes with the heuristics of <code>to_additive</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

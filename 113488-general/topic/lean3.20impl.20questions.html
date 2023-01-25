@@ -1,0 +1,680 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/lean3.20impl.20questions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html">lean3 impl questions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="291607199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291607199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291607199">(Aug 01 2022 at 17:26)</a>:</h4>
+<p>hey, i've been studying the lean3 source code.<br>
+while i've been able to answer most of my questions so far, there are a few things, where asking the authors seems like the better idea:</p>
+<ul>
+<li>what's the rationale behind using <code>expr_local</code> for <em>uses</em> of locals? is it just the convenience of not having to look up the local in the local context to get its type and stuff like that, or is there a "deeper" reason?</li>
+<li>where is the kernel type checker invoked for definitions commands? or do you not do that for regular operation (and instead have some "verify the stuff please" action)?</li>
+</ul>
+
+
+
+<a name="291607548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291607548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291607548">(Aug 01 2022 at 17:29)</a>:</h4>
+<p>For your second question, it should be <a href="https://github.com/leanprover-community/lean/blob/master/src/frontends/lean/definition_cmds.cpp#L194">https://github.com/leanprover-community/lean/blob/master/src/frontends/lean/definition_cmds.cpp#L194</a> and you can see where it gets called in the definition commands. (I'm not the author.)</p>
+
+
+
+<a name="291608365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291608365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291608365">(Aug 01 2022 at 17:35)</a>:</h4>
+<p>ah, indeed, thanks a lot!<br>
+i was searching for <code>type_checker tc(</code> cause that seemed to be a common pattern, but only found it in the <code>check</code> command.</p>
+
+
+
+<a name="291610812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291610812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291610812">(Aug 01 2022 at 17:55)</a>:</h4>
+<p>another question related to the first one: <code>expr_var</code> doesn't seem to be used much at all. what's the rationale behind that?<br>
+actually, nvm. it's used in <code>instantiate_rev_locals</code> and <code>resolve_local_name_core</code>, which are called quite a bit.</p>
+
+
+
+<a name="291611191"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611191" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611191">(Aug 01 2022 at 17:58)</a>:</h4>
+<p>That's the locally nameless approach. Most functions expect closed terms, so whenever you "enter" a binder you instantiate all the <code>var</code>s in it for local constants</p>
+
+
+
+<a name="291611298"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611298" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611298">(Aug 01 2022 at 17:59)</a>:</h4>
+<p>note that the actual type information in a <code>local_const</code> is not reliable, it's usually a dummy value</p>
+
+
+
+<a name="291611429"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611429" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611429">(Aug 01 2022 at 18:00)</a>:</h4>
+<p>I'm not sure what you mean by "rationale behind using <code>expr_local</code> for <em>uses</em> of locals". What else would you use it for?</p>
+
+
+
+<a name="291611494"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611494" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611494">(Aug 01 2022 at 18:00)</a>:</h4>
+<p>i see, so using <code>expr_local</code> is a kind of "certification/invariant" thing (&gt; Most functions expect closed terms)</p>
+
+
+
+<a name="291611621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611621">(Aug 01 2022 at 18:01)</a>:</h4>
+<p>in any case, in lean 4 <code>local_const</code> is now <code>.fvar (fvarId : Name) : Expr</code>, so it seems it was agreed that all the other stuff in the local const is dead weight</p>
+
+
+
+<a name="291611714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611714">(Aug 01 2022 at 18:02)</a>:</h4>
+<p>it's now solely a pointer into the <code>LocalContext</code> which has the actual type information and whatnot</p>
+
+
+
+<a name="291611740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611740">(Aug 01 2022 at 18:02)</a>:</h4>
+<p>i found it a little weird that both the "definition" and the "use" of a local used exactly the same expr (except for adjusted source position information).</p>
+
+
+
+<a name="291611809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611809">(Aug 01 2022 at 18:03)</a>:</h4>
+<blockquote>
+<p>it's now solely a pointer into the LocalContext which has the actual type information and whatnot</p>
+</blockquote>
+<p>that sounds more like what i would have expected, i think.</p>
+
+
+
+<a name="291611819"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611819" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611819">(Aug 01 2022 at 18:03)</a>:</h4>
+<p>Huh? what is a "definition" of a local constant?</p>
+
+
+
+<a name="291611980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611980">(Aug 01 2022 at 18:04)</a>:</h4>
+<p>well <code>fun id (a: nat) -&gt; nat := a</code><br>
+the <code>(a: nat)</code> part is the definition.<br>
+the <code>a</code> part in the body is the use.<br>
+clearly at source level, these are quite different, but in the ast, they use the same expr.</p>
+
+
+
+<a name="291611984"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291611984" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291611984">(Aug 01 2022 at 18:04)</a>:</h4>
+<p>I suppose you could call the things in the LocalContext the "definition of a local_const", but that's <code>local_decl</code>, not <code>local_const</code></p>
+
+
+
+<a name="291612123"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612123" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612123">(Aug 01 2022 at 18:05)</a>:</h4>
+<p>The expression <code>(a: nat) -&gt; nat</code> is represented as an expr like <code>Pi "a" (const "nat") (const "nat")</code>, there aren't any local_const involved at all</p>
+
+
+
+<a name="291612292"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612292" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612292">(Aug 01 2022 at 18:07)</a>:</h4>
+<p>i'm not sure what <code>local_const</code> is.<br>
+i was talking about lean3's <code>expr_local</code> <span aria-label="thinking" class="emoji emoji-1f914" role="img" title="thinking">:thinking:</span></p>
+
+
+
+<a name="291612309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612309">(Aug 01 2022 at 18:07)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/expr">docs#expr</a></p>
+
+
+
+<a name="291612327"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612327" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612327">(Aug 01 2022 at 18:07)</a>:</h4>
+<p>the names on the C++ side are weird</p>
+
+
+
+<a name="291612482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612482">(Aug 01 2022 at 18:09)</a>:</h4>
+<p>ok, i see.</p>
+
+
+
+<a name="291612506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612506">(Aug 01 2022 at 18:09)</a>:</h4>
+<p>but the body (<code>a</code>) would be a local_const?</p>
+
+
+
+<a name="291612784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612784">(Aug 01 2022 at 18:11)</a>:</h4>
+<p>the local consts get involved when you enter a binder during elaboration. Let's say the body is <code>\lam a, a</code>, so we start by entering the <code>a</code> binder. This means creating a new local_decl like <code>{name := "a", uniq := 1234, type := nat}</code> and then all occurrences of <code>var 0</code> get replaced with <code>local_const "a" 1234 &lt;&gt;</code></p>
+
+
+
+<a name="291612978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291612978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291612978">(Aug 01 2022 at 18:13)</a>:</h4>
+<p>and then we would resolve the user reference <code>a</code> to that local constant, and when we close the scope we would abstract it back to <code>var 0</code> resulting in the term <code>lam "a" (const "nat") (var 0)</code> for that identity function</p>
+
+
+
+<a name="291613140"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291613140" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291613140">(Aug 01 2022 at 18:14)</a>:</h4>
+<p>ok, makes sense!<br>
+what's the idea behind replacing the vars with locals, instead of doing the lookups ad hoc? (this really is my central question)</p>
+
+
+
+<a name="291613215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291613215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291613215">(Aug 01 2022 at 18:15)</a>:</h4>
+<p>i guess at some points they're turned back into local_consts, because the kernel (in lean3) doesn't seem to accept vars.</p>
+
+
+
+<a name="291613400"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291613400" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291613400">(Aug 01 2022 at 18:17)</a>:</h4>
+<p>i've got to go, back in like an hour.<br>
+thanks for the help so far!</p>
+
+
+
+<a name="291613994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291613994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291613994">(Aug 01 2022 at 18:23)</a>:</h4>
+<p>i guess one reason for switching to the unique names could be that you don’t have to bother with adjusting de-bruijn indices or alpha conversion.</p>
+
+
+
+<a name="291615433"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291615433" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291615433">(Aug 01 2022 at 18:35)</a>:</h4>
+<p>hmm, but then why would de-bruijn be used at all? <span aria-label="thinking" class="emoji emoji-1f914" role="img" title="thinking">:thinking:</span></p>
+
+
+
+<a name="291617868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291617868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291617868">(Aug 01 2022 at 18:55)</a>:</h4>
+<p>I believe this is the keyword:</p>
+<blockquote>
+<p>That's the locally nameless approach.</p>
+</blockquote>
+<p>There seem to be papers you could look up about "locally nameless representation"</p>
+
+
+
+<a name="291618435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291618435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291618435">(Aug 01 2022 at 19:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="456923">Leonard Wiechmann</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291613140">said</a>:</p>
+<blockquote>
+<p>what's the idea behind replacing the vars with locals, instead of doing the lookups ad hoc? (this really is my central question)</p>
+</blockquote>
+<p><span class="user-mention silent" data-user-id="456923">Leonard Wiechmann</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291613994">said</a>:</p>
+<blockquote>
+<p>i guess one reason for switching to the unique names could be that you don’t have to bother with adjusting de-bruijn indices or alpha conversion.</p>
+</blockquote>
+<p>You answered your own question. It basically localizes the problem of lifting and substitution to one place, so nothing else has to worry about it. See also <a href="http://www.cs.ru.nl/~james/RESEARCH/haskell2004.pdf">http://www.cs.ru.nl/~james/RESEARCH/haskell2004.pdf</a> which explains some of the theory.</p>
+
+
+
+<a name="291618651"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291618651" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291618651">(Aug 01 2022 at 19:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="456923">Leonard Wiechmann</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291613215">said</a>:</p>
+<blockquote>
+<p>i guess at some points they're turned back into local_consts, because the kernel (in lean3) doesn't seem to accept vars.</p>
+</blockquote>
+<p>Actually it's the other way around. Kernel terms must not contain local_consts, although the kernel itself also does the locally nameless thing so it will turn vars into local_consts as it traverses the term.</p>
+
+
+
+<a name="291625620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291625620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291625620">(Aug 01 2022 at 20:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291617868">said</a>:</p>
+<blockquote>
+<p>There seem to be papers you could look up about "locally nameless representation"</p>
+</blockquote>
+<p>thanks, i'll take a look!</p>
+
+
+
+<a name="291625680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291625680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291625680">(Aug 01 2022 at 20:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291618435">said</a>:</p>
+<blockquote>
+<p>It basically localizes the problem of lifting and substitution to one place, so nothing else has to worry about it. See also <a href="http://www.cs.ru.nl/~james/RESEARCH/haskell2004.pdf">http://www.cs.ru.nl/~james/RESEARCH/haskell2004.pdf</a> which explains some of the theory.</p>
+</blockquote>
+<p>that makes sense, thanks for the link!</p>
+
+
+
+<a name="291626055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291626055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291626055">(Aug 01 2022 at 20:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291618651">said</a>:</p>
+<blockquote>
+<p>Actually it's the other way around. Kernel terms must not contain local_consts, although the kernel itself also does the locally nameless thing so it will turn vars into local_consts as it traverses the term.</p>
+</blockquote>
+<p>ah, i see. i did wonder how the kernel verified the bindings if the input used local_const.<br>
+i saw the <code>lean_assert(closed(e));</code> in <code>type_checker::infer_type_core</code>, i must have missed the conversion.</p>
+
+
+
+<a name="291630841"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291630841" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291630841">(Aug 01 2022 at 20:41)</a>:</h4>
+<p>found it: <code>finalize_definition</code> in <code>definition_cmds.cpp</code> abstracts the locals.<br>
+and stuff like <code>type_checker::infer_lambda</code> <em>temporarily</em> switches to <code>expr_local</code> for inference.<br>
+seems <code>closed(e)</code> doesn't mean "doesn't contain <em>any</em> vars", but just means "doesn't contain <em>free</em> vars". (yes, that's exactly what it means. says it in the comment right above it... :D)<br>
+man, this would probably be so much easier, if i had just downloaded and compiled the code :D</p>
+
+
+
+<a name="291631309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291631309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291631309">(Aug 01 2022 at 20:45)</a>:</h4>
+<p>anyway, thanks kyle and mario for the help, really appreciate it!</p>
+
+
+
+<a name="291709330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291709330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291709330">(Aug 02 2022 at 13:35)</a>:</h4>
+<hr>
+<p>working my way through the typing rules in the lean paper again (The Type Theory of Lean).<br>
+have a few questions:</p>
+<p>1) has the type theory changed in any way for lean4?</p>
+<p>2) isn't the proof irrelevance reduction rule (second line in the image) technically unjustified?<br>
+the def-eq rule (first line) only has <em>one</em> <code>p</code>, no <code>p'</code>.<br>
+it's my understanding that you can't "apply def-eq to the rules themselves" (i.e. if the rule only has one <code>p</code>, you can't apply it if you have two different <code>p</code>, <code>p'</code>, even if they're def-eq).<br>
+<a href="/user_uploads/3121/nDKxXJXJPMpi8Jgc0hnuT7ZC/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/nDKxXJXJPMpi8Jgc0hnuT7ZC/image.png" title="image.png"><img src="/user_uploads/3121/nDKxXJXJPMpi8Jgc0hnuT7ZC/image.png"></a></div>
+
+
+
+<a name="291770105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291770105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291770105">(Aug 02 2022 at 21:19)</a>:</h4>
+<p>1) Yes and no. The theory is not supposed to have changed in any essential way, but lean 4 does include some new kernel features not supported by lean 3, mostly optimizations of things that were supported already but not primitively.</p>
+<ul>
+<li>Primitive projections. This is just shorthand for a <code>rec</code> term applied to a lambda that extracts one of the arguments, and it has the expected definitional equalities.</li>
+<li>Primitive nat and string literals. This makes <code>#reduce</code> stop early and changes the behavior of whnf around these terms, but otherwise they are just shorthand for the term construction you could do before.<ul>
+<li>Primitive nat literal operations like <code>Nat.add</code>. It only works on literals, not variables, so it can only compute things that were already computable through a long sequence of kernel reductions.</li>
+</ul>
+</li>
+<li>Eta for structures. This is a "real" change, but it is actually a bit closer to the paper than before, since I had to add eta for (some) structures in the "reduction to W-types" chapter. It does not pose any really difficult problems.</li>
+<li>Nested and mutual inductives. This is a big change, and one that probably needs some investigation at some point, but it should be checking the same rules as in lean 3 (where nested and mutual inductives were only simulated by the frontend). The simulation did not have all the desired definitional equalities though, so this is a real change.</li>
+</ul>
+
+
+
+<a name="291770860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291770860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291770860">(Aug 02 2022 at 21:25)</a>:</h4>
+<p>2) The "algorithmic" rules do not have to be 1 for 1 copies of the "idealized" rules. They just need to be able to show essentially the same things in the same context. In this case, you can show that if you replace <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>⇔</mo></mrow><annotation encoding="application/x-tex">\Leftrightarrow</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.3669em;"></span><span class="mrel">⇔</span></span></span></span> with <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≡</mo></mrow><annotation encoding="application/x-tex">\equiv</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4637em;"></span><span class="mrel">≡</span></span></span></span> in the second rule you still get a provable theorem: Suppose <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>p</mi><mo>:</mo><mi mathvariant="double-struck">P</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash p:\mathbb{P}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6889em;"></span><span class="mord mathbb">P</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>h</mi><mo>:</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash h:p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">h</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><msup><mi>h</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup><mo>:</mo><msup><mi>p</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow><annotation encoding="application/x-tex">\Gamma\vdash h&#x27;:p&#x27;</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7519em;"></span><span class="mord"><span class="mord mathnormal">h</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9463em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">p</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span>, and <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>p</mi><mo>≡</mo><msup><mi>p</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow><annotation encoding="application/x-tex">\Gamma\vdash p\equiv p&#x27;</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6582em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≡</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9463em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">p</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span>. Then <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><msup><mi>p</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup><mo>≡</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash p&#x27;\equiv p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9463em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">p</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≡</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span>, so <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><msup><mi>h</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup><mo>:</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash h&#x27;:p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7519em;"></span><span class="mord"><span class="mord mathnormal">h</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span> by the conv rule (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>α</mi><mo>≡</mo><mi>β</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash\alpha\equiv\beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.4637em;"></span><span class="mord mathnormal" style="margin-right:0.0037em;">α</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≡</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.05278em;">β</span></span></span></span> implies <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>e</mi><mo>:</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash e:\alpha</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.0037em;">α</span></span></span></span> -&gt; <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>e</mi><mo>:</mo><mi>β</mi></mrow><annotation encoding="application/x-tex">\Gamma\vdash e:\beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.05278em;">β</span></span></span></span>). Thus <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>h</mi><mo>≡</mo><msup><mi>h</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow><annotation encoding="application/x-tex">\Gamma\vdash h\equiv h&#x27;</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">h</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≡</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7519em;"></span><span class="mord"><span class="mord mathnormal">h</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span> by proof irrelevance.</p>
+
+
+
+<a name="291772290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291772290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291772290">(Aug 02 2022 at 21:39)</a>:</h4>
+<p>BTW, does "eta for structures" literally mean for things defined with the <code>structure</code> keyword? Or does the equivalent <code>inductive</code> also have eta?</p>
+
+
+
+<a name="291775852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291775852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291775852">(Aug 02 2022 at 22:13)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/commit/0aa32d643e063efd68bd31478ccd8028a3de7533">https://github.com/leanprover/lean4/commit/0aa32d643e063efd68bd31478ccd8028a3de7533</a></p>
+
+
+
+<a name="291776346"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291776346" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291776346">(Aug 02 2022 at 22:18)</a>:</h4>
+<p>Yes:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Foo</span>
+
+<span class="kd">def</span> <span class="n">Foo.fst</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">⟨</span><span class="n">n</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+<span class="kd">def</span> <span class="n">Foo.snd</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">n</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Foo</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">Foo.mk</span> <span class="n">f.fst</span> <span class="n">f.snd</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- ok</span>
+
+<span class="kd">inductive</span> <span class="n">Rec</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Rec</span> <span class="bp">→</span> <span class="n">Rec</span>
+
+<span class="kd">def</span> <span class="n">Rec.fst</span> <span class="o">:</span> <span class="n">Rec</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">⟨</span><span class="n">n</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+<span class="kd">def</span> <span class="n">Rec.snd</span> <span class="o">:</span> <span class="n">Rec</span> <span class="bp">→</span> <span class="n">Rec</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">n</span><span class="o">⟩</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Rec</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">Rec.mk</span> <span class="n">f.fst</span> <span class="n">f.snd</span> <span class="o">:=</span> <span class="n">rfl</span> <span class="c1">-- fail</span>
+</code></pre></div>
+
+
+
+<a name="291776521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291776521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291776521">(Aug 02 2022 at 22:20)</a>:</h4>
+<p>The kernel doesn't actually receive a "structure" flag. It computes whether an inductive is "structure-like" itself</p>
+
+
+
+<a name="291819348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291819348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291819348">(Aug 03 2022 at 08:59)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291770860">said</a>:</p>
+<blockquote>
+<p>2) The "algorithmic" rules do not have to be 1 for 1 copies of the "idealized" rules. They just need to be able to show essentially the same things in the same context.</p>
+</blockquote>
+<p>meaning "<em>imply</em> the ideal rules"? (in a way that's implementation friendly)<br>
+totally forgot about the conv rule. noticed it was absent, but didn't realize it was "baked into the proof irrelevance rule" (like eta, which had pi-intro baked in, turning it into an extensionality principle).</p>
+
+
+
+<a name="291820258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291820258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291820258">(Aug 03 2022 at 09:07)</a>:</h4>
+<p>The conv rule doesn't work very well algorithmically, since you don't know what other type to prove definitionally equal to the one you have. Instead, everywhere type equality constraints appear, those equalities get replaced with definitional equality checks</p>
+
+
+
+<a name="291820319"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291820319" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291820319">(Aug 03 2022 at 09:08)</a>:</h4>
+<p>Another standard place definitional equality checks appear is in the function application rule</p>
+
+
+
+<a name="291820494"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291820494" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291820494">(Aug 03 2022 at 09:09)</a>:</h4>
+<p>... I guess it doesn't show up in the paper since I don't give an algorithmic analogue of the typing judgment itself (i.e. a typechecker)</p>
+
+
+
+<a name="291822382"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291822382" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291822382">(Aug 03 2022 at 09:26)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291820258">said</a>:</p>
+<blockquote>
+<p>The conv rule doesn't work very well algorithmically, since you don't know what other type to prove definitionally equal to the one you have.</p>
+</blockquote>
+<p>which also applies to the transitivity rule, i guess (besides that thing about sub-singleton-elim &amp; decidability).</p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291820319">said</a>:</p>
+<blockquote>
+<p>Another standard place definitional equality checks appear is in the function application rule<br>
+... I guess it doesn't show up in the paper</p>
+</blockquote>
+<p>i'm not sure i understand.</p>
+<p>there's this, looks like a func app rule to me: <a href="/user_uploads/3121/FKs-yoIlvrP8Rjd0qTwOrf-j/image.png">image.png</a> </p>
+<div class="message_inline_image"><a href="/user_uploads/3121/FKs-yoIlvrP8Rjd0qTwOrf-j/image.png" title="image.png"><img src="/user_uploads/3121/FKs-yoIlvrP8Rjd0qTwOrf-j/image.png"></a></div><p>and these two: <a href="/user_uploads/3121/Qsid_zr-iJYSENsa2ObQFe-2/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/Qsid_zr-iJYSENsa2ObQFe-2/image.png" title="image.png"><img src="/user_uploads/3121/Qsid_zr-iJYSENsa2ObQFe-2/image.png"></a></div>
+
+
+
+<a name="291853628"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291853628" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291853628">(Aug 03 2022 at 13:59)</a>:</h4>
+<p>the first one is application compatibility, and the second one is the beta rule. The function application rule is</p>
+<p><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mfrac><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>f</mi><mo>:</mo><mi mathvariant="normal">∀</mi><mi>x</mi><mo>:</mo><mi>A</mi><mi mathvariant="normal">.</mi><mtext>  </mtext><mi>B</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mspace width="1em"/><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>e</mi><mo>:</mo><mi>A</mi></mrow><mrow><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>f</mi><mtext>  </mtext><mi>x</mi><mo>:</mo><mi>B</mi><mo stretchy="false">[</mo><mi>e</mi><mi mathvariant="normal">/</mi><mi>x</mi><mo stretchy="false">]</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\dfrac{\Gamma \vdash f:\forall x: A.\;B(x)\quad \Gamma \vdash e: A}{\Gamma\vdash f\;x: B[e/x]}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.363em;vertical-align:-0.936em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.427em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">[</span><span class="mord mathnormal">e</span><span class="mord">/</span><span class="mord mathnormal">x</span><span class="mclose">]</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">∀</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span><span class="mord">.</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:1em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span></p>
+
+
+
+<a name="291853850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/291853850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#291853850">(Aug 03 2022 at 14:01)</a>:</h4>
+<p>and the algorithmic version looks like</p>
+<p><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mfrac><mrow><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>f</mi><mo>:</mo><mi mathvariant="normal">∀</mi><mi>x</mi><mo>:</mo><mi>A</mi><mi mathvariant="normal">.</mi><mtext>  </mtext><mi>B</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mspace width="1em"/><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>e</mi><mo>:</mo><msup><mi>A</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup><mspace width="1em"/><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>A</mi><mo>⇔</mo><msup><mi>A</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow><mrow><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>f</mi><mtext>  </mtext><mi>x</mi><mo>:</mo><mi>B</mi><mo stretchy="false">[</mo><mi>e</mi><mi mathvariant="normal">/</mi><mi>x</mi><mo stretchy="false">]</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\dfrac{\Gamma \Vdash f:\forall x: A.\;B(x)\quad \Gamma \Vdash e: A&#x27;\quad \Gamma \vdash A\Leftrightarrow A&#x27;}{\Gamma\Vdash f\;x: B[e/x]}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.3649em;vertical-align:-0.936em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.4289em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">[</span><span class="mord mathnormal">e</span><span class="mord">/</span><span class="mord mathnormal">x</span><span class="mclose">]</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">∀</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span><span class="mord">.</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:1em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal">A</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:1em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⇔</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal">A</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span></p>
+
+
+
+<a name="292147093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292147093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292147093">(Aug 05 2022 at 12:32)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/291853850">said</a>:</p>
+<blockquote>
+<p>and the algorithmic version looks like</p>
+<p><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mfrac><mrow><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>f</mi><mo>:</mo><mi mathvariant="normal">∀</mi><mi>x</mi><mo>:</mo><mi>A</mi><mi mathvariant="normal">.</mi><mtext>  </mtext><mi>B</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mspace width="1em"/><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>e</mi><mo>:</mo><msup><mi>A</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup><mspace width="1em"/><mi mathvariant="normal">Γ</mi><mo>⊢</mo><mi>A</mi><mo>⇔</mo><msup><mi>A</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow><mrow><mi mathvariant="normal">Γ</mi><mo>⊩</mo><mi>f</mi><mtext>  </mtext><mi>x</mi><mo>:</mo><mi>B</mi><mo stretchy="false">[</mo><mi>e</mi><mi mathvariant="normal">/</mi><mi>x</mi><mo stretchy="false">]</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\dfrac{\Gamma \Vdash f:\forall x: A.\;B(x)\quad \Gamma \Vdash e: A&#x27;\quad \Gamma \vdash A\Leftrightarrow A&#x27;}{\Gamma\Vdash f\;x: B[e/x]}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.3649em;vertical-align:-0.936em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.4289em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">[</span><span class="mord mathnormal">e</span><span class="mord">/</span><span class="mord mathnormal">x</span><span class="mclose">]</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">∀</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span><span class="mord">.</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.05017em;">B</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:1em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel amsrm">⊩</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal">A</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:1em;"></span><span class="mord">Γ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊢</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal">A</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⇔</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal">A</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7519em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span><br>
+</p>
+</blockquote>
+<p>ah, makes sense.<br>
+so like with proof irrelevance, you bake in the conversion rule.</p>
+
+
+
+<a name="292148366"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148366" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148366">(Aug 05 2022 at 12:44)</a>:</h4>
+<p>i found this check in lean3's abstract function:<br>
+<code>lean_assert(std::all_of(subst, subst+n, [](expr const &amp; e) { return closed(e) &amp;&amp; is_local(e); }));</code></p>
+<p>i was confused by the <code>closed(e)</code> part. how can a local not be closed? in lean3 maybe if the type isn't closed.<br>
+then i checked lean4 to see if there were any changes.<br>
+and indeed there were.</p>
+<p>the check is still there, just called <code>!has_loose_bvars(e)</code> now. (<a href="https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/kernel/abstract.cpp#L15">https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/kernel/abstract.cpp#L15</a>)<br>
+however it doesn't seem to do anything.</p>
+<p>has_loose_bvars seems to check the computed <code>Expr.data</code> field. but looseBVarRange is always zero for fvars: <a href="https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/Lean/Expr.lean#L428">https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/Lean/Expr.lean#L428</a></p>
+<p>is that a bug? (and the fvar's <em>type</em> should have been checked for loose bvars; not that the type should ever contain any bvars either, because it's instantiated before putting it into the local context, though that's technically not enforced by the local context)<br>
+or is that just a redundant check?</p>
+
+
+
+<a name="292148420"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148420" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148420">(Aug 05 2022 at 12:45)</a>:</h4>
+<p>Like I said, lean mostly works on closed terms</p>
+
+
+
+<a name="292148436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148436">(Aug 05 2022 at 12:45)</a>:</h4>
+<p>that doesn't mean no local consts, that means no <code>var</code>s</p>
+
+
+
+<a name="292148458"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148458" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148458">(Aug 05 2022 at 12:45)</a>:</h4>
+<p>or <code>bvar</code>s in lean 4</p>
+
+
+
+<a name="292148535"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148535" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148535">(Aug 05 2022 at 12:46)</a>:</h4>
+<p>yes, i got that.</p>
+
+
+
+<a name="292148587"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148587" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148587">(Aug 05 2022 at 12:46)</a>:</h4>
+<p>so it's not a bug that <code>looseBVarRange</code> is 0 for fvars</p>
+
+
+
+<a name="292148607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148607">(Aug 05 2022 at 12:46)</a>:</h4>
+<p>because it doesn't have any bvars in it</p>
+
+
+
+<a name="292148632"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148632" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148632">(Aug 05 2022 at 12:47)</a>:</h4>
+<p>yeah, that's why i was confused by that check.</p>
+
+
+
+<a name="292148638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148638">(Aug 05 2022 at 12:47)</a>:</h4>
+<p>so it's just redundant?</p>
+
+
+
+<a name="292148643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148643">(Aug 05 2022 at 12:47)</a>:</h4>
+<p>?</p>
+
+
+
+<a name="292148663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148663">(Aug 05 2022 at 12:47)</a>:</h4>
+<p>there are other expressions that have bvars in them</p>
+
+
+
+<a name="292148667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148667">(Aug 05 2022 at 12:47)</a>:</h4>
+<p>but fvars don't</p>
+
+
+
+<a name="292148763"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148763" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148763">(Aug 05 2022 at 12:48)</a>:</h4>
+<p>this is the check: <code>return !has_loose_bvars(e) &amp;&amp; is_fvar(e);</code> (<a href="https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/kernel/abstract.cpp#L15">https://github.com/leanprover/lean4/blob/6a767a66a13c588cce3829bf1de00a1830883843/src/kernel/abstract.cpp#L15</a>)<br>
+conjunction, but the second implies the first.</p>
+
+
+
+<a name="292148870"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292148870" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292148870">(Aug 05 2022 at 12:49)</a>:</h4>
+<p>in lean3, it seems to check the type's vars.</p>
+
+
+
+<a name="292149001"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149001" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149001">(Aug 05 2022 at 12:50)</a>:</h4>
+<p>Oh I see. That could be a performance optimization but it seems unlikely, both checks should be O(1)</p>
+
+
+
+<a name="292149056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149056">(Aug 05 2022 at 12:50)</a>:</h4>
+<p>it could also be grandfathered code since it's the exact same line modulo naming</p>
+
+
+
+<a name="292149082"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149082" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149082">(Aug 05 2022 at 12:51)</a>:</h4>
+<p>and it's in an assert anyway so it doesn't matter</p>
+
+
+
+<a name="292149108"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149108" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149108">(Aug 05 2022 at 12:51)</a>:</h4>
+<p>so it could just be for clarity</p>
+
+
+
+<a name="292149765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149765">(Aug 05 2022 at 12:57)</a>:</h4>
+<p>i think the behavior is technically <em>different</em> in lean3:</p>
+<p>locals are initialized with their type's free var range.<br>
+(<a href="https://github.com/leanprover/lean/blob/master/src/kernel/expr.cpp#L164">https://github.com/leanprover/lean/blob/master/src/kernel/expr.cpp#L164</a>)</p>
+<div class="codehilite" data-code-language="C++"><pre><span></span><code><span class="n">expr_mlocal</span><span class="o">::</span><span class="n">expr_mlocal</span><span class="p">(</span><span class="kt">bool</span><span class="w"> </span><span class="n">is_meta</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">pp_n</span><span class="p">,</span><span class="w"> </span><span class="n">expr</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">tag</span><span class="w"> </span><span class="n">g</span><span class="p">)</span><span class="o">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">expr_composite</span><span class="p">(</span><span class="n">is_meta</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">expr_kind</span><span class="o">::</span><span class="n">Meta</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">expr_kind</span><span class="o">::</span><span class="n">Local</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">hash</span><span class="p">(),</span><span class="w"> </span><span class="n">is_meta</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">has_expr_metavar</span><span class="p">(),</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">has_univ_metavar</span><span class="p">(),</span><span class="w"></span>
+<span class="w">                   </span><span class="o">!</span><span class="n">is_meta</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">has_local</span><span class="p">(),</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">has_param_univ</span><span class="p">(),</span><span class="w"></span>
+<span class="w">                   </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">get_free_var_range</span><span class="p">(</span><span class="n">t</span><span class="p">),</span><span class="w"> </span><span class="n">g</span><span class="p">),</span><span class="w"></span>
+<span class="w">                      </span><span class="c1">// ^ THIS sets expr_composite.m_free_var_range</span>
+</code></pre></div>
+<p>and that's read in:<br>
+(<a href="https://github.com/leanprover/lean/blob/master/src/kernel/expr.h#L594">https://github.com/leanprover/lean/blob/master/src/kernel/expr.h#L594</a>)</p>
+<div class="codehilite" data-code-language="C++"><pre><span></span><code><span class="kr">inline</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="nf">get_free_var_range</span><span class="p">(</span><span class="n">expr</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">kind</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">expr_kind</span><span class="o">::</span><span class="no">Var</span><span class="p">:</span><span class="w">                            </span><span class="k">return</span><span class="w"> </span><span class="n">var_idx</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">expr_kind</span><span class="o">::</span><span class="no">Constant</span><span class="p">:</span><span class="w"> </span><span class="k">case</span><span class="w"> </span><span class="no">expr_kind</span><span class="o">::</span><span class="no">Sort</span><span class="p">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w">                                        </span><span class="k">return</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="n">expr_composite</span><span class="o">*&gt;</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">raw</span><span class="p">())</span><span class="o">-&gt;</span><span class="n">m_free_var_range</span><span class="p">;</span><span class="w">  </span><span class="c1">// HERE</span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+<span class="cm">/** \brief Return true iff the given expression has free variables. */</span><span class="w"></span>
+<span class="kr">inline</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="nf">has_free_vars</span><span class="p">(</span><span class="n">expr</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">get_free_var_range</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="cm">/** \brief Return true iff the given expression does not have free variables. */</span><span class="w"></span>
+<span class="kr">inline</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="nf">closed</span><span class="p">(</span><span class="n">expr</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="o">!</span><span class="n">has_free_vars</span><span class="p">(</span><span class="n">e</span><span class="p">);</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>so the implementations seem to be inconsistent.<br>
+but it shouldn't matter because<br>
+<span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/292148420">said</a>:</p>
+<blockquote>
+<p>Like I said, lean mostly works on closed terms</p>
+</blockquote>
+
+
+
+<a name="292149867"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292149867" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292149867">(Aug 05 2022 at 12:58)</a>:</h4>
+<p>so i guess</p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/292149108">said</a>:</p>
+<blockquote>
+<p>so it could just be for clarity</p>
+</blockquote>
+
+
+
+<a name="292153784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292153784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292153784">(Aug 05 2022 at 13:31)</a>:</h4>
+<p>A local constant cannot have a type that depends on a var</p>
+
+
+
+<a name="292180468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292180468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292180468">(Aug 05 2022 at 16:53)</a>:</h4>
+<p>i mean, syntactically it can, of course.<br>
+i guess you're implying that lean always instantiates before putting locals into the context, right?<br>
+(so if you have <code>lam (A: Type), lam (a: #Var 0), a</code> the outer lambda is instantiated first. so <code>a</code>'s type will be a local const by the time <code>a</code> is put into the context)</p>
+
+
+
+<a name="292181960"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/292181960" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#292181960">(Aug 05 2022 at 17:05)</a>:</h4>
+<p>right</p>
+
+
+
+<a name="294522637"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294522637" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294522637">(Aug 21 2022 at 09:09)</a>:</h4>
+<p>question about K-reduction:<br>
+my understanding is that it applies to any sub-singleton (because all arguments are given in the indices, so you can reconstruct the intro term).<br>
+but the implementation only supports k-reduction if the ctor has <em>no arguments</em>.<br>
+<a href="https://github.com/leanprover/lean4/blob/fa7769260a805440f34bdd3da982e6925e7d72b4/src/kernel/inductive.cpp#L538">https://github.com/leanprover/lean4/blob/fa7769260a805440f34bdd3da982e6925e7d72b4/src/kernel/inductive.cpp#L538</a><br>
+is this because it's not needed in practice and simplifies the implementation, or am i misunderstanding the type theory?</p>
+
+
+
+<a name="294575493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294575493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294575493">(Aug 21 2022 at 19:03)</a>:</h4>
+<p>what you describe is the requirements for large elimination for an inductive type in <code>Prop</code>. For K-like reduction, you need to have no arguments at all to the constructor because otherwise you would need projections to recover the arguments</p>
+
+
+
+<a name="294575818"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294575818" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294575818">(Aug 21 2022 at 19:07)</a>:</h4>
+<p>Among common inductive types, only <code>Eq</code> has K-like reduction (and indeed that's the main application), while <code>Acc</code> is a large eliminating Prop which does not have K-like reduction</p>
+
+
+
+<a name="294617990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294617990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294617990">(Aug 22 2022 at 07:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/lean3.20impl.20questions/near/294575493">said</a>:</p>
+<blockquote>
+<p>For K-like reduction, you need to have no arguments at all to the constructor because otherwise you would need projections to recover the arguments</p>
+</blockquote>
+<p>i'm not sure i understand.<br>
+the recursor lets you recover the (non-recursive) arguments.<br>
+in <code>rec C e p[b] h</code>, all non-recursive arguments must occur directly in the indices <code>p[b]</code> (for sub-singletons).<br>
+so you can turn this into <code>rec C e p[b] (intro b)</code>, recovering <code>b</code> from <code>p[b]</code>.<br>
+recursive arguments can't be recovered because they can't be used in types.<br>
+that's also how i understood this: "This rule only applies when all the variables in b are actually on the LHS, which is the reason for<br>
+the peculiar requirements on <em>subsingleton eliminators</em>. If bi appears in the parameters for its type,<br>
+that means that pj [b] = bi for some j, and so bi is on the LHS [meaning it can be recovered]."</p>
+
+
+
+<a name="294618637"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294618637" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294618637">(Aug 22 2022 at 07:16)</a>:</h4>
+<p>recovering them would require a little more book keeping (storing the <code>j</code> for each <code>bi</code>).<br>
+which is why i thought the implementation choice was pragmatic in nature.</p>
+
+
+
+<a name="294774772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294774772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294774772">(Aug 22 2022 at 22:14)</a>:</h4>
+<p>it's possible that lean implements a proper subset of the possible K-like inductives. It's not a very important / used mechanism except in the case of <code>eq</code></p>
+
+
+
+<a name="294774978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294774978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294774978">(Aug 22 2022 at 22:16)</a>:</h4>
+<p>I think of the three categories of things you can have in subsingleton eliminating types: (1) prop args, (2) arguments that appear in the indices, (3) recursive args, only (2) is allowed in K-like inductives, and lean implements none of them</p>
+
+
+
+<a name="294816971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/lean3%20impl%20questions/near/294816971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/lean3.20impl.20questions.html#294816971">(Aug 23 2022 at 07:35)</a>:</h4>
+<p>right, makes sense, thanks!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

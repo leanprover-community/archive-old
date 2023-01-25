@@ -1,0 +1,80 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html">when are struct field defaults evaluated?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="290407486"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/when%20are%20struct%20field%20defaults%20evaluated%3F/near/290407486" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html#290407486">(Jul 21 2022 at 17:26)</a>:</h4>
+<p>I'm trying to understand default values for struct fields.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- a default field starting with `by` is apparently evaluated lazily:</span>
+<span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">h</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rfl</span>
+<span class="c1">-- no error</span>
+
+<span class="kd">def</span> <span class="n">foo1</span> <span class="o">:=</span> <span class="n">Foo.mk</span> <span class="mi">1</span> <span class="mi">1</span>
+<span class="c1">-- works</span>
+
+<span class="kd">def</span> <span class="n">foo2</span> <span class="o">:=</span> <span class="n">Foo.mk</span> <span class="mi">1</span> <span class="mi">2</span>
+<span class="c1">-- as expected, an error:</span>
+<span class="c1">-- tactic 'rfl' failed, equality lhs</span>
+<span class="c1">--  1</span>
+<span class="c1">-- is not definitionally equal to rhs</span>
+<span class="c1">--  2</span>
+
+<span class="c1">-- so far, so good</span>
+
+<span class="kd">structure</span> <span class="n">Bar</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">h</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="o">:=</span> <span class="k">let</span> <span class="o">()</span> <span class="o">:=</span> <span class="o">()</span><span class="bp">;</span> <span class="kd">by</span> <span class="n">rfl</span>
+<span class="c1">-- error:</span>
+<span class="c1">-- tactic 'rfl' failed, equality lhs</span>
+<span class="c1">--  x</span>
+<span class="c1">-- is not definitionally equal to rhs</span>
+<span class="c1">--  y</span>
+
+
+<span class="c1">-- why is the `by rfl` eagerly evaluated for `Bar` but not `Foo`?</span>
+<span class="c1">-- Is there some special casing around top-level `by`?</span>
+</code></pre></div>
+
+
+
+<a name="290407731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/when%20are%20struct%20field%20defaults%20evaluated%3F/near/290407731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html#290407731">(Jul 21 2022 at 17:29)</a>:</h4>
+<p>I'm trying to read the code in <a href="https://github.com/leanprover/lean4/blob/b36b50adb2336cae9c7d9687eb9ebc679e82e427/src/Lean/Elab/Structure.lean">https://github.com/leanprover/lean4/blob/b36b50adb2336cae9c7d9687eb9ebc679e82e427/src/Lean/Elab/Structure.lean</a> to understand why the top-level <code>by</code> is treated differently, but it's slow going.</p>
+
+
+
+<a name="290416032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/when%20are%20struct%20field%20defaults%20evaluated%3F/near/290416032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html#290416032">(Jul 21 2022 at 18:37)</a>:</h4>
+<blockquote>
+<p>Is there some special casing around top-level <code>by</code>?</p>
+</blockquote>
+<p>Yes, exactly that. You can blame me for that, Lean 3 had an... also questionable separate syntax <code>h : x = y . rfl</code> for it.</p>
+
+
+
+<a name="290504553"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/when%20are%20struct%20field%20defaults%20evaluated%3F/near/290504553" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/when.20are.20struct.20field.20defaults.20evaluated.3F.html#290504553">(Jul 22 2022 at 13:17)</a>:</h4>
+<p>aha. And here is the parser for the special case: <a href="https://github.com/leanprover/lean4/blob/1f081ee6cb776b0dcf0de8aba0da04712d2867aa/src/Lean/Parser/Term.lean#L106">https://github.com/leanprover/lean4/blob/1f081ee6cb776b0dcf0de8aba0da04712d2867aa/src/Lean/Parser/Term.lean#L106</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

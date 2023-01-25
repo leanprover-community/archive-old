@@ -1,0 +1,144 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html">Lake: add to LEAN_PATH via Lake</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="258304990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258304990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258304990">(Oct 20 2021 at 02:56)</a>:</h4>
+<p>Currently in <code>mathport</code>, to open a synported file in VSCode (or just <code>./Test.lean</code>), I have to add</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="s2">"lean4.serverEnv"</span><span class="o">:</span> <span class="o">{</span>
+        <span class="s2">"LEAN_PATH"</span><span class="o">:</span> <span class="s2">"./Lib4/leanbin/build/lib:./Lib4/mathbin/build/lib"</span>
+    <span class="o">}</span>
+</code></pre></div>
+<p>to <code>settings.json</code>.</p>
+<p>What is "the lake way" to do this? Presumably there is something I can put in the <code>lakefile.lean</code>.</p>
+<p>Note here I don't want lake to do any compilation in those directories; I just want the <code>olean</code>s there (which have been created by the binport part of mathport) to be on the <code>LEAN_PATH</code>.</p>
+
+
+
+<a name="258306137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258306137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258306137">(Oct 20 2021 at 03:14)</a>:</h4>
+<p>This should already be automatically done via <code>print-paths</code> in the server if <code>leanbin</code>/<code>mathbin</code>/<code>liquidbin</code> is listed as dependency. This worked for me the last time I tested <code>test-mathport</code>.</p>
+
+
+
+<a name="258306405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258306405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258306405">(Oct 20 2021 at 03:19)</a>:</h4>
+<p>Ah, okay, maybe I just need to transport some settings back from <code>test-mathport</code> to <code>mathport</code> itself.</p>
+
+
+
+<a name="258307610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258307610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258307610">(Oct 20 2021 at 03:38)</a>:</h4>
+<p>@Mac, ah, so the subtlety is that I would like to be able to:</p>
+<ol>
+<li>build <code>mathport</code> (at which point <code>./Lib4</code> doesn't exist), </li>
+<li>run it (thereby creating <code>./Lib4</code> and its contents, and then </li>
+<li>open files that are in, or depend on, <code>./Lib4</code>.</li>
+</ol>
+<p>Thus if I add <code>mathbin</code> as a dependency in the lakefile, that last stage works fine, but I can't actually build mathport, as very reasonably <code>lake</code> can't find a declared dependency:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">build</span> <span class="n">error</span><span class="o">:</span> <span class="n">no</span> <span class="n">such</span> <span class="n">file</span> <span class="n">or</span> <span class="n">directory</span> <span class="o">(</span><span class="n">error</span> <span class="n">code</span><span class="o">:</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="n">file</span><span class="o">:</span> <span class="bp">././</span><span class="n">Lib4</span><span class="bp">/</span><span class="n">mathbin</span><span class="bp">/./</span><span class="n">lakefile.lean</span>
+<span class="n">error</span><span class="o">:</span> <span class="n">build</span> <span class="n">failed</span>
+</code></pre></div>
+<p>I appreciate this is a bit of a weird thing to do, but it's the workflow in mathport for now! I can get by with overriding <code>LEAN_PATH</code>, but if you have better suggestions for lake to cope with this setup I'm all ears.</p>
+
+
+
+<a name="258308993"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258308993" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258308993">(Oct 20 2021 at 04:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake/near/258307610">said</a>:</p>
+<blockquote>
+<p>@Mac, ah, so the subtlety is that I would like to be able to:</p>
+<ol>
+<li>build <code>mathport</code> (at which point <code>./Lib4</code> doesn't exist), </li>
+<li>run it (thereby creating <code>./Lib4</code> and its contents, and then </li>
+<li>open files that are in, or depend on, <code>./Lib4</code>.</li>
+</ol>
+<p>Thus if I add <code>mathbin</code> as a dependency in the lakefile, that last stage works fine, but I can't actually build mathport, as very reasonably <code>lake</code> can't find a declared dependency:</p>
+</blockquote>
+<p>What is "the lakefile" here? The lakefile for mathport, mathbin/Lib4, or the thing that depends on mathbin/Lib4?</p>
+
+
+
+<a name="258309505"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258309505" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258309505">(Oct 20 2021 at 04:08)</a>:</h4>
+<p>Fyi, from your description, I am fairly confident that lake as it stands can handle this kind of setup, but I need a bit more info on how this all interconnects to explain exactly how.</p>
+
+
+
+<a name="258310066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310066">(Oct 20 2021 at 04:17)</a>:</h4>
+<p>When I was saying "the lakefile" above, I was always referring to <code>./lakefile.lean</code>.</p>
+
+
+
+<a name="258310077"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310077" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310077">(Oct 20 2021 at 04:18)</a>:</h4>
+<p>Oh, thinking about this a bit more: is the problem that you are trying to open <code>mathbin</code>/<code>leanbin</code>/<code>liquidbin</code> files within a VSCode instance opened to <code>mathport</code>?</p>
+
+
+
+<a name="258310121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310121">(Oct 20 2021 at 04:18)</a>:</h4>
+<p>Yes!</p>
+
+
+
+<a name="258310130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310130">(Oct 20 2021 at 04:18)</a>:</h4>
+<p>Ah, that is not supported by the VSCode extension itself</p>
+
+
+
+<a name="258310149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310149">(Oct 20 2021 at 04:18)</a>:</h4>
+<p>it only uses the package configuration from the root directory not those of subdirectories</p>
+
+
+
+<a name="258310199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310199">(Oct 20 2021 at 04:19)</a>:</h4>
+<p>See the discussion at e.g., <a href="https://github.com/leanprover/vscode-lean4/issues/15">https://github.com/leanprover/vscode-lean4/issues/15</a></p>
+
+
+
+<a name="258310279"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310279" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310279">(Oct 20 2021 at 04:20)</a>:</h4>
+<p>The VSCode extension only starts a Lean server in the root directory and server only uses information from the root  configuration, so subpackages do not have extension/server support.</p>
+
+
+
+<a name="258310360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310360">(Oct 20 2021 at 04:22)</a>:</h4>
+<p>This is also a problem in the lake repo itself as none of the examples in the <a href="https://github.com/leanprover/lake/tree/master/examples">lake/examples</a> folder get proper editor support (when viewed from VSCode instance opened tothe root of repo)</p>
+
+
+
+<a name="258310640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258310640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258310640">(Oct 20 2021 at 04:27)</a>:</h4>
+<p>Your particular use case could be incidentally solved by lake in the future when it supports multiple libraries/packages in a single configuration/workspace (and the thus <code>mathport</code>/<code>liquidbin</code>/<code>mathbin</code>/<code>leanbin</code> could all live in the same configuration file), but even that would have the downside of tying them all together when they are conceptually distinct packages.</p>
+
+
+
+<a name="258311258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lake%3A%20add%20to%20LEAN_PATH%20via%20Lake/near/258311258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lake.3A.20add.20to.20LEAN_PATH.20via.20Lake.html#258311258">(Oct 20 2021 at 04:38)</a>:</h4>
+<p>Okay. I have been trying instead to directly open the <code>Lib4/mathbin/</code> directory in VSCode, so far without success, but for different reasons. :-)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,209 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Quoting.20commands.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html">Quoting commands</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="244984313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/244984313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#244984313">(Jul 06 2021 at 00:34)</a>:</h4>
+<p>How do I put a type ascription in a syntax quotation? The term defaulting is causing problems for me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"bla"</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">bla</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="kn">open</span> <span class="n">foo</span><span class="o">)</span> <span class="c1">-- expected 'in'</span>
+</code></pre></div>
+<p>I tried <code> `(command| open foo)</code> but it doesn't work (nor various attempts at a qualified name for the parser category).</p>
+
+
+
+<a name="244984693"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/244984693" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#244984693">(Jul 06 2021 at 00:44)</a>:</h4>
+<p>Does the missing space after <code>"variable"</code> mean anything?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[builtinCommandParser]</span> <span class="kd">def</span> <span class="bp">«</span><span class="kn">namespace</span><span class="bp">»</span>    <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"namespace "</span> <span class="bp">&gt;&gt;</span> <span class="n">ident</span>
+<span class="kd">@[builtinCommandParser]</span> <span class="kd">def</span> <span class="bp">«</span><span class="kd">end</span><span class="bp">»</span>          <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"end "</span> <span class="bp">&gt;&gt;</span> <span class="n">optional</span> <span class="n">ident</span>
+<span class="kd">@[builtinCommandParser]</span> <span class="kd">def</span> <span class="bp">«</span><span class="kd">variable</span><span class="bp">»</span>     <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"variable"</span> <span class="bp">&gt;&gt;</span> <span class="n">many1</span> <span class="n">Term.bracketedBinder</span>
+<span class="kd">@[builtinCommandParser]</span> <span class="kd">def</span> <span class="bp">«</span><span class="kd">universe</span><span class="bp">»</span>     <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">"universe "</span> <span class="bp">&gt;&gt;</span> <span class="n">many1</span> <span class="n">ident</span>
+<span class="bp">...</span>
+</code></pre></div>
+
+
+
+<a name="244985941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/244985941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#244985941">(Jul 06 2021 at 01:17)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Quoting.20commands/near/244984693">said</a>:</p>
+<blockquote>
+<p>Does the missing space after <code>"variable"</code> mean anything?</p>
+</blockquote>
+<p>It just won't be pretty-printed as "variable " but instead "variable" (i.e. <code>variable {a}</code> would be pretty printed <code>variable{a}</code>).</p>
+
+
+
+<a name="244985994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/244985994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#244985994">(Jul 06 2021 at 01:18)</a>:</h4>
+<p>To your main question, you could always go for broke and define a command quotation yourself:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">cmdQuot</span><span class="o">)</span> <span class="s2">"`(command|"</span> <span class="n">incQuotDepth</span><span class="o">(</span><span class="n">command</span><span class="o">)</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Term</span> <span class="n">Quotation</span> <span class="k">in</span>
+<span class="kd">@[termElab cmdQuot]</span> <span class="kd">def</span> <span class="n">elabCmdQuot</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span>
+  <span class="n">adaptExpander</span> <span class="n">stxQuot.expand</span>
+
+<span class="n">syntax</span> <span class="s2">"bla"</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">bla</span> <span class="bp">$</span><span class="n">id</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">command</span><span class="bp">|</span> <span class="kn">open</span> <span class="bp">$</span><span class="n">id</span><span class="o">:</span><span class="n">ident</span><span class="o">)</span>
+
+<span class="n">bla</span> <span class="n">Lean</span> <span class="c1">-- works</span>
+</code></pre></div>
+
+
+
+<a name="245003451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245003451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245003451">(Jul 06 2021 at 07:21)</a>:</h4>
+<p>I believe when we implemented the quotations we did not have overlapping term/command syntax yet. We should probably use the longest parse of the two of them. And generalizing the quotation kind syntax to arbitrary categories/parsers is TBD (it actually already works with <code>syntax_cat</code>).</p>
+
+
+
+<a name="245003966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245003966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245003966">(Jul 06 2021 at 07:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Quoting.20commands/near/245003451">said</a>:</p>
+<blockquote>
+<p>And generalizing the quotation kind syntax to arbitrary categories/parsers is TBD (it actually already works with <code>syntax_cat</code>).</p>
+</blockquote>
+<p>Would you happen to know if the custom command quotation hack I presented is perfectly serviceable substitute in end-user code until core gets around to that or are there some thorns / concerns one should keep in mind?</p>
+
+
+
+<a name="245005123"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245005123" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245005123">(Jul 06 2021 at 07:43)</a>:</h4>
+<p>Looks fine, it's identical to the built-in ones, right?</p>
+
+
+
+<a name="245053291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245053291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245053291">(Jul 06 2021 at 15:15)</a>:</h4>
+<p>I think so.</p>
+
+
+
+<a name="245084340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245084340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245084340">(Jul 06 2021 at 19:03)</a>:</h4>
+<p>I'm going to need almost all other syntax categories as well soon, so that TBD interests me. Will it work if I just copy Mac's code for random parsers? The word <code>command</code> in <code>incQuotDepth(command)</code> is coming from a fairly small list of options, I think (category parsers?)</p>
+
+
+
+<a name="245085362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245085362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245085362">(Jul 06 2021 at 19:11)</a>:</h4>
+<p>Yes, it should work for any parser, category or not. In fact the Lean package uses a common macro to declare the elaborators: <a href="https://github.com/leanprover/lean4/blob/e2210ec4e04beb78289c37cbf9ee1ccee0d032db/src/Lean/Elab/Quotation.lean#L183-L195">https://github.com/leanprover/lean4/blob/e2210ec4e04beb78289c37cbf9ee1ccee0d032db/src/Lean/Elab/Quotation.lean#L183-L195</a></p>
+
+
+
+<a name="245085558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245085558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245085558">(Jul 06 2021 at 19:12)</a>:</h4>
+<p>Oh great, can I use that too? Does that overload <code> `(...)</code> or does it define<code> `(bla| ...)</code>?</p>
+
+
+
+<a name="245085641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245085641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245085641">(Jul 06 2021 at 19:13)</a>:</h4>
+<p>That depends purely on your syntax definition going with it :) .</p>
+
+
+
+<a name="245085802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245085802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245085802">(Jul 06 2021 at 19:15)</a>:</h4>
+<p>Are all those elaborators attaching to the same syntax?</p>
+
+
+
+<a name="245085855"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245085855" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245085855">(Jul 06 2021 at 19:15)</a>:</h4>
+<p>In fact that last one should already implement <code> `(p|...)` </code> for any <code>p : (Trailing)Parser</code> <em>in scope</em> after all. It's just that the parser for <code>command</code> is called <code>commandParser</code>, and it takes an extra parameter, so it didn't work out of the box for this one.</p>
+
+
+
+<a name="245094152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245094152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245094152">(Jul 06 2021 at 20:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Quoting.20commands/near/245085362">said</a>:</p>
+<blockquote>
+<p>In fact the Lean package uses a common macro to declare the elaborators: <a href="https://github.com/leanprover/lean4/blob/e2210ec4e04beb78289c37cbf9ee1ccee0d032db/src/Lean/Elab/Quotation.lean#L183-L195">https://github.com/leanprover/lean4/blob/e2210ec4e04beb78289c37cbf9ee1ccee0d032db/src/Lean/Elab/Quotation.lean#L183-L195</a></p>
+</blockquote>
+<p>Note that while I stole the code for my example from this macro, I did not use it directly because it defines <em>builtin</em> parsers rather than normal parsers -- the later being the kind of parser you generally want for user code (as it works in the same file).</p>
+
+
+
+<a name="245098531"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245098531" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245098531">(Jul 06 2021 at 21:03)</a>:</h4>
+<p>Why doesn't this work? (Using <code> `(command| </code> doesn't seem to make a difference.)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">bis</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">:</span> <span class="n">MacroM</span> <span class="n">Syntax</span> <span class="o">:=</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">variable</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">bis</span><span class="o">]</span><span class="bp">+</span><span class="o">)</span>
+          <span class="c1">-- ^ expected '(', '*', '[', '{' or identifier</span>
+</code></pre></div>
+
+
+
+<a name="245098672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245098672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245098672">(Jul 06 2021 at 21:04)</a>:</h4>
+<p>I tried sticking <code>:bracketedBinder</code> in various places but I couldn't find one that was syntactically correct</p>
+
+
+
+<a name="245100253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245100253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245100253">(Jul 06 2021 at 21:19)</a>:</h4>
+<p>This looks like a similar issue (using Mac's <code>command|</code> quotation):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">(</span><span class="n">names</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">:</span> <span class="n">MacroM</span> <span class="n">Syntax</span> <span class="o">:=</span>
+  <span class="bp">`</span><span class="o">(</span><span class="n">command</span><span class="bp">|</span> <span class="kn">open</span> <span class="bp">$</span><span class="n">foo</span> <span class="o">(</span><span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">names</span><span class="o">]</span><span class="bp">*</span><span class="o">))</span>
+                    <span class="c1">-- ^ expected ')'</span>
+</code></pre></div>
+
+
+
+<a name="245101296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245101296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245101296">(Jul 06 2021 at 21:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Quoting.20commands/near/245098531">said</a>:</p>
+<blockquote>
+<p>Why doesn't this work? (Using <code> `(command| </code> doesn't seem to make a difference.)</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">bis</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">:</span> <span class="n">MacroM</span> <span class="n">Syntax</span> <span class="o">:=</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">variable</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">bis</span><span class="o">]</span><span class="bp">+</span><span class="o">)</span>
+          <span class="c1">-- ^ expected '(', '*', '[', '{' or identifier</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>This doesn't work because there is no <code>$[...]+</code> (with a plus), there is only a <code>$[...]*</code> (with an asterisk).</p>
+
+
+
+<a name="245101386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Quoting%20commands/near/245101386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Quoting.20commands.html#245101386">(Jul 06 2021 at 21:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Quoting.20commands/near/245100253">said</a>:</p>
+<blockquote>
+<p>This looks like a similar issue (using Mac's <code>command|</code> quotation):</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">(</span><span class="n">names</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">:</span> <span class="n">MacroM</span> <span class="n">Syntax</span> <span class="o">:=</span>
+  <span class="bp">`</span><span class="o">(</span><span class="n">command</span><span class="bp">|</span> <span class="kn">open</span> <span class="bp">$</span><span class="n">foo</span> <span class="o">(</span><span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">names</span><span class="o">]</span><span class="bp">*</span><span class="o">))</span>
+                    <span class="c1">-- ^ expected ')'</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>This one doesn't work because <code>$foo</code> needs to be <code>$foo:ident</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,122 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html">Progress notification server protocol extension p. (Pre-RFC)</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="240627752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/240627752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#240627752">(May 28 2021 at 16:22)</a>:</h4>
+<h1>Progress notification server protocol extension proposal (Pre-RFC)</h1>
+<h2>Introduction</h2>
+<p>The Lean 3 extensions for Emacs and VS Code feature a progress indicator that shows which parts of a file are still being processed by Lean---the "orange bars".  This feature is useful because it allows you to tell at a glance whether a definition was accepted without error or is still being elaborated.</p>
+<p>In Lean 4, the only progress information available from the server are diagnostics with the message "processing..." (meaning that everything coming after the diagnostic is still being processed).  The extension for VS Code parses these messages heuristically and displays orange bars based on these diagnostics.</p>
+<p>However, these diagnostics have several shortcomings.</p>
+<ul>
+<li>
+<p>First of all, parsing the message string is clearly fragile.  Any error with the message "processing..." will also cause a progress bar to appear.</p>
+</li>
+<li>
+<p>There are also other diagnostic messages which indicate that the server is busy: for example the stderr output of <code>leanpkg print-paths</code>.  These are not captured by the string comparison.</p>
+</li>
+<li>
+<p>The last point is partly an issue with the current implementation.  The "processing..." diagnostics are printed too late, only after a command has been elaborated.  This makes it often impossible to tell whether Lean is busy or not.</p>
+</li>
+</ul>
+<h2>Proposal</h2>
+<p>We introduce a new notification, <code>$/lean/fileProgress</code>, containing the ranges that are still being processed.  This notification should be sent by the server <em>before</em> processing is started.</p>
+<div class="codehilite" data-code-language="TypeScript"><pre><span></span><code><span class="kd">interface</span> <span class="nx">LeanFileProgressProcessingInfo</span> <span class="p">{</span>
+  <span class="cm">/** Range which is still being processed */</span>
+  <span class="nx">range</span>: <span class="kt">Range</span><span class="p">;</span>
+
+  <span class="c1">// Further fields may be added in the future.</span>
+<span class="p">}</span>
+
+<span class="kd">interface</span> <span class="nx">LeanFileProgressParams</span> <span class="p">{</span>
+  <span class="cm">/** The text document to which this progress notification applies. */</span>
+  <span class="nx">textDocument</span>: <span class="kt">TextDocumentIdentifier</span><span class="p">;</span>
+
+  <span class="cm">/**</span>
+<span class="cm">   * Array containing the parts of the file which are still being processed.</span>
+<span class="cm">   * The array should be empty if and only if the server is finished processing.</span>
+<span class="cm">   */</span>
+  <span class="nx">processing</span>: <span class="kt">LeanFileProgressProcessingInfo</span><span class="p">[];</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The <code>processing</code> field is an array to allow for future extensibility.  At the moment, it will contain either zero or one elements: zero if the server is finished, and one if it is busy.</p>
+<p>The "processing..." diagnostic should no longer be sent.  Stderr output from <code>leanpkg print-paths</code> would still appear as a diagnostic.</p>
+<h2>Alternatives</h2>
+<ul>
+<li>
+<p>Send the "processing..." diagnostic earlier and also while <code>leanpkg print-paths</code> is being run.  Continue parsing the diagnostics and accept false positive with certain error messages.</p>
+</li>
+<li>
+<p>Add an additional non-standard data field to the diagnostics, which indicates that these are progress indicators.</p>
+</li>
+<li>
+<p>Send a combined notification for all files, instead of separately.</p>
+</li>
+</ul>
+
+
+
+<a name="240633151"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/240633151" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#240633151">(May 28 2021 at 17:07)</a>:</h4>
+<p>SGTM</p>
+
+
+
+<a name="241802060"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241802060" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Cruanes <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241802060">(Jun 07 2021 at 16:20)</a>:</h4>
+<p>Maybe naive, but there's a <a href="https://microsoft.github.io/language-server-protocol/specifications/specification-3-16/#progress">relatively new progress feature</a> in LSP. Not sure how VScode displays it.</p>
+
+
+
+<a name="241806879"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241806879" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241806879">(Jun 07 2021 at 16:55)</a>:</h4>
+<p>I've also seen this part of the specification.  However I can't even remotely figure out what it's supposed to do from the specification.  After studying the vscode-languageserver-node implementation, I believe it is used to show progress bars ("in a generic fashion"??).</p>
+<p>Our use case does not seem to be covered by this notification.  We want to annotate ranges in a file, not show a progress bar (which the vscode client would show, by interpreting the generic progress info as percentages).</p>
+
+
+
+<a name="241809883"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241809883" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marc Huisinga <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241809883">(Jun 07 2021 at 17:15)</a>:</h4>
+<p>I vaguely remember that we would've liked to use the LSP progress feature for requests (specifically: partial result progress), but VSCode did not support it and <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> had to hack around it. A quick search through vscode-languageserver-node shows that there seems to be no usage of partial result progress in the client folder. There's also an issue: <a href="https://github.com/microsoft/vscode/issues/105870">https://github.com/microsoft/vscode/issues/105870</a></p>
+
+
+
+<a name="241810550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241810550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marc Huisinga <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241810550">(Jun 07 2021 at 17:20)</a>:</h4>
+<p>I think it does support "Work Done Progress" (which is used only to display a loading bar or something similar) but as Gabriel says that isn't sufficient for the progress that we'd like in Lean.</p>
+
+
+
+<a name="241823761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241823761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Cruanes <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241823761">(Jun 07 2021 at 18:57)</a>:</h4>
+<p>Ok, that makes sense indeed. I think diagnostics can be abused by sending them many times with changes (like, after parsing, put "processing" on all definitions, and replace them with actual results or remove them as you go), but it's a hack.</p>
+
+
+
+<a name="241826135"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Progress%20notification%20server%20protocol%20extension%20p.%20%28Pre-RFC%29/near/241826135" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20(Pre-RFC).html#241826135">(Jun 07 2021 at 19:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="132878">Simon Cruanes</span> <a href="#narrow/stream/270676-lean4/topic/Progress.20notification.20server.20protocol.20extension.20p.2E.20.28Pre-RFC.29/near/241823761">said</a>:</p>
+<blockquote>
+<p>I think diagnostics can be abused by sending them many times with changes</p>
+</blockquote>
+<p>This is indeed how we used to do it, I've listed a few reasons in the initial post detailing where this falls short.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

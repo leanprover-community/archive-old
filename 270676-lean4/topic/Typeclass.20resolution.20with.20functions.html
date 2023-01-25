@@ -1,0 +1,46 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Typeclass.20resolution.20with.20functions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typeclass.20resolution.20with.20functions.html">Typeclass resolution with functions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="305562227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Typeclass%20resolution%20with%20functions/near/305562227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Parth Shastri <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typeclass.20resolution.20with.20functions.html#305562227">(Oct 22 2022 at 17:06)</a>:</h4>
+<p>In the following code, Lean fails to find an instance despite it being able to for a more complex type.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Para</span> <span class="o">(</span><span class="n">ϕ</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">α</span> <span class="n">where</span>
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Para</span> <span class="n">ϕ</span><span class="o">]</span> <span class="o">[</span><span class="n">Para</span> <span class="n">ϕ'</span><span class="o">]</span> <span class="o">:</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">ϕ</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">ϕ'</span> <span class="n">α</span> <span class="n">where</span>
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Para</span> <span class="n">ϕ</span><span class="o">]</span> <span class="o">:</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">List</span> <span class="o">(</span><span class="n">ϕ</span> <span class="n">α</span><span class="o">)</span> <span class="n">where</span>
+
+<span class="bp">#</span><span class="n">synth</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">α</span>            <span class="c1">-- instParaType</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>        <span class="c1">-- instParaTypeForAll</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">List</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="c1">-- instParaTypeList</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">Para</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">List</span> <span class="n">α</span>       <span class="c1">-- failed to synthesize  Para fun α =&gt; List α</span>
+
+<span class="k">#check</span> <span class="bp">@</span><span class="n">instParaTypeList</span> <span class="n">_</span> <span class="n">instParaType</span> <span class="c1">-- Para fun α =&gt; List α</span>
+</code></pre></div>
+<p>Running with <code>set_option trace.Meta.synthInstance.instances true</code> reveals that no candidate instances are found for the fourth resolution. From digging further, I was able to determine that the root of the issue lies in the <code>DiscrTree</code>.<br>
+When converting the type to a key, the type is eta-reduced in <code>whnfDT</code>, leading to the key path <code>const Para, const List</code> for the last example while the first three examples result in <code>const Para, other</code>. The three instances all have the key path <code>const Para, other</code>, so the first three examples succeed, while the last one fails.<br>
+It turns out in this particular case, the problem can be remedied by writing</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">[</span><span class="n">Para</span> <span class="n">ϕ</span><span class="o">]</span> <span class="o">:</span> <span class="n">Para</span> <span class="n">no_index</span> <span class="bp">λ</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="n">List</span> <span class="o">(</span><span class="n">ϕ</span> <span class="n">α</span><span class="o">)</span> <span class="n">where</span>
+</code></pre></div>
+<p>but there is no obvious indication for the cases in which this is necessary.<br>
+Is this a known limitation of the typeclass system? Is it possible to modify the system to correctly resolve this case?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

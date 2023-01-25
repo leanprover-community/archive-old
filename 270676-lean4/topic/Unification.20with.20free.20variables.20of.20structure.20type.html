@@ -1,0 +1,62 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html">Unification with free variables of structure type</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="302093257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unification%20with%20free%20variables%20of%20structure%20type/near/302093257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rish Vaishnav <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html#302093257">(Oct 03 2022 at 15:59)</a>:</h4>
+<p>I was wondering how Lean is going about unifying <code>up (down b)</code> and <code>b</code> in this definition from the prelude:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">PLift.up_down</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">u</span><span class="o">}</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">PLift</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Eq</span> <span class="o">(</span><span class="n">up</span> <span class="o">(</span><span class="n">down</span> <span class="n">b</span><span class="o">))</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>My guess is that expands <code>b</code> to <code>up (down b)</code> (where it knows not to infinitely expand <code>b</code> in the LHS because it's already been projected), and more generally, if we have any structure</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Test</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="n">where</span>
+  <span class="n">a1</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="n">a2</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="bp">...</span>
+  <span class="n">an</span> <span class="o">:</span> <span class="n">α</span>
+</code></pre></div>
+<p>and a free variable <code>t : Test</code>, unification will expand <code>t</code> wherever it occurs to <code>Test.mk t.a1 t.a2 ... t.an</code>. Is my suspicion correct? I'm trying to find where in the code this expansion happens, I found <code>toCtorWhenStructure</code> in <code>src/Lean/Meta/WHNF.lean</code> but it looks like that only applies to recursor applications.</p>
+
+
+
+<a name="302105975"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unification%20with%20free%20variables%20of%20structure%20type/near/302105975" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rish Vaishnav <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html#302105975">(Oct 03 2022 at 17:00)</a>:</h4>
+<p>Aha, I found <code>try_eta_struct</code> in <code>src/kernel/typechecker.cpp</code>. Is there an equivalent somewhere in the Lean codebase?</p>
+
+
+
+<a name="302107097"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unification%20with%20free%20variables%20of%20structure%20type/near/302107097" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html#302107097">(Oct 03 2022 at 17:05)</a>:</h4>
+<p>I don't think Lean will expand b to up (down b), it's more likely simplifying up (down b) back to b (probably using eta for structures).</p>
+
+
+
+<a name="302108533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unification%20with%20free%20variables%20of%20structure%20type/near/302108533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rish Vaishnav <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unification.20with.20free.20variables.20of.20structure.20type.html#302108533">(Oct 03 2022 at 17:13)</a>:</h4>
+<p>Yeah from the typechecker code it looks like it's not actually doing any expansion, it's actually checking for specifically this case:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code> <span class="bp">/**</span> <span class="bp">\</span><span class="n">brief</span> <span class="n">check</span> <span class="n">whether</span> <span class="bp">\</span><span class="n">c</span> <span class="n">s</span> <span class="n">is</span> <span class="n">of</span> <span class="n">the</span> <span class="n">form</span> <span class="bp">&lt;</span><span class="n">tt</span><span class="bp">&gt;</span><span class="n">mk</span> <span class="n">t.1</span> <span class="bp">...</span> <span class="n">t.n</span><span class="bp">&lt;/</span><span class="n">tt</span><span class="bp">&gt;</span> <span class="bp">*/</span>
+<span class="n">bool</span> <span class="n">type_checker</span><span class="o">::</span><span class="n">try_eta_struct_core</span><span class="o">(</span><span class="n">expr</span> <span class="n">const</span> <span class="bp">&amp;</span> <span class="n">t</span><span class="o">,</span> <span class="n">expr</span> <span class="n">const</span> <span class="bp">&amp;</span> <span class="n">s</span><span class="o">)</span> <span class="o">{</span> <span class="bp">...</span> <span class="o">}</span>
+
+<span class="n">bool</span> <span class="n">try_eta_struct</span><span class="o">(</span><span class="n">expr</span> <span class="n">const</span> <span class="bp">&amp;</span> <span class="n">t</span><span class="o">,</span> <span class="n">expr</span> <span class="n">const</span> <span class="bp">&amp;</span> <span class="n">s</span><span class="o">)</span> <span class="o">{</span>
+     <span class="n">return</span> <span class="n">try_eta_struct_core</span><span class="o">(</span><span class="n">t</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span> <span class="bp">||</span> <span class="n">try_eta_struct_core</span><span class="o">(</span><span class="n">s</span><span class="o">,</span> <span class="n">t</span><span class="o">)</span><span class="bp">;</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>(and <code>try_eta_struct</code> is called from <code>is_def_eq</code>)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

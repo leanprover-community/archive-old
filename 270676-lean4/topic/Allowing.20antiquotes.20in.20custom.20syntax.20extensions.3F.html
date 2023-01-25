@@ -1,0 +1,187 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html">Allowing antiquotes in custom syntax extensions?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="290539670"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290539670" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290539670">(Jul 22 2022 at 17:07)</a>:</h4>
+<p>I was trying to allow antiquotes in my custom syntax extensions (to get a sort of "template" syntax). I can make it work for individual syntax extensions manually by just passing the identifiers along in the macros, kind of like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="n">declare_syntax_cat</span> <span class="n">paramident</span>
+<span class="n">declare_syntax_cat</span> <span class="n">decl</span>
+
+<span class="n">syntax</span>  <span class="n">ident</span> <span class="o">:</span> <span class="n">paramident</span>
+<span class="n">syntax</span> <span class="s2">"£"</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">paramident</span>
+
+<span class="n">syntax</span> <span class="s2">"var"</span> <span class="n">paramident</span> <span class="s2">":"</span> <span class="n">paramident</span> <span class="o">:</span> <span class="n">decl</span>
+<span class="n">syntax</span> <span class="s2">"[decl|"</span> <span class="n">decl</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span>  <span class="bp">`</span><span class="o">(</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">Lean.quote</span> <span class="n">x.getId.toString</span><span class="o">))</span>
+  <span class="bp">|</span>  <span class="bp">`</span><span class="o">(</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">£</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span> <span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="n">x</span><span class="o">)</span>
+
+<span class="kn">open</span> <span class="n">Lean.TSyntax.Compat</span> <span class="k">in</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">decl</span><span class="bp">|</span> <span class="n">var</span> <span class="bp">$</span><span class="n">i</span><span class="o">:</span><span class="n">paramident</span> <span class="o">:</span> <span class="bp">$</span><span class="n">t</span><span class="o">:</span><span class="n">paramident</span> <span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">((</span><span class="bp">$</span><span class="n">i</span><span class="o">,</span><span class="bp">$</span><span class="n">t</span><span class="o">))</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">decl</span><span class="bp">|</span> <span class="bp">$</span><span class="n">x</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">decl</span><span class="bp">|</span> <span class="bp">$</span><span class="n">x</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="s2">"bar"</span>
+<span class="k">#eval</span> <span class="o">[</span><span class="n">decl</span><span class="bp">|</span> <span class="n">var</span> <span class="bp">£</span><span class="n">foo</span> <span class="o">:</span> <span class="n">foo</span><span class="o">]</span> <span class="c1">-- ("bar", "foo")</span>
+</code></pre></div>
+<p>This seems to have two disadvantages, however: </p>
+<p>- I couldn't quite figure out how to use <code>$</code> for my custom antiquotations (but I guess <code>£</code> works here as well, it's got a sense of irony there)<br>
+  - It's not very generic: I'd have to do this for every possible subterm in my syntax if I want to be able to replace it.</p>
+<p>Looking at the code that does the antiquotation for Lean it seems that there's already a <a href="https://github.com/leanprover/lean4/blob/8f4ad15a47e94db31a1c7a350b3a38787180465c/src/Lean/Parser/Basic.lean#L1796">parser generator for antiquotations</a> that but it's <a href="https://github.com/leanprover/lean4/blob/8f4ad15a47e94db31a1c7a350b3a38787180465c/src/Lean/Elab/Syntax.lean#L327">not exposed to the syntax extensions</a>. Would it make sense to add that there to be able to define places where we can use antiquotes to custom syntax (in a similar way to e.g. <code>sepBy</code>)? It doesn't seem to be easily doable in a project-specific/library way.</p>
+
+
+
+<a name="290541391"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290541391" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290541391">(Jul 22 2022 at 17:20)</a>:</h4>
+<p>It is possible to use the built-in antiquotations for your own syntax as well.  For example in quote4, you can write <code>q($x + $y)</code> and the <code>$x</code> is used for custom purposes.  The only downside is that you have zero control over where the antiquotations are allowed (they are allowed anywhere you'd be able to write them in a syntax quotation e.g. <code>[decl $foo]</code> would be valid syntax).</p>
+
+
+
+<a name="290542562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290542562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290542562">(Jul 22 2022 at 17:28)</a>:</h4>
+<p>oh, interesting, and how do you do that?</p>
+
+
+
+<a name="290542642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290542642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290542642">(Jul 22 2022 at 17:29)</a>:</h4>
+<p>that's actually exactly what I want to allow, although what I was suggesting could give more fine control</p>
+
+
+
+<a name="290543081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290543081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290543081">(Jul 22 2022 at 17:32)</a>:</h4>
+<p>You can look in the souce code for inspiration: <a href="https://github.com/gebner/quote4/blob/06023076e5b41510171b43d82cbfabc82b2fd5dd/Qq/Macro.lean#L420-L421">https://github.com/gebner/quote4/blob/06023076e5b41510171b43d82cbfabc82b2fd5dd/Qq/Macro.lean#L420-L421</a></p>
+<p>You don't need to do anything to enable the antiquotations.  You just need to handle them when going through the syntax tree with the <code>antiquotKind?</code> etc. functions.</p>
+
+
+
+<a name="290543928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290543928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290543928">(Jul 22 2022 at 17:39)</a>:</h4>
+<p>oh, I see, so you define and manually call your own parser <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span> I guess that should also work (although I'm a bit scared of looking into that code) thanks for the inspiration :)</p>
+
+
+
+<a name="290544764"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290544764" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290544764">(Jul 22 2022 at 17:46)</a>:</h4>
+<p>No custom parser just a custom macro rule.  I think in your case something like the following (completely untested) should work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">paramident</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">stx</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">if</span> <span class="n">stx.isAntiquotKind</span><span class="bp">?.</span><span class="n">isSome</span> <span class="bp">&amp;&amp;</span> <span class="n">stx.getAntiquotTerm.isIdent</span> <span class="k">then</span>
+      <span class="n">quote</span> <span class="n">stx.getAntiquotTerm</span>
+    <span class="k">else</span>
+      <span class="n">Macro.throwUnsupported</span>
+</code></pre></div>
+
+
+
+<a name="290547005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290547005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290547005">(Jul 22 2022 at 18:04)</a>:</h4>
+<p>oh, that look pretty neat, thanks <span aria-label="smiley" class="emoji emoji-1f603" role="img" title="smiley">:smiley:</span> ! (I'll try that and post the full example later for reference)</p>
+
+
+
+<a name="290549036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290549036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290549036">(Jul 22 2022 at 18:20)</a>:</h4>
+<p>So I was trying to adapt his example to use antiquotes, but ran into the following error that I am struggling to debug:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Parser</span>
+
+<span class="n">declare_syntax_cat</span> <span class="n">decl</span>
+
+<span class="k">#check</span> <span class="n">incQuotDepth</span> <span class="c1">-- incQuotDepth : Parser → Parser</span>
+<span class="n">syntax</span> <span class="s2">"[decl|"</span> <span class="n">incQuotDepth</span><span class="o">(</span><span class="n">decl</span><span class="o">)</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+  <span class="c1">-- error: parser 'incQuotDepth' was not found???</span>
+</code></pre></div>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> any ideas as to why Lean claims <code>incQuotDepth</code> is missing?</p>
+
+
+
+<a name="290549081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290549081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290549081">(Jul 22 2022 at 18:21)</a>:</h4>
+<p><code>incQuotDepth</code> is no longer necessary</p>
+
+
+
+<a name="290606816"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290606816" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290606816">(Jul 23 2022 at 10:35)</a>:</h4>
+<p>I was trying to get this to work too for this simple example and I can't figure it out. Apparently the antiquoted term is not of that kind then, but gets a derived "pseudo antiquot" kind ,<code>paramident.pseudo.antiquot</code> in the example and a corresponding error <code>elaboration function for 'paramident.pseudo.antiquot' has not been implemented
+</code>.  I can't seem to find a way to implement the parser for that, as neither of the ways I'd think works, like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">paramident.pseudo.antiquot</span><span class="o">)</span>
+</code></pre></div>
+<p>or </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[macro paramident.pseudo.antiquot]</span>
+<span class="kd">def</span> <span class="n">parseParamIdent</span> <span class="o">:</span> <span class="n">Lean.Macro</span>
+</code></pre></div>
+<p>or even</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">paramidentantiq</span><span class="o">)</span> <span class="s2">"$"</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">paramident</span>
+<span class="kd">@[macro paramidentantiq]</span>
+<span class="kd">def</span> <span class="n">parseParamIdent</span> <span class="o">:</span> <span class="n">Lean.Macro</span>
+</code></pre></div>
+
+
+
+<a name="290607042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290607042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290607042">(Jul 23 2022 at 10:40)</a>:</h4>
+<p>I guess because the <a href="https://github.com/leanprover/lean4/blob/f6211b1a74690daadce3f1466127d06fbc97a287/src/Lean/Parser/Syntax.lean#L67">kind annotation takes an ident</a>, and the <code>@[macro ...]</code> annotation seems to only want explicitly-named syntax, not these derived kinds</p>
+
+
+
+<a name="290867930"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290867930" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290867930">(Jul 26 2022 at 09:31)</a>:</h4>
+<p><span class="user-mention" data-user-id="315434">@Andrés Goens</span> Requiring <code>TSyntax.Compat</code> should be a big red flag suggesting that you're doing something wrong. Indeed you can't just return a <code>paramident</code> as a <code>term</code>, because it's not a <code>term</code>. The appropriate solution for that is to add a separate syntax for interpreting paramident, in which case antiquotations can naturally be implemented as cancelling out the surrounding quotation.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="n">declare_syntax_cat</span> <span class="n">paramident</span>
+<span class="n">declare_syntax_cat</span> <span class="n">decl</span>
+
+<span class="n">syntax</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">paramident</span>
+
+<span class="n">syntax</span> <span class="s2">"var"</span> <span class="n">paramident</span> <span class="s2">":"</span> <span class="n">paramident</span> <span class="o">:</span> <span class="n">decl</span>
+<span class="n">syntax</span> <span class="s2">"`[decl|"</span> <span class="n">decl</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">syntax</span> <span class="s2">"`[paramident|"</span> <span class="n">paramident</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span>  <span class="bp">`</span><span class="o">(</span><span class="bp">`</span><span class="o">[</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">x.getId.toString</span><span class="o">))</span>
+  <span class="bp">|</span>  <span class="bp">`</span><span class="o">(</span><span class="bp">`</span><span class="o">[</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">$</span><span class="n">x</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="k">if</span> <span class="n">x.raw.isAntiquot</span> <span class="k">then</span> <span class="n">pure</span> <span class="n">x.raw.getAntiquotTerm</span> <span class="k">else</span> <span class="n">Macro.throwUnsupported</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">`</span><span class="o">[</span><span class="n">decl</span><span class="bp">|</span> <span class="n">var</span> <span class="bp">$</span><span class="n">i</span> <span class="o">:</span> <span class="bp">$</span><span class="n">t</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">((</span><span class="bp">`</span><span class="o">[</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">$</span><span class="n">i</span><span class="o">],</span> <span class="bp">`</span><span class="o">[</span><span class="n">paramident</span><span class="bp">|</span> <span class="bp">$</span><span class="n">t</span><span class="o">]))</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="s2">"bar"</span>
+<span class="k">#eval</span> <span class="bp">`</span><span class="o">[</span><span class="n">decl</span><span class="bp">|</span> <span class="n">var</span> <span class="bp">$</span><span class="n">foo</span> <span class="o">:</span> <span class="n">foo</span><span class="o">]</span> <span class="c1">-- ("bar", "foo")</span>
+</code></pre></div>
+
+
+
+<a name="290875200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290875200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290875200">(Jul 26 2022 at 10:50)</a>:</h4>
+<p>Thanks for the explanation <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>! I Does that mean we (now) shouldn't use the <code> backtick (syntax_cat|...) </code> pattern in macro rules? And do we then need an extra <code>syntax</code> for every nonterminal (i.e. <code>syntax_cat</code>) to take it to a <code>term</code>? Because strictly speaking that extra syntax should be unnecessary, right? We're just using it to define the macros there (and we might even not want to expose that). I thought we could define macros between arbitrary <code>syntax_cat</code>s</p>
+
+
+
+<a name="290875533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Allowing%20antiquotes%20in%20custom%20syntax%20extensions%3F/near/290875533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Allowing.20antiquotes.20in.20custom.20syntax.20extensions.3F.html#290875533">(Jul 26 2022 at 10:53)</a>:</h4>
+<p>A macro from some custom syntax category into itself is fine (though Lean won't ever call it by itself, you need <code>expandMacros</code> for that). A macro from one category into another doesn't make sense to me, the resulting syntax tree will not be well-formed.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

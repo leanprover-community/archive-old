@@ -1,0 +1,76 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/simpLocation.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html">simpLocation</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="261098550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261098550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261098550">(Nov 11 2021 at 06:36)</a>:</h4>
+<p>Currently in <code>src/Lean/Elab/Tactic/Simp.lean</code> the definition <a href="https://github.com/leanprover/lean4/blob/c2a5e37/src/Lean/Elab/Tactic/Simp.lean#L221"><code>evalSimp</code></a> is doing two different types of work:</p>
+<ol>
+<li>munging the tactic <code>Syntax</code> to extract arguments</li>
+<li>delegating to other lower level tactics based on the form of the <code>location</code> argument extracted from the <code>Syntax</code>.</li>
+</ol>
+<p>I'd prefer if these were separate, in particular so that in another tactic I can run the simplifier by specifying a <code>location</code>. As <code>evalSimp</code> is currently written, I'd either have to reproduce most of its logic, or synthesize a <code>Syntax</code> expression in order to actually use <code>evalSimp</code>.</p>
+<p>Is it reasonable to want this separation? Perhaps I'm not yet used to "the Lean 4 way"!</p>
+<p><a href="https://github.com/leanprover/lean4/compare/master...semorrison:semorrison/simpLocation?expand=1">https://github.com/leanprover/lean4/compare/master...semorrison:semorrison/simpLocation?expand=1</a> is my proposed modification, introducing a <code>simpLocation</code> tactic.</p>
+
+
+
+<a name="261099967"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261099967" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261099967">(Nov 11 2021 at 06:53)</a>:</h4>
+<p>the "lean 4 way" seems to be to construct syntax to run the tactic frontend. I'm also not particularly happy with this state of affairs</p>
+
+
+
+<a name="261100049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261100049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261100049">(Nov 11 2021 at 06:55)</a>:</h4>
+<p>similar observations also apply to most command parsers, they parse their syntax and delegate right away, so you can't really run them unless you have a syntax, it's not like lean 3 where there is a backend tactic that takes exprs and such</p>
+
+
+
+<a name="261101928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261101928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261101928">(Nov 11 2021 at 07:33)</a>:</h4>
+<p>The local reason I wanted this was experimenting with porting <code>split_ifs</code>. Part of <code>split_ifs</code> delegates to <code>simp only [if_pos, if_neg, dif_pos, dif_neg]</code> along with a <code>discharger</code>.</p>
+<p>It is set up so that that list of lemmas is obtained from an attribute. The "syntactical" <code>simp</code> tactic in Lean 4 implemented by <code>evalSimp</code> doesn't support passing lemmas by attribute. It seems like it would be quite unpleasant to synthesize a <code>Syntax</code> after you've done whatever work is required to assemble the list of lemmas.</p>
+
+
+
+<a name="261102005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261102005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261102005">(Nov 11 2021 at 07:34)</a>:</h4>
+<p>The alternative would be to directly call the underlying tactics in <a href="https://github.com/leanprover/lean4/blob/c2a5e37c60cefb2d9dab293ee695f85659e1ad72/src/Lean/Meta/Tactic/Simp/Main.lean"><code>src/Lean/Meta/Tactic/Simp/Main.lean</code></a> but none of those are set up to deal with <code>location</code> already (whereas <code>evalSimp</code> has the logic).</p>
+
+
+
+<a name="261102027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261102027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261102027">(Nov 11 2021 at 07:35)</a>:</h4>
+<p>Hence my desire to separate the code the deals with <code>Syntax</code> and the code the deals with <code>location</code>.</p>
+
+
+
+<a name="261111166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261111166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261111166">(Nov 11 2021 at 09:41)</a>:</h4>
+<p>+1. I've copy-pasted a few definitions because I don't want to bother constructing <code>Syntax</code> for what should be a function call. If this sort of refactoring is wanted, I'd be happy to do (some of) it.</p>
+
+
+
+<a name="261577011"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simpLocation/near/261577011" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simpLocation.html#261577011">(Nov 15 2021 at 23:38)</a>:</h4>
+<p>This is now a PR as <a href="https://github.com/leanprover/lean4/pull/797">https://github.com/leanprover/lean4/pull/797</a>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

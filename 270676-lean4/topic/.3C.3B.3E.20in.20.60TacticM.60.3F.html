@@ -1,0 +1,63 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html"><;> in `TacticM`?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="315635384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%3C%3B%3E%20in%20%60TacticM%60%3F/near/315635384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html#315635384">(Dec 13 2022 at 16:48)</a>:</h4>
+<p>In Lean 3's <code>tactic</code> monad, we have both <code>,</code> and <code>;</code> for sequencing. My understanding is that they correspond exactly to <code>,</code> and <code>;</code> in tactic-mode syntax, i.e. <code>,</code> means continue working on the main goal, which <code>;</code> means continue on <em>all</em> newly-produced goals.</p>
+<p>In Lean 4's tactic-mode syntax, we have <code>;</code> (or newline) and <code>&lt;;&gt;</code> fulfilling the same roles. Is there an equivalent to <code>&lt;;&gt;</code> in the <code>TacticM</code> monad?  Previously I've <a href="https://github.com/leanprover-community/mathlib4/blob/dd4f8930565fc17125c9e83f72f6ab35aeaac18d/Mathlib/Tactic/SplitIfs.lean#L20-L23">defined my own combinator</a> for this purpose, but I'm wondering whether I'm missing something that already exists in Core.</p>
+
+
+
+<a name="315671151"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%3C%3B%3E%20in%20%60TacticM%60%3F/near/315671151" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jasmin Blanchette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html#315671151">(Dec 13 2022 at 19:41)</a>:</h4>
+<p>Your <code>tac_and_then</code> looks a bit off to me in the case where there are multiple goals to start with.</p>
+
+
+
+<a name="315671247"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%3C%3B%3E%20in%20%60TacticM%60%3F/near/315671247" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jasmin Blanchette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html#315671247">(Dec 13 2022 at 19:41)</a>:</h4>
+<p><span class="user-mention" data-user-id="256311">@Jannis Limperg</span> coded the following version, which I believe is more faithful to <code>&lt;;&gt;</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">andThenOnSubgoals</span> <span class="o">(</span><span class="n">tac₁</span> <span class="n">tac₂</span> <span class="o">:</span> <span class="n">TacticM</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">TacticM</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">do</span>
+    <span class="k">let</span> <span class="n">origGoals</span> <span class="bp">←</span> <span class="n">getGoals</span>
+    <span class="k">let</span> <span class="n">mainGoal</span> <span class="bp">←</span> <span class="n">getMainGoal</span>
+    <span class="n">setGoals</span> <span class="o">[</span><span class="n">mainGoal</span><span class="o">]</span>
+    <span class="n">tac₁</span>
+    <span class="k">let</span> <span class="n">subgoals₁</span> <span class="bp">←</span> <span class="n">getUnsolvedGoals</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">newGoals</span> <span class="o">:=</span> <span class="o">[]</span>
+    <span class="n">for</span> <span class="n">subgoal</span> <span class="k">in</span> <span class="n">subgoals₁</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">assigned</span> <span class="bp">←</span> <span class="n">MVarId.isAssigned</span> <span class="n">subgoal</span>
+      <span class="k">if</span> <span class="bp">!</span> <span class="n">assigned</span> <span class="k">then</span>
+        <span class="n">setGoals</span> <span class="o">[</span><span class="n">subgoal</span><span class="o">]</span>
+        <span class="n">tac₂</span>
+        <span class="k">let</span> <span class="n">subgoals₂</span> <span class="bp">←</span> <span class="n">getUnsolvedGoals</span>
+        <span class="n">newGoals</span> <span class="o">:=</span> <span class="n">newGoals</span> <span class="bp">++</span> <span class="n">subgoals₂</span>
+    <span class="n">setGoals</span> <span class="o">(</span><span class="n">newGoals</span> <span class="bp">++</span> <span class="n">List.tail</span> <span class="n">origGoals</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="315781743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%3C%3B%3E%20in%20%60TacticM%60%3F/near/315781743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.3C.3B.3E.20in.20.60TacticM.60.3F.html#315781743">(Dec 14 2022 at 10:23)</a>:</h4>
+<p>(This was written for LoVe, so could be golfed quite a bit.)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

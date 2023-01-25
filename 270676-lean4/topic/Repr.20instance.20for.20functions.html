@@ -1,0 +1,146 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Repr.20instance.20for.20functions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html">Repr instance for functions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276480271"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276480271" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276480271">(Mar 24 2022 at 14:08)</a>:</h4>
+<p>I have an inductive type for programs with algebraic effects. I'd like to define a <code>Repr</code> instance for it that would more or less print it verbatim like <code>#reduce</code> does, and allow me to use the type with <code>#eval</code>. I have some tests that make <code>whnf</code> timeout and I'd like to study them with <code>#eval</code>, which apparently is a much faster VM.</p>
+<p>The type looks like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Program</span> <span class="o">(</span><span class="n">E</span><span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">(</span><span class="n">R</span><span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">Return</span> <span class="o">(</span><span class="n">r</span><span class="o">:</span> <span class="n">R</span><span class="o">):</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span>
+  <span class="bp">|</span> <span class="n">Effect</span> <span class="o">{</span><span class="n">T</span><span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">e</span><span class="o">:</span> <span class="n">E</span> <span class="n">T</span><span class="o">)</span> <span class="o">(</span><span class="n">k</span><span class="o">:</span> <span class="n">T</span> <span class="bp">→</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span><span class="o">):</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span>
+</code></pre></div>
+<p>I've been trying (unsuccessfully) to take as parameter a <code>Repr</code> instance on <code>E</code> (more specifically on <code>E T</code> for any <code>T</code>), and to have the continuation function printed as a Lean term. I can write <code>[∀ T, Repr (E T)]</code> as parameter, but I don't know how fragile it is nor how to actually define such an instance.</p>
+<p>What would be the proper way to approach this problem? I'm not even sure I can print functions at all, which has me slightly worried.</p>
+
+
+
+<a name="276497156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276497156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276497156">(Mar 24 2022 at 15:59)</a>:</h4>
+<p>You probably want to just write a separate <code>Repr</code>/<code>ToString</code> instance instead of trying to put instance parameters on the inductive itself. There's no technical limitation that prevents you from printing functions, but I think in general it's going to be up to you to figure out how to display your function as a string in a way that makes sense. A function on lists might make sense in some context when displayed as <code>f []</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">{</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">ToString</span> <span class="n">A</span><span class="o">]</span> <span class="o">:</span> <span class="n">ToString</span> <span class="o">(</span><span class="n">List</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">A</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">toString</span> <span class="n">f</span> <span class="o">:=</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{f []}"</span>
+
+<span class="k">#eval</span> <span class="o">(</span><span class="k">fun</span> <span class="n">l</span> <span class="bp">=&gt;</span> <span class="o">[</span><span class="mi">0</span><span class="o">]</span> <span class="bp">++</span> <span class="n">l</span> <span class="bp">++</span> <span class="o">[</span><span class="mi">1</span><span class="o">]</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">Nat</span><span class="o">)</span>
+</code></pre></div>
+<p>So it looks like you would need to figure that out for <code>T -&gt; Program E R</code>.</p>
+
+
+
+<a name="276498697"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276498697" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276498697">(Mar 24 2022 at 16:08)</a>:</h4>
+<p>Ah yeah, you do have a little bit of a problem with that <code>T</code> constructor arg though.</p>
+
+
+
+<a name="276498918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276498918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276498918">(Mar 24 2022 at 16:09)</a>:</h4>
+<p>Thank you. The functions in <code>Effect</code> are quite arbitrary, and I wish to print the underlying term. I'm not sure how much introspection is needed for this, although I suspect a VM might compile/simplify the term for performance reasons and get rid of what I want to print (?).</p>
+
+
+
+<a name="276500221"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276500221" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276500221">(Mar 24 2022 at 16:17)</a>:</h4>
+<p>Some inspiration maybe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Program</span> <span class="o">(</span><span class="n">E</span><span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">(</span><span class="n">R</span><span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">Return</span> <span class="o">(</span><span class="n">r</span><span class="o">:</span> <span class="n">R</span><span class="o">):</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span>
+  <span class="bp">|</span> <span class="n">Effect</span> <span class="o">{</span><span class="n">T</span><span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">T</span><span class="o">]</span> <span class="o">(</span><span class="n">e</span><span class="o">:</span> <span class="n">E</span> <span class="n">T</span><span class="o">)</span> <span class="o">(</span><span class="n">k</span><span class="o">:</span> <span class="n">T</span> <span class="bp">→</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span><span class="o">):</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">showProgram</span> <span class="o">{</span><span class="n">E</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="bp">∀</span> <span class="n">T</span><span class="o">,</span> <span class="n">ToString</span> <span class="o">(</span><span class="n">E</span> <span class="n">T</span><span class="o">)]</span> <span class="o">[</span><span class="n">ToString</span> <span class="n">R</span><span class="o">]</span> <span class="o">:</span> <span class="n">Program</span> <span class="n">E</span> <span class="n">R</span> <span class="bp">→</span> <span class="n">String</span>
+<span class="bp">|</span> <span class="n">Program.Return</span> <span class="n">r</span> <span class="bp">=&gt;</span> <span class="n">toString</span> <span class="n">r</span>
+<span class="bp">|</span> <span class="bp">@</span><span class="n">Program.Effect</span> <span class="n">_</span> <span class="n">_</span> <span class="n">T</span> <span class="n">i</span> <span class="n">e</span> <span class="n">k</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">k'</span> <span class="o">:=</span> <span class="n">k</span> <span class="o">(</span><span class="bp">@</span><span class="n">Inhabited.default</span> <span class="n">T</span> <span class="n">i</span><span class="o">)</span>
+  <span class="k">let</span> <span class="n">p'</span> <span class="o">:=</span> <span class="n">showProgram</span> <span class="n">k'</span>
+  <span class="n">s</span><span class="bp">!</span><span class="s2">"{e}, {p'}"</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">:</span> <span class="n">ToString</span> <span class="o">(</span><span class="n">Option</span> <span class="n">A</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">toString</span> <span class="n">o</span> <span class="o">:=</span>
+    <span class="k">match</span> <span class="n">o</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="s2">"none"</span>
+    <span class="bp">|</span> <span class="n">some</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="s2">"some"</span>
+
+<span class="kd">def</span> <span class="n">r</span> <span class="o">:</span> <span class="n">Program</span> <span class="n">Option</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">Program.Return</span> <span class="mi">0</span>
+<span class="kd">def</span> <span class="n">p</span> <span class="o">:</span> <span class="n">Program</span> <span class="n">Option</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">Program.Effect</span> <span class="o">(</span><span class="n">T</span> <span class="o">:=</span> <span class="n">Char</span><span class="o">)</span> <span class="o">(</span><span class="n">some</span> <span class="sc">'a'</span><span class="o">)</span> <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">r</span><span class="o">)</span>
+<span class="k">#eval</span> <span class="n">showProgram</span> <span class="n">p</span>
+</code></pre></div>
+
+
+
+<a name="276500387"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276500387" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276500387">(Mar 24 2022 at 16:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="484617">Sébastien Michelland</span> <a href="#narrow/stream/270676-lean4/topic/Repr.20instance.20for.20functions/near/276498918">said</a>:</p>
+<blockquote>
+<p>Thank you. The functions in <code>Effect</code> are quite arbitrary, and I wish to print the underlying term. I'm not sure how much introspection is needed for this, although I suspect a VM might compile/simplify the term for performance reasons and get rid of what I want to print (?).</p>
+</blockquote>
+<p>Yes, the original term is gone at run time</p>
+
+
+
+<a name="276502121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276502121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276502121">(Mar 24 2022 at 16:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="228466">Chris B</span> <a href="#narrow/stream/270676-lean4/topic/Repr.20instance.20for.20functions/near/276500221">said</a>:</p>
+<blockquote>
+<p>Some inspiration maybe</p>
+</blockquote>
+<p>Thanks. It's not a bad compromise, but since most of the program logic is in the functions, an evaluation is probably not going to be enough for debugging.</p>
+<p>I guess there is some XY going on there. Since the terms are gone at runtime and I want to print them, I don't really have a choice but to test with the kernel with <code>#reduce</code>. So maybe I should look first at why it timeouts. I tracked it down to a mutual definition (one that <span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> <a href="https://github.com/leanprover/lean4/blob/master/tests/lean/run/nestedInductiveRecType.lean#L77-L88">wrote for me the other day</a>) and according to <a href="#narrow/stream/270676-lean4/topic/Strange.20stack.20overflow.20.2F.20timeout">this post</a> reducing anything with proofs inside is likely to lead to such problems (the proofs being some subterms related to the well-founded definition, I understand). Is there a way to work around this?</p>
+
+
+
+<a name="276502667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276502667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276502667">(Mar 24 2022 at 16:33)</a>:</h4>
+<p>You likely want the following TODO implemented so you can turn on <code>skipProofs</code> <a href="https://github.com/leanprover/lean4/blob/be7c71d1c8037a3a9aaa03b0f7d81259bb856712/src/Lean/Elab/BuiltinCommand.lean#L238-L240">https://github.com/leanprover/lean4/blob/be7c71d1c8037a3a9aaa03b0f7d81259bb856712/src/Lean/Elab/BuiltinCommand.lean#L238-L240</a></p>
+
+
+
+<a name="276504682"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276504682" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276504682">(Mar 24 2022 at 16:45)</a>:</h4>
+<p>Customizing such smaller commands is relatively simple in Lean 4, here is a quick sketch that you can give a try:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean.Parser.Term</span>
+<span class="kn">open</span> <span class="n">Lean.Elab.Command</span>
+<span class="kn">open</span> <span class="n">Lean.Elab</span>
+<span class="kn">open</span> <span class="n">Lean.Meta</span>
+
+<span class="n">elab</span> <span class="s2">"#reduce "</span> <span class="n">skipProofs</span><span class="o">:</span><span class="n">group</span><span class="o">(</span><span class="n">atomic</span><span class="o">(</span><span class="s2">"("</span> <span class="bp">&amp;</span><span class="s2">"skipProofs"</span><span class="o">)</span> <span class="s2">" := "</span> <span class="o">(</span><span class="n">trueVal</span> <span class="bp">&lt;|&gt;</span> <span class="n">falseVal</span><span class="o">)</span> <span class="s2">")"</span><span class="o">)</span> <span class="n">term</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">skipProofs</span> <span class="o">:=</span> <span class="n">skipProofs</span><span class="o">[</span><span class="mi">3</span><span class="o">]</span><span class="bp">.</span><span class="n">isOfKind</span> <span class="bp">``</span><span class="n">trueVal</span>
+  <span class="n">withoutModifyingEnv</span> <span class="bp">&lt;|</span> <span class="n">runTermElabM</span> <span class="o">(</span><span class="n">some</span> <span class="bp">`</span><span class="n">_check</span><span class="o">)</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="n">dbg_trace</span> <span class="n">term</span>
+    <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">Term.elabTerm</span> <span class="n">term</span> <span class="n">none</span>
+    <span class="n">Term.synthesizeSyntheticMVarsNoPostponing</span>
+    <span class="k">let</span> <span class="o">(</span><span class="n">e</span><span class="o">,</span> <span class="n">_</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Term.levelMVarToParam</span> <span class="o">(</span><span class="bp">←</span> <span class="n">instantiateMVars</span> <span class="n">e</span><span class="o">)</span>
+    <span class="c1">-- TODO: add options or notation for setting the following parameters</span>
+    <span class="n">withTheReader</span> <span class="n">Core.Context</span> <span class="o">(</span><span class="k">fun</span> <span class="n">ctx</span> <span class="bp">=&gt;</span> <span class="o">{</span> <span class="n">ctx</span> <span class="k">with</span> <span class="n">options</span> <span class="o">:=</span> <span class="n">ctx.options.setBool</span> <span class="bp">`</span><span class="n">smartUnfolding</span> <span class="n">false</span> <span class="o">})</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">withTransparency</span> <span class="o">(</span><span class="n">mode</span> <span class="o">:=</span> <span class="n">TransparencyMode.all</span><span class="o">)</span> <span class="bp">&lt;|</span> <span class="n">reduce</span> <span class="n">e</span> <span class="o">(</span><span class="n">skipProofs</span> <span class="o">:=</span> <span class="n">skipProofs</span><span class="o">)</span> <span class="o">(</span><span class="n">skipTypes</span> <span class="o">:=</span> <span class="n">false</span><span class="o">)</span>
+      <span class="n">logInfo</span> <span class="n">e</span>
+
+<span class="k">#reduce</span> <span class="o">(</span><span class="n">skipProofs</span> <span class="o">:=</span> <span class="n">true</span><span class="o">)</span> <span class="n">id</span> <span class="n">rfl</span>
+</code></pre></div>
+
+
+
+<a name="276505949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Repr%20instance%20for%20functions/near/276505949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Repr.20instance.20for.20functions.html#276505949">(Mar 24 2022 at 16:53)</a>:</h4>
+<p>Excellent! I was setting up a Lean build to give it a try, but it's just as easy like this. Thanks again ^^</p>
+<p>My terms can reduce properly now (fairly quickly too), so these proofs were indeed the problem. The result doesn't look nearly as clean as I expected (800 lines for a trivial program xD), I suspect there are some non-computable/non-reducible stuff left in my theory. Sounds like a different problem though!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

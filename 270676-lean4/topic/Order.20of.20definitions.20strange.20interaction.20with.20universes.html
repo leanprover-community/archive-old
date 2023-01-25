@@ -1,0 +1,160 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html">Order of definitions strange interaction with universes</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="281663155"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281663155" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281663155">(May 09 2022 at 10:15)</a>:</h4>
+<p>It's not news that Lean is sensitive to the order in which things get declared, but I found a very strange interaction between this and an error about type universes in the delaborator. Here's a MWE:</p>
+<p>This works perfectly fine:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">somelist</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+</code></pre></div>
+<p>Whereas if we reverse the order of declaration, i.e.:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">somelist</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span>
+</code></pre></div>
+<p>It will give the error: "failed to compute resulting universe level of inductive datatype, provide universe explicitly"</p>
+<p>It seems to also need both the mutually inductive construction (here with <code>List Bar</code>) *and * the unresolved type of Foo.  Does someone know what's happening here? Why does it behave differently than, say, <code>def</code>, where something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Bar</span> <span class="o">:=</span> <span class="n">Foo</span>
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">Nat</span>
+</code></pre></div>
+<p>Lean will complain that it doesn't know the identifier <code>Foo</code>, but </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">Nat</span>
+</code></pre></div>
+<p>works perfectly fine. Is this a fundamental difference or just part of the WIP nature of Lean4?</p>
+
+
+
+<a name="281663855"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281663855" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281663855">(May 09 2022 at 10:22)</a>:</h4>
+<p>In Lean 3, </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">somelist</span> <span class="o">:</span> <span class="n">list</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span>
+</code></pre></div>
+<p>just gives an error <code>unknown identifier 'Foo'</code> in the obvious place. Is Lean 4 different in this regard?</p>
+
+
+
+<a name="281663907"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281663907" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281663907">(May 09 2022 at 10:23)</a>:</h4>
+<p>It is probably declaring <code>Foo</code> in the <code>Bar</code> definition as an auto implicit type. If you put <code>mutual</code> above and <code>end</code> in the end of your code block it will actually do the mutual definition.</p>
+
+
+
+<a name="281663968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281663968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281663968">(May 09 2022 at 10:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes/near/281663855">said</a>:</p>
+<blockquote>
+<p>In Lean 3, </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">somelist</span> <span class="o">:</span> <span class="n">list</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span>
+</code></pre></div>
+<p>just gives an error <code>unknown identifier 'Foo'</code> in the obvious place. Is Lean 4 different in this regard?</p>
+</blockquote>
+<p>yep, Lean4 will complain about universes there. Maybe it's just a bug then?</p>
+
+
+
+<a name="281664326"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281664326" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281664326">(May 09 2022 at 10:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes/near/281663907">said</a>:</p>
+<blockquote>
+<p>It is probably declaring <code>Foo</code> in the <code>Bar</code> definition as an auto implicit type. If you put <code>mutual</code> above and <code>end</code> in the end of your code block it will actually do the mutual definition.</p>
+</blockquote>
+<p>That makes sense. The mutual thing does actually also get it to work as well. Might be better (more explicit) than changing the order. I guess the whole auto implicit types thing might just be more brittle for now. Thanks for the pointer!</p>
+
+
+
+<a name="281664622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281664622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281664622">(May 09 2022 at 10:32)</a>:</h4>
+<p>I don't think the feature itself is brittle, the conclusion that it can't determine the desired universe of the auto implicit type is true since you do not give it any information at all about what that universe should be, though you can maybe argue it should indicate that something is wrong with Bar.</p>
+
+
+
+<a name="281673056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281673056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281673056">(May 09 2022 at 12:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes/near/281663855">said</a>:</p>
+<blockquote>
+<p>Is Lean 4 different in this regard?</p>
+</blockquote>
+<p>Yes, it is. <br>
+Just to make explicit what <span class="user-mention" data-user-id="395550">@Henrik Böving</span> wrote about auto-implicit behavior above:<br>
+If <code>Foo</code> isn't a known type, then Lean 4 interprets the  following definition of <code>Bar</code> as:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="k">#print</span> <span class="n">Bar.foobar</span> <span class="c1">-- constructor Bar.foobar.{u_1} : {Foo : Sort u_1} → Foo → Bar</span>
+</code></pre></div>
+<p>That is, the <code>Foo</code> automatically becomes an implicit parameter (of type <code>Sort u_1</code>) to the <code>foobar</code> constructor.<br>
+If <code>Foo</code> is a known type, it has the "regular" behavior:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="k">#print</span> <span class="n">Bar.foobar</span> <span class="c1">-- constructor Bar.foobar: Foo → Bar</span>
+</code></pre></div>
+
+
+
+<a name="281674111"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281674111" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281674111">(May 09 2022 at 12:13)</a>:</h4>
+<p>This prevents Lean from creating implicit parameters automatically:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">autoImplicit</span> <span class="n">false</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span> <span class="c1">-- unknown identifier 'Foo'</span>
+</code></pre></div>
+<p>Or if you don't want that behavior in a particular declaration:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">autoImplicit</span> <span class="n">false</span> <span class="k">in</span>
+<span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span> <span class="c1">-- unknown identifier 'Foo'</span>
+</code></pre></div>
+
+
+
+<a name="281677577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Order%20of%20definitions%20strange%20interaction%20with%20universes/near/281677577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Order.20of.20definitions.20strange.20interaction.20with.20universes.html#281677577">(May 09 2022 at 12:43)</a>:</h4>
+<p>We will try to improve the error message. <br>
+BTW, in most color themes, variables and constants are highlighted using different colors.<br>
+<a href="/user_uploads/3121/mRpJxHLNuqvp1QyTCjBy9GIq/image.png">image.png</a><br>
+<a href="/user_uploads/3121/ti7IsT1Yg7yREntDNLPcsSxm/image.png">image.png</a> <br>
+Note that in the second picture, <code>Foo</code> is blue because it has <strong>not</strong> been interpreted as a constant.</p>
+<div class="message_inline_image"><a href="/user_uploads/3121/mRpJxHLNuqvp1QyTCjBy9GIq/image.png" title="image.png"><img src="/user_uploads/3121/mRpJxHLNuqvp1QyTCjBy9GIq/image.png"></a></div><div class="message_inline_image"><a href="/user_uploads/3121/ti7IsT1Yg7yREntDNLPcsSxm/image.png" title="image.png"><img src="/user_uploads/3121/ti7IsT1Yg7yREntDNLPcsSxm/image.png"></a></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

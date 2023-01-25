@@ -1,0 +1,281 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html">Building shared library with lake</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="268316514"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268316514" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268316514">(Jan 17 2022 at 21:25)</a>:</h4>
+<p>How do I properly build and use shared library with lake? I have set <code>defaultFacet := PackageFacet.sharedLib</code> this creates <code>Package.so</code>. </p>
+<p>I then try to load <code>Package.so</code> using <code>dlopen</code> in another program, but I'm getting <code>undefined symbol: l_Lean_instInhabitedExpr</code>. Clearly it does not load <code>libleanshared.so</code> properly where this symbol is. Is  <code>Package.so</code>  linked against  <code>libleanshared.so</code> by default or do I have to specify that?</p>
+<p>My <code>LD_LIBRARY_PATH</code> points to the directory where <code>libleanshared.so</code> is, so it should not be a problem that the program can't find it.</p>
+
+
+
+<a name="268317220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268317220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268317220">(Jan 17 2022 at 21:36)</a>:</h4>
+<p>If <code>ldd Package.so</code> doesn't list <a href="http://libleanshared.so">libleanshared.so</a>, you can try adding <code>-lleanshared</code> as a linker flag.</p>
+
+
+
+<a name="268317850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268317850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268317850">(Jan 17 2022 at 21:47)</a>:</h4>
+<p>Yes, adding </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">moreLinkArgs</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[</span><span class="s2">"-L~/.elan/toolchains/leanprover--lean4---nightly-2022-01-12/lib/lean"</span><span class="o">,</span> <span class="s2">"-lleanshared"</span><span class="o">],</span>
+</code></pre></div>
+<p>solved the problem.</p>
+
+
+
+<a name="268317935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268317935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268317935">(Jan 17 2022 at 21:49)</a>:</h4>
+<p>Now I'm facing different error:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">uncaught</span> <span class="n">exception</span><span class="o">:</span> <span class="n">invalid</span> <span class="n">environment</span> <span class="n">extension</span><span class="o">,</span> <span class="bp">'</span><span class="n">ext'</span> <span class="n">has</span> <span class="n">already</span> <span class="n">been</span> <span class="n">used</span>
+</code></pre></div>
+
+
+
+<a name="268319101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319101">(Jan 17 2022 at 22:05)</a>:</h4>
+<p>The problem seems to be that I'm loading and executing the shared library in a loop.</p>
+<p>On the first run the library gets loaded and executed correctly. However, on the second load, running:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">initialize_Package</span><span class="o">(</span><span class="n">lean_io_mk_world</span><span class="o">())</span><span class="bp">;</span>
+</code></pre></div>
+<p>fails. I'm probably not correctly cleaning up after the first run. How do I do that?</p>
+
+
+
+<a name="268319207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319207">(Jan 17 2022 at 22:06)</a>:</h4>
+<p>Module initializers <em>should</em> be idempotent. But... why are you loading the same library in a loop?</p>
+
+
+
+<a name="268319308"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319308" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319308">(Jan 17 2022 at 22:08)</a>:</h4>
+<p>I want to use Lean as a scripting language in a different program. I should reload the library only when to code changes, but for now I reload it on every execution.</p>
+
+
+
+<a name="268319427"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319427" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319427">(Jan 17 2022 at 22:10)</a>:</h4>
+<p>Also I'm confused about <code>lean_initialize()</code> and <code>lean_initialize_runtime_module()</code> the first one does not work, the second one does.</p>
+
+
+
+<a name="268319677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319677">(Jan 17 2022 at 22:14)</a>:</h4>
+<p>It sounds like you didn't unload <code>libleanshared.so</code></p>
+
+
+
+<a name="268319738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319738">(Jan 17 2022 at 22:14)</a>:</h4>
+<p>Ohh how do I do that?</p>
+
+
+
+<a name="268319767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319767">(Jan 17 2022 at 22:15)</a>:</h4>
+<p>I'm not loading it manually.</p>
+
+
+
+<a name="268319839"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268319839" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268319839">(Jan 17 2022 at 22:16)</a>:</h4>
+<p>I should be calling <code>dlclose</code> ...</p>
+
+
+
+<a name="268322444"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268322444" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268322444">(Jan 17 2022 at 22:52)</a>:</h4>
+<p>The problem might be that I'm writing a plugin <code>Plugin.so</code> to one program that loads <code>Package.so</code>. Both <code>Plugin.so</code> and <code>Package.so</code> needs <code>libleanshared.so</code> as the plugin calls initalization of lean, lean_io_mk_world, etc.</p>
+<p>Thus when I unload <code>Package.so</code> it does not unload  <code>libleanshared.so</code>  as it is still needed by <code>Plugin.so</code>.</p>
+
+
+
+<a name="268323229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268323229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268323229">(Jan 17 2022 at 23:02)</a>:</h4>
+<p>Yes it was indeed the problem. Unfortunately, to create <code>Plugin.so</code> I can't link against lean static libraries because they are not compiled with <code>-fPIC</code>, so when I want to use any function from <code>lean.h</code> I have to dynamically load it.</p>
+
+
+
+<a name="268326735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268326735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268326735">(Jan 17 2022 at 23:58)</a>:</h4>
+<p>Dynamically loaded <code>lean_dec_ref</code> causes crash, so I can't clean up any lean_object and my program leaks memory :/</p>
+
+
+
+<a name="268357868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268357868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268357868">(Jan 18 2022 at 08:32)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="346070">Tomas Skrivan</span> <a href="#narrow/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake/near/268322444">said</a>:</p>
+<blockquote>
+<p>The problem might be that I'm writing a plugin <code>Plugin.so</code> to one program that loads <code>Package.so</code>. Both <code>Plugin.so</code> and <code>Package.so</code> needs <code>libleanshared.so</code> as the plugin calls initalization of lean, lean_io_mk_world, etc.</p>
+<p>Thus when I unload <code>Package.so</code> it does not unload  <code>libleanshared.so</code>  as it is still needed by <code>Plugin.so</code>.</p>
+</blockquote>
+<p>Then I think you're stuck. There is no way to undo the mutable changes loading <a href="http://Package.so">Package.so</a> did to the data in <a href="http://libleanshared.so">libleanshared.so</a> if you cannot unload them both. You should never link the same library both dynamically and statically.</p>
+
+
+
+<a name="268358033"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268358033" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268358033">(Jan 18 2022 at 08:34)</a>:</h4>
+<p>But I still don't know where the error actually stems from. Do you initialize an environment extension in <a href="http://Package.so">Package.so</a>?</p>
+
+
+
+<a name="268364282"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268364282" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268364282">(Jan 18 2022 at 09:28)</a>:</h4>
+<p>What does "initialize environment extension" mean? Is it the call <code>initialize_Package</code>?</p>
+
+
+
+<a name="268367677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268367677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268367677">(Jan 18 2022 at 09:59)</a>:</h4>
+<p>No, it would need to be a call to <code>register*EnvExtension</code>. I hope we don't actually have one named <code>ext</code> (and if we did, it shouldn't be loaded twice if it's part of <a href="http://libleanshared.so">libleanshared.so</a>).</p>
+
+
+
+<a name="268367909"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268367909" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268367909">(Jan 18 2022 at 10:01)</a>:</h4>
+<p>Note that mathlib4 has an <code>ext</code> extension.</p>
+
+
+
+<a name="268368148"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268368148" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268368148">(Jan 18 2022 at 10:03)</a>:</h4>
+<p>Ah yes, a different meaning of "ext" :) . <del>Disabling <code>builtin_initialize</code> via <a href="https://github.com/leanprover/lean4/pull/959">https://github.com/leanprover/lean4/pull/959</a> might be of interest then.</del> I guess it's not a builtin then.</p>
+
+
+
+<a name="268368547"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268368547" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268368547">(Jan 18 2022 at 10:06)</a>:</h4>
+<p>Then a better answer is that the attribute registration should only happen in a "compile time" phase while you are only interested in running the plugin in a "run time" phase. Some day I hope Lean will be able to express that...</p>
+
+
+
+<a name="268371521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268371521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268371521">(Jan 18 2022 at 10:34)</a>:</h4>
+<p>I have made a mock up of my situation, unfortunately I was unable to recreate the <code>invalid environment extension</code> error. But I still have problems with memory leaks:</p>
+<p><a href="https://github.com/lecopivo/leanPluginTest">https://github.com/lecopivo/leanPluginTest</a></p>
+<p>Build and run instructions are in the readme.</p>
+<p>This example has a main application <code>main</code> that loads a plugin <code>plugin</code> and the plugin loads <code>package</code> made with Lean. The main function of the package is called over and over in an infinite loop.</p>
+<p>There are two versions, <code>main</code> and <code>main2</code></p>
+<ol>
+<li><code>main</code> is where <code>plugin</code> does not link <code>libleanshared</code> to avoid the problems I had. However, I have problems calling <code>lean_dec_ref</code> to clean up memory. Running <code>./main</code> causes segmentation fault after a moment.</li>
+<li><code>main2</code> is where <code>plugin2</code> links <code>libleanshared</code>. This should be the case where I had the problem with environment extension. However, I'm unable to reproduce it here,  as Gabriel pointed out it might be a problem with Mathlib(I will test that). This version does not cause segmentation fault but leaks memory.</li>
+</ol>
+
+
+
+<a name="268372207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268372207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268372207">(Jan 18 2022 at 10:40)</a>:</h4>
+<p>And yes I'm using mathlib4 in my real code. The environment extension error might be connected to that.</p>
+
+
+
+<a name="268372901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268372901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268372901">(Jan 18 2022 at 10:46)</a>:</h4>
+<p>A simple inclusion of mathlib4, <a href="https://github.com/lecopivo/leanPluginTest/tree/mathlib">https://github.com/lecopivo/leanPluginTest/tree/mathlib</a> . I'm getting <code>../lib/Package.so: undefined symbol: initialize_Mathlib_Data_UInt</code> not sure what is going wrong. Definitely not reproducing the old error.</p>
+
+
+
+<a name="268376916"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268376916" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268376916">(Jan 18 2022 at 11:26)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="346070">Tomas Skrivan</span> <a href="#narrow/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake/near/268372901">said</a>:</p>
+<blockquote>
+<p>A simple inclusion of mathlib4, <a href="https://github.com/lecopivo/leanPluginTest/tree/mathlib">https://github.com/lecopivo/leanPluginTest/tree/mathlib</a> . I'm getting <code>../lib/Package.so: undefined symbol: initialize_Mathlib_Data_UInt</code> not sure what is going wrong. Definitely not reproducing the old error.</p>
+</blockquote>
+<p>That sounds like a bug in Lake</p>
+
+
+
+<a name="268377247"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268377247" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268377247">(Jan 18 2022 at 11:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="346070">Tomas Skrivan</span> <a href="#narrow/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake/near/268371521">said</a>:</p>
+<blockquote>
+<p>This version does not cause segmentation fault but leaks memory.</p>
+</blockquote>
+<p>Hmm yes, I probably should have thought of this sooner. Lean shared libraries are simply not made to ever be unloaded. Perhaps they could be, but right now they aren't.</p>
+
+
+
+<a name="268379332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268379332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268379332">(Jan 18 2022 at 11:51)</a>:</h4>
+<p>I would really love to use Lean as a scripting language in an another program. I can probably load each new version of a script as a different  library, not ideal but should work. Maybe I can use Lean's interpreter, but then I'm not sure how could I wrap the program's C++ API into Lean functions.</p>
+
+
+
+<a name="268380477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268380477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268380477">(Jan 18 2022 at 12:03)</a>:</h4>
+<p>Ok I'm not sure what is going on but now I can reproduce the <code>invalid environment extension</code> error</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">git</span> <span class="n">clone</span> <span class="c1">--branch mathlib https://github.com/lecopivo/leanPluginTest.git</span>
+<span class="n">cd</span> <span class="n">leanPluginTest</span>
+<span class="n">lake</span> <span class="n">build</span>
+<span class="kn">export</span> <span class="n">LD_LIBRARY_PATH</span><span class="bp">=~/.</span><span class="n">elan</span><span class="bp">/</span><span class="n">toolchains</span><span class="bp">/</span><span class="n">leanprover</span><span class="c1">--lean4---nightly/lib/lean</span>
+<span class="n">cd</span> <span class="n">build</span><span class="bp">;</span> <span class="n">mkdir</span> <span class="n">debug</span><span class="bp">;</span> <span class="n">cd</span> <span class="n">debug</span>
+<span class="n">cmake</span> <span class="bp">../..</span>
+<span class="n">make</span> <span class="bp">-</span><span class="n">j</span>
+<span class="bp">./</span><span class="n">main2</span>
+</code></pre></div>
+<p>Running <code>./main</code> works fine until it seg faults.</p>
+
+
+
+<a name="268380771"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268380771" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268380771">(Jan 18 2022 at 12:06)</a>:</h4>
+<p>And when you remove <code>import Mathlib</code> from <code>Package.lean</code> then <code>main2</code> works 'fine'(well it leaks memory)</p>
+
+
+
+<a name="268380915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268380915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268380915">(Jan 18 2022 at 12:07)</a>:</h4>
+<p>Yes, if you load mathlib twice without unloading libleanshared, that is expected</p>
+
+
+
+<a name="268381767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268381767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268381767">(Jan 18 2022 at 12:15)</a>:</h4>
+<p>How important is it to run <code>lean_io_mark_end_initialization</code>,  <code>lean_init_task_manager</code> or <code>lean_finalize_task_manager</code> I have no clue what any one of these is doing.</p>
+
+
+
+<a name="268381949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268381949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268381949">(Jan 18 2022 at 12:16)</a>:</h4>
+<p>As I have to load every function from <code>lean.h</code> dynamically, the only way to get <code>lean_dec_ref</code> was to dynamically load <code>lean_dec_ref_cold</code> then then defined my <code>lean_dec_ref</code> with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">auto</span> <span class="n">lean_dec_ref</span> <span class="bp">=</span> <span class="o">[</span><span class="bp">&amp;</span><span class="o">](</span><span class="n">lean_object</span> <span class="bp">*</span> <span class="n">o</span><span class="o">)</span> <span class="o">{</span>
+      <span class="k">if</span> <span class="o">(</span><span class="n">LEAN_LIKELY</span><span class="o">(</span><span class="n">o</span><span class="bp">-&gt;</span><span class="n">m_rc</span> <span class="bp">&gt;</span> <span class="mi">1</span><span class="o">))</span> <span class="o">{</span>
+        <span class="n">o</span><span class="bp">-&gt;</span><span class="n">m_rc</span><span class="c1">--;</span>
+      <span class="o">}</span> <span class="k">else</span> <span class="k">if</span> <span class="o">(</span><span class="n">o</span><span class="bp">-&gt;</span><span class="n">m_rc</span> <span class="bp">!=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">{</span>
+        <span class="n">lean_dec_ref_cold</span><span class="o">(</span><span class="n">o</span><span class="o">)</span><span class="bp">;</span>
+      <span class="o">}</span>
+    <span class="o">}</span><span class="bp">;</span>
+</code></pre></div>
+
+
+
+<a name="268383046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268383046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268383046">(Jan 18 2022 at 12:27)</a>:</h4>
+<p>I have updated the repository with working <code>lean_dec_ref</code>, this way I have more or less reproduced main function that gets generated by lean. However running <code>main</code> still segfaults after a while, I have no clue what to do now to fix that.</p>
+
+
+
+<a name="268384518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Building%20shared%20library%20with%20lake/near/268384518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Building.20shared.20library.20with.20lake.html#268384518">(Jan 18 2022 at 12:40)</a>:</h4>
+<p>And it segfaults after 1024 iterations what a coincidence :D</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

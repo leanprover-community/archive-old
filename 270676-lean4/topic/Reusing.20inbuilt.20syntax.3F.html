@@ -1,0 +1,82 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html">Reusing inbuilt syntax?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="277180315"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reusing%20inbuilt%20syntax%3F/near/277180315" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html#277180315">(Mar 30 2022 at 17:34)</a>:</h4>
+<p>I'd like to overload the inbuilt <code>true</code> in a custom context of mine. As an MWE:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- see how we can use bool both in custom syntax</span>
+<span class="c1">-- and in "regular" Lean syntax</span>
+
+<span class="n">declare_syntax_cat</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="s2">"true"</span> <span class="o">:</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="s2">"[foo|"</span> <span class="n">foo</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">foo</span><span class="bp">|</span> <span class="n">true</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="s2">"true"</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">succeeds</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span> <span class="o">[</span><span class="n">foo</span><span class="bp">|</span> <span class="n">true</span><span class="o">]</span>
+<span class="kd">def</span> <span class="n">fails</span> <span class="o">:</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="n">true</span> <span class="c1">-- &lt; ERROR: "expected term"</span>
+</code></pre></div>
+<p>I'd like <code>fails</code> to <em>not fail</em>. That is, I'd like the context to disambiguate if I'm taking about <code>true</code>that lives in the syntax category <code>foo</code> or in the Lean builtin category <code>term</code>.</p>
+
+
+
+<a name="277181860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reusing%20inbuilt%20syntax%3F/near/277181860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html#277181860">(Mar 30 2022 at 17:46)</a>:</h4>
+<p>A quick <code>grep</code> led me to two potential ways of doing this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean</span><span class="bp">/</span><span class="n">Parser</span><span class="bp">/</span><span class="n">Command.lean</span>
+<span class="mi">115</span><span class="o">:</span><span class="kd">def</span> <span class="n">optionValue</span> <span class="o">:=</span> <span class="n">nonReservedSymbol</span> <span class="s2">"true"</span> <span class="bp">&lt;|&gt;</span> <span class="n">nonReservedSymbol</span> <span class="s2">"false"</span> <span class="bp">&lt;|&gt;</span> <span class="n">strLit</span> <span class="bp">&lt;|&gt;</span> <span class="n">numLit</span>
+
+<span class="n">Lean</span><span class="bp">/</span><span class="n">Parser</span><span class="bp">/</span><span class="n">Term.lean</span>
+<span class="mi">149</span><span class="o">:</span><span class="kd">def</span> <span class="n">trueVal</span>  <span class="o">:=</span> <span class="n">leading_parser</span> <span class="n">nonReservedSymbol</span> <span class="s2">"true"</span>
+</code></pre></div>
+<p>but I'm unsure how to use <code>nonReservedSymbol</code> to achieve what I want.</p>
+
+
+
+<a name="277183166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reusing%20inbuilt%20syntax%3F/near/277183166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html#277183166">(Mar 30 2022 at 17:57)</a>:</h4>
+<p><code>syntax &amp;"true" : foo</code> should be what you need. What happens here is that your syntax decl makes <code>true</code> into a keyword, so it doesn't get parsed as the identifier <code>Bool.true</code> any more. You might also need <code>declare_syntax_cat foo (leading_ident_behavior := symbol)</code>.</p>
+
+
+
+<a name="277183717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reusing%20inbuilt%20syntax%3F/near/277183717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html#277183717">(Mar 30 2022 at 18:00)</a>:</h4>
+<p><span class="user-mention" data-user-id="130575">@Siddharth Bhat</span> We currently have a single token table in Lean. It is on our TODO list to have a separate table per syntax category, and rules for propagating reserved symbols between them. In the meantime, you can use the following workaround.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">declare_syntax_cat</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="s2">"[foo|"</span> <span class="n">foo</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">foo</span><span class="bp">|</span> <span class="n">true</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="s2">"true"</span><span class="o">)</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">foo</span><span class="bp">|</span> <span class="n">false</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="s2">"false"</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="o">[</span><span class="n">foo</span><span class="bp">|</span> <span class="n">true</span><span class="o">]</span>   <span class="c1">-- "true"</span>
+<span class="k">#check</span> <span class="o">[</span><span class="n">foo</span><span class="bp">|</span> <span class="n">false</span><span class="o">]</span>  <span class="c1">-- "false"</span>
+<span class="k">#check</span> <span class="o">[</span><span class="n">foo</span><span class="bp">|</span> <span class="n">bla</span><span class="o">]</span> <span class="c1">-- error</span>
+</code></pre></div>
+
+
+
+<a name="277185412"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reusing%20inbuilt%20syntax%3F/near/277185412" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reusing.20inbuilt.20syntax.3F.html#277185412">(Mar 30 2022 at 18:13)</a>:</h4>
+<p>Thank you for the perspective (that it's a TODO item). The idea of claiming to parse all identifiers and then selectively only parsing <code>true</code> and <code>false</code>, choosing to throw an error on the others is nice :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

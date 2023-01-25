@@ -1,0 +1,707 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html">congr tactic: first steps</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276046156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276046156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276046156">(Mar 21 2022 at 12:59)</a>:</h4>
+<p>I have made my first attempts at <code>congr</code> tactic. It does cover the two examples at <a href="https://leanprover-community.github.io/mathlib_docs/tactics.html#congr">https://leanprover-community.github.io/mathlib_docs/tactics.html#congr</a> (including the <code>congr'</code> example).  It is verbose however, and does not cover the <code>rcasesPat</code> part. I am sharing below for comments.</p>
+<p>Also, can someone point me to docs/examples for the <code>rcasesPat</code> part (I have no idea what that is).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">congrStep</span><span class="bp">?</span> <span class="o">(</span><span class="n">closeOnly</span> <span class="o">:</span> <span class="n">Bool</span><span class="o">)(</span><span class="n">mvar</span><span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">Option</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">))</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">u</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+  <span class="k">let</span> <span class="n">v</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Eq.refl</span> <span class="o">[</span><span class="n">u</span><span class="o">])</span>
+    <span class="k">if</span> <span class="n">res.isEmpty</span> <span class="k">then</span> <span class="n">return</span> <span class="n">some</span> <span class="o">[]</span> <span class="k">else</span> <span class="n">pure</span> <span class="n">none</span>
+  <span class="n">catch</span> <span class="n">_</span> <span class="bp">=&gt;</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Subsingleton.intro</span> <span class="o">[</span><span class="n">u</span><span class="o">])</span>
+    <span class="k">if</span> <span class="n">res.isEmpty</span> <span class="k">then</span> <span class="n">return</span> <span class="n">some</span> <span class="o">[]</span> <span class="k">else</span> <span class="n">pure</span> <span class="n">none</span>
+  <span class="n">catch</span> <span class="n">_</span> <span class="bp">=&gt;</span>
+  <span class="k">if</span> <span class="bp">!</span><span class="n">closeOnly</span> <span class="k">then</span>
+    <span class="n">try</span>
+      <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">congr</span> <span class="o">[</span><span class="n">u</span><span class="o">,</span> <span class="n">v</span><span class="o">])</span>
+      <span class="n">return</span> <span class="n">some</span> <span class="n">res</span>
+    <span class="n">catch</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+      <span class="n">pure</span> <span class="n">none</span>
+  <span class="k">else</span>
+    <span class="n">pure</span> <span class="n">none</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">recCongr</span><span class="o">(</span><span class="n">maxDepth</span><span class="bp">?</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">mvar</span><span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">closeOnly</span> <span class="o">:</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="o">(</span><span class="n">maxDepth</span><span class="bp">?.</span><span class="n">map</span> <span class="o">(</span><span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">decide</span> <span class="o">(</span><span class="n">n</span> <span class="bp">≤</span>  <span class="mi">1</span><span class="o">)))</span><span class="bp">.</span><span class="n">getD</span> <span class="n">false</span>
+  <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span> <span class="n">congrStep</span><span class="bp">?</span> <span class="n">closeOnly</span> <span class="n">mvar</span>
+  <span class="k">match</span> <span class="n">res</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">depth</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">maxDepth</span><span class="bp">?.</span><span class="n">map</span> <span class="o">(</span><span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+    <span class="k">let</span> <span class="n">groups</span> <span class="bp">←</span> <span class="n">xs.mapM</span> <span class="o">(</span><span class="n">recCongr</span> <span class="n">depth</span><span class="bp">?</span><span class="o">)</span>
+    <span class="n">return</span> <span class="n">groups.bind</span> <span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="o">[</span><span class="n">mvar</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">Meta.congr</span><span class="o">(</span><span class="n">maxDepth</span><span class="bp">?</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">mvar</span> <span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">u</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+    <span class="k">let</span> <span class="n">v</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+    <span class="k">let</span> <span class="n">xs</span> <span class="bp">←</span> <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">congr</span> <span class="o">[</span><span class="n">u</span><span class="o">,</span> <span class="n">v</span><span class="o">])</span>
+    <span class="k">let</span> <span class="n">groups</span> <span class="bp">←</span> <span class="n">xs.mapM</span> <span class="o">(</span><span class="n">recCongr</span> <span class="n">maxDepth</span><span class="bp">?</span><span class="o">)</span>
+    <span class="n">return</span> <span class="n">groups.bind</span> <span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+  <span class="n">catch</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+    <span class="n">throwTacticEx</span> <span class="bp">`</span><span class="n">congr</span> <span class="n">mvar</span> <span class="n">m</span><span class="bp">!</span><span class="s2">"congr tactic failed"</span>
+
+<span class="kn">open</span> <span class="n">Lean.Elab.Tactic</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">congrTactic</span><span class="o">)</span> <span class="s2">"congr"</span> <span class="o">(</span><span class="n">ppSpace</span> <span class="o">(</span><span class="n">colGt</span> <span class="n">num</span><span class="o">))</span><span class="bp">?</span> <span class="o">:</span> <span class="n">tactic</span>
+<span class="kd">@[tactic congrTactic]</span> <span class="kd">def</span> <span class="n">congrTacticImpl</span> <span class="o">:</span> <span class="n">Tactic</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="bp">=&gt;</span>
+<span class="k">match</span> <span class="n">stx</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span><span class="n">congr</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span>
+  <span class="n">withMainContext</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">x</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">x</span><span class="bp">?.</span><span class="n">map</span> <span class="bp">&lt;|</span> <span class="k">fun</span> <span class="n">card</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">Syntax.isNatLit</span><span class="bp">?</span> <span class="n">card</span><span class="o">)</span><span class="bp">.</span><span class="n">get</span><span class="bp">!</span>
+    <span class="n">liftMetaTactic</span> <span class="o">(</span><span class="n">Meta.congr</span> <span class="n">x</span><span class="bp">?</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throwIllFormedSyntax</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="n">w</span><span class="o">:</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">f</span> <span class="n">g</span><span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">):</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">g</span> <span class="n">w</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">z</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">congr</span>
+  <span class="n">repeat</span> <span class="o">(</span><span class="n">exact</span> <span class="gr">sorry</span><span class="o">)</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">f</span> <span class="n">g</span><span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">):</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="o">(</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">))</span> <span class="bp">=</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="o">(</span><span class="n">y</span> <span class="bp">+</span> <span class="n">x</span><span class="o">))</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">congr</span> <span class="mi">2</span> <span class="c1">-- goal remaining : x + y = y + x</span>
+  <span class="n">skip</span>
+  <span class="n">repeat</span> <span class="o">(</span><span class="n">exact</span> <span class="gr">sorry</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="276051884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276051884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276051884">(Mar 21 2022 at 13:42)</a>:</h4>
+<p><code>rcasesPat</code> is declared (and expanded) <a href="https://github.com/leanprover-community/mathlib4/blob/ead320ed6c371c3fe2a693e800e72bbb006f5055/Mathlib/Tactic/RCases.lean#L59">here</a></p>
+
+
+
+<a name="276061651"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276061651" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276061651">(Mar 21 2022 at 14:51)</a>:</h4>
+<p>Thanks. What would it mean to have such a pattern in the <code>congr</code> tactic?</p>
+
+
+
+<a name="276062662"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276062662" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276062662">(Mar 21 2022 at 14:56)</a>:</h4>
+<p>I don't know :D<br>
+But I think Mario or Gabriel will be able to explain</p>
+
+
+
+<a name="276063014"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276063014" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276063014">(Mar 21 2022 at 14:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> Can I ask what it means to say <code>congr with (x, y)</code> or some other such pattern? Should one try to match both sides of an equality to the pattern, or the full proposition? Is it done before, after, or instead of function application?<br>
+Or is it something entirely different?</p>
+
+
+
+<a name="276065319"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276065319" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276065319">(Mar 21 2022 at 15:11)</a>:</h4>
+<p>In lean 3 it's just that <code>rcases</code> is being applied to the introduced variable(s) with that pattern (or <code>rintro</code>)</p>
+
+
+
+<a name="276067365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276067365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276067365">(Mar 21 2022 at 15:22)</a>:</h4>
+<p>I see. <br>
+Does this mean that after each iteration of <code>apply congr</code> I should call <code>rcases</code> on the returned variables? With a failure not being an error, but just not decomposing further?</p>
+
+
+
+<a name="276098207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276098207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276098207">(Mar 21 2022 at 18:53)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.interactive.congr'/src">src#tactic.interactive.congr'</a></p>
+
+
+
+<a name="276098587"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276098587" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276098587">(Mar 21 2022 at 18:56)</a>:</h4>
+<p>the two parts are not intermingled, and you can probably just write it as a macro tactic. It does <code>(congr n with pats) := focus (congr n &lt;;&gt; ext pats)</code></p>
+
+
+
+<a name="276098664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276098664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276098664">(Mar 21 2022 at 18:57)</a>:</h4>
+<p>(For this kind of tactic implementation I do recommend reading the source of the original tactic to get the control flow right)</p>
+
+
+
+<a name="276147492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276147492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276147492">(Mar 22 2022 at 06:17)</a>:</h4>
+<p>Thanks. Indeed I should look at lean 3 mathlib and the already implemented tactics more. <br>
+In this case:</p>
+<ul>
+<li>there is non <code>congr</code> (yet?) in lean 4, and the syntax seems to be for a single <code>congr</code> tactic covering various cases; so stuff does not directly translate.</li>
+<li>I see at <a href="https://github.com/leanprover-community/mathlib4/blob/226f899cb18cb76990f480dd8b79b6d341e44797/Mathlib/Tactic/Ext.lean#L145">https://github.com/leanprover-community/mathlib4/blob/226f899cb18cb76990f480dd8b79b6d341e44797/Mathlib/Tactic/Ext.lean#L145</a> that the case of <code>ext</code> that must be called is not ready yet (and when ready it seems easy enough to call).</li>
+</ul>
+<p>So it seems the best I can do now is do what <code>congr</code> and <code>congr'</code> did in mathlib for lean 3. I will try to streamline my code, and any suggestions to improve it are very welcome.</p>
+
+
+
+<a name="276156020"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276156020" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276156020">(Mar 22 2022 at 08:30)</a>:</h4>
+<p>Apologies  <span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  : I see that <code>lean 3</code> docs clearly say <code>ext</code> is used with given pattern. I will read these with care in the future.</p>
+
+
+
+<a name="276156110"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276156110" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276156110">(Mar 22 2022 at 08:31)</a>:</h4>
+<p>I mean the source specifically, not just the docs. Sometimes the docs are vague about what happens in such and such edge case, but you can find out by reading the source and/or doing some unit testing of the tactic</p>
+
+
+
+<a name="276156251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276156251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276156251">(Mar 22 2022 at 08:33)</a>:</h4>
+<p>I believe that <code>congr</code> should exist in lean 4 for the same reason it existed in lean 3: it was originally written as an internal mechanism for <code>simp</code> to be able to traverse inside terms, and it was later exposed as a standalone tactic</p>
+
+
+
+<a name="276157000"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276157000" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276157000">(Mar 22 2022 at 08:41)</a>:</h4>
+<p>I realized that, but it is more egregious to miss something in the docs. As I started using lean 4 without using lean 3 more than a tiny amount, I have not gotten the habit of looking at the lean 3 sources (while learning most things by trawling the lean 4 source).</p>
+<p>I see meanwhile that <code>ext</code> now supports the <code>rintro</code> syntax. I will try to cover that case too.</p>
+
+
+
+<a name="276158463"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276158463" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276158463">(Mar 22 2022 at 08:57)</a>:</h4>
+<p>Specific question: <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span>  and <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> : the (unimplemented) syntax of <code>congr</code> uses <code>rcasesPat</code> while the syntax of <code>ext</code>uses <code>rintroPat</code>. On the other hand a TODO in <code>ext</code> mentioned <code>rcasesPat</code> as intended syntax.</p>
+<p>My question: is this a result of everything being in a transient state, or is the intention that <code>ext</code> is called after relating the two types of patterns (I can see that they are related)?</p>
+
+
+
+<a name="276158625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276158625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276158625">(Mar 22 2022 at 08:59)</a>:</h4>
+<p>The lean 4 tactics are intended to be an exact match (or possibly a superset) for the corresponding lean 3 tactics. So the source of truth here is whatever is in mathlib</p>
+
+
+
+<a name="276159152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276159152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276159152">(Mar 22 2022 at 09:04)</a>:</h4>
+<p>For tactics that do a list of name introductions with pattern matching, <code>rintroPat</code> makes more sense. Note that <code>rintroPat</code> is a superset of <code>rcasesPat</code>, which supports binders like <code>(a b c : Nat)</code> that would not make sense as a cases/obtain pattern e.g. <code>obtain (a b c: Nat) := foo</code></p>
+
+
+
+<a name="276159202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276159202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276159202">(Mar 22 2022 at 09:04)</a>:</h4>
+<p>So IMO both <code>congr</code> and <code>ext</code> should use  <code>rintroPat</code></p>
+
+
+
+<a name="276179117"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276179117" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276179117">(Mar 22 2022 at 12:14)</a>:</h4>
+<p>I have made a pull request at <a href="https://github.com/leanprover-community/mathlib4/pull/247">https://github.com/leanprover-community/mathlib4/pull/247</a>. As far as I can tell this is correct in the basic cases. I could not test the case with patterns.</p>
+<p>If there is something I should change to fit in with the porting plans (or because it is wrong) please let me know. I plan to try implementing <code>symm</code>, <code>trans</code> and <code>rfl'</code> next (modeled on the <code>ext</code> implementation).</p>
+
+
+
+<a name="276179289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276179289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276179289">(Mar 22 2022 at 12:16)</a>:</h4>
+<p>Incidentally, <code>ext</code> gives a confusing error message when the tactic fails, saying <strong>incorrect syntax</strong> and including a whole block (maybe it is trying to parse the whole block as a tactic).</p>
+
+
+
+<a name="276182868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276182868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276182868">(Mar 22 2022 at 12:48)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mwe.html">#mwe</a>?</p>
+
+
+
+<a name="276182943"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276182943" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276182943">(Mar 22 2022 at 12:49)</a>:</h4>
+<p>That sounds like a bug in the parser or the input, so what does the input look like?</p>
+
+
+
+<a name="276185245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276185245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276185245">(Mar 22 2022 at 13:06)</a>:</h4>
+<p>Modified from the test file:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">C</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ext</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="276185765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276185765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276185765">(Mar 22 2022 at 13:10)</a>:</h4>
+<p>Since <code>ext x</code> is perfectly valid syntax which works elsewhere, I would expect a failed tactic, but we get <strong>incorrect syntax</strong>.<br>
+I get a similar error elsewhere, but that could be my mistake.</p>
+
+
+
+<a name="276185938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276185938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276185938">(Mar 22 2022 at 13:12)</a>:</h4>
+<p>I guess the above was not self-contained, so here is a fuller example (the above is <code>ext.lean</code> modified).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Tactic.Ext</span>
+<span class="kn">import</span> <span class="n">Mathlib.Init.Logic</span>
+
+<span class="kd">structure</span> <span class="n">A</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">a</span> <span class="o">:</span> <span class="n">Nat</span>
+
+<span class="kd">structure</span> <span class="n">B</span> <span class="o">(</span><span class="n">n</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">A</span> <span class="n">n</span> <span class="n">where</span>
+  <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span>
+  <span class="n">h</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">&gt;</span> <span class="mi">0</span>
+  <span class="n">i</span> <span class="o">:</span> <span class="n">Fin</span> <span class="n">b</span>
+
+<span class="kd">@[ext]</span> <span class="kd">structure</span> <span class="n">C</span> <span class="o">(</span><span class="n">n</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">B</span> <span class="n">n</span> <span class="n">where</span>
+  <span class="n">c</span> <span class="o">:</span> <span class="n">Nat</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">C</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ext</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="276186009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186009">(Mar 22 2022 at 13:13)</a>:</h4>
+<p>The <code>ext</code> attribute before the example is throwing several index out of bounds errors</p>
+
+
+
+<a name="276186214"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186214" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186214">(Mar 22 2022 at 13:14)</a>:</h4>
+<p>I see that too. Had not noticed.</p>
+
+
+
+<a name="276186305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186305">(Mar 22 2022 at 13:15)</a>:</h4>
+<p>Note that one way tactics can "throw an error" is <code>throwUnsupportedSyntax</code> which is usually used to allow overlapping syntaxes to take a shot at interpreting the input. I guess this is what it looks like if nothing is found</p>
+
+
+
+<a name="276186793"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186793" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186793">(Mar 22 2022 at 13:19)</a>:</h4>
+<p>I checked in mathlib4 and all cases I see of <code>throwUnsupportedSyntax</code> are the fallback case in a pattern match.</p>
+
+
+
+<a name="276186857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186857">(Mar 22 2022 at 13:20)</a>:</h4>
+<p>I am puzzled by this being triggered in a context dependent way, i.e., not just the syntactic context.</p>
+
+
+
+<a name="276186903"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186903" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186903">(Mar 22 2022 at 13:20)</a>:</h4>
+<p>it's also used by things like <code>macro_rules</code> and <code>elab_rules</code> as the implicit fallback</p>
+
+
+
+<a name="276186960"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276186960" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276186960">(Mar 22 2022 at 13:20)</a>:</h4>
+<p>I don't see evidence that this is not simply a syntactic issue</p>
+
+
+
+<a name="276187534"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276187534" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276187534">(Mar 22 2022 at 13:25)</a>:</h4>
+<p>In the same file, the following is valid</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">×</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="bp">=</span> <span class="n">g</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ext</span> <span class="n">x</span>
+</code></pre></div>
+<p>but the following is not</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">C</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">ext</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="276187567"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276187567" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276187567">(Mar 22 2022 at 13:25)</a>:</h4>
+<p>I think <code>rintro</code> is throwing the exception</p>
+
+
+
+<a name="276187674"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276187674" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276187674">(Mar 22 2022 at 13:26)</a>:</h4>
+<p>because <code>ext x</code> expands to <code>apply_ext_lemma; rintro x; skip</code></p>
+
+
+
+<a name="276187904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276187904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276187904">(Mar 22 2022 at 13:27)</a>:</h4>
+<p>I see. My main concern is somewhere else where I have seemingly identical code which works if entered by hand but not by macros. I feel this may be related.</p>
+
+
+
+<a name="276187970"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276187970" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276187970">(Mar 22 2022 at 13:28)</a>:</h4>
+<p>I think it's a precedence issue in <code>rintroPat</code></p>
+
+
+
+<a name="276188049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276188049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276188049">(Mar 22 2022 at 13:28)</a>:</h4>
+<p>Here is the full code (the macro is based on what you said).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean.Meta</span>
+<span class="kn">import</span> <span class="n">Mathlib.Mathport.Syntax</span>
+<span class="kn">import</span> <span class="n">Mathlib.Tactic.Ext</span>
+
+<span class="kn">namespace</span> <span class="n">Mathlib.Tactic.Congr</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span> <span class="n">Elab</span>
+
+<span class="sd">/-- try to close goal using reflexivity and subsingletons -/</span>
+<span class="kd">def</span> <span class="n">tryCloseGoal</span> <span class="o">(</span><span class="n">mvar</span><span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkConstWithFreshMVarLevels</span> <span class="bp">``</span><span class="n">Eq.refl</span><span class="o">)</span>
+    <span class="n">unless</span> <span class="n">res.isEmpty</span> <span class="k">do</span>
+      <span class="n">throwError</span> <span class="s2">"failed to close goal"</span>
+    <span class="n">pure</span> <span class="n">true</span>
+  <span class="n">catch</span> <span class="n">_</span> <span class="bp">=&gt;</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkConstWithFreshMVarLevels</span> <span class="bp">``</span><span class="n">Subsingleton.intro</span><span class="o">)</span>
+    <span class="n">unless</span> <span class="n">res.isEmpty</span> <span class="k">do</span>
+      <span class="n">throwError</span> <span class="s2">"failed to close goal"</span>
+    <span class="n">pure</span> <span class="n">true</span>
+  <span class="n">catch</span> <span class="n">_</span> <span class="bp">=&gt;</span>
+    <span class="n">pure</span> <span class="n">false</span>
+
+<span class="sd">/-- apply `congr` after trying to close goal, optionally return result if successful -/</span>
+<span class="kd">def</span> <span class="n">congrStep</span><span class="bp">?</span> <span class="o">(</span><span class="n">mvar</span><span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">Option</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">))</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">closed</span>  <span class="bp">←</span> <span class="n">tryCloseGoal</span> <span class="n">mvar</span>
+  <span class="k">if</span> <span class="bp">!</span><span class="n">closed</span> <span class="k">then</span>
+    <span class="n">try</span>
+      <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span>  <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkConstWithFreshMVarLevels</span> <span class="bp">``</span><span class="n">congr</span><span class="o">)</span>
+      <span class="n">return</span> <span class="n">some</span> <span class="n">res</span>
+    <span class="n">catch</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+      <span class="n">pure</span> <span class="n">none</span>
+  <span class="k">else</span>
+    <span class="n">pure</span> <span class="n">none</span>
+
+<span class="sd">/-- recursively apply congr and try to close goals, not an error if tactics fail -/</span>
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">recCongr</span><span class="o">(</span><span class="n">maxDepth</span><span class="bp">?</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">mvar</span><span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">closeOnly</span> <span class="o">:</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="o">(</span><span class="n">maxDepth</span><span class="bp">?.</span><span class="n">map</span> <span class="o">(</span><span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">decide</span> <span class="o">(</span><span class="n">n</span> <span class="bp">≤</span>  <span class="mi">1</span><span class="o">)))</span><span class="bp">.</span><span class="n">getD</span> <span class="n">false</span>
+  <span class="k">if</span> <span class="n">closeOnly</span> <span class="k">then</span>
+    <span class="k">let</span>  <span class="n">chk</span> <span class="bp">←</span> <span class="n">tryCloseGoal</span> <span class="n">mvar</span>
+    <span class="k">if</span> <span class="n">chk</span> <span class="k">then</span> <span class="n">return</span> <span class="o">[]</span> <span class="k">else</span> <span class="n">return</span> <span class="o">[</span><span class="n">mvar</span><span class="o">]</span>
+  <span class="k">let</span> <span class="n">res</span> <span class="bp">←</span> <span class="n">congrStep</span><span class="bp">?</span> <span class="n">mvar</span>
+  <span class="k">match</span> <span class="n">res</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">depth</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">maxDepth</span><span class="bp">?.</span><span class="n">map</span> <span class="o">(</span><span class="k">fun</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+    <span class="k">let</span> <span class="n">groups</span> <span class="bp">←</span> <span class="n">xs.mapM</span> <span class="o">(</span><span class="n">recCongr</span> <span class="n">depth</span><span class="bp">?</span><span class="o">)</span>
+    <span class="n">return</span> <span class="n">groups.bind</span> <span class="n">id</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="o">[</span><span class="n">mvar</span><span class="o">]</span>
+
+<span class="sd">/-- apply `congr` and then continue recursively; error if first application fails -/</span>
+<span class="kd">def</span> <span class="n">Meta.congr</span><span class="o">(</span><span class="n">maxDepth</span><span class="bp">?</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">mvar</span> <span class="o">:</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="o">(</span><span class="n">List</span> <span class="n">MVarId</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">u</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+    <span class="k">let</span> <span class="n">v</span> <span class="bp">←</span> <span class="n">mkFreshLevelMVar</span>
+    <span class="k">let</span> <span class="n">xs</span> <span class="bp">←</span> <span class="n">Meta.apply</span> <span class="n">mvar</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">congr</span> <span class="o">[</span><span class="n">u</span><span class="o">,</span> <span class="n">v</span><span class="o">])</span>
+    <span class="k">let</span> <span class="n">groups</span> <span class="bp">←</span> <span class="n">xs.mapM</span> <span class="o">(</span><span class="n">recCongr</span> <span class="n">maxDepth</span><span class="bp">?</span><span class="o">)</span>
+    <span class="n">return</span> <span class="n">groups.bind</span> <span class="n">id</span>
+  <span class="n">catch</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+    <span class="n">throwTacticEx</span> <span class="bp">`</span><span class="n">congr</span> <span class="n">mvar</span> <span class="n">e.toMessageData</span>
+
+<span class="kn">open</span> <span class="n">Lean.Elab.Tactic</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">congrBase</span><span class="o">)</span> <span class="s2">"congr_base"</span> <span class="o">(</span><span class="n">ppSpace</span> <span class="o">(</span><span class="n">colGt</span> <span class="n">num</span><span class="o">))</span><span class="bp">?</span> <span class="o">:</span> <span class="n">tactic</span>
+
+<span class="sd">/--</span>
+<span class="sd">The `congr` tactic attempts to identify both sides of an equality goal `A = B`, leaving as new goals the subterms of `A` and `B` which are not definitionally equal. Example: suppose the goal is `x * f y = g w * f z`. Then congr will produce two goals: `x = g w` and `y = z`.</span>
+
+<span class="sd">If `x y : t`, and an instance subsingleton t is in scope, then any goals of the form `x = y` are solved automatically.</span>
+
+<span class="sd">The `congr` tactic, but takes an optional argument which gives</span>
+<span class="sd">the depth of recursive applications.</span>
+<span class="sd">* This is useful when `congr` without a depth bound is too aggressive in breaking down the goal.</span>
+<span class="sd">* For example, given `⊢ f (g (x + y)) = f (g (y + x))`, `congr'` produces the goals `⊢ x = y`</span>
+<span class="sd">  and `⊢ y = x`, while `congr' 2` produces the intended `⊢ x + y = y + x`.</span>
+<span class="sd">* If, at any point, a subgoal matches a hypothesis then the subgoal will be closed.</span>
+<span class="sd">-/</span>
+<span class="kd">@[tactic congrBase]</span> <span class="kd">def</span> <span class="n">congrTacticImpl</span> <span class="o">:</span> <span class="n">Tactic</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="bp">=&gt;</span>
+<span class="k">match</span> <span class="n">stx</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span><span class="n">congr_base</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span>
+  <span class="n">withMainContext</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">x</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">x</span><span class="bp">?.</span><span class="n">map</span> <span class="bp">&lt;|</span> <span class="k">fun</span> <span class="n">card</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">Syntax.isNatLit</span><span class="bp">?</span> <span class="n">card</span><span class="o">)</span><span class="bp">.</span><span class="n">get</span><span class="bp">!</span>
+    <span class="n">liftMetaTactic</span> <span class="o">(</span><span class="n">Meta.congr</span> <span class="n">x</span><span class="bp">?</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">throwIllFormedSyntax</span>
+
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">congr</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span><span class="n">congr_base</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">congr</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?</span> <span class="k">with</span> <span class="bp">$</span><span class="n">xs</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">congr_base</span> <span class="bp">$</span><span class="o">(</span><span class="n">x</span><span class="bp">?</span><span class="o">)</span><span class="bp">?;</span> <span class="n">ext</span> <span class="bp">$</span><span class="n">xs</span><span class="o">)</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="n">w</span><span class="o">:</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">f</span> <span class="n">g</span><span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">):</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">g</span> <span class="n">w</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">z</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">congr</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">g</span> <span class="n">w</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="n">assumption</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">z</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="n">assumption</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">f</span> <span class="n">g</span><span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">):</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="o">(</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">))</span> <span class="bp">=</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="o">(</span><span class="n">y</span> <span class="bp">+</span> <span class="n">x</span><span class="o">))</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">congr</span> <span class="mi">2</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">+</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">+</span> <span class="n">x</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="n">assumption</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)(</span><span class="n">f</span> <span class="n">g</span><span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">):</span> <span class="n">f</span> <span class="o">(</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">g</span> <span class="o">(</span><span class="n">y</span> <span class="bp">+</span> <span class="n">x</span><span class="o">))</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">-- congr 2 with x</span>
+  <span class="n">congr_base</span> <span class="mi">2</span><span class="bp">;</span> <span class="n">ext</span> <span class="n">x</span>
+  <span class="gr">admit</span>
+  <span class="gr">admit</span>
+  <span class="gr">admit</span>
+</code></pre></div>
+
+
+
+<a name="276188431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276188431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276188431">(Mar 22 2022 at 13:31)</a>:</h4>
+<p>If I uncomment the commented line close to the end and comment the next, I get the error <strong>unexpected syntax</strong> with the block just like that inserted by hand giving an error. <br>
+I don't understand macros well, so assumed it was my error. But I see the behaviour that I at least do not expect elsewhere, and suspect these  are related.</p>
+
+
+
+<a name="276193249"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276193249" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276193249">(Mar 22 2022 at 14:05)</a>:</h4>
+<p>I minimized the issue to the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="n">elab</span> <span class="s2">"fails"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="s2">"nope"</span>
+
+<span class="n">syntax</span> <span class="s2">"foo"</span> <span class="o">(</span><span class="n">ppSpace</span> <span class="n">ident</span><span class="o">)</span><span class="bp">?</span> <span class="o">:</span> <span class="n">tactic</span>
+<span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">foo</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">skip</span><span class="o">)</span>
+<span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">foo</span> <span class="bp">$</span><span class="n">x</span><span class="o">:</span><span class="n">ident</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">fails</span><span class="bp">;</span> <span class="n">skip</span><span class="o">)</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">foo</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="276193543"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276193543" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276193543">(Mar 22 2022 at 14:07)</a>:</h4>
+<p>The problem seems to be that when a macro has multiple <code>macro_rules</code> definitions, if all of the definitions fail (in any way, not just by <code>throwUnsupportedSyntax</code>) then it throws a syntax error instead of the result of the (first? last?) tactic</p>
+
+
+
+<a name="276193695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276193695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276193695">(Mar 22 2022 at 14:08)</a>:</h4>
+<p>which makes me think that it is best not used as a control flow mechanism in nontrivial cases</p>
+
+
+
+<a name="276193889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276193889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276193889">(Mar 22 2022 at 14:10)</a>:</h4>
+<p>the macro in question is <code>ext_or_simp</code> btw</p>
+
+
+
+<a name="276193952"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276193952" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276193952">(Mar 22 2022 at 14:10)</a>:</h4>
+<p>and this syntax error is going to bubble up to <code>ext</code> and <code>congr</code> that call this tactic internally</p>
+
+
+
+<a name="276196443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276196443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276196443">(Mar 22 2022 at 14:28)</a>:</h4>
+<p>A lot of the lean 4 tactics seem to be implemented at Meta/Elab level and chained that way.</p>
+
+
+
+<a name="276196488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276196488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276196488">(Mar 22 2022 at 14:28)</a>:</h4>
+<p>Perhaps that is the most robust approach.</p>
+
+
+
+<a name="276196546"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276196546" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276196546">(Mar 22 2022 at 14:28)</a>:</h4>
+<p>Call things as functions, rather than manipulate syntax.</p>
+
+
+
+<a name="276196606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276196606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276196606">(Mar 22 2022 at 14:29)</a>:</h4>
+<p>I am very biased by being much more comfortable with the non-syntactic style.</p>
+
+
+
+<a name="276203956"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276203956" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276203956">(Mar 22 2022 at 15:14)</a>:</h4>
+<p>I also think that <code>elab</code> tactics are superior: you have more control, less overhead, and a reasonable programming language to work in</p>
+
+
+
+<a name="276204135"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276204135" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276204135">(Mar 22 2022 at 15:15)</a>:</h4>
+<p>I would only prefer macro tactics for trivial syntactic manipulations. Even something like <code>repeat</code> is a bit of a stretch to do as a recursive macro expansion</p>
+
+
+
+<a name="276205261"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276205261" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276205261">(Mar 22 2022 at 15:22)</a>:</h4>
+<p>What has happened here is that I had to go to a syntactic level as the tactics to use are at macro level. Best may be to move to something else for now without this problem (e.g. an attempt at <code>symm</code>).</p>
+
+
+
+<a name="276205719"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276205719" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276205719">(Mar 22 2022 at 15:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps/near/276203956">said</a>:</p>
+<blockquote>
+<p>less overhead</p>
+</blockquote>
+<p>Why do <code>elab</code> tactics have less overhead? I thought it was more expensive to lift a <code>TacticM</code> monad</p>
+
+
+
+<a name="276206107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206107">(Mar 22 2022 at 15:27)</a>:</h4>
+<p>lifting is usually negative work: there is some small overhead to prepare the input and output but most of the execution is now happening in a smaller monad which means less things to pass around on every step</p>
+
+
+
+<a name="276206229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206229">(Mar 22 2022 at 15:27)</a>:</h4>
+<p>the thing that makes macro tactics expensive is that you are constantly parsing and reinterpreting syntax into expressions</p>
+
+
+
+<a name="276206361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206361">(Mar 22 2022 at 15:28)</a>:</h4>
+<p>if you use <code>repeat</code> to execute <code>exact foo</code> a bunch of times it has to parse and elaborate the syntax <code>foo</code> into an expression many times</p>
+
+
+
+<a name="276206440"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206440" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206440">(Mar 22 2022 at 15:29)</a>:</h4>
+<p>whereas if you have a MetaM tactic <code>foo</code> will usually be an <code>Expr</code> already</p>
+
+
+
+<a name="276206515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206515">(Mar 22 2022 at 15:29)</a>:</h4>
+<p>Got it. And then calling <code>evalTactic ⋯</code> inside <code>TacticM</code> is even more expensive I presume?</p>
+
+
+
+<a name="276206566"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206566" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206566">(Mar 22 2022 at 15:29)</a>:</h4>
+<p>it's about the same cost as a macro tactic</p>
+
+
+
+<a name="276206656"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206656" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206656">(Mar 22 2022 at 15:30)</a>:</h4>
+<p>probably a bit less since you aren't calling <code>expandMacros</code> too</p>
+
+
+
+<a name="276206791"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206791" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206791">(Mar 22 2022 at 15:31)</a>:</h4>
+<p>On the other hand, interactive tactics do a lot of things for you and when you take it into your own hands you have to make sure to do all the side stuff</p>
+
+
+
+<a name="276206994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276206994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276206994">(Mar 22 2022 at 15:32)</a>:</h4>
+<p>for example <a href="https://github.com/leanprover-community/mathlib4/blob/b59f265dafebcca990e5710ae008691a4b549ea6/Mathlib/Tactic/Have.lean#L52">this</a> is needed for getting go-to-definition on a binder to work</p>
+
+
+
+<a name="276207126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276207126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276207126">(Mar 22 2022 at 15:33)</a>:</h4>
+<p>eventually we will reimplement these things enough times that the common utilities will naturally be discovered</p>
+
+
+
+<a name="276287629"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276287629" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276287629">(Mar 23 2022 at 04:38)</a>:</h4>
+<p>Some updates: now I cover the <code>ext</code> case as well at least in a basic example. I had to struggle a bit to pass around the syntax, and things worked when - as <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> said should be the case - I changed <code>rcasesPat</code> to <code>rintroPat</code>in the syntax for <code>congr</code> (otherwise when the syntax was passed around it was no longer recognized).</p>
+<p>Can I request a review <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> ? This looks to me like a largely correct implementation, and before trying more implementations I want to understand how this matches with the maintainers expectations.</p>
+
+
+
+<a name="276287994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276287994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276287994">(Mar 23 2022 at 04:46)</a>:</h4>
+<p>I suspect that just calling <code>apply congr</code> isn't going to work in dependent situations. Did you take a look at how <code>simp</code> is currently doing congruence and whether you can reuse that backend?</p>
+
+
+
+<a name="276288131"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276288131" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276288131">(Mar 23 2022 at 04:48)</a>:</h4>
+<p>You should try porting the lean 3 tests for <code>congr</code> if there are any; you need more dependent function and subsingleton tests, for example congruence of <code>if</code> expressions</p>
+
+
+
+<a name="276288590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276288590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276288590">(Mar 23 2022 at 04:57)</a>:</h4>
+<p>I think you should look into <a href="https://leanprover-community.github.io/mathlib4_docs/find/?pattern=Lean.Meta.CongrTheorem#src">src4#Lean.Meta.CongrTheorem</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.congr/src">src#tactic.congr</a></p>
+
+
+
+<a name="276289336"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276289336" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276289336">(Mar 23 2022 at 05:09)</a>:</h4>
+<p>Thanks <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> - I will read the sources you mention and look for tests.</p>
+
+
+
+<a name="276289422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276289422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276289422">(Mar 23 2022 at 05:10)</a>:</h4>
+<p>the main logic is in <a href="https://leanprover-community.github.io/mathlib4_docs/find/?pattern=Lean.Meta.Simp.simp#src">src4#Lean.Meta.Simp.simp</a> which clearly has a congruence component, but it's not clear how extractable it is from the simp core</p>
+
+
+
+<a name="276289627"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276289627" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276289627">(Mar 23 2022 at 05:14)</a>:</h4>
+<p>I think you want to adapt <code>tryAutoCongrTheorem?</code> to do something similar but call <code>congr</code> instead of <code>simp</code> recursively</p>
+
+
+
+<a name="276290144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276290144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276290144">(Mar 23 2022 at 05:24)</a>:</h4>
+<p>Yes, it does look like much of the work is done there. On the other hand, I believe <code>simp</code> will not resolve <code>f x = g y</code> to goals <code>f = g</code> and <code>x = y</code>, as <code>congr</code> should. I will digest the code and then get back to trying to implement a better <code>congr</code>.</p>
+<p>I should also follow the same <code>congr_core</code> pattern as the lean implementation (with updated syntax).</p>
+
+
+
+<a name="276291634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276291634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276291634">(Mar 23 2022 at 05:55)</a>:</h4>
+<p>We aren't using <code>simp</code> directly here, so the question is closer to whether <code>simp</code> is capable of performing simplifications when they are available in both <code>f</code> and <code>x</code>. And it looks like it is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">h1</span> <span class="o">:</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="bp">=</span> <span class="n">g</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">g</span> <span class="n">y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">h1</span><span class="o">,</span> <span class="n">h2</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="276291699"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276291699" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276291699">(Mar 23 2022 at 05:56)</a>:</h4>
+<p><code>congr</code> uses the same steps as <code>simp</code>, it just does the subgoal management differently</p>
+
+
+
+<a name="276293728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276293728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276293728">(Mar 23 2022 at 06:40)</a>:</h4>
+<p>Shouldn't <code>congr</code> break up <code>f x = g y</code> into <code>f = g</code> and <code>x = y</code>, as <code>apply congr</code> will? I agree with your point that most (perhaps all) of the non-trivial stuff done will overlap with <code>simp</code>, and indeed the code for <code>simp</code> shows this.</p>
+
+
+
+<a name="276294258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276294258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276294258">(Mar 23 2022 at 06:50)</a>:</h4>
+<p>Okay, I see from the lean 3 code that one matches for a (heterogeneous) equality, then looks if the lhs is a function application and if it is uses the same stuff as in simplification.</p>
+
+
+
+<a name="276294365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr%20tactic%3A%20first%20steps/near/276294365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/congr.20tactic.3A.20first.20steps.html#276294365">(Mar 23 2022 at 06:52)</a>:</h4>
+<p>In lean 4 there are methods <code>Expr.eq?</code> and <code>Expr.heq?</code> which do the matching (I have used the former a fair bit). So one can glue these with appropriately extracted code from <code>simp</code> (which I have to digest further to know what is the appropriate code).</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

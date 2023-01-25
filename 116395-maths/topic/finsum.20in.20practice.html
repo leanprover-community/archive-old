@@ -1,0 +1,193 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/116395-maths/topic/finsum.20in.20practice.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/index.html">maths</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html">finsum in practice</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="273129482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273129482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273129482">(Feb 24 2022 at 18:22)</a>:</h4>
+<p>I've recently been playing with an implementation of finite probability distributions (and the distribution monad). I can share that work if people are interested, but it isn't the point of this post.</p>
+<p>Obviously, one of the conditions that needs to hold for a pmf is that its sum over its support is 1. As I was doing things finitely, I had to decide how to achieve the finite sum condition. Because I want to sum over arbitrary types (e.g. consider a pmf on the reals which is finitely-supported), it didn't make sense to use finset.sum. I considered finsupp, but the machinery felt too much and for various technical reasons it turned out to be tricky to use. I did have good success with finsum, though.</p>
+<p>As a result of this work, I've ended up with a few finsum lemmas, and I might yet PR these on their own. But I've also found finsum a) a really useful notation and concept, as sometimes you just want to reason about stuff non-constructively and use set.finite a lot, b) quite hard to use in its current form and with the current definition. I note that it doesn't appear to have much actual use in mathlib, and I'm interested in other people's experiences with it. I think there could be a case for an extensive rewrite that aims to more closely mirror finset.sum, but which provides a more fully-featured API that stays within the finsum world (one example: currently there are no finsum lemmas for ordered monoids, which can be a real pain; another example might be that the current definition of finsum (well, finprod, but same difference) provides the facility to sum over functions on Sorts rather on Types, which allows for some quite nice notation - but there isn't lots of interface for that notation).</p>
+<p>I wanted to open a conversation about what the aim of this part of mathlib is, from the perspective of the maintainers, and if there's any interest in reworking it. I don't see any value in adding yet another way of doing finite sums, so to be clear the idea would be to rework finsum (as it's barely used in mathlib, there's a lot of scope to change it without breaking much) rather than add Yet Another Finite Sum.</p>
+<p>Hope this is OK to post. Thanks.</p>
+<p>I was wondering what the history of this bit of mathlib was</p>
+
+
+
+<a name="273130195"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273130195" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273130195">(Feb 24 2022 at 18:28)</a>:</h4>
+<p>Concerning the history: <code>finsum</code> is pretty new. That's why there is so much use of <code>finset.sum</code>. There has been an attempt to duplicate the API, but lots of things haven't moved over to <code>finsum</code> yet.</p>
+
+
+
+<a name="273131739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273131739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273131739">(Feb 24 2022 at 18:42)</a>:</h4>
+<p>Why was <code>finsum</code> implemented the way it was (using <code>Sort u</code> in the domain) - was it simply for notational reasons?</p>
+
+
+
+<a name="273131921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273131921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273131921">(Feb 24 2022 at 18:44)</a>:</h4>
+<p>How would you express "the sum of all odd integers in my set"?</p>
+
+
+
+<a name="273132048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132048">(Feb 24 2022 at 18:45)</a>:</h4>
+<p>To show you what I mean: this is what I might call my "naive" way of implementing it, mirroring <code>finset.sum</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">finprod</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">comm_monoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">mul_support</span> <span class="n">f</span><span class="o">)</span><span class="bp">.</span><span class="n">finite</span> <span class="k">then</span> <span class="bp">∏</span> <span class="n">i</span> <span class="k">in</span> <span class="n">h.to_finset</span><span class="o">,</span> <span class="n">f</span> <span class="n">i</span> <span class="k">else</span> <span class="mi">1</span>
+</code></pre></div>
+<p>But this is how it's actually done:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">finprod</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">comm_monoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">finite</span> <span class="o">(</span><span class="n">mul_support</span> <span class="o">(</span><span class="n">f</span> <span class="bp">∘</span> <span class="n">plift.down</span><span class="o">))</span> <span class="k">then</span> <span class="bp">∏</span> <span class="n">i</span> <span class="k">in</span> <span class="n">h.to_finset</span><span class="o">,</span> <span class="n">f</span> <span class="n">i.down</span> <span class="k">else</span> <span class="mi">1</span>
+</code></pre></div>
+<p>I get that that lets you do things like ∏ᶠ i &lt; 3, f i, say, and you can get the form by doing ∏ᶠ i ∈ s, f i. But how often is the former used?</p>
+
+
+
+<a name="273132395"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132395" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132395">(Feb 24 2022 at 18:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/116395-maths/topic/finsum.20in.20practice/near/273131921">said</a>:</p>
+<blockquote>
+<p>How would you express "the sum of all odd integers in my set"?</p>
+</blockquote>
+<p><code>∑ᶠ i in { i  | i ∈ s ∧ odd i}, i</code> (with notation defined in the same way that <code>finset.sum</code> does).</p>
+
+
+
+<a name="273132462"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132462" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132462">(Feb 24 2022 at 18:49)</a>:</h4>
+<p>Aside: you can use <code> `single backticks` </code> for inline code</p>
+
+
+
+<a name="273132507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132507">(Feb 24 2022 at 18:49)</a>:</h4>
+<p>Sorry, I did know that - forgot.</p>
+
+
+
+<a name="273132533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132533">(Feb 24 2022 at 18:49)</a>:</h4>
+<p>But the <code>∑ᶠ i &lt; 3, f i</code> notation is really nice, I think</p>
+
+
+
+<a name="273132543"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132543" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132543">(Feb 24 2022 at 18:49)</a>:</h4>
+<p>I 100% agree.</p>
+
+
+
+<a name="273132553"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132553" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132553">(Feb 24 2022 at 18:49)</a>:</h4>
+<p>It's lovely notation.</p>
+
+
+
+<a name="273132994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273132994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273132994">(Feb 24 2022 at 18:53)</a>:</h4>
+<p>But I found it hard to use in practice - because for most reasoning I wanted to do, what I really wanted to do was be summing on sets, and I wasn't clear how I might use <code>∑ᶠ i &lt; 3, f i</code>. Like... <code>∑ᶠ i &lt; 3, f i = ∑ᶠ i &lt; 1, f i + ∑ᶠ i &lt; 3 (h : 0 &lt; i), f i</code>, right? But it's so fiddly to use.</p>
+
+
+
+<a name="273133518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273133518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273133518">(Feb 24 2022 at 18:57)</a>:</h4>
+<p>That sounds like we are missing API lemmas</p>
+
+
+
+<a name="273133993"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273133993" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273133993">(Feb 24 2022 at 19:00)</a>:</h4>
+<p>That's what I'm saying, really - and I'm very happy to be a part of helping to make it better! But right now it's just good but frustrating.</p>
+
+
+
+<a name="273134197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273134197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273134197">(Feb 24 2022 at 19:02)</a>:</h4>
+<p>There's also some lemmas where they don't appear to be used anywhere and I can't work out what they're for - and as I say some basic order lemmas would be nice. In an ideal world you would nearly never need to drop down to <code>finset</code>.</p>
+
+
+
+<a name="273134772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273134772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273134772">(Feb 24 2022 at 19:07)</a>:</h4>
+<p>This is an example of the kind of thing I've proven which is useful, but I don't think (?) currently in there - but it needed a couple of other lemmas to get there. But I didn't just want to add a few lemmas to what is already a bit of a maze.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">finsum_sum_mul_curry</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">no_zero_divisors</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">R</span><span class="o">}</span> <span class="o">{</span><span class="n">g</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">R</span><span class="o">}</span>
+<span class="o">(</span><span class="n">hf</span> <span class="o">:</span> <span class="o">(</span><span class="n">function.support</span> <span class="n">f</span><span class="o">)</span><span class="bp">.</span><span class="n">finite</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">:</span> <span class="o">(</span><span class="n">function.support</span> <span class="n">g</span><span class="o">)</span><span class="bp">.</span><span class="n">finite</span><span class="o">)</span>
+ <span class="o">:</span> <span class="bp">∑ᶠ</span> <span class="n">xy</span> <span class="o">:</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">β</span><span class="o">),</span> <span class="n">f</span> <span class="n">xy.fst</span> <span class="bp">*</span> <span class="n">g</span> <span class="n">xy.snd</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">∑ᶠ</span> <span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∑ᶠ</span> <span class="n">y</span> <span class="o">:</span> <span class="n">β</span><span class="o">,</span> <span class="n">g</span> <span class="n">y</span><span class="o">)</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="273135451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273135451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273135451">(Feb 24 2022 at 19:12)</a>:</h4>
+<p>The issue here is that finsum unbundles the summation from the finiteness. So any proof about <code>finsum</code> now has to sources lemmas that are about finsum, and about how finiteness works. Here, I'd expect a lemma that says something about (proves!)  <code>(hfg : (function.support (prod.map f g)).finite)</code>. Your particular lemma can take that as a hypothesis, and then you should be freer to prove what you want. Later on, you can give <code>hfg : __ := my_proof</code> a default value to not have to require the user to provide it.</p>
+
+
+
+<a name="273135584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273135584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273135584">(Feb 24 2022 at 19:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="308899">Yakov Pechersky</span> <a href="#narrow/stream/116395-maths/topic/finsum.20in.20practice/near/273135451">said</a>:</p>
+<blockquote>
+<p>The issue here is that finsum unbundles the summation from the finiteness. So any proof about <code>finsum</code> now has to sources lemmas that are about finsum, and about how finiteness works. Here, I'd expect a lemma that says something about (proves!)  <code>(hfg : (function.support (prod.map f g)).finite)</code>. Your particular lemma can take that as a hypothesis, and then you should be freer to prove what you want. Later on, you can give <code>hfg : __ := my_proof</code> a default value to not have to require the user to provide it.</p>
+</blockquote>
+<p>Oh, indeed, I have such a lemma and I use it in my proof.</p>
+
+
+
+<a name="273135815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273135815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273135815">(Feb 24 2022 at 19:15)</a>:</h4>
+<p>(The above lemma is really just <code>finsum_sum_mul</code> and <code>finsum_sum_curry</code> together with that, I suppose.)</p>
+
+
+
+<a name="273135928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273135928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273135928">(Feb 24 2022 at 19:16)</a>:</h4>
+<p>I'm not sure what you mean by "any proof about finsum now has to sources lemmas that are about finsum, and about how finiteness works" - do you mean that this is the current state of affairs?</p>
+
+
+
+<a name="273141004"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273141004" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273141004">(Feb 24 2022 at 19:53)</a>:</h4>
+<p>"*to source". If I made some sort of statement where I have finsum on both LHS and RHS and its not clear how they interact, I have first the obligation to prove something about the finiteness of each summand. Then, getting the infinite case out of the way, I have to make statements about the way the summing itself works on my set.</p>
+
+
+
+<a name="273152704"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273152704" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273152704">(Feb 24 2022 at 21:34)</a>:</h4>
+<p>Right - yes.</p>
+
+
+
+<a name="273152860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273152860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273152860">(Feb 24 2022 at 21:36)</a>:</h4>
+<p>This was actually why I was motivated to try</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">finprod</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">comm_monoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∩</span> <span class="n">mul_support</span> <span class="n">f</span><span class="o">)</span><span class="bp">.</span><span class="n">finite</span> <span class="k">then</span> <span class="bp">∏</span> <span class="n">i</span> <span class="k">in</span> <span class="n">h.to_finset</span><span class="o">,</span> <span class="n">f</span> <span class="n">i</span> <span class="k">else</span> <span class="mi">1</span>
+</code></pre></div>
+<p>Though really most stuff used the fact that the actual support was finite.</p>
+
+
+
+<a name="273169948"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/finsum%20in%20practice/near/273169948" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/finsum.20in.20practice.html#273169948">(Feb 25 2022 at 00:33)</a>:</h4>
+<p>Then you have three lemma obligations, finiteness of s or finiteness of the support of f, and then how f operates on s. Right?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

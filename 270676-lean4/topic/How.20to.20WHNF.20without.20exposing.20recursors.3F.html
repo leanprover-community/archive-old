@@ -1,0 +1,95 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html">How to WHNF without exposing recursors?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="249734584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20WHNF%20without%20exposing%20recursors%3F/near/249734584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html#249734584">(Aug 17 2021 at 15:23)</a>:</h4>
+<p>I'm trying to whnf an expression in an elaborator and then return the normalized expression.  However the whnf exposes the <code>.rec</code> recursor, which is a problem because the result can then no longer be compiled.  Simplified MWE:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span> <span class="n">Elab</span> <span class="n">Term</span> <span class="k">in</span>
+<span class="n">elab</span> <span class="s2">"whnf%"</span> <span class="n">t</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">&lt;=</span> <span class="n">expectedType</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">whnf</span> <span class="o">(</span><span class="bp">←</span> <span class="n">elabTerm</span> <span class="n">t</span> <span class="n">expectedType</span><span class="o">)</span>
+
+<span class="kd">constant</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">some</span> <span class="mi">42</span>
+
+<span class="k">#eval</span> <span class="n">whnf</span><span class="bp">%</span> <span class="n">x.getD</span> <span class="mi">0</span>
+<span class="c1">-- code generator does not support recursor 'Option.rec' yet, consider using 'match ... with' and/or structural recursion</span>
+</code></pre></div>
+<p>Is there an obvious flag that I need to set here?  (Potentially related to <a href="https://github.com/leanprover/lean4/issues/445">https://github.com/leanprover/lean4/issues/445</a>)</p>
+
+
+
+<a name="249740904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20WHNF%20without%20exposing%20recursors%3F/near/249740904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html#249740904">(Aug 17 2021 at 16:07)</a>:</h4>
+<p>I fear the immediate answer is that you're the first one trying this and there is no such flag currently</p>
+
+
+
+<a name="249743042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20WHNF%20without%20exposing%20recursors%3F/near/249743042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html#249743042">(Aug 17 2021 at 16:23)</a>:</h4>
+<p>We have variants of <code>whnf</code>. Example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[specialize]</span> <span class="n">partial</span> <span class="kd">def</span> <span class="n">whnfHeadPred</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">(</span><span class="n">pred</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">MetaM</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Expr</span> <span class="o">:=</span>
+</code></pre></div>
+<p>Here is another one (at <code>DiscrTree.lean</code>) that may be useful as a reference if you want to implement your own variants.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">private</span> <span class="n">partial</span> <span class="kd">def</span> <span class="n">whnfUntilBadKey</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="k">do</span>
+</code></pre></div>
+<p>That being said, your <code>whnf%</code> is not going to do what you want when <code>elabTerm</code> returns a term containing metavariables (corresponding to elaboration tasks that have been postponed).</p>
+
+
+
+<a name="249754995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20WHNF%20without%20exposing%20recursors%3F/near/249754995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html#249754995">(Aug 17 2021 at 17:59)</a>:</h4>
+<blockquote>
+<p>We have variants of whnf.</p>
+</blockquote>
+<p>That works, thank you.  IIRC you added smart unfolding a couple years back so that the internals of the equation compiler don't leak, so I was really surprised to get a recursor out of whnf.  In Lean 3, whnf didn't reduce this example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">tactic</span>
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">option</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span> <span class="k">do</span>
+  <span class="n">to_expr</span> <span class="bp">```</span><span class="o">(</span><span class="n">x.get_or_else</span> <span class="mi">0</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">whnf</span> <span class="bp">&gt;&gt;=</span> <span class="n">trace</span>
+<span class="c1">-- x.get_or_else 0</span>
+</code></pre></div>
+
+
+
+<a name="249767671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20WHNF%20without%20exposing%20recursors%3F/near/249767671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20WHNF.20without.20exposing.20recursors.3F.html#249767671">(Aug 17 2021 at 19:33)</a>:</h4>
+<p>I will change the behavior of <code>unfoldDefinition?</code> for the auxiliary <code>match_&lt;idx&gt;</code> definitions created by the elaborator when "smart unfolding" is enabled. They will not be unfolded if the result cannot be reduced.<br>
+Then, <code>whnf</code> will produce the following expression in your example.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">match</span> <span class="n">x</span><span class="o">,</span> <span class="mi">0</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">x</span><span class="o">,</span> <span class="n">x_1</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+  <span class="bp">|</span> <span class="n">none</span><span class="o">,</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+</code></pre></div>
+<p>It is different than the one produce by Lean 3 because </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Option.getD</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">x</span><span class="o">,</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+  <span class="bp">|</span> <span class="n">none</span><span class="o">,</span>   <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+</code></pre></div>
+<p>is macro expanded into </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Option.getD</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">=&gt;</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=&gt;</span>
+  <span class="k">match</span> <span class="n">a</span><span class="o">,</span> <span class="n">b</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">x</span><span class="o">,</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+  <span class="bp">|</span> <span class="n">none</span><span class="o">,</span>   <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+</code></pre></div>
+<p>If we define <code>get_or_else</code> using a <code>match .. with</code> in Lean 3, we would get</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">option.get_or_else._match_1</span> <span class="mi">0</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

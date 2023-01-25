@@ -1,0 +1,217 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html">C FFI for enums and structs</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="268624692"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268624692" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268624692">(Jan 20 2022 at 00:31)</a>:</h4>
+<p>So working on FFI bindings to various libraries I want to be able to bind with structs and enums more easily.<br>
+If I have a constant that is supposed to reference an element of an enum like this</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[extern "SDL_APP_TERMINATING"]</span>
+<span class="kd">constant</span> <span class="n">SDL_APP_TERMINATING</span> <span class="o">:</span> <span class="n">UInt32</span> <span class="c1">-- OS is terminating the application</span>
+</code></pre></div>
+<p>It will generate this c code</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="k">extern</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">SDL_APP_TERMINATING</span><span class="p">;</span><span class="w"></span>
+<span class="n">LEAN_EXPORT</span><span class="w"> </span><span class="n">lean_object</span><span class="o">*</span><span class="w"> </span><span class="n">initialize_SDL_Events</span><span class="p">(</span><span class="n">lean_object</span><span class="o">*</span><span class="w"> </span><span class="n">w</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="n">lean_object</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">res</span><span class="p">;</span><span class="w"></span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">_G_initialized</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">lean_io_result_mk_ok</span><span class="p">(</span><span class="n">lean_box</span><span class="p">(</span><span class="mi">0</span><span class="p">));</span><span class="w"></span>
+<span class="n">_G_initialized</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+<span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">initialize_Init</span><span class="p">(</span><span class="n">lean_io_mk_world</span><span class="p">());</span><span class="w"></span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lean_io_result_is_error</span><span class="p">(</span><span class="n">res</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span><span class="w"></span>
+<span class="n">lean_dec_ref</span><span class="p">(</span><span class="n">res</span><span class="p">);</span><span class="w"></span>
+
+<span class="n">l_SDL_Event_Type_SDL__APP__TERMINATING</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_init_l_SDL_Event_Type_SDL__APP__TERMINATING</span><span class="p">();</span><span class="w"> </span><span class="c1">// &lt;--- this is never generated!</span>
+
+<span class="k">return</span><span class="w"> </span><span class="n">lean_io_result_mk_ok</span><span class="p">(</span><span class="n">lean_box</span><span class="p">(</span><span class="mi">0</span><span class="p">));</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Why does it not generate the initializer <code>_init_l_SDL_Event_Type_SDL__APP__TERMINATING</code>?<br>
+My suggestion would be to generate this</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">_init_l_SDL_Event_Type_SDL__APP__TERMINATING</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">SDL_APP_TERMINATING</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+
+
+<a name="268656325"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268656325" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268656325">(Jan 20 2022 at 08:17)</a>:</h4>
+<p>The standard <code>extern</code> is supposed to be generic FFI that binds to symbols, but <code>SDL_APP_TERMINATING</code> is probably a header constant that doesn't exist at runtime. You can tell Lean "yes, I know this will only work with the C backend" (which of course is the only backend right now) using <code>c inline</code>: <a href="https://github.com/leanprover/lean4/blob/bbec84bb18d7d978b0c4ea13841b5a4ee6f1c1b4/src/Init/Meta.lean#L29-L31">https://github.com/leanprover/lean4/blob/bbec84bb18d7d978b0c4ea13841b5a4ee6f1c1b4/src/Init/Meta.lean#L29-L31</a></p>
+
+
+
+<a name="268664738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268664738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268664738">(Jan 20 2022 at 09:31)</a>:</h4>
+<p>It's the field of an enum. Cool that we have this option. This will probably not be used outside of C for a long time.</p>
+
+
+
+<a name="268680486"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268680486" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268680486">(Jan 20 2022 at 11:52)</a>:</h4>
+<p>I think that referencing global constant static variables is platform/backend independent. It is just about assigning a value from a constant symbol at  initialization.<br>
+As for structs I would suggest a sort of <code>@[bindgen ...]</code> declaration. This could also maybe be used to mirror enums with inductives.</p>
+<p>An example</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span> <span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"> </span><span class="n">Data</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<p>And in Lean something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[bindgen struct "Data" ]</span>
+<span class="kd">structure</span> <span class="n">Data</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">UInt32</span>
+  <span class="n">y</span> <span class="o">:</span> <span class="n">UInt32</span>
+</code></pre></div>
+<p>Which automatically generates a PointedType instance for Data<br>
+which would generate something like (and more stuff)</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">_lean_Data_get_Data_x</span><span class="p">(</span><span class="n">b_lean_obj_arg</span><span class="w"> </span><span class="n">d</span><span class="p">){</span><span class="w"></span>
+<span class="n">Data</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lean_get_extern_data</span><span class="p">(</span><span class="n">d</span><span class="p">);</span><span class="w"></span>
+<span class="k">return</span><span class="w"> </span><span class="n">data</span><span class="o">-&gt;</span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="nf">_lean_Data_get_Data_y</span><span class="p">(</span><span class="n">b_lean_obj_arg</span><span class="w"> </span><span class="n">d</span><span class="p">){</span><span class="w"></span>
+<span class="n">Data</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lean_get_extern_data</span><span class="p">(</span><span class="n">d</span><span class="p">);</span><span class="w"></span>
+<span class="k">return</span><span class="w"> </span><span class="n">data</span><span class="o">-&gt;</span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Which are linked to the accessors of that function, makes it possible to access fields of that struct without writing too much boiler plate. The lean compiler needs to trust that you have specified the fields correctly though.</p>
+
+
+
+<a name="268683138"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268683138" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268683138">(Jan 20 2022 at 12:19)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>  Where is the value from c inline actually emitted? I can't see it anywhere in the generated source.</p>
+
+
+
+<a name="268683213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268683213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268683213">(Jan 20 2022 at 12:20)</a>:</h4>
+<p>At each use site</p>
+
+
+
+<a name="268683392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268683392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268683392">(Jan 20 2022 at 12:22)</a>:</h4>
+<p>But it produces this error: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">/</span><span class="n">nix</span><span class="bp">/</span><span class="n">store</span><span class="bp">/</span><span class="n">js66s0xwjnzg0ggi2lq9bcvlk6x2za13</span><span class="bp">-</span><span class="n">binutils</span><span class="bp">-</span><span class="mi">2</span><span class="bp">.</span><span class="mi">35</span><span class="bp">.</span><span class="mi">2</span><span class="bp">/</span><span class="n">bin</span><span class="bp">/</span><span class="n">ld</span><span class="o">:</span> <span class="n">src.c</span><span class="o">:(</span><span class="bp">.</span><span class="n">text</span><span class="bp">+</span><span class="mi">0x662</span><span class="o">):</span> <span class="n">undefined</span> <span class="n">reference</span> <span class="n">to</span> <span class="bp">`</span><span class="n">_init_l_SDL_Event_Type_SDL__LASTEVENT'</span>
+</code></pre></div>
+<p>why isn't the initialization functions generated?</p>
+
+
+
+<a name="268684258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268684258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268684258">(Jan 20 2022 at 12:30)</a>:</h4>
+<p>I suspect this is because it is declared as just a constant UInt32. But this seems to work for Nat and bool in Init.Meta.</p>
+
+
+
+<a name="268684435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268684435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268684435">(Jan 20 2022 at 12:32)</a>:</h4>
+<p>I can't help you if you don't even post your code, but there is a reason for the <code>Unit</code> argument in the linked code.</p>
+
+
+
+<a name="268685018"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268685018" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268685018">(Jan 20 2022 at 12:38)</a>:</h4>
+<p>My code is the one I posted above. I see that that code uses a form of thunks, but since this is an immutable value I don't see why it shouldn't be just initialized to that value right away.</p>
+
+
+
+<a name="268685364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268685364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268685364">(Jan 20 2022 at 12:41)</a>:</h4>
+<p>I assumed you were now using <code>c inline</code>, since you won't solve this any other way</p>
+
+
+
+<a name="268685689"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268685689" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268685689">(Jan 20 2022 at 12:44)</a>:</h4>
+<p>I am using <code>c inline</code>. So I just wanted to avoid the indirection of using a thunk. I can always use</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[extern c inline "SDL_APP_TERMINATING"]</span>
+<span class="kn">private</span> <span class="kd">constant</span> <span class="n">_SDL_APP_TERMINATING</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">Unit</span><span class="o">)</span> <span class="o">:</span> <span class="n">UInt32</span>
+<span class="kd">def</span> <span class="n">SDL_APP_TERMINATING</span><span class="o">:</span> <span class="n">UInt32</span> <span class="o">:=</span> <span class="n">_SDL_APP_TERMINATING</span> <span class="o">()</span>
+</code></pre></div>
+<p>I just though there would be a simpler way</p>
+
+
+
+<a name="268685942"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268685942" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268685942">(Jan 20 2022 at 12:47)</a>:</h4>
+<p>There is no thunk at runtime. And you'll want remove the second <code>Unit</code> argument.</p>
+
+
+
+<a name="268685986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268685986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268685986">(Jan 20 2022 at 12:47)</a>:</h4>
+<p>Oh, forgot that one.</p>
+
+
+
+<a name="268686572"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268686572" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268686572">(Jan 20 2022 at 12:52)</a>:</h4>
+<p>But empty constants which are not filled by foreign initialization should cause compiler error. This shouldn't be left for the c compiler to detect IMO.</p>
+
+
+
+<a name="268687172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268687172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268687172">(Jan 20 2022 at 12:57)</a>:</h4>
+<p>Hm, so this still causes an error since I haven't included the header file which contains this enum.<br>
+Is there some way I could include this header? <code>#include "SDL.h"</code> or reexport it somehow?</p>
+
+
+
+<a name="268687364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268687364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268687364">(Jan 20 2022 at 12:58)</a>:</h4>
+<p>Alternatively I can just write it in C.</p>
+
+
+
+<a name="268687529"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268687529" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268687529">(Jan 20 2022 at 12:59)</a>:</h4>
+<p>Oh, you are right. There is no way to do that, and we probably don't want to cement the C backend's default status even further.</p>
+
+
+
+<a name="268687887"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268687887" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268687887">(Jan 20 2022 at 13:01)</a>:</h4>
+<p>I suggest removing the c inline functionality altogether and just use standard FFI and C code for those cases. It probably does more harm that usefullness if it can't even solve such simple things.</p>
+
+
+
+<a name="268692064"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268692064" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268692064">(Jan 20 2022 at 13:35)</a>:</h4>
+<p>See <a href="https://github.com/leanprover/lean4/pull/694">https://github.com/leanprover/lean4/pull/694</a></p>
+
+
+
+<a name="268699778"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268699778" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268699778">(Jan 20 2022 at 14:29)</a>:</h4>
+<p>Is it impossible to use match on UInt32 (that are not known at compile time)?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="k">match</span> <span class="n">s.type</span> <span class="o">:</span> <span class="n">UInt32</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">SDL_QUIT</span> <span class="bp">=&gt;</span> <span class="n">Event.quitEvent</span>
+  <span class="bp">|</span> <span class="n">SDL_KEYDOWN</span> <span class="bp">=&gt;</span> <span class="n">Event.keyboardEvent</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">Event.userEvent</span>
+</code></pre></div>
+<p>This fails with redundant alternative since there is no way of knowing what those are at compile time. So do I have to resort to using <code>if then else</code> for this case?</p>
+
+
+
+<a name="268700595"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20for%20enums%20and%20structs/near/268700595" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20for.20enums.20and.20structs.html#268700595">(Jan 20 2022 at 14:35)</a>:</h4>
+<p>Yes. I think this is the case in virtually every language.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

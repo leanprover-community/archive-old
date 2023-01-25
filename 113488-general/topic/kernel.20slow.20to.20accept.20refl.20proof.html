@@ -1,0 +1,251 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html">kernel slow to accept refl proof</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="282041245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282041245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282041245">(May 11 2022 at 23:28)</a>:</h4>
+<p>Yael isolated a nice simple version of a phenomenon I've seen a couple of times now, where tactic mode is quick to accept a theorem as true, but the kernel then spends a long time convincing itself. This is some kind of "heavy refl" I think but of a very specific nature. Consider the following code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">group_theory.free_abelian_group</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span> <span class="c1">-- works super-quickly</span>
+<span class="kd">end</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="o">(</span><span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- works instantly</span>
+  <span class="gr">sorry</span><span class="o">,</span> <span class="c1">-- tactic failed, there are no goals to be solved</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>It seems that in this set-up, <code>x * 0</code> is defeq to <code>0</code> and the first example compiles with no problem. The second example, which of course should also be <code>refl</code>, also seems to compile without problem, you get the goals accomplished message, and an error on the <code>sorry</code> complaining that there are no goals left. Commenting out the <code>sorry</code> though makes the proof compilation time shoot up to about 5 seconds on my relatively new laptop, and although I only have a poor understanding of what's going on what I think is happening is that tactic mode accepted the <code>refl</code> fine but the kernel seems to be having second thoughts about it for quite some time.</p>
+<p>Switching on the profiler doesn't seem to help at all; it just reports everything as happening quickly, it's perhaps not profiling that last step where the kernel has to check it believes the proof term which has been constructed. I've seen situations like this before but this is by far the simplest one. Is it worth trying to demathlibify this or are examples which use only core Lean already known?</p>
+<p>Note that</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="o">(</span><span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">simp</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>works fine and is also very quick. Is there more than one kind of "heavy refl"? The kind which takes a long time to work in tactic mode, and then a different kind like this one which is quick in tactic mode but then takes a long time in the kernel? Or are they all like this? Sorry if I'm talking nonsense about kernels, I don't really understand how all this works really.</p>
+
+
+
+<a name="282041975"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282041975" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282041975">(May 11 2022 at 23:37)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">group_theory.free_abelian_group</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">*</span> <span class="o">(</span><span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- quick</span>
+<span class="kd">end</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">x</span> <span class="bp">*</span> <span class="n">y</span><span class="o">)</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- quick</span>
+<span class="kd">end</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">x</span> <span class="bp">*</span> <span class="n">y</span><span class="o">)</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="o">(</span><span class="n">y</span> <span class="bp">*</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- very slow (but quick if you add `sorry` after)</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="282042398"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282042398" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282042398">(May 11 2022 at 23:43)</a>:</h4>
+<p>This is different to the non-transitivity of <code>rfl</code> at the end of <a href="https://leanprover.github.io/reference/expressions.html#computation">section 3.7 of the reference manual</a>; there the <code>refl</code> just fails quickly, and adding a <code>sorry</code> afterwards doesn't change anything.</p>
+
+
+
+<a name="282043817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043817">(May 12 2022 at 00:02)</a>:</h4>
+<p>Completely coincidentally Bhavik just showed me another very short example of apparently a totally different nature:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">analysis.special_functions.pow</span>
+
+<span class="kd">lemma</span> <span class="n">timeout</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="bp">&lt;</span> <span class="mi">128</span> <span class="bp">^</span> <span class="o">(</span><span class="mi">500</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">norm_num1</span><span class="o">,</span>
+  <span class="gr">sorry</span><span class="o">,</span> <span class="c1">-- no goals to be solved</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="282043840"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043840" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043840">(May 12 2022 at 00:02)</a>:</h4>
+<p>It gets even shorter!</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">analysis.special_functions.pow</span>
+
+<span class="kd">lemma</span> <span class="n">timeout</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="bp">&lt;</span> <span class="mi">1</span> <span class="bp">^</span> <span class="o">(</span><span class="mi">20</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">norm_num1</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="282043857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043857">(May 12 2022 at 00:02)</a>:</h4>
+<p>My guess is that this is a bug in how norm_num deals with real powers?</p>
+
+
+
+<a name="282043897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043897">(May 12 2022 at 00:03)</a>:</h4>
+<p><code>(0 : ℝ) &lt; 1 ^ (20 : ℕ)</code> is fine, and <code>(0 : ℝ) &lt; 1 ^ (19 : ℝ)</code> is fine</p>
+
+
+
+<a name="282043989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043989">(May 12 2022 at 00:04)</a>:</h4>
+<p>(in my case it's easily worked-around though, with <code>rpow_pos_of_pos</code>)</p>
+
+
+
+<a name="282043992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282043992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282043992">(May 12 2022 at 00:04)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> is this issue well-understood?</p>
+
+
+
+<a name="282044167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282044167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282044167">(May 12 2022 at 00:07)</a>:</h4>
+<p>I'm interested because I feel like it's the only issue I ever run into with Lean 3 where I feel at a loss about how to solve it. Many other weird timeouts are fixed by making universes explicit, or using <code>noncomputable!</code>, but this one is nasty and I have no understanding of it.</p>
+
+
+
+<a name="282072805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282072805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282072805">(May 12 2022 at 08:20)</a>:</h4>
+<p>When there is a surprising performance cliff in <code>norm_num</code> kernel check time, the usual diagnosis is a bug in the proof construction. The reason it isn't always just a failure is because lean has all sorts of definitional equalities, so when you apply things which are of the wrong type lean just tries to unfold things until it works, leading to a huge cost. In this case, the bug was that it was expecting <code>(20:ℝ) = ↑(20:ℕ)</code> and I gave it <code>↑(20:ℕ) = (20:ℝ)</code>. This works even though it's wrong, because <code>↑(20:ℕ)</code> and <code>(20:ℝ)</code> are defeq (at great expense)</p>
+
+
+
+<a name="282115647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282115647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282115647">(May 12 2022 at 14:38)</a>:</h4>
+<p>Aah so this looks like it's totally unrelated to the <code>x*y*0</code> slowness.</p>
+
+
+
+<a name="282116011"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282116011" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282116011">(May 12 2022 at 14:41)</a>:</h4>
+<p>In the original <code>x*y*0</code> issue, I would guess that the elaborator has chosen some good sequence of unfoldings but the kernel chose a bad one; unfortunately there doesn't seem to be any sort of logging in the kernel <code>is_def_eq</code> check so I'm not sure how to debug it effectively</p>
+
+
+
+<a name="282116598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282116598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282116598">(May 12 2022 at 14:45)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/14099">#14099</a></p>
+
+
+
+<a name="282118693"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282118693" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282118693">(May 12 2022 at 14:58)</a>:</h4>
+<p>I can't figure out how <code>rfl : x*y*0=x*(y*0)</code> works at all. I thought it was defined in terms of list concatenation (with multiple levels of quotients), but this identity doesn't work for lists concatenation directly:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">x</span> <span class="bp">++</span> <span class="n">y</span> <span class="bp">++</span> <span class="o">[]</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">++</span> <span class="o">(</span><span class="n">y</span> <span class="bp">++</span> <span class="o">[])</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- fails</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Unless somehow the concatenation is reversed?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">([]</span> <span class="bp">++</span> <span class="n">x</span><span class="o">)</span> <span class="bp">++</span> <span class="n">y</span> <span class="bp">=</span> <span class="o">[]</span> <span class="bp">++</span> <span class="o">(</span><span class="n">x</span> <span class="bp">++</span> <span class="n">y</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refl</span><span class="o">,</span> <span class="c1">-- ok</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="282118957"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282118957" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282118957">(May 12 2022 at 14:59)</a>:</h4>
+<p>This is multiplication in the (additive) free abelian group on a monoid</p>
+
+
+
+<a name="282119630"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282119630" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282119630">(May 12 2022 at 15:03)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/free_abelian_group.semigroup">docs#free_abelian_group.semigroup</a></p>
+
+
+
+<a name="282122700"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282122700" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282122700">(May 12 2022 at 15:23)</a>:</h4>
+<p>Here's a simpler version:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">group_theory.free_abelian_group</span>
+
+<span class="kn">namespace</span> <span class="n">free_abelian_group</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">free_abelian_group</span> <span class="n">α</span><span class="o">)</span>
+
+<span class="c1">-- true but hard</span>
+<span class="kd">example</span> <span class="o">{</span><span class="n">β</span><span class="o">}</span> <span class="o">[</span><span class="n">add_comm_group</span> <span class="n">β</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">lift</span> <span class="n">f</span> <span class="o">(</span><span class="n">abelianization.of</span> <span class="bp">$</span> <span class="n">free_group.mk</span> <span class="o">[])</span> <span class="bp">=</span>
+  <span class="n">lift</span> <span class="n">g</span> <span class="o">(</span><span class="n">abelianization.of</span> <span class="bp">$</span> <span class="n">free_group.mk</span> <span class="o">[])</span> <span class="o">:=</span>
+<span class="n">rfl</span>
+
+<span class="c1">-- true but harder, times out</span>
+<span class="kd">example</span> <span class="o">{</span><span class="n">β</span><span class="o">}</span> <span class="o">[</span><span class="n">add_comm_group</span> <span class="n">β</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">lift</span> <span class="o">(</span><span class="n">lift</span> <span class="n">f</span><span class="o">)</span> <span class="o">(</span><span class="n">abelianization.of</span> <span class="bp">$</span> <span class="n">free_group.mk</span> <span class="o">[])</span> <span class="bp">=</span>
+  <span class="n">lift</span> <span class="o">(</span><span class="n">lift</span> <span class="n">g</span><span class="o">)</span> <span class="o">(</span><span class="n">abelianization.of</span> <span class="bp">$</span> <span class="n">free_group.mk</span> <span class="o">[])</span> <span class="o">:=</span>
+<span class="n">rfl</span>
+</code></pre></div>
+
+
+
+<a name="282122781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282122781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282122781">(May 12 2022 at 15:24)</a>:</h4>
+<p>I think <code>lift</code> is not stated in a very defeq-friendly way</p>
+
+
+
+<a name="282123518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282123518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282123518">(May 12 2022 at 15:28)</a>:</h4>
+<p>well, really this kind of thing is never easy, not sure that we need to do anything about it</p>
+
+
+
+<a name="282123644"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282123644" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282123644">(May 12 2022 at 15:29)</a>:</h4>
+<p>the basic issue is that the heuristic <code>f x =?= g y &lt;- f =?= g, x =?= y</code> is easy to mislead but also really important in practice</p>
+
+
+
+<a name="282124032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282124032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282124032">(May 12 2022 at 15:32)</a>:</h4>
+<p>In certain cases like this one, we want the iota reduction to take precedence (i.e. <code>lift f (mk x) ~&gt; f x</code>) rather than going off on a wild goose chase on <code>lift f (mk x) =?= lift g (mk x) &lt;- f =?= g</code> when we know <code>f x</code> and <code>g x</code> are obviously equal, but after they've been wrapped in this many layers of definition it is really hard to tell that this is still an iota rule</p>
+
+
+
+<a name="282150601"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/kernel%20slow%20to%20accept%20refl%20proof/near/282150601" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof.html#282150601">(May 12 2022 at 18:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/kernel.20slow.20to.20accept.20refl.20proof/near/282116598">said</a>:</p>
+<blockquote>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/14099">#14099</a></p>
+</blockquote>
+<p>Thanks for this!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

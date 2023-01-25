@@ -1,0 +1,100 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html">Find which declaration uses sorry</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="301827143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/301827143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Riccardo Brasca <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#301827143">(Oct 01 2022 at 14:14)</a>:</h4>
+<p>If I have <code>sorry</code> listed in <code>#print axioms foo</code>, is there a way to find which declaration used in the proof of <code>foo</code> really uses <code>sorry</code>? I mean, with <code>sorry</code> explicitly written. I've checked by hand all the declaration used in the proof such a theorem, but I didn't found any <code>sorry</code>, so it must be some instance or whatever.</p>
+
+
+
+<a name="302076902"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/302076902" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#302076902">(Oct 03 2022 at 14:38)</a>:</h4>
+<p>The following should give you a path from <code>foo</code> to a declaration that uses <code>sorry</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.get_dependents_aux</span> <span class="o">(</span><span class="n">env</span> <span class="o">:</span> <span class="n">environment</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">name</span> <span class="bp">→</span>
+  <span class="n">bool</span> <span class="bp">×</span> <span class="n">list</span> <span class="n">name</span> <span class="bp">×</span> <span class="n">name_map</span> <span class="n">bool</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">bool</span> <span class="bp">×</span> <span class="n">list</span> <span class="n">name</span> <span class="bp">×</span> <span class="n">name_map</span> <span class="n">bool</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="n">x</span><span class="bp">@</span><span class="o">(</span><span class="n">tt</span><span class="o">,</span> <span class="n">p</span><span class="o">)</span> <span class="o">:=</span> <span class="n">pure</span> <span class="n">x</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="o">(</span><span class="n">ff</span><span class="o">,</span> <span class="n">p</span><span class="bp">@</span><span class="o">(</span><span class="n">l</span><span class="o">,</span> <span class="n">ns</span><span class="o">))</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">ns.find</span> <span class="n">n</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">pure</span> <span class="o">(</span><span class="n">b</span><span class="o">,</span> <span class="n">p</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="n">d</span> <span class="bp">←</span> <span class="n">env.get</span> <span class="n">n</span><span class="o">,</span>
+    <span class="k">let</span> <span class="n">process</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">bool</span> <span class="bp">×</span> <span class="n">list</span> <span class="n">name</span> <span class="bp">×</span> <span class="n">name_map</span> <span class="n">bool</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="k">do</span>
+      <span class="n">v.fold</span> <span class="o">(</span><span class="n">pure</span> <span class="o">(</span><span class="n">ff</span><span class="o">,</span> <span class="n">l</span><span class="o">,</span> <span class="n">ns</span><span class="o">))</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">e</span> <span class="n">_</span> <span class="n">r</span><span class="o">,</span> <span class="n">r</span> <span class="bp">&gt;&gt;=</span> <span class="bp">λ</span> <span class="n">p</span><span class="o">,</span>
+        <span class="k">if</span> <span class="n">f</span> <span class="n">e</span> <span class="k">then</span> <span class="n">pure</span> <span class="o">(</span><span class="n">tt</span><span class="o">,</span> <span class="o">[],</span> <span class="n">p.2.2</span><span class="o">)</span> <span class="k">else</span>
+        <span class="k">if</span> <span class="n">e.is_constant</span> <span class="k">then</span> <span class="n">tactic.get_dependents_aux</span> <span class="n">e.const_name</span> <span class="n">p</span> <span class="k">else</span> <span class="n">pure</span> <span class="n">p</span><span class="o">),</span>
+    <span class="o">(</span><span class="n">b</span><span class="o">,</span> <span class="n">l</span><span class="o">,</span> <span class="n">ns</span><span class="o">)</span> <span class="bp">←</span> <span class="n">process</span> <span class="n">d.value</span><span class="o">,</span>
+    <span class="n">pure</span> <span class="o">(</span><span class="n">b</span><span class="o">,</span> <span class="k">if</span> <span class="n">b</span> <span class="k">then</span> <span class="n">n</span><span class="o">::</span><span class="n">l</span> <span class="k">else</span> <span class="n">l</span><span class="o">,</span> <span class="n">ns.insert</span> <span class="n">n</span> <span class="n">b</span><span class="o">)</span>
+  <span class="kd">end</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.get_dependents</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">bool</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">list</span> <span class="n">name</span><span class="o">)</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">tactic.get_env</span><span class="o">,</span>
+  <span class="o">(</span><span class="n">b</span><span class="o">,</span> <span class="n">l</span><span class="o">,</span> <span class="n">ns</span><span class="o">)</span> <span class="bp">←</span> <span class="n">tactic.get_dependents_aux</span> <span class="n">env</span> <span class="n">f</span> <span class="n">n</span> <span class="o">(</span><span class="n">ff</span><span class="o">,</span> <span class="o">[],</span> <span class="n">mk_name_map</span><span class="o">),</span>
+  <span class="n">pure</span> <span class="n">l</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.print_path_to_sorry</span> <span class="o">(</span><span class="n">nm</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.get_dependents</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="n">e.is_sorry.is_some</span><span class="o">)</span> <span class="n">nm</span> <span class="bp">&gt;&gt;=</span> <span class="n">tactic.trace</span>
+
+<span class="k">#eval</span> <span class="n">tactic.print_path_to_sorry</span> <span class="bp">`</span><span class="n">foo</span>
+</code></pre></div>
+<p>(based on <a href="#narrow/stream/113489-new-members/topic/.22Does.20Theorem.20A.20depend.20on.20Theorem.20B.3F.22/near/262238284">this post</a> by <span class="user-mention" data-user-id="110049">@Mario Carneiro</span>)</p>
+
+
+
+<a name="302080006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/302080006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#302080006">(Oct 03 2022 at 14:52)</a>:</h4>
+<p>If this work then it should definitely be added to mathlib. This is a very useful tool for large projects.</p>
+
+
+
+<a name="302081112"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/302081112" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#302081112">(Oct 03 2022 at 14:58)</a>:</h4>
+<p>It works on <code>sphere_eversion</code> :-) I'll open a PR.</p>
+
+
+
+<a name="302086594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/302086594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Riccardo Brasca <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#302086594">(Oct 03 2022 at 15:25)</a>:</h4>
+<p>Thanks! I ended up doing it by hand, but I agree it's very useful.</p>
+
+
+
+<a name="303439517"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/303439517" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#303439517">(Oct 11 2022 at 13:38)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/16911">#16911</a></p>
+
+
+
+<a name="311827079"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/311827079" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Martin Dvořák <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#311827079">(Nov 23 2022 at 13:35)</a>:</h4>
+<p>In which situation is <code>#print_sorry_in</code> supposed to print the same lemma more than once?</p>
+
+
+
+<a name="311842049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/311842049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#311842049">(Nov 23 2022 at 14:54)</a>:</h4>
+<p>Never. But I can imagine that it does it if you depend on the lemma via two different routes. Feel free to PR a fix.</p>
+
+
+
+<a name="311844124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Find%20which%20declaration%20uses%20sorry/near/311844124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Martin Dvořák <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Find.20which.20declaration.20uses.20sorry.html#311844124">(Nov 23 2022 at 15:03)</a>:</h4>
+<p>Actually, it doesn't happen to me. I just misinterpreted the output because of line wraps.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

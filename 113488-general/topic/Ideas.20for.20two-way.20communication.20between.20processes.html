@@ -1,0 +1,823 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html">Ideas for two-way communication between processes</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="205074260"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205074260" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205074260">(Jul 27 2020 at 00:47)</a>:</h4>
+<p>I'm playing around with z3. Trying to see how far I can push it. Initially, I am just interested in using lean to drive z3 (similar to, say an F# script), later I'll look into doing more fancy stuff.</p>
+<p>Because lean doesn't have an FFI and also because it makes is very easy replace z3 with <code>[smtlib-compatible smt solver]</code>, I'm not using the z3 api, but rather am communicating with it through pipes in a child process.</p>
+<p>Lean seems to be perfectly capable dealing with parsing, AST, etc. but I'm really struggling with IO for all the wrong reasons.</p>
+<p>The SMTLib protocol is a two-way communication protocol, not something you send a script to and get a response. You send a few commands, at some point, you may send <code>(check-sat)</code>, then <code>z3</code> is meant to send you <code>sat</code>, <code>unsat</code> or <code>unknown</code>. Depending on what you got, you then have other commands you can execute and deal with. And you can issue some other commands to get back to a different state where you can use other commands again, etc. If used from a REPL, It's really fairly intuitive.</p>
+<p>Unfortunately, the interaction really doesn't look at all like any of the IO samples I've seen like reading a file, because it's really interactive. The most natural way for me to represent such a protocol would be a state machine where transitions happen when a message is sent or received.</p>
+<p>So far, I haven't found a good way how to implement this. I can't read after each message sent, because I don't know how much data to read and the read is blocking. In a usual language, I'd either do event-based async io, or have a thread used for writing and one for reading. Also the protocol is not line-based, so I can't use that trick either.</p>
+<p>Any ideas how to go about it, or have any of you done something similar?</p>
+
+
+
+<a name="205075150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075150">(Jul 27 2020 at 01:16)</a>:</h4>
+<p>You might need to adapt the I/O API</p>
+
+
+
+<a name="205075201"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075201" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075201">(Jul 27 2020 at 01:18)</a>:</h4>
+<p>as in add API features for async IO?</p>
+
+
+
+<a name="205075436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075436">(Jul 27 2020 at 01:27)</a>:</h4>
+<p>Either that or read one line of output and nothing more</p>
+
+
+
+<a name="205075440"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075440" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075440">(Jul 27 2020 at 01:27)</a>:</h4>
+<p>I'm not sure I'm the best person to put an answer here.  I don't know anything about z3 or <code>[smtlib-compatible smt solver]</code>.  (You might also want to look at what <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> did with hooking up an SMT solver to Lean.)</p>
+<p>However, I can say the following. I've been playing around with using Lean to communicate (in both directions) with python via IO for machine learning..  While your needs are probably different from mine, if you can get a two-way communication going with a Python script, then you can have the script handle the communication with Z3.  I think this is similar to what <span class="user-mention" data-user-id="110596">@Rob Lewis</span> and <span class="user-mention" data-user-id="110187">@Minchao Wu</span> did with communicating between Lean and Python (<a href="#narrow/stream/113488-general/topic/Calling.20external.20process.20in.20a.20tactic/near/198857265">https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Calling.20external.20process.20in.20a.20tactic/near/198857265</a>).</p>
+<p>As for communicating between Lean and Python, I've found two ways:</p>
+<ol>
+<li>Call Lean as a process from within a python script (and have Lean communicate with stdin, stdout)</li>
+<li>Have Lean call the Python process as a child processes.  (this is probably better for your case).</li>
+</ol>
+<p>Also, in my method, you need a communication protocol.  Lean doesn't have JSON built in, but I implemented it and implemented some serializers for some of my classes.  (I also made a hacky version of JSON, since Lean's string parsing is too slow.</p>
+
+
+
+<a name="205075563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075563">(Jul 27 2020 at 01:30)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/issues/1083">#1083</a> (a long-abandoned PR that aimed to set up a connection bewteen Lean and Vampire) might be interesting too.</p>
+
+
+
+<a name="205075616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075616">(Jul 27 2020 at 01:32)</a>:</h4>
+<p>I'll look at the samples, thanks. As for z3 specifically, I used the old <code>smt2-interface</code> as well as <span class="user-mention" data-user-id="110026">@Simon Hudon</span> 's z3 repo. And they both don't really have a solution just hard-code the interaction. Which, whilst valid, is not very useful for my use-case.</p>
+
+
+
+<a name="205075703"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075703" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075703">(Jul 27 2020 at 01:35)</a>:</h4>
+<p>And as for the idea of using a separate wrapper for the IO, I thought about that too, personally, I wouldn't use python, but F# out of mere preference. But I get the point and it may well be a valid option.</p>
+
+
+
+<a name="205075710"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075710" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075710">(Jul 27 2020 at 01:35)</a>:</h4>
+<p>Also, as for the interactivity, the application I'm building is quite interactive.  Lean keeps tract of the search tree (where every node is a tactic state, the tree allows backtracking), and python (possibly using say TensorFlow) guides Lean's exploration of the search tree.  I however don't need async communication.  Each call in either direction blocks.  It's not really ready for showing yet, but if this interests you and you want a sneak peak, I'd be happy to share my private repo.</p>
+
+
+
+<a name="205075750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075750">(Jul 27 2020 at 01:36)</a>:</h4>
+<p>To make it nice, I was thinking of sticking to the protocol, at least more or less, so I don't invent a new protocol.</p>
+
+
+
+<a name="205075763"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075763" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075763">(Jul 27 2020 at 01:37)</a>:</h4>
+<p>well, there's a fairly trivial F# program I could write... One that always responds. That way, every call could be made blocking, because we'd know that there will be a result, eventually.</p>
+
+
+
+<a name="205075805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205075805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205075805">(Jul 27 2020 at 01:38)</a>:</h4>
+<p>plus in such a wrapper, I can do something like base64 encode the payload, so it's always one line.</p>
+
+
+
+<a name="205085515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205085515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205085515">(Jul 27 2020 at 06:38)</a>:</h4>
+<p>Why don't we just add to <code>system.io</code> some kind of <code>io_stream</code> type with operations like <code>open</code>, <code>read</code>, <code>write</code>?</p>
+
+
+
+<a name="205085524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205085524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205085524">(Jul 27 2020 at 06:39)</a>:</h4>
+<p>it should be pretty easy to support that on the C++ side</p>
+
+
+
+<a name="205085674"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205085674" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205085674">(Jul 27 2020 at 06:43)</a>:</h4>
+<p>Actually, never mind this already seems to exist</p>
+
+
+
+<a name="205086647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205086647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205086647">(Jul 27 2020 at 07:04)</a>:</h4>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span> <span class="n">system</span><span class="bp">.</span><span class="n">io</span>
+
+<span class="bp">#</span><span class="kn">eval</span> <span class="n">do</span>
+  <span class="n">child</span> <span class="err">←</span> <span class="n">io</span><span class="bp">.</span><span class="n">proc</span><span class="bp">.</span><span class="n">spawn</span> <span class="o">{</span>
+    <span class="n">cmd</span> <span class="o">:=</span> <span class="s2">&quot;tee&quot;</span><span class="o">,</span>
+    <span class="n">args</span> <span class="o">:=</span> <span class="o">[</span><span class="s2">&quot;/dev/null&quot;</span><span class="o">],</span>
+    <span class="n">stdin</span> <span class="o">:=</span> <span class="n">io</span><span class="bp">.</span><span class="n">process</span><span class="bp">.</span><span class="n">stdio</span><span class="bp">.</span><span class="n">piped</span><span class="o">,</span>
+    <span class="n">stdout</span> <span class="o">:=</span> <span class="n">io</span><span class="bp">.</span><span class="n">process</span><span class="bp">.</span><span class="n">stdio</span><span class="bp">.</span><span class="n">piped</span><span class="o">,</span>
+    <span class="n">stderr</span> <span class="o">:=</span> <span class="n">io</span><span class="bp">.</span><span class="n">process</span><span class="bp">.</span><span class="n">stdio</span><span class="bp">.</span><span class="n">piped</span><span class="o">},</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">put_str</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdin</span> <span class="s2">&quot;foo</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">,</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">flush</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdin</span><span class="o">,</span>
+  <span class="n">s</span> <span class="err">←</span> <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">read</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdout</span> <span class="mi">4</span><span class="o">,</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">run_tactic</span> <span class="o">(</span><span class="n">tactic</span><span class="bp">.</span><span class="n">trace</span> <span class="n">s</span><span class="bp">.</span><span class="n">to_string</span><span class="o">),</span> <span class="c1">-- foo</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">put_str</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdin</span> <span class="s2">&quot;bar</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">,</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">flush</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdin</span><span class="o">,</span>
+  <span class="n">s</span> <span class="err">←</span> <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">read</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdout</span> <span class="mi">4</span><span class="o">,</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">run_tactic</span> <span class="o">(</span><span class="n">tactic</span><span class="bp">.</span><span class="n">trace</span> <span class="n">s</span><span class="bp">.</span><span class="n">to_string</span><span class="o">),</span> <span class="c1">-- bar</span>
+  <span class="n">io</span><span class="bp">.</span><span class="n">fs</span><span class="bp">.</span><span class="n">close</span> <span class="n">child</span><span class="bp">.</span><span class="n">stdin</span><span class="o">,</span>
+  <span class="n">exitv</span> <span class="err">←</span> <span class="n">io</span><span class="bp">.</span><span class="n">proc</span><span class="bp">.</span><span class="n">wait</span> <span class="n">child</span><span class="o">,</span>
+  <span class="n">guard</span> <span class="o">(</span><span class="n">exitv</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="205086683"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205086683" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205086683">(Jul 27 2020 at 07:05)</a>:</h4>
+<p>It shouldn't be hard to put an SMTLIB wrapper around this interaction</p>
+
+
+
+<a name="205093864"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205093864" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205093864">(Jul 27 2020 at 08:58)</a>:</h4>
+<p>right, so this is what I have right now. The problem with your line <code>s &lt;- io.fs.read child.stdout 4</code>, is that I don't have <code>4</code> and the call is blocking. I can't do a read to end as it's blocking, I can't read a buffer of, say 1024, because it blocks until it either gets that many or reaches EOF, and I can't read-line because some responses are multi-line and I'd have to parse the (partial) response to guess that there should be more data to come. </p>
+<p>Apparently how the F* repo is (or at least was, maybe they changed that in the meantime) doing this is by weaving in an <code>(echo "Done!")</code>after every submit they do. Then they know, that the last thing they need to read is a <code>Done!</code> message. </p>
+<p>Of all the solutions I've seen so far, this feels like the simplest and moderately clean. Because I can then use just the <code>get_line</code> function over and over, until I read my marker line, knowing that everything I read before would have been the response to the user's request. </p>
+<p>And it's safe in the sense, that even in case there is a clash with the string (I'd use a much more cryptic marker to reduce the chances of a conflict), <code>get_line</code> will still not be blocked, but at worst will not return the whole output. So at least the process won't just hang.</p>
+
+
+
+<a name="205094160"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094160" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094160">(Jul 27 2020 at 09:02)</a>:</h4>
+<p>You can tell that SMTLIB output is done with one character lookahead</p>
+
+
+
+<a name="205094164"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094164" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094164">(Jul 27 2020 at 09:02)</a>:</h4>
+<p>so <code>get_char</code> should do the trick</p>
+
+
+
+<a name="205094205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094205">(Jul 27 2020 at 09:03)</a>:</h4>
+<p>I'm very skeptical that you'll be able to get a robust solutions by fiddling around. Async programming is a topic of its own, and clearly very difficult to get right.</p>
+
+
+
+<a name="205094206"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094206" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094206">(Jul 27 2020 at 09:03)</a>:</h4>
+<p>not really, after all writing to a pipe is not atomic.</p>
+
+
+
+<a name="205094227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094227">(Jul 27 2020 at 09:03)</a>:</h4>
+<p>I don't follow</p>
+
+
+
+<a name="205094271"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094271" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094271">(Jul 27 2020 at 09:04)</a>:</h4>
+<p>I assume the SMT prover flushes after each response</p>
+
+
+
+<a name="205094296"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094296" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094296">(Jul 27 2020 at 09:04)</a>:</h4>
+<p>the marker is a pretty clear delimiter. But just a look-ahead can totally read half a message.</p>
+
+
+
+<a name="205094317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094317">(Jul 27 2020 at 09:04)</a>:</h4>
+<p>I'd be really, really surprised... a model can be huge.</p>
+
+
+
+<a name="205094333"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094333" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094333">(Jul 27 2020 at 09:04)</a>:</h4>
+<p>so there's a good chance they will write multiple times before the message is over.</p>
+
+
+
+<a name="205094354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094354">(Jul 27 2020 at 09:05)</a>:</h4>
+<p>If the response is a keyword like <code>sat\n</code> then the whitespace indicates the end, if it's a composite sexpr like <code>(echo bla bla)</code> then the end paren does the job</p>
+
+
+
+<a name="205094374"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094374" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094374">(Jul 27 2020 at 09:05)</a>:</h4>
+<p>also if the look-ahead is blocking, that's enough to hang the process and if it's non-blocking, you may read nothing because z3 is still computing.</p>
+
+
+
+<a name="205094403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094403">(Jul 27 2020 at 09:05)</a>:</h4>
+<p>I looked at some SMTLIB parsers and they just use getchar</p>
+
+
+
+<a name="205094512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094512">(Jul 27 2020 at 09:07)</a>:</h4>
+<p>as in call getchar for every single char?</p>
+
+
+
+<a name="205094517"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094517" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094517">(Jul 27 2020 at 09:07)</a>:</h4>
+<p>yeah</p>
+
+
+
+<a name="205094524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094524">(Jul 27 2020 at 09:07)</a>:</h4>
+<p>ultimately, that's what the parser does</p>
+
+
+
+<a name="205094532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094532">(Jul 27 2020 at 09:07)</a>:</h4>
+<p>that's an awful lot of calls, what's wrong with the marker?</p>
+
+
+
+<a name="205094603"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094603" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094603">(Jul 27 2020 at 09:08)</a>:</h4>
+<p>I was thinking making a function like this: <code>list command -&gt; response</code></p>
+
+
+
+<a name="205094612"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094612" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094612">(Jul 27 2020 at 09:08)</a>:</h4>
+<p>and after each batch, I'll just weave in the marker.</p>
+
+
+
+<a name="205094613"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094613" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094613">(Jul 27 2020 at 09:08)</a>:</h4>
+<p>Sure, you can do that regardless of how parsing works</p>
+
+
+
+<a name="205094634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094634">(Jul 27 2020 at 09:08)</a>:</h4>
+<p>that way we still get good behaviour w.r.t. large batches, because only one message per batch.</p>
+
+
+
+<a name="205094639"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094639" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094639">(Jul 27 2020 at 09:08)</a>:</h4>
+<p>that's not excessive costs.</p>
+
+
+
+<a name="205094650"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094650" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094650">(Jul 27 2020 at 09:09)</a>:</h4>
+<p>and it makes for a very clear delimiter, imo.</p>
+
+
+
+<a name="205094731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094731">(Jul 27 2020 at 09:10)</a>:</h4>
+<p>Sure, if the format lets you do that, then that will allow you to use a bigger buffer</p>
+
+
+
+<a name="205094794"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094794" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094794">(Jul 27 2020 at 09:11)</a>:</h4>
+<p>It does and honestly I was fairly re-assured that a big project was using that approach, it suggests that it holds up in practice. Even if feels a bit hacky, it lets us pretend we are doing RPC.</p>
+
+
+
+<a name="205094804"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094804" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094804">(Jul 27 2020 at 09:11)</a>:</h4>
+<p>which is nice from an API point of view.</p>
+
+
+
+<a name="205094878"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094878" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094878">(Jul 27 2020 at 09:12)</a>:</h4>
+<p>At least JSON-RPC uses a <code>Content-Length: n</code> at the start of the response so you don't have to play that game</p>
+
+
+
+<a name="205094933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094933">(Jul 27 2020 at 09:13)</a>:</h4>
+<p>right, that's quite nice.</p>
+
+
+
+<a name="205094934"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205094934" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205094934">(Jul 27 2020 at 09:13)</a>:</h4>
+<p>But this seems like an optimization, I wouldn't bother until the rest of the arch is working first</p>
+
+
+
+<a name="205095040"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095040" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095040">(Jul 27 2020 at 09:14)</a>:</h4>
+<p>Something tells me that repeated getchar calls will be the least of your performance worries</p>
+
+
+
+<a name="205095062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095062">(Jul 27 2020 at 09:14)</a>:</h4>
+<p>I can't really change how z3 returns its responses. And in the first phase, I want to just do a z3 binding.</p>
+
+
+
+<a name="205095075"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095075" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095075">(Jul 27 2020 at 09:14)</a>:</h4>
+<p>and ideally not make very strong assumptions on the order of commands, etc.</p>
+
+
+
+<a name="205095080"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095080" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095080">(Jul 27 2020 at 09:14)</a>:</h4>
+<p>and it's pretty easy to code a parser using lots of getchar</p>
+
+
+
+<a name="205095101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095101">(Jul 27 2020 at 09:15)</a>:</h4>
+<p>but what do you do if there is nothing to read at all?</p>
+
+
+
+<a name="205095107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095107">(Jul 27 2020 at 09:15)</a>:</h4>
+<p>block</p>
+
+
+
+<a name="205095109"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095109" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095109">(Jul 27 2020 at 09:15)</a>:</h4>
+<p>i.e. there just is no response</p>
+
+
+
+<a name="205095131"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095131" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095131">(Jul 27 2020 at 09:15)</a>:</h4>
+<p>well, SMTlib doesn't produce a response for every operation.</p>
+
+
+
+<a name="205095135"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095135" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095135">(Jul 27 2020 at 09:15)</a>:</h4>
+<p>you should know if you expect a response, and if z3 hangs then so should you</p>
+
+
+
+<a name="205095190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095190">(Jul 27 2020 at 09:16)</a>:</h4>
+<p>the smtlib protocol determines what you are looking for</p>
+
+
+
+<a name="205095218"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095218" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095218">(Jul 27 2020 at 09:16)</a>:</h4>
+<p>if I do that, then the IO code and command code are very tightly coupled. Because the decision to read or not read depends on the concrete command.</p>
+
+
+
+<a name="205095227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095227">(Jul 27 2020 at 09:17)</a>:</h4>
+<p>So I can't abstract that away in a natural way.</p>
+
+
+
+<a name="205095242"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095242" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095242">(Jul 27 2020 at 09:17)</a>:</h4>
+<p>You can have a <code>read_command : io response</code></p>
+
+
+
+<a name="205095247"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095247" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095247">(Jul 27 2020 at 09:17)</a>:</h4>
+<p>Whereas adding the marker makes every reponse always end in a <code>Done!</code>.</p>
+
+
+
+<a name="205095304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095304">(Jul 27 2020 at 09:18)</a>:</h4>
+<p>I was thinking about that one, too, actually</p>
+
+
+
+<a name="205095322"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095322" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095322">(Jul 27 2020 at 09:18)</a>:</h4>
+<p>and then <code>run_smt_cmd : request -&gt; io response</code> will do <code>return response.none</code> on some requests</p>
+
+
+
+<a name="205095330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095330">(Jul 27 2020 at 09:18)</a>:</h4>
+<p>and <code>read_command</code> on others</p>
+
+
+
+<a name="205095354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095354">(Jul 27 2020 at 09:19)</a>:</h4>
+<p>So you'd code up the whole spec?</p>
+
+
+
+<a name="205095372"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095372" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095372">(Jul 27 2020 at 09:19)</a>:</h4>
+<p>the parts that matter to you, at least</p>
+
+
+
+<a name="205095507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095507">(Jul 27 2020 at 09:21)</a>:</h4>
+<p>there's also a config option, though. This lets the user change the behaviour of z3 as to it would write <code>success</code> after every command.</p>
+
+
+
+<a name="205095513"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095513" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095513">(Jul 27 2020 at 09:21)</a>:</h4>
+<p>and that's totally a command the user can send.</p>
+
+
+
+<a name="205095533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095533">(Jul 27 2020 at 09:21)</a>:</h4>
+<p>so now the reading of responses even depends on the exact order of commands.</p>
+
+
+
+<a name="205095586"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095586" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095586">(Jul 27 2020 at 09:22)</a>:</h4>
+<p>all of that is possible, but feels like a huge amount of complexity just to avoid a single marker from the sender side.</p>
+
+
+
+<a name="205095612"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095612" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095612">(Jul 27 2020 at 09:22)</a>:</h4>
+<p>do you have any concrete issues with the approach or are you merely offering other ways to achieve the same outcome?</p>
+
+
+
+<a name="205095623"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095623" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095623">(Jul 27 2020 at 09:23)</a>:</h4>
+<p>If you don't want that option, then ignore it</p>
+
+
+
+<a name="205095646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095646">(Jul 27 2020 at 09:23)</a>:</h4>
+<p>if you have a grammar of commands to send, you can just skip that one</p>
+
+
+
+<a name="205095728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095728">(Jul 27 2020 at 09:24)</a>:</h4>
+<p>I see, so this may become less of an issue once I have more code, then.</p>
+
+
+
+<a name="205095736"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095736" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095736">(Jul 27 2020 at 09:24)</a>:</h4>
+<p>If you actually want to talk in smtlib then one would expect a fully detailed (if incomplete) grammar at some point. Trading sexprs only gets you so far</p>
+
+
+
+<a name="205095739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095739">(Jul 27 2020 at 09:24)</a>:</h4>
+<p>At this early stage I'm submitting s-expressions directly</p>
+
+
+
+<a name="205095763"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095763" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095763">(Jul 27 2020 at 09:25)</a>:</h4>
+<p>yes, I definitely agree with that.</p>
+
+
+
+<a name="205095821"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095821" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095821">(Jul 27 2020 at 09:25)</a>:</h4>
+<p>and if you are at the trading sexprs stage then you can just pretend that inconvenient options don't exist and trust the user not to send them</p>
+
+
+
+<a name="205095897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095897">(Jul 27 2020 at 09:26)</a>:</h4>
+<p>In the end, though, I think I really prefer the option of adding the marker. Then I can completely hide that inside of the io loop that the user doesn't see and they see much the same thing as they would in a repl.</p>
+
+
+
+<a name="205095928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095928">(Jul 27 2020 at 09:27)</a>:</h4>
+<p>and it's simple which is something I like for maintenance.</p>
+
+
+
+<a name="205095972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205095972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205095972">(Jul 27 2020 at 09:27)</a>:</h4>
+<p>and the user can't break things by changing options.</p>
+
+
+
+<a name="205096287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096287">(Jul 27 2020 at 09:31)</a>:</h4>
+<p>You should have the parser hooked up to the IO loop anyway (even if the actual mechanism is hidden in some monad transformers), because otherwise you have to buffer more than necessary</p>
+
+
+
+<a name="205096452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096452">(Jul 27 2020 at 09:33)</a>:</h4>
+<p>my current thinking was to use <code>get_line</code> repeatedly until the marker and use the parser on the output, possibly per line possibly at the end. And the output of the monad would be a response, not a string.</p>
+
+
+
+<a name="205096580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096580">(Jul 27 2020 at 09:35)</a>:</h4>
+<p>it's mostly about avoiding to block accidently without restricting the user's API artificially. So I'm weighing options and trying to compare advantages and issues with any.</p>
+
+
+
+<a name="205096712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096712">(Jul 27 2020 at 09:36)</a>:</h4>
+<p>I think that any parse approach can be encompassed in <code>request -&gt; io response</code>, or <code>\Pi r : request, smt_monad (response r)</code> if you want to get fancy</p>
+
+
+
+<a name="205096741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096741">(Jul 27 2020 at 09:36)</a>:</h4>
+<p>So far my main concern about the read one char at a time are possibly a huge number of api calls (somewhat minor, I guess) and the complexity to make sure we don't accidently read when there's nothing to read, i.e. the chances of a block.</p>
+<p>My main criticism of the "send a marker" approach is that it feels a bit hacky</p>
+
+
+
+<a name="205096795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096795">(Jul 27 2020 at 09:37)</a>:</h4>
+<p>I suspect that there are so many buffers between lean and the actual IO that many getchar calls won't actually be a problem</p>
+
+
+
+<a name="205096817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096817">(Jul 27 2020 at 09:37)</a>:</h4>
+<p>good to know!</p>
+
+
+
+<a name="205096921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205096921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205096921">(Jul 27 2020 at 09:38)</a>:</h4>
+<p>do you have some further criticism for the marker idea that I need to consider, btw?</p>
+
+
+
+<a name="205105363"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205105363" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205105363">(Jul 27 2020 at 11:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes/near/205095040">said</a>:</p>
+<blockquote>
+<p>Something tells me that repeated getchar calls will be the least of your performance worries</p>
+</blockquote>
+<p>In my experience the parsing is the slowest part if you do it in pure Lean.  I used Lean's <a href="https://github.com/leanprover-community/lean/blob/549e2fed50b361d0d49a3dd1e7ccb6de9440059b/library/data/buffer/parser.lean">parsing library</a> (not to be confused with Lean's parser which is not available inside tactics), and I've found it really slow.  I think the slowdown is character-by-character evaluation.</p>
+
+
+
+<a name="205105664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205105664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205105664">(Jul 27 2020 at 11:32)</a>:</h4>
+<p>Even with batched OS calls, you will usually have a character parser to parse that text, and that will be slow. But I don't really see an alternative unless you somehow do the work outside lean</p>
+
+
+
+<a name="205105941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205105941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205105941">(Jul 27 2020 at 11:36)</a>:</h4>
+<p>I don't think it's that bad, actually. Because generally the input is much, much bigger.</p>
+
+
+
+<a name="205105945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205105945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205105945">(Jul 27 2020 at 11:36)</a>:</h4>
+<p>and that's not parsed, but just concatenated.</p>
+
+
+
+<a name="205105976"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205105976" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205105976">(Jul 27 2020 at 11:37)</a>:</h4>
+<p>Plus, I'm hoping lean4 would make it better in future.</p>
+
+
+
+<a name="205106060"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106060" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106060">(Jul 27 2020 at 11:38)</a>:</h4>
+<p>if parsing becomes the bottle neck, I can always do the parsing in F# and spit out some trivially-parsable thing for lean.</p>
+
+
+
+<a name="205106109"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106109" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106109">(Jul 27 2020 at 11:39)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  That is sort of my point.  Parsing is the bottle neck (on the Lean side.  Of course, if Lean blocks, Z3 is probably the bottleneck overall).  Although, as I think about it, my parsing woes where related to parsing quoted strings.  When I changed my protocol so that I didn't have quoted strings (using a bastardized version of JSON), then it was much faster.)</p>
+
+
+
+<a name="205106608"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106608" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106608">(Jul 27 2020 at 11:44)</a>:</h4>
+<p>I mean... technically my parser will deal with quoted strings.</p>
+
+
+
+<a name="205106616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106616">(Jul 27 2020 at 11:44)</a>:</h4>
+<p>But i can always put that rule last</p>
+
+
+
+<a name="205106630"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106630" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106630">(Jul 27 2020 at 11:44)</a>:</h4>
+<p>and since in practice, we probably get numbers it may be ok.</p>
+
+
+
+<a name="205106821"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106821" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106821">(Jul 27 2020 at 11:46)</a>:</h4>
+<p>You could structure the parser as a finite (or infinite) state machine</p>
+
+
+
+<a name="205106927"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106927" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106927">(Jul 27 2020 at 11:47)</a>:</h4>
+<p>I read on the repo of SMTlib in F#, that the guy ran 40k test scripts for his parser from the smtlib homepage. Maybe I can do that, too.</p>
+
+
+
+<a name="205106929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106929">(Jul 27 2020 at 11:47)</a>:</h4>
+<p>It might be okay to use parser combinators if you liberally sprinkle <code>@[inline]</code> but lean doesn't do nearly as much optimization as haskell to make functional programming style efficient</p>
+
+
+
+<a name="205106980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205106980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205106980">(Jul 27 2020 at 11:48)</a>:</h4>
+<p>that way, it would both be known to work and reasonably efficient.</p>
+
+
+
+<a name="205107156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107156">(Jul 27 2020 at 11:50)</a>:</h4>
+<p>anyway, I don't think that it's wasted effort, because either way, we probably want the inductives for commands available in lean. And I can always use an existing F# lib for parsing.</p>
+
+
+
+<a name="205107167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107167">(Jul 27 2020 at 11:50)</a>:</h4>
+<p>and then do the trivially-parsable format for lean.</p>
+
+
+
+<a name="205107194"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107194" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107194">(Jul 27 2020 at 11:50)</a>:</h4>
+<p>It would only mean replacing the parser whilst leaving everything else in place.</p>
+
+
+
+<a name="205107243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107243">(Jul 27 2020 at 11:51)</a>:</h4>
+<p>Do you have a smtlib sexpr parser?</p>
+
+
+
+<a name="205107410"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107410" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107410">(Jul 27 2020 at 11:52)</a>:</h4>
+<p>I am working on one for lean and there's one for F#.</p>
+
+
+
+<a name="205107423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107423">(Jul 27 2020 at 11:53)</a>:</h4>
+<p>the f# one is just an existing lib.</p>
+
+
+
+<a name="205107445"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107445" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107445">(Jul 27 2020 at 11:53)</a>:</h4>
+<p>so at worst, the lean sexpr parser is wasted.</p>
+
+
+
+<a name="205107558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107558">(Jul 27 2020 at 11:54)</a>:</h4>
+<p>a sexpr parser is obviously independently useful</p>
+
+
+
+<a name="205107599"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107599" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107599">(Jul 27 2020 at 11:55)</a>:</h4>
+<p>smtlib sexprs are slightly more complicated because they have things like <code>|long atoms|</code> and <code>"weird ""string"" quoting"</code></p>
+
+
+
+<a name="205107738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107738">(Jul 27 2020 at 11:57)</a>:</h4>
+<p>oh I see, then we could make the sexpr parser separately packaged and the SMTlib protocol on top of that.</p>
+
+
+
+<a name="205107743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107743">(Jul 27 2020 at 11:57)</a>:</h4>
+<p>as two different things.</p>
+
+
+
+<a name="205107987"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205107987" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205107987">(Jul 27 2020 at 12:00)</a>:</h4>
+<p>hmm, can you even make an sexpr parser that smtlib uses, then? Don't you have to tokenize differently like the long atoms?</p>
+
+
+
+<a name="205108036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108036">(Jul 27 2020 at 12:01)</a>:</h4>
+<p>i mean as n sexpr, <code>(|what does| "this ""tokenize"" as?")</code></p>
+
+
+
+<a name="205108046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108046">(Jul 27 2020 at 12:01)</a>:</h4>
+<p>You probably need a dedicated smtlib style sexpr parser, which can be separated from the smtlib grammar parsing</p>
+
+
+
+<a name="205108060"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108060" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108060">(Jul 27 2020 at 12:01)</a>:</h4>
+<p>right, that makes sense.</p>
+
+
+
+<a name="205108076"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108076" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108076">(Jul 27 2020 at 12:01)</a>:</h4>
+<p>my idea was to make the smtlib sexpr parser first.</p>
+
+
+
+<a name="205108095"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108095" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108095">(Jul 27 2020 at 12:02)</a>:</h4>
+<p>and then just pattern match various s-exprs to build commands.</p>
+
+
+
+<a name="205108132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108132">(Jul 27 2020 at 12:02)</a>:</h4>
+<p>you could try to generalize the pure sexpr part, but I think it would make the parser a lot slower</p>
+
+
+
+<a name="205108544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205108544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205108544">(Jul 27 2020 at 12:07)</a>:</h4>
+<p>Ok, so the agreed plan of action for now is:</p>
+<ul>
+<li>make an smtlib-style sexpr parser</li>
+<li>run a large test suite</li>
+<li>if it's good enough, continue, else use some other language of the parsing, simplifying Lean's job</li>
+<li>after that pattern-match sexprs to build commands</li>
+</ul>
+
+
+
+<a name="205109713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205109713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205109713">(Jul 27 2020 at 12:20)</a>:</h4>
+<p>If it helps, in that example I sent you, I did something similar, except with JSON instead of sexprs.  I had a general purpose JSON parser which read in and parsed JSON to an inductive type <code>json</code>. (Besides the parser, I also built a serializer for the <code>json</code> type.) Then for my API, I made custom structures and inductive types.  All serialization and deserialization of the API objects went through the <code>json</code> type.  (I even wrote a python script which took a lean structure or inductive type and automatically wrote all the boilerplate to convert to/from <code>json</code>.  (I've been spoiled by Google's Protobuf format which automatically turns a protobuf API into whatever language you need, so I wanted to reproduce a little of that magic.)</p>
+
+
+
+<a name="205110663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205110663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205110663">(Jul 27 2020 at 12:32)</a>:</h4>
+<p>right, so I have a "serializer" for the s-exprs that I support.</p>
+
+
+
+<a name="205110702"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205110702" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205110702">(Jul 27 2020 at 12:32)</a>:</h4>
+<p>but no parser yet.</p>
+
+
+
+<a name="205110731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205110731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205110731">(Jul 27 2020 at 12:32)</a>:</h4>
+<p>It's not really fully-fletched yet, but it's enough to solve sudoku in z3 :P</p>
+
+
+
+<a name="205110777"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Ideas%20for%20two-way%20communication%20between%20processes/near/205110777" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Ideas.20for.20two-way.20communication.20between.20processes.html#205110777">(Jul 27 2020 at 12:33)</a>:</h4>
+<p>in particular, I'm not escaping strings yet, etc.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

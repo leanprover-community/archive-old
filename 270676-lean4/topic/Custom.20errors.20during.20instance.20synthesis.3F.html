@@ -1,0 +1,93 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html">Custom errors during instance synthesis?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="291425551"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291425551" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291425551">(Jul 30 2022 at 12:07)</a>:</h4>
+<p>When using type classes for overloaded notation, I'd like to be able to provide custom error messages for intentionally-missing instances.</p>
+<p>For instance, if I have a type of positive numbers, then it would be nice to make it so that attempting to synthesize an <code>OfNat Positive Nat.zero</code> gives a message like <code>0 is not positive</code> instead of <code>failed to synthesize instance OfNat Positive 0</code>.</p>
+<p>In Haskell, there's the <code>TypeError</code> constraint that causes GHC to fail with a given message. If Lean had it, then I could write something like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">[</span><span class="n">Fail</span> <span class="s2">"0 is not positive"</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">Positive</span> <span class="mi">0</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:=</span> <span class="n">Fail.failed</span>
+</code></pre></div>
+<p>Here, <code>failed</code> is intended to make use of some evidence that <code>Fail</code> is uninhabited to discharge obligations in the instance.</p>
+<p>Alternatively, I could imagine some way to add a custom hook through the metaprogramming API.</p>
+<p>Is there some way to do what I'm thinking of here?</p>
+
+
+
+<a name="291425825"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291425825" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291425825">(Jul 30 2022 at 12:14)</a>:</h4>
+<p>There is to my knowledge no way to do this right now, although I do think it sounds like a good idea.</p>
+
+
+
+<a name="291427364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291427364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291427364">(Jul 30 2022 at 12:50)</a>:</h4>
+<p>What if there was another way to find the instance? Would the failure take precedence?</p>
+
+
+
+<a name="291427634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291427634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291427634">(Jul 30 2022 at 12:56)</a>:</h4>
+<p>I would expect that the Lean would follow the usual instance search rules, including rules like "later takes precedence over earlier". If the final result ended up being <code>Fail</code>, then failure would be snatched from the jaws of victory.</p>
+<p>This would allow things like improved default error messages in cases when an instance is missing, without it getting in the way of user definitions. For example, one could rewrite "failed to synthesize instance OfNat Foo 42" with "Can't interpret the numeric literal 42 as a Foo because no OfNat Foo 42 instance was found".</p>
+<p>On the other hand, my main concern was finding out whether something like this exists already - I take this to mean that it doesn't :-)</p>
+
+
+
+<a name="291427940"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291427940" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291427940">(Jul 30 2022 at 13:02)</a>:</h4>
+<blockquote>
+<p>For example, one could rewrite "failed to synthesize instance OfNat Foo 42" with "Can't interpret the numeric literal 42 as a Foo because no OfNat Foo 42 instance was found".</p>
+</blockquote>
+<p>That message is actually just a fancy way to explain the type of the goal, so I think you could do this without <code>Fail</code>, you would just need some kind of unexpander setup on the final error message</p>
+
+
+
+<a name="291428045"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291428045" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291428045">(Jul 30 2022 at 13:05)</a>:</h4>
+<p>That's a good point. Can you point me to any examples I can grep for in the source? I haven't written an unexpander yet :-)</p>
+
+
+
+<a name="291428094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291428094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291428094">(Jul 30 2022 at 13:06)</a>:</h4>
+<p>If <code>Fail</code> acts like a real instance, then I would worry about it getting spuriously picked in unrelated searches. For example, we want to prove <code>Inhabited (Fin 1)</code>, so we use an instance saying <code>OfNat (Fin 1) ?n |- Inhabited (Fin 1)</code> (this would be a bad idea but let's just say this exists), and then <code>Fail |- OfNat (Fin 1) 2</code> matches and you miss the other instance which directly proves <code>Inhabited (Fin 1)</code></p>
+
+
+
+<a name="291428105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291428105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291428105">(Jul 30 2022 at 13:06)</a>:</h4>
+<p>If that fail instance hadn't been provided it would have found the normal instance</p>
+
+
+
+<a name="291428185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291428185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291428185">(Jul 30 2022 at 13:08)</a>:</h4>
+<p>I actually was just suggesting a possible way to implement this. There is currently no support for customizing the type class failure error message</p>
+
+
+
+<a name="291428289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20errors%20during%20instance%20synthesis%3F/near/291428289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20errors.20during.20instance.20synthesis.3F.html#291428289">(Jul 30 2022 at 13:11)</a>:</h4>
+<p>The idea would be that it calls <code>throwTypeclassFailure ty</code> given the type of the goal, and this is a user extensible function so you can say e.g. if <code>ty = OfNat (Fin m) n</code> and <code>m &lt; n</code> then <code>throwError "{n} is not a member of `Fin {m}`"</code></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

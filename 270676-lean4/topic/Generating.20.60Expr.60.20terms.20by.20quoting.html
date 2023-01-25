@@ -1,0 +1,146 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html">Generating `Expr` terms by quoting</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276225326"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276225326" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anand Rao <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276225326">(Mar 22 2022 at 17:28)</a>:</h4>
+<p>I have some code operating on terms of the <code>Expr</code> type. I would like to test this with a few examples to see if it is working as intended, but I am facing some difficulty in creating <code>Expr</code> terms.</p>
+<p>In Lean3, I could wrap a term <code>e</code> around using a back-quote with parentheses (like this - <code>`(e)</code>) to generate the <code>expr</code>ession corresponding to <code>e</code>. However, trying the same in Lean4 gives me a complicated term with the <code>Syntax</code> type.</p>
+<p>Is there an easy way to convert a term to its corresponding <code>Expr</code> in Lean4? Thanks in advance.</p>
+
+
+
+<a name="276226317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276226317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276226317">(Mar 22 2022 at 17:35)</a>:</h4>
+<p>Gabriel's quotation library is probably relevant: <a href="https://github.com/gebner/quote4">https://github.com/gebner/quote4</a></p>
+<p>With builtin Lean 4 tools, use <a href="https://github.com/leanprover/lean4/blob/c29da66c5a27356504dc1e764b3da759faa8cd73/src/Lean/Elab/Term.lean#L1196"><code>elabTerm</code></a> to elaborate the <code>Syntax</code> you get out of the quotation.</p>
+
+
+
+<a name="276231542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276231542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anand Rao <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276231542">(Mar 22 2022 at 18:09)</a>:</h4>
+<p>Thank you.</p>
+<p>I am having a bit of trouble specifying the expected type to the <code>elabTerm</code> function, since it requires the expected type to be quoted as an expression:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Expr</span>
+<span class="kn">open</span> <span class="n">Elab</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">If the expression is of the form</span>
+<span class="cm">A₁ → A₂ → A₃ → … → Aₙ → … → B,</span>
+<span class="cm">the output of `target` is `B`.</span>
+
+<span class="cm">Essentially, it recovers the term at the end of a series of nested implications.</span>
+<span class="cm">-/</span>
+<span class="kd">def</span> <span class="n">target</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">forallE</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+
+<span class="k">#check</span> <span class="n">Term.elabTerm</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:=</span> <span class="bp">`</span><span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">x</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Term.elabTerm</span> <span class="n">s</span> <span class="o">(</span><span class="n">Option.some</span> <span class="gr">sorry</span><span class="o">)</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">target</span> <span class="n">e</span><span class="o">)</span>
+</code></pre></div>
+<p>Specifically, I do not know how to replace the <code>sorry</code> above with <code>Nat -&gt; Nat</code> (the expected type) quoted as an expression.</p>
+
+
+
+<a name="276272328"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276272328" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276272328">(Mar 23 2022 at 00:19)</a>:</h4>
+<p>You can use <code>← mkArrow (mkConst ``Nat) (mkConst ``Nat)</code> to get <code>Nat -&gt; Nat</code>. You may need to <code>open Meta</code>.</p>
+
+
+
+<a name="276276765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276276765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276276765">(Mar 23 2022 at 00:54)</a>:</h4>
+<p>There is another issue with <code>let s</code>. Here is a version with the two corrections.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">target</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">Expr.lam</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">Expr.forallE</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+
+<span class="k">#check</span> <span class="n">Term.elabTerm</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="bp">←</span>  <span class="bp">`</span><span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">x</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Term.elabTerm</span> <span class="n">s</span> <span class="o">(</span><span class="n">Option.some</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkArrow</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">)))</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">target</span> <span class="n">e</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="276277141"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276277141" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276277141">(Mar 23 2022 at 01:00)</a>:</h4>
+<p>Another thing: if you are pattern matching on expressions, you should first reduce them (and often take <code>whnf</code>). For instance, you can compare with and without the additional line with <code>reduce</code> in the following.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">target</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">Expr.lam</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">Expr.forallE</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">target</span> <span class="n">b</span>
+  <span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+
+<span class="k">#check</span> <span class="n">Term.elabTerm</span>
+
+<span class="kd">def</span> <span class="n">tst</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="bp">←</span>  <span class="bp">`</span><span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">x</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Term.elabTerm</span> <span class="n">s</span> <span class="o">(</span><span class="n">Option.some</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkArrow</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">)))</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span>  <span class="n">reduce</span> <span class="n">e</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">target</span> <span class="n">e</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">tst</span>
+</code></pre></div>
+
+
+
+<a name="276278503"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276278503" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276278503">(Mar 23 2022 at 01:24)</a>:</h4>
+<p>Incidentally, a trick I use to test this by getting a term is to write a small elaborator. In this case it shows a bug (this is code after the above).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="s2">"tst!"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">tst</span>
+
+<span class="k">#eval</span> <span class="n">tst</span><span class="bp">!</span>
+</code></pre></div>
+<p>However I assume this was just an exercise with syntax. If you try to compute the target this way, another issue is that you will have bound variables in the expression, which have no meaning (or the wrong meaning due to de Bruijn indexing)  outside their context and so will give an error.</p>
+
+
+
+<a name="276285761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276285761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anand Rao <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276285761">(Mar 23 2022 at 03:56)</a>:</h4>
+<p>Thank you very much. It turns out that with this fix to the <code>let</code> expression, the <code>elabTerm</code>also accepts <code>Option.none</code> as its second argument (presumably because it has now managed to infer the type of the expression <code>s</code> correctly). I see why my usage of <code>:=</code> instead of <code>&lt;-</code> in that example was incorrect.</p>
+
+
+
+<a name="276286392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276286392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anand Rao <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276286392">(Mar 23 2022 at 04:09)</a>:</h4>
+<p>Thank you for pointing out the issue with the bound variables. In my actual use case (which is to write a small tactic in Lean4), I will be trying to extract the target type (and not the target). Most of my inputs will not be dependent types, so I hope the issues with bound variables do not arise.</p>
+
+
+
+<a name="276305948"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Generating%20%60Expr%60%20terms%20by%20quoting/near/276305948" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting.html#276305948">(Mar 23 2022 at 09:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="303675">Anand Rao</span> <a href="#narrow/stream/270676-lean4/topic/Generating.20.60Expr.60.20terms.20by.20quoting/near/276286392">said</a>:</p>
+<blockquote>
+<p>Most of my inputs will not be dependent types, so I hope the issues with bound variables do not arise.</p>
+</blockquote>
+<p>Note that even just polymorphism requires you to handle dependencies: your <code>target</code> does not work on <code>forall α, List α -&gt; List α</code>. So it's unlikely that you can avoid this complication. You should probably be using <a href="https://github.com/leanprover/lean4/blob/170b911a6f6f4e86ce284c5daf74e2e7d1700e19/src/Lean/Meta/Basic.lean#L778"><code>forallTelescope</code></a> or one of its variants.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

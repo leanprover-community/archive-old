@@ -1,0 +1,272 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html">how is <missing> used in parsers?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="291654900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291654900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291654900">(Aug 02 2022 at 01:43)</a>:</h4>
+<p>This example violates my expectations on how <code>Syntax.missing</code> works.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">foo</span><span class="o">)</span> <span class="s2">"foo"</span> <span class="o">(</span><span class="s2">"("</span> <span class="n">ident</span> <span class="s2">")"</span><span class="o">)</span><span class="bp">?</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">elab</span> <span class="s2">"#stx"</span> <span class="n">tm</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">dbg_trace</span> <span class="n">tm</span>
+
+<span class="bp">#</span><span class="n">stx</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span><span class="o">)</span> <span class="n">x</span> <span class="c1">-- (foo "foo" ["(" `a ")"] `x)</span>
+<span class="bp">#</span><span class="n">stx</span> <span class="n">foo</span> <span class="o">()</span> <span class="n">x</span> <span class="c1">-- (foo "foo" ["(" &lt;missing&gt;])</span>
+</code></pre></div>
+<p>In the example, we are causing a malformed parse of the <code>foo</code> syntax, and we see that because the identifier <code>a</code> was not found, it has a <code>&lt;missing&gt;</code> in its place, so far so good. But the terminating atom <code>")"</code> is not parsed, and even worse, the entire right half of <code>foo</code> is missing: the first subtree has only 2 elements instead of 3, and the <code>foo</code> node also has 2 elements instead of 3. This causes index out of bounds exceptions with naive syntax addressing like <code>stx[2]</code> to get the identifier <code>x</code>. Is this working as designed, or is it a bug?</p>
+
+
+
+<a name="291658548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291658548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291658548">(Aug 02 2022 at 02:52)</a>:</h4>
+<p>Note that if the middle node is marked <code>atomic</code> you get the 3 elements in <code>foo</code> as you expected:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">B</span>
+<span class="kn">local</span> <span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">foo</span><span class="o">)</span> <span class="s2">"foo"</span> <span class="n">atomic</span><span class="o">(</span><span class="s2">"("</span> <span class="n">ident</span> <span class="s2">")"</span><span class="o">)</span><span class="bp">?</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="bp">#</span><span class="n">stx</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span><span class="o">)</span> <span class="n">x</span> <span class="c1">-- (foo "foo" ["(" `a ")"] `x)</span>
+<span class="bp">#</span><span class="n">stx</span> <span class="n">foo</span> <span class="o">()</span> <span class="n">x</span> <span class="c1">-- (B.foo "foo" [] &lt;missing&gt;)</span>
+<span class="kd">end</span> <span class="n">B</span>
+</code></pre></div>
+
+
+
+<a name="291658671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291658671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291658671">(Aug 02 2022 at 02:54)</a>:</h4>
+<p>The problem with your example is that because the parser successfully parsed <code>"("</code>, it is now committed to parse <code>"(" ident ")"</code>. Thus, when it fails to parse <code>ident</code> it is now in a fatal state and has to fail hard from the command it is parsing, hence the malformed syntax after that point.</p>
+
+
+
+<a name="291658891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291658891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291658891">(Aug 02 2022 at 02:59)</a>:</h4>
+<p>In other words, without the atomic, the missing <code>ident</code> means the whole command is ill-formed, with the <code>atomic</code>, only the optional middle part is ill-formed.</p>
+
+
+
+<a name="291659346"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659346" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659346">(Aug 02 2022 at 03:07)</a>:</h4>
+<p>is there a version that gets me <code>(foo "foo" ["(" &lt;missing&gt; ")"] `x)</code>?</p>
+
+
+
+<a name="291659520"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659520" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659520">(Aug 02 2022 at 03:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> no, how would Lean create the final <code>")"</code> atom? Remember that <code>Syntax</code> is a concrete syntax tree and the parser is assumed to produce syntax which can be directly reprinted as the fragment of source parsed. Thus, to create the final <code>")"</code> the parser needs source information which it does not have because it never made it there.</p>
+
+
+
+<a name="291659560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659560">(Aug 02 2022 at 03:11)</a>:</h4>
+<p>I don't follow. It just failed to parse a <code>x</code> but there is a <code>)</code> right in front of it, so it could certainly finish the job</p>
+
+
+
+<a name="291659569"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659569" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659569">(Aug 02 2022 at 03:11)</a>:</h4>
+<p>recall the input is <code>foo () x</code></p>
+
+
+
+<a name="291659571"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659571" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659571">(Aug 02 2022 at 03:11)</a>:</h4>
+<p>You could conceivable create a new parser combinator ala <code>optional</code> that attempts to perform a parse and fails with missing if it does not.</p>
+
+
+
+<a name="291659618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659618">(Aug 02 2022 at 03:12)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F/near/291659560">said</a>:</p>
+<blockquote>
+<p>I don't follow. It just failed to parse a <code>x</code> but there is a <code>)</code> right in front of it, so it could certainly finish the job</p>
+</blockquote>
+<p>It doesn't know that though,  what <code>ident</code> parses is opaque to the combinators, it might have  wanted to eat the rest of the file for all it knows.</p>
+
+
+
+<a name="291659664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659664">(Aug 02 2022 at 03:13)</a>:</h4>
+<p>All it knows is that the parse of some parser (the one represented by <code>ident</code>) failed and parser state is now erroneous so it needs to fail hard.</p>
+
+
+
+<a name="291659799"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291659799" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291659799">(Aug 02 2022 at 03:16)</a>:</h4>
+<p>For instance, consider the case were <code>ident</code> is instead <code>str</code> and it failed in the middle of the string parse (e.g., due to a bad escape), it would be very bad if it then ate a following ')' in the string because it assumed it was the following token.</p>
+
+
+
+<a name="291660036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291660036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291660036">(Aug 02 2022 at 03:20)</a>:</h4>
+<p>In code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">C</span>
+<span class="kn">local</span> <span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">foo</span><span class="o">)</span> <span class="s2">"foo"</span> <span class="o">(</span><span class="s2">"("</span> <span class="n">str</span> <span class="s2">")"</span><span class="o">)</span><span class="bp">?</span> <span class="n">ident</span> <span class="o">:</span> <span class="n">term</span>
+<span class="bp">#</span><span class="n">stx</span> <span class="n">foo</span> <span class="o">(</span><span class="s2">"</span><span class="err">\</span><span class="s2">u8x</span><span class="se">\"</span><span class="s2">) x -- (C.foo "</span><span class="n">foo</span><span class="s2">" ["</span><span class="o">(</span><span class="s2">" &lt;missing&gt;])</span>
+<span class="s2">end C</span>
+</code></pre></div>
+
+
+
+<a name="291660723"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291660723" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291660723">(Aug 02 2022 at 03:32)</a>:</h4>
+<p>I don't see why that would be bad. It may sometimes lead you astray - recovery is never perfect - but it should do a lot better than completely giving up on the rest of the command</p>
+
+
+
+<a name="291661061"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661061" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661061">(Aug 02 2022 at 03:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> My reasoning for it being bad would be that it violates a lot of the assumptions the Lean core makes about the <code>Syntax</code> objects produced by parsers (that they are a well-formed replication of the fragment of code the parser successfully parsed). With your approach, I am not even sure how places that care about this invariant (e.g., <code>reprint</code>) would verify that the nodes produce were actually properly parsed and not best effort synthetic reconstructions.</p>
+
+
+
+<a name="291661100"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661100" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661100">(Aug 02 2022 at 03:39)</a>:</h4>
+<p>I don't understand the distinction. I would like the syntax to be as well formed as possible, with every node either being completely correct or completely <code>.missing</code></p>
+
+
+
+<a name="291661176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661176">(Aug 02 2022 at 03:40)</a>:</h4>
+<p>The rest of the system will handle it quite well if that's the situation</p>
+
+
+
+<a name="291661191"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661191" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661191">(Aug 02 2022 at 03:40)</a>:</h4>
+<p>in particular, this doesn't violate the property that the syntax is an exact  representation of the text</p>
+
+
+
+<a name="291661290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661290">(Aug 02 2022 at 03:42)</a>:</h4>
+<p>The problem is two-fold: (1) most of the parser code does not have the information to do this -- once the parser errors, the is no going on to future parsers to figure out how to construct missing nodes; (2) there is the big question of how to properly produce source information (which is very important for things like the editor) in this scenario. The leading/trailing whitespace computation requires executing parsers to collect that information and that can't feasibly happen if the parser is already in an error state.</p>
+
+
+
+<a name="291661546"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661546" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661546">(Aug 02 2022 at 03:45)</a>:</h4>
+<p>Point (1) is also important for things like syntax categories where there is the question on errors of which of the erroring parsers should be producing the fake syntax.</p>
+
+
+
+<a name="291661627"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661627" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661627">(Aug 02 2022 at 03:46)</a>:</h4>
+<p>It also would mean that each erroring parser would need to construct its entire fake syntax tree before it errors and then potentially has that syntax discarded when an alternative parser is tried. That would greatly reduce the performance of the parser.</p>
+
+
+
+<a name="291661900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291661900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291661900">(Aug 02 2022 at 03:49)</a>:</h4>
+<p>At least, that would be my reasoning. To get the official reason, <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> would need to chime in.</p>
+
+
+
+<a name="291678323"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291678323" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291678323">(Aug 02 2022 at 08:18)</a>:</h4>
+<p>Parser recovery is a well-trodden topic in the literature, and closing parentheses are indeed usually part of the anchor set. I wouldn't be surprised is (sub-command) parser recovery eventually makes it into Lean, but I think the usability of the current implementation shows that it's far from a must-have.</p>
+
+
+
+<a name="291678519"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291678519" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291678519">(Aug 02 2022 at 08:20)</a>:</h4>
+<p>I don't see any direct issues with producing a concrete syntax tree in presence of parser recovery. Recovery inside backtracking would need some more thought though, yes.</p>
+
+
+
+<a name="291678641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291678641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291678641">(Aug 02 2022 at 08:21)</a>:</h4>
+<blockquote>
+<p>This causes index out of bounds exceptions with naive syntax addressing like stx[2]</p>
+</blockquote>
+<p>Note that this returns <code>.missing</code> instead of panicking for this very reason</p>
+
+
+
+<a name="291680473"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680473" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680473">(Aug 02 2022 at 08:38)</a>:</h4>
+<p>The bug I found was actually using something like <code>stx.getSepArgs[0]!</code> (on a <code>thing,+</code> syntax)</p>
+
+
+
+<a name="291680654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680654">(Aug 02 2022 at 08:39)</a>:</h4>
+<p>Ah, yeah. We want to introduce proper <code>$x,+</code> antiquotations that would not match an empty sequence.</p>
+
+
+
+<a name="291680776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680776">(Aug 02 2022 at 08:40)</a>:</h4>
+<p>well in this case the syntax was completely missing, since it was in the right half of <code>foo</code></p>
+
+
+
+<a name="291680829"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680829" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680829">(Aug 02 2022 at 08:41)</a>:</h4>
+<p>or are you saying that you would use a pattern match to extract the separgs and then the pattern just wouldn't match in this case</p>
+
+
+
+<a name="291680859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680859">(Aug 02 2022 at 08:41)</a>:</h4>
+<p>Yes. If the sequence is completely <code>.missing</code>, <code>$x,*</code> would not match either, I think?</p>
+
+
+
+<a name="291680944"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680944" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680944">(Aug 02 2022 at 08:42)</a>:</h4>
+<p>Note that you can also use <code>$x, $xs,*</code> to extract a fixed-length prefix or suffix of a sequence</p>
+
+
+
+<a name="291680950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680950">(Aug 02 2022 at 08:42)</a>:</h4>
+<p>It was supposed to have already been matched by the parser, I guess</p>
+
+
+
+<a name="291680988"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291680988" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291680988">(Aug 02 2022 at 08:43)</a>:</h4>
+<p>If partial syntax trees did not exist, then yes</p>
+
+
+
+<a name="291681185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291681185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291681185">(Aug 02 2022 at 08:45)</a>:</h4>
+<p>Partial syntax trees and partial elaboration of them is another feature that I think we're very surprised about working as well as it does, with most code being completely oblivious to it.</p>
+
+
+
+<a name="291681285"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291681285" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291681285">(Aug 02 2022 at 08:46)</a>:</h4>
+<p>In case you are wondering, <a href="https://github.com/leanprover/lean4/blob/31b8be9367cfc9e4ddd1c2f113ef3e7285c1d1e6/src/Lean/Elab/Do.lean#L1575">this line</a> is the bugfix, which I may extract from the PR since it appears it won't get merged any time soon</p>
+
+
+
+<a name="291681324"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291681324" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291681324">(Aug 02 2022 at 08:46)</a>:</h4>
+<p>note the use of <code>doForDecls[0]!</code> on the next line</p>
+
+
+
+<a name="291681389"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20is%20%3Cmissing%3E%20used%20in%20parsers%3F/near/291681389" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20is.20.3Cmissing.3E.20used.20in.20parsers.3F.html#291681389">(Aug 02 2022 at 08:47)</a>:</h4>
+<p>Oh yeah, I believe most of the <code>Do</code> code predates our fancier antiquotations</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

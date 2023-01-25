@@ -1,0 +1,559 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113489-new-members/topic/debugging.20inefficient.20tactics.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/index.html">new members</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html">debugging inefficient tactics</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="211868877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211868877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211868877">(Oct 01 2020 at 04:43)</a>:</h4>
+<p>Hey, so I have this proof with a tactic that works for the number 5, and in theory it should work for 1000 which I need it to go up to. However, when I set the constant to above 30 or so, it pegs my CPU at 100% for a while and never terminates. Intuitively, I would only expect it to be using a small, linear amount of resources. But I am probably not understanding something about how it works. Is there some way I can profile this, figure out why it's slow, or is it fundamentally not going to work for some architectural reason?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">foo</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span><span class="o">:</span> <span class="n">n</span> <span class="bp">∈</span> <span class="n">list.range</span> <span class="mi">5</span><span class="o">)</span> <span class="o">:</span> <span class="bp">¬</span> <span class="n">problem_predicate</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">iterate</span> <span class="mi">5</span> <span class="o">{</span><span class="n">cases</span> <span class="n">h</span><span class="o">,</span> <span class="n">rw</span> <span class="n">h</span><span class="o">,</span> <span class="n">norm_num</span><span class="o">},</span>
+
+  <span class="n">unfold</span> <span class="n">list.mem</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+  <span class="n">finish</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+<p><code>problem_predicate</code> is just some short expression that <code>norm_num</code> can resolve for any one number.</p>
+
+
+
+<a name="211874990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211874990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211874990">(Oct 01 2020 at 07:01)</a>:</h4>
+<p><span class="user-mention" data-user-id="112680">@Johan Commelin</span> it's this thread</p>
+
+
+
+<a name="211875067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875067">(Oct 01 2020 at 07:02)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">sum_of_squares</span> <span class="o">(</span><span class="n">L</span> <span class="o">:</span> <span class="n">list</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">L.foldr</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span> <span class="n">x</span><span class="bp">*</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">)</span> <span class="mi">0</span>
+
+<span class="kd">def</span> <span class="n">problem_predicate</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">nat.digits</span> <span class="mi">10</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="n">length</span> <span class="bp">=</span> <span class="mi">3</span> <span class="bp">∧</span> <span class="mi">11</span> <span class="bp">∣</span> <span class="n">n</span> <span class="bp">∧</span> <span class="n">n</span> <span class="bp">/</span> <span class="mi">11</span> <span class="bp">=</span> <span class="n">sum_of_squares</span> <span class="o">(</span><span class="n">nat.digits</span> <span class="mi">10</span> <span class="n">n</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="211875089"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875089" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875089">(Oct 01 2020 at 07:02)</a>:</h4>
+<p>i want to prove <code>\not problem_predicate n</code> for n in, say, 0...500</p>
+
+
+
+<a name="211875100"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875100" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875100">(Oct 01 2020 at 07:02)</a>:</h4>
+<p>for a single case, <code>norm_num</code> works fine</p>
+
+
+
+<a name="211875126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875126">(Oct 01 2020 at 07:03)</a>:</h4>
+<p>I think it might be better to prove this, instead of computing it.</p>
+
+
+
+<a name="211875146"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875146" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875146">(Oct 01 2020 at 07:03)</a>:</h4>
+<p>there's no "nice" reason this is true, unfortunately</p>
+
+
+
+<a name="211875148"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875148" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875148">(Oct 01 2020 at 07:03)</a>:</h4>
+<p>Although it is of course nice if Lean could just bash through the 1000 cases.</p>
+
+
+
+<a name="211875155"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875155" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875155">(Oct 01 2020 at 07:03)</a>:</h4>
+<p>Oooh, ok</p>
+
+
+
+<a name="211875170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875170">(Oct 01 2020 at 07:03)</a>:</h4>
+<p>I can cut it down and only pay attention to the multiples of 11, and make it only like 90 cases</p>
+
+
+
+<a name="211875197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875197">(Oct 01 2020 at 07:04)</a>:</h4>
+<p>That sounds like a good improvement, right?</p>
+
+
+
+<a name="211875230"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875230" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875230">(Oct 01 2020 at 07:04)</a>:</h4>
+<p>yeah, but I still can't expand a fin_cases by 90x</p>
+
+
+
+<a name="211875237"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875237" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875237">(Oct 01 2020 at 07:04)</a>:</h4>
+<p>or even compile a 90-line file where each line is calling a norm_num</p>
+
+
+
+<a name="211875262"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875262" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875262">(Oct 01 2020 at 07:04)</a>:</h4>
+<p>Can you determine which part is slow?</p>
+
+
+
+<a name="211875291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875291">(Oct 01 2020 at 07:05)</a>:</h4>
+<p>Is it the division, or computing the digits? Or the sum of squares?</p>
+
+
+
+<a name="211875298"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875298" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875298">(Oct 01 2020 at 07:05)</a>:</h4>
+<p>I don't know - is there a profiler?</p>
+
+
+
+<a name="211875301"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875301" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875301">(Oct 01 2020 at 07:05)</a>:</h4>
+<p>If computing the digits is slow, then you might just generate the lists.</p>
+
+
+
+<a name="211875308"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875308" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875308">(Oct 01 2020 at 07:05)</a>:</h4>
+<p>intuitively, I don't really understand why any of it would be slow</p>
+
+
+
+<a name="211875310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875310">(Oct 01 2020 at 07:05)</a>:</h4>
+<p>Yes... <code>set_option profiler true</code></p>
+
+
+
+<a name="211875363"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875363" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875363">(Oct 01 2020 at 07:06)</a>:</h4>
+<p>But it won't look inside <code>norm_num</code>. So you will have to cut it into steps yourself</p>
+
+
+
+<a name="211875383"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875383" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875383">(Oct 01 2020 at 07:07)</a>:</h4>
+<p>There is also <code>try_for</code> which might be helpful to impose some bounds on the running time of some tactics</p>
+
+
+
+<a name="211875392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875392">(Oct 01 2020 at 07:07)</a>:</h4>
+<p>i see - well it's almost certainly inside norm_num, because i can write the whole loop as one <code>refine</code> plus one <code>norm_num</code></p>
+
+
+
+<a name="211875471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875471">(Oct 01 2020 at 07:08)</a>:</h4>
+<p>all right, well at least you weren't like ho ho you haven't heard of the *&amp;{/run fast/}&amp; operator? just enable that and it'll all work in one line</p>
+
+
+
+<a name="211875487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875487">(Oct 01 2020 at 07:08)</a>:</h4>
+<p>i am moderately reassured that the amount this is bugging me may be proportional to the fundamental difficulty</p>
+
+
+
+<a name="211875507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211875507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211875507">(Oct 01 2020 at 07:09)</a>:</h4>
+<p>i'll try seeing if i can cut norm num into different steps here</p>
+
+
+
+<a name="211876116"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211876116" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211876116">(Oct 01 2020 at 07:18)</a>:</h4>
+<p>Yup, it would be good to know which part of the computation is taking a lot of time</p>
+
+
+
+<a name="211876144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211876144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211876144">(Oct 01 2020 at 07:19)</a>:</h4>
+<p>Like, does can it do <code>nat.digits 10 345 = [3, 4, 5]</code> fast? Can it do 90 of such computations in 1 second?</p>
+
+
+
+<a name="211878201"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211878201" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211878201">(Oct 01 2020 at 07:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="238605">@Kevin Lacker</span> Lean was not designed to compute, people have been concentrating on getting it to prove mathematical theorems whose proofs are pure thought arguments rather than brute force computations. Remember the definition of nat is via peano and this is an extremely inefficient way of working with naturals from a computational purpose -- but it's the best way for theorem proving</p>
+
+
+
+<a name="211878566"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211878566" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211878566">(Oct 01 2020 at 07:54)</a>:</h4>
+<p>It's not quite that bad!</p>
+
+
+
+<a name="211878823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211878823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Shing Tak Lam <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211878823">(Oct 01 2020 at 07:58)</a>:</h4>
+<p>I don't think <code>norm_num</code> is the issue here to be honest. (nb: my mathlib is a few weeks old, so the example below probably doesn't check for you).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.nat.digits</span>
+
+<span class="kd">def</span> <span class="n">sum_of_squares</span> <span class="o">(</span><span class="n">L</span> <span class="o">:</span> <span class="n">list</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">L.foldr</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span> <span class="n">x</span><span class="bp">*</span><span class="n">x</span> <span class="bp">+</span> <span class="n">y</span><span class="o">)</span> <span class="mi">0</span>
+
+<span class="kd">def</span> <span class="n">problem_predicate</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:=</span>
+<span class="k">let</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">digits</span> <span class="mi">10</span> <span class="n">n</span> <span class="k">in</span>
+<span class="n">x.length</span> <span class="bp">=</span> <span class="mi">3</span> <span class="bp">∧</span> <span class="mi">11</span> <span class="bp">∣</span> <span class="n">n</span> <span class="bp">∧</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">sum_of_squares</span> <span class="n">x</span> <span class="bp">*</span> <span class="mi">11</span>
+
+<span class="kd">set_option</span> <span class="n">profiler</span> <span class="n">true</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="bp">¬</span><span class="n">problem_predicate</span> <span class="mi">345</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">unfold</span> <span class="n">problem_predicate</span><span class="o">,</span>
+  <span class="n">norm_num</span><span class="o">,</span>
+<span class="kd">end</span> <span class="c1">-- 240ms on my not very fast laptop</span>
+</code></pre></div>
+
+
+
+<a name="211879005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211879005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211879005">(Oct 01 2020 at 08:00)</a>:</h4>
+<p><span class="user-mention" data-user-id="266440">@Shing Tak Lam</span> But <code>0.24s * 1000</code> is quite a bit</p>
+
+
+
+<a name="211879033"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211879033" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211879033">(Oct 01 2020 at 08:01)</a>:</h4>
+<p>And even <code>90 * 0.24</code> will time out</p>
+
+
+
+<a name="211879491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211879491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Shing Tak Lam <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211879491">(Oct 01 2020 at 08:05)</a>:</h4>
+<p>Maybe it's worth it to break it down to separate lemmas for <code>0 &lt;= n &lt; 10</code>, <code>10 &lt;= n &lt; 20</code>, ... and then prove it that way. Something like this might help?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">helper</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">h1</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">x</span> <span class="bp">→</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span><span class="o">,</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">x</span> <span class="bp">→</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+  <span class="bp">∀</span> <span class="n">x</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">x</span> <span class="bp">→</span> <span class="n">x</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">→</span> <span class="n">P</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">sorry</span>
+</code></pre></div>
+
+
+
+<a name="211879899"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211879899" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211879899">(Oct 01 2020 at 08:10)</a>:</h4>
+<p>Yes Scott's right, Lean is capable of doing computations -- but don't expect miracles.</p>
+
+
+
+<a name="211881185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211881185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211881185">(Oct 01 2020 at 08:26)</a>:</h4>
+<p><span class="user-mention" data-user-id="266440">@Shing Tak Lam</span> I think KevinL said that even that didn't help</p>
+
+
+
+<a name="211881553"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211881553" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211881553">(Oct 01 2020 at 08:30)</a>:</h4>
+<p>yeah, the problem is just the large number of norm_nums. If I write a python program that completely unrolls the loop into 1000 different lemmas, lean has trouble compiling the resulting file. so just solving the case-expansion part isn't sufficient</p>
+
+
+
+<a name="211881620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211881620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211881620">(Oct 01 2020 at 08:31)</a>:</h4>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span> well, you know, i dont write IMO problems so don't blame me if some of them require brute force :P</p>
+
+
+
+<a name="211881797"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211881797" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211881797">(Oct 01 2020 at 08:33)</a>:</h4>
+<p>i bet this is the sort of thing that will allegedly be better in lean 4</p>
+
+
+
+<a name="211882049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882049">(Oct 01 2020 at 08:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="238605">@Kevin Lacker</span> but the competitors weren't supposed to brute force through 90 cases, right?</p>
+
+
+
+<a name="211882100"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882100" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882100">(Oct 01 2020 at 08:36)</a>:</h4>
+<p>So there must be more that you can prove here</p>
+
+
+
+<a name="211882112"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882112" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882112">(Oct 01 2020 at 08:36)</a>:</h4>
+<p>the solutions on art of problem solving suggest brute forcing it</p>
+
+
+
+<a name="211882197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882197">(Oct 01 2020 at 08:37)</a>:</h4>
+<p>you have what, an hour per problem? that's a whole minute to brute force, what's the sum of the squares of the digits of the number 550</p>
+
+
+
+<a name="211882203"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882203" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882203">(Oct 01 2020 at 08:37)</a>:</h4>
+<p>plenty of time</p>
+
+
+
+<a name="211882280"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882280" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882280">(Oct 01 2020 at 08:38)</a>:</h4>
+<p>That must be extremely boring to grade...</p>
+
+
+
+<a name="211882355"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211882355" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211882355">(Oct 01 2020 at 08:39)</a>:</h4>
+<p>well it was an early imo problem, there were only 39 contestants at the time</p>
+
+
+
+<a name="211889289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211889289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211889289">(Oct 01 2020 at 10:03)</a>:</h4>
+<p><span class="user-mention" data-user-id="238605">@Kevin Lacker</span> maybe I missed something, but I think this is a proof. only need to assemble some pieces</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">problem_predicate₁</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span>
+<span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">*</span> <span class="n">a</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">1210</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">121</span> <span class="bp">*</span> <span class="n">b</span>
+
+<span class="kd">lemma</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">ha</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="mi">9</span><span class="o">)</span> <span class="o">(</span><span class="n">hb</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">≤</span> <span class="mi">9</span><span class="o">)</span> <span class="o">(</span><span class="n">ha1</span> <span class="o">:</span> <span class="mi">1</span> <span class="bp">≤</span> <span class="n">a</span><span class="o">)</span> <span class="o">:</span>
+  <span class="bp">¬</span> <span class="n">problem_predicate₁</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">problem_predicate₁</span><span class="o">,</span>
+  <span class="n">apply</span> <span class="n">ne_of_lt</span><span class="o">,</span>
+  <span class="k">calc</span>  <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">*</span> <span class="n">a</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span>
+      <span class="bp">≤</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">9</span> <span class="bp">*</span> <span class="mi">9</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">9</span> <span class="bp">*</span> <span class="mi">9</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">9</span> <span class="bp">*</span> <span class="mi">9</span><span class="o">)</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">&lt;</span> <span class="mi">487</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">0</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">≤</span> <span class="mi">1210</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">121</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:</span> <span class="n">_</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">apply_rules</span> <span class="o">[</span><span class="n">add_le_add</span><span class="o">,</span> <span class="n">mul_le_mul</span><span class="o">,</span> <span class="n">le_refl</span><span class="o">,</span> <span class="n">nat.zero_le</span><span class="o">]</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">norm_num</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">apply</span> <span class="n">add_le_add</span> <span class="n">_</span> <span class="o">(</span><span class="n">nat.zero_le</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply</span> <span class="n">nat.mul_le_mul</span> <span class="n">_</span> <span class="n">ha1</span><span class="o">,</span>
+    <span class="n">norm_num</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">problem_predicate₂</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">a</span> <span class="bp">*</span> <span class="n">a</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">-</span> <span class="mi">11</span><span class="o">)</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">-</span> <span class="mi">11</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="n">b</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">11</span> <span class="bp">*</span> <span class="o">(</span><span class="mi">100</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">10</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">-</span> <span class="mi">11</span><span class="o">)</span> <span class="bp">+</span> <span class="n">b</span><span class="o">)</span>
+
+
+<span class="kd">lemma</span> <span class="n">bar</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">ha</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="mi">9</span><span class="o">)</span> <span class="o">(</span><span class="n">hb</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">≤</span> <span class="mi">9</span><span class="o">)</span> <span class="o">(</span><span class="n">hab</span> <span class="o">:</span> <span class="mi">11</span> <span class="bp">≤</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span>
+  <span class="bp">¬</span> <span class="n">problem_predicate₂</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">problem_predicate₂</span><span class="o">,</span>
+  <span class="k">have</span> <span class="n">ha2</span> <span class="o">:</span> <span class="mi">2</span> <span class="bp">≤</span> <span class="n">a</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">contrapose</span><span class="bp">!</span> <span class="n">hab</span><span class="o">,</span> <span class="n">rw</span> <span class="n">nat.lt_succ_iff</span> <span class="n">at</span> <span class="n">hab</span> <span class="bp">⊢</span><span class="o">,</span> <span class="n">linarith</span> <span class="o">},</span>
+  <span class="k">have</span> <span class="n">hb2</span> <span class="o">:</span> <span class="mi">2</span> <span class="bp">≤</span> <span class="n">b</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">contrapose</span><span class="bp">!</span> <span class="n">hab</span><span class="o">,</span> <span class="n">rw</span> <span class="n">nat.lt_succ_iff</span> <span class="n">at</span> <span class="n">hab</span> <span class="bp">⊢</span><span class="o">,</span> <span class="n">linarith</span> <span class="o">},</span>
+  <span class="n">obtain</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">nat.exists_eq_add_of_le</span> <span class="n">ha2</span><span class="o">,</span>
+  <span class="n">replace</span> <span class="n">ha</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="mi">7</span><span class="o">,</span> <span class="o">{</span> <span class="n">linarith</span> <span class="o">},</span>
+  <span class="n">obtain</span> <span class="o">⟨</span><span class="n">b</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">nat.exists_eq_add_of_le</span> <span class="n">hb2</span><span class="o">,</span>
+  <span class="n">replace</span> <span class="n">hb</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">≤</span> <span class="mi">7</span><span class="o">,</span> <span class="o">{</span> <span class="n">linarith</span> <span class="o">},</span>
+  <span class="n">clear</span> <span class="n">ha2</span> <span class="n">hb2</span><span class="o">,</span>
+  <span class="n">zify</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">int.coe_nat_sub</span> <span class="n">hab</span><span class="o">,</span> <span class="n">int.coe_nat_add</span><span class="o">,</span> <span class="n">int.coe_nat_bit0</span><span class="o">,</span> <span class="n">int.coe_nat_bit1</span><span class="o">,</span> <span class="n">int.coe_nat_one</span><span class="o">],</span>
+  <span class="k">have</span> <span class="n">aux</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">n</span> <span class="bp">≤</span> <span class="mi">7</span> <span class="bp">→</span> <span class="mi">2</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">10</span> <span class="bp">*</span> <span class="n">n</span> <span class="bp">≤</span> <span class="mi">100</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">dec_trivial</span> <span class="o">},</span>
+  <span class="n">apply</span> <span class="n">ne_of_lt</span><span class="o">,</span>
+  <span class="k">calc</span> <span class="n">_</span> <span class="bp">=</span> <span class="o">((</span><span class="mi">2</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">10</span> <span class="bp">*</span> <span class="n">a</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="mi">2</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">10</span> <span class="bp">*</span> <span class="n">b</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">+</span> <span class="mi">57</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">≤</span> <span class="mi">100</span> <span class="bp">+</span> <span class="mi">100</span> <span class="bp">+</span> <span class="o">(</span><span class="mi">2</span> <span class="bp">*</span> <span class="mi">7</span> <span class="bp">*</span> <span class="mi">7</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">57</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">&lt;</span> <span class="o">(</span><span class="mi">0</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">+</span> <span class="mi">0</span> <span class="bp">*</span> <span class="mi">0</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1452</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">≤</span> <span class="o">(</span><span class="mi">1210</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">121</span> <span class="bp">*</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1452</span> <span class="o">:</span> <span class="n">_</span>
+  <span class="bp">...</span> <span class="bp">=</span> <span class="n">_</span> <span class="o">:</span> <span class="n">_</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">ring_exp</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">apply_rules</span> <span class="o">[</span><span class="n">aux</span><span class="o">,</span> <span class="n">add_le_add</span><span class="o">,</span> <span class="n">le_refl</span><span class="o">,</span> <span class="n">mul_le_mul</span><span class="o">,</span> <span class="n">int.coe_nat_nonneg</span><span class="o">]</span><span class="bp">;</span>
+    <span class="n">assumption_mod_cast</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">norm_num</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">apply</span> <span class="n">add_le_add</span> <span class="n">_</span> <span class="o">(</span><span class="n">le_refl</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply</span> <span class="n">add_le_add</span><span class="bp">;</span> <span class="n">apply</span> <span class="n">mul_le_mul</span><span class="bp">;</span> <span class="n">norm_num</span> <span class="bp">&lt;|&gt;</span> <span class="n">assumption_mod_cast</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">ring_exp</span> <span class="o">}</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="211894189"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211894189" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211894189">(Oct 01 2020 at 11:02)</a>:</h4>
+<p><span class="user-mention" data-user-id="238605">@Kevin Lacker</span> funnily enough I have written Olympiad problems (including IMO) and we really try to avoid giving students boring case bashes --certainly 100 cases is way too many.</p>
+
+
+
+<a name="211924959"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211924959" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211924959">(Oct 01 2020 at 15:09)</a>:</h4>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span>  yeah, I saw your name on there when I was looking through the IMO problems ;-) some of the older problems seem like they'd never make it by today's standards.</p>
+
+
+
+<a name="211926381"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211926381" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211926381">(Oct 01 2020 at 15:17)</a>:</h4>
+<p><span class="user-mention" data-user-id="112680">@Johan Commelin</span> what are <code>a</code> and <code>b</code> there - two of the three digits of the number?</p>
+
+
+
+<a name="211926410"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211926410" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211926410">(Oct 01 2020 at 15:17)</a>:</h4>
+<p>yup the first and last</p>
+
+
+
+<a name="211928748"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211928748" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211928748">(Oct 01 2020 at 15:32)</a>:</h4>
+<p>hmm, i'm not really following what these predicates are. tools for doing a subsequent search? the answer is supposed to be 550 or 803, so that has to pop out somehow</p>
+
+
+
+<a name="211946347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946347">(Oct 01 2020 at 17:36)</a>:</h4>
+<p>for what it's worth, I got this working, by writing some explicit ways to simplify these expressions and passing them to norm_num so that the norm_num call doesn't take so long, and by splitting the <code>iterate</code> call up into chunks of size &lt;= 40.</p>
+
+
+
+<a name="211946439"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946439" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946439">(Oct 01 2020 at 17:37)</a>:</h4>
+<p>What's supposed to be 550 or 803?</p>
+
+
+
+<a name="211946581"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946581" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946581">(Oct 01 2020 at 17:38)</a>:</h4>
+<p>the answers to the search over all 3-digit numbers</p>
+
+
+
+<a name="211946636"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946636" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946636">(Oct 01 2020 at 17:38)</a>:</h4>
+<p>If you have a 3-digit number <code>axb</code> that is divisible by <code>11</code>, then <code>11</code> divides <code>a - x + b</code>. So there are two cases: <code>x = a + b</code> or <code>x + 11 = a + b</code>.</p>
+
+
+
+<a name="211946662"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946662" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946662">(Oct 01 2020 at 17:38)</a>:</h4>
+<p>In both these cases, I prove the claim.</p>
+
+
+
+<a name="211946761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946761">(Oct 01 2020 at 17:39)</a>:</h4>
+<p>which claim are you proving here</p>
+
+
+
+<a name="211946853"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946853" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946853">(Oct 01 2020 at 17:40)</a>:</h4>
+<p>Hmm, there must be a mistake in my formalization of the problem (-;</p>
+
+
+
+<a name="211946982"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211946982" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211946982">(Oct 01 2020 at 17:41)</a>:</h4>
+<p>it's kind of ridiculous how many theorems humans take for granted about "three digit numbers"</p>
+
+
+
+<a name="211947032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947032">(Oct 01 2020 at 17:41)</a>:</h4>
+<p>and, since three digit numbers are not particularly interesting for abstract mathematics, there isn't really a library of a zillion things about them</p>
+
+
+
+<a name="211947117"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947117" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947117">(Oct 01 2020 at 17:42)</a>:</h4>
+<p>so i'm curious about your code - when you write something like <code>apply_rules [aux, add_le_add, le_refl, mul_le_mul, int.coe_nat_nonneg];</code></p>
+
+
+
+<a name="211947123"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947123" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947123">(Oct 01 2020 at 17:42)</a>:</h4>
+<p>how do you know how to do that</p>
+
+
+
+<a name="211947148"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947148" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947148">(Oct 01 2020 at 17:42)</a>:</h4>
+<p>are you already familiar with what <code>aux</code>, <code>add_le_add</code>, <code>le_refl</code>, all those things do, and you are just thinking hmm i'll apply these</p>
+
+
+
+<a name="211947154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947154">(Oct 01 2020 at 17:42)</a>:</h4>
+<p>I think the more interesting question is what the mistake is in my statement (-;</p>
+
+
+
+<a name="211947370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947370">(Oct 01 2020 at 17:44)</a>:</h4>
+<p>well, the math problem is not a very interesting problem. the problem with these enormous case-by-case bashes is you forget a minus sign somewhere and then waste half an hour of calculation on nothing</p>
+
+
+
+<a name="211947680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211947680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211947680">(Oct 01 2020 at 17:47)</a>:</h4>
+<p>Yup... that's (sort of) what happened</p>
+
+
+
+<a name="211948007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211948007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211948007">(Oct 01 2020 at 17:49)</a>:</h4>
+<p>in your code i see a bunch of different tactics i dont recognize. <code>apply_rules</code>, <code>obtain</code>, <code>replace</code>. I don't see these mentioned in <a href="https://leanprover.github.io/theorem_proving_in_lean/tactics.html">https://leanprover.github.io/theorem_proving_in_lean/tactics.html</a> . Is there something else I can be reading about tactics?</p>
+
+
+
+<a name="211948175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211948175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211948175">(Oct 01 2020 at 17:50)</a>:</h4>
+<p>the <a href="https://leanprover-community.github.io/mathlib_docs/tactics.html">mathlib docs</a> are much more up to date than TPIL on mathlib tactics</p>
+
+
+
+<a name="211949564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211949564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211949564">(Oct 01 2020 at 18:01)</a>:</h4>
+<p>so is there a way to simplify an expression that just uses built in operators like <code>((18 + 1) * 11 % 10) ^ 2</code>, without having to call <code>norm_num</code>? I feel like that is sort of what Johan is doing with that <code>apply_rules [long, list, of, random, characters]</code>, but i'm not sure how i could construct by own such thing</p>
+
+
+
+<a name="211950188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211950188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211950188">(Oct 01 2020 at 18:05)</a>:</h4>
+<p>That's literally what <code>norm_num</code> is designed for</p>
+
+
+
+<a name="211950224"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211950224" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211950224">(Oct 01 2020 at 18:06)</a>:</h4>
+<p>If it's a one off thing you should absolutely use <code>norm_num</code></p>
+
+
+
+<a name="211950294"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211950294" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211950294">(Oct 01 2020 at 18:06)</a>:</h4>
+<p>If you are doing it 900 times in a loop then you should preprocess the expression to make it easier to evaluate</p>
+
+
+
+<a name="211950563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211950563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211950563">(Oct 01 2020 at 18:08)</a>:</h4>
+<p>But the <code>apply_rules</code> line in Johan's proof is not something <code>norm_num</code> can do, but rather the monotonicity tactic</p>
+
+
+
+<a name="211950571"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211950571" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211950571">(Oct 01 2020 at 18:08)</a>:</h4>
+<p>because it has variables in it</p>
+
+
+
+<a name="211953200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/debugging%20inefficient%20tactics/near/211953200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Lacker <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/debugging.20inefficient.20tactics.html#211953200">(Oct 01 2020 at 18:26)</a>:</h4>
+<p>ok, thanks for explaining!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

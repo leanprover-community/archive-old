@@ -1,0 +1,649 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/FunLike.20issues.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html">FunLike issues</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="315019986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315019986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Frédéric Dupuis <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315019986">(Dec 10 2022 at 03:39)</a>:</h4>
+<p>I've just hit what looks like a very scary issue when trying to port <code>Algebra.Order.Hom.Monoid</code> in <a href="https://github.com/leanprover-community/mathlib4/pull/944">mathlib4#944</a>. If you look at the <code>instance [OrderMonoidWithZeroHomClass F α β] : CoeTC F (α →*₀o β)</code> in that PR, you'll see that when proving <code>map_one</code>, (1) the type class system is struggling to get the <code>OneHomClass</code> instance it needs, and (2) when it is supplied manually, we run into the issue that <code>@FunLike.coe F α (fun a ↦ β) MulHomClass.toFunLike f 1</code> is apparently not defeq with <code>@FunLike.coe F α (fun a ↦ β) OneHomClass.toFunLike f 1</code>. This looks eerily reminiscent of issues that we had in mathlib3 when not using <code>old_structure_cmd</code> to define these objects. Does anyone have any insights about how to fix this?</p>
+
+
+
+<a name="315030595"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315030595" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315030595">(Dec 10 2022 at 06:29)</a>:</h4>
+<p>I think we don't want CoeTC here, but I'm not sure if changing it will fix the problem.</p>
+
+
+
+<a name="315046002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315046002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315046002">(Dec 10 2022 at 09:25)</a>:</h4>
+<p>I find it very hard to believe those are not defeq. Is this just another synthesized/unified clash again? How did you test if they were defeq?</p>
+
+
+
+<a name="315069815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315069815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315069815">(Dec 10 2022 at 12:27)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>      <span class="n">map_one'</span> <span class="o">:=</span> <span class="kd">by</span>
+        <span class="n">letI</span> <span class="o">:</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">MonoidWithZeroHomClass.toMonoidHomClass</span>
+        <span class="n">exact</span> <span class="n">map_one</span> <span class="n">f</span>
+</code></pre></div>
+<p>You had <code>haveI</code> instead of <code>letI</code>, so the data was being forgotten.</p>
+
+
+
+<a name="315071049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315071049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315071049">(Dec 10 2022 at 12:37)</a>:</h4>
+<p>That resolves the second issue, but the first one is still confusing to me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">attribute</span> <span class="o">[</span><span class="kd">instance</span><span class="o">]</span> <span class="n">MonoidWithZeroHomClass.toMonoidHomClass</span> <span class="c1">-- presumably it's an instance,</span>
+<span class="c1">-- even though this is not possible to easily check in Lean 4</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">CoeTC</span> <span class="n">F</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→*₀</span><span class="n">o</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="k">fun</span> <span class="n">f</span> <span class="bp">=&gt;</span>
+    <span class="c1">-- comment out the next line and the proof breaks</span>
+    <span class="c1">-- `:= inferInstance` also fails here (deterministic timeout)</span>
+    <span class="n">letI</span> <span class="o">:</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">MonoidWithZeroHomClass.toMonoidHomClass</span><span class="bp">;</span>
+    <span class="o">{</span> <span class="n">toFun</span> <span class="o">:=</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">map_one'</span> <span class="o">:=</span> <span class="n">map_one</span> <span class="n">f</span>
+      <span class="n">map_zero'</span> <span class="o">:=</span> <span class="n">map_zero</span> <span class="n">f</span><span class="o">,</span>
+      <span class="n">map_mul'</span> <span class="o">:=</span> <span class="n">map_mul</span> <span class="n">f</span>
+      <span class="n">monotone'</span> <span class="o">:=</span> <span class="n">OrderMonoidWithZeroHomClass.Monotone</span> <span class="n">f</span> <span class="o">}⟩</span>
+</code></pre></div>
+
+
+
+<a name="315071515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315071515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315071515">(Dec 10 2022 at 12:40)</a>:</h4>
+<p>The fact that it's a deterministic timeout rather than just an "i give up" makes me wonder if typeclass inference is getting into some kind of loop. Can someone remind me how to look at instance traces in Lean 4? I don't think I've done this before. I tried <code>set_option trace.Meta.synthInstance true</code> but all I got was</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">💥</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="bp">▶</span>
+</code></pre></div>
+<p>which is certainly funny, but also not helpful enough</p>
+
+
+
+<a name="315072421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315072421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315072421">(Dec 10 2022 at 12:47)</a>:</h4>
+<p><a href="/user_uploads/3121/91JdtQQz8Kpt5brY3nCiT8qX/trace.png">trace.png</a> <br>
+The various options I've found all have defeq docstrings :-(</p>
+<div class="message_inline_image"><a href="/user_uploads/3121/91JdtQQz8Kpt5brY3nCiT8qX/trace.png" title="trace.png"><img src="/user_uploads/3121/91JdtQQz8Kpt5brY3nCiT8qX/trace.png"></a></div>
+
+
+
+<a name="315073212"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315073212" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315073212">(Dec 10 2022 at 12:52)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance.tryResolve</span> <span class="n">true</span>
+</code></pre></div>
+<p>generates so much output that it crashes VS Code :-(</p>
+
+
+
+<a name="315073890"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315073890" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315073890">(Dec 10 2022 at 12:58)</a>:</h4>
+<p>(in the same file in the same PR):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- this is in the file already</span>
+<span class="c1">-- See note [lower instance priority]</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="mi">100</span><span class="o">)</span> <span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span>
+    <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="o">‹</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">›</span> <span class="k">with</span> <span class="o">}</span>
+
+<span class="c1">-- this is where the experiment starts</span>
+<span class="kd">variable</span> <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="c1">-- fails</span>
+</code></pre></div>
+<p>Am I doing something wrong? It doesn't work if you change the priority to 100000000000000 either.</p>
+
+
+
+<a name="315076172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315076172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315076172">(Dec 10 2022 at 13:14)</a>:</h4>
+<p>OK so here is a not particularly MWE of the borkage:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Hom.Group</span>
+
+<span class="kd">variable</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="c1">-- works</span>
+</code></pre></div>
+<p>This file works as it stands on master. On branch <code>dupuisf/algebra/order/hom/monoid</code> (which has a half-finished <code>Algebra.Order.Hom.Monoid</code>) if you replace lines 177ff of <code>Algebra.Order.Hom.Monoid</code> with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- See note [lower instance priority]</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="mi">100</span><span class="o">)</span> <span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span>
+    <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="o">‹</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">›</span> <span class="k">with</span> <span class="o">}</span>
+<span class="bp">#</span><span class="n">align</span>
+  <span class="n">order_monoid_with_zero_hom_class.to_order_monoid_hom_class</span> <span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span>
+
+<span class="kd">end</span> <span class="n">MonoidWithZero</span>
+
+<span class="kd">variable</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="c1">-- now fails</span>
+
+<span class="k">#exit</span>
+</code></pre></div>
+<p>then it doesn't work any more. Instead, the <code>#synth</code> fails with a timeout. So this instance <code>OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</code> seems to me to be introducing a loop. I am eager to learn how to diagnose this further, but cannot figure out how to look at the traces myself. This failure is very strange to me because the failing <code>#synth</code> has nothing to do with the <code>Order</code> heirarchy.</p>
+
+
+
+<a name="315083362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315083362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315083362">(Dec 10 2022 at 14:05)</a>:</h4>
+<p>Here's a version which demonstrates the issue on mathlib4 master:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Hom.Group</span>
+<span class="kn">import</span> <span class="n">Mathlib.Order.Hom.Basic</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>
+
+<span class="kd">class</span> <span class="n">OrderMonoidHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">&lt;|</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="n">where</span>
+  <span class="n">Monotone</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">)</span> <span class="o">:</span> <span class="n">Monotone</span> <span class="n">f</span>
+
+<span class="kd">class</span> <span class="n">OrderMonoidWithZeroHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">&lt;|</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="n">where</span>
+  <span class="n">Monotone</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">)</span> <span class="o">:</span> <span class="n">Monotone</span> <span class="n">f</span>
+
+<span class="c1">-- deleting this instance makes the below #synth work</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="mi">100</span><span class="o">)</span> <span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span>
+    <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span>
+    <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="o">‹</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">›</span> <span class="k">with</span> <span class="o">}</span>
+
+<span class="kd">variable</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="c1">-- fails</span>
+</code></pre></div>
+<p>Removing mathlib is harder: I <a href="https://gist.github.com/kbuzzard/c8474b7164caa54f6da9bdccda6efc4b">tried here</a> but couldn't reproduce as yet, <code>#synth</code> succeeds. If I could figure out how to see the traces I'd know which instances are missing in my mathlib-free failed MWE attempt. I think I'm going to have to leave this now; any help with figuring out how to see which instances Lean is getting confused by is welcome! Let me stress again that something very weird is going on here -- this MWE adds two new order-releated classes and an instance relating them; this then makes a type class inference search whch has nothing to do with orders fail.</p>
+
+
+
+<a name="315089435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315089435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315089435">(Dec 10 2022 at 14:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315071515">said</a>:</p>
+<blockquote>
+<p>The fact that it's a deterministic timeout rather than just an "i give up" makes me wonder if typeclass inference is getting into some kind of loop. Can someone remind me how to look at instance traces in Lean 4? I don't think I've done this before. I tried <code>set_option trace.Meta.synthInstance true</code> but all I got was</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">💥</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="bp">▶</span>
+</code></pre></div>
+<p>which is certainly funny, but also not helpful enough</p>
+</blockquote>
+<p>That line is a link</p>
+
+
+
+<a name="315089950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315089950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315089950">(Dec 10 2022 at 14:52)</a>:</h4>
+<p>oh cool! Indeed, it's a link which crashes VS Code. Edit: <code>set_option synthInstance.maxHeartbeats 400</code> saves me. Thanks a lot!</p>
+
+
+
+<a name="315090376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315090376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315090376">(Dec 10 2022 at 14:55)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span>
+            <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span>
+              <span class="o">(</span><span class="n">i_4</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1458</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">→</span>
+                <span class="o">(</span><span class="n">i_5</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1674</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span><span class="o">)</span> <span class="bp">→</span>
+                  <span class="o">(</span><span class="n">i_6</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1926</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span> <span class="n">i_5</span><span class="o">)</span> <span class="bp">→</span>
+                    <span class="o">(</span><span class="n">i_7</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.2214</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span> <span class="n">i_5</span> <span class="n">i_6</span><span class="o">)</span> <span class="bp">→</span>
+                      <span class="o">(</span><span class="n">i_8</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.2538</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span> <span class="n">i_5</span> <span class="n">i_6</span> <span class="n">i_7</span><span class="o">)</span> <span class="bp">→</span>
+                        <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.2753</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span> <span class="n">i_5</span> <span class="n">i_6</span> <span class="n">i_7</span> <span class="n">i_8</span><span class="o">)</span><span class="bp">ᵒᵈ</span>
+</code></pre></div>
+<p>Is this bad?</p>
+
+
+
+<a name="315090541"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315090541" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315090541">(Dec 10 2022 at 14:56)</a>:</h4>
+<p>An auto-implicit issue?</p>
+
+
+
+<a name="315090558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315090558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315090558">(Dec 10 2022 at 14:56)</a>:</h4>
+<p>definitely not.</p>
+
+
+
+<a name="315090726"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315090726" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315090726">(Dec 10 2022 at 14:57)</a>:</h4>
+<p>searching for a preorder on a metavar means we applied a dangerous instance. Goals should not be metavars or it will enumerate all preorders</p>
+
+
+
+<a name="315090859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315090859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315090859">(Dec 10 2022 at 14:58)</a>:</h4>
+<p>you should look for who introduced that</p>
+
+
+
+<a name="315091068"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091068" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091068">(Dec 10 2022 at 15:00)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">💥</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="bp">▼</span>
+  <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">_tc.0</span> <span class="n">_tc.1</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderMonoidHomClass.toMonoidHomClass</span> <span class="n">to</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="bp">?</span><span class="n">m.848</span> <span class="bp">?</span><span class="n">m.849</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span> <span class="n">to</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="bp">?</span><span class="n">m.869</span> <span class="bp">?</span><span class="n">m.870</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="bp">?</span><span class="n">m.911</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.914</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.915</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="bp">?</span><span class="n">m.930</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.934</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.935</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">Prod.instPreorderProd</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.939</span> <span class="bp">×</span> <span class="bp">?</span><span class="n">m.940</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="bp">?</span><span class="n">m.944</span><span class="bp">ᵒᵈ</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Subtype.instPreorderSubtype</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">Subtype</span> <span class="bp">?</span><span class="n">m.949</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithBot.preorder</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithBot</span> <span class="bp">?</span><span class="n">m.951</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">instPreorderForAll</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">((</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.955</span> <span class="n">i</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.972</span> <span class="n">i</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.981</span> <span class="n">i</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.982</span> <span class="n">i</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">Prod.instPreorderProd</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.991</span> <span class="n">i</span> <span class="bp">×</span> <span class="bp">?</span><span class="n">m.992</span> <span class="n">i</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1001</span> <span class="n">i</span><span class="o">)</span><span class="bp">ᵒᵈ</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Subtype.instPreorderSubtype</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">Subtype</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1011</span> <span class="n">i</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithBot.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithBot</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1018</span> <span class="n">i</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">instPreorderForAll</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">((</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.1027</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1050</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1064</span> <span class="n">i</span> <span class="n">i_1</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.1065</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">Prod.instPreorderProd</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1079</span> <span class="n">i</span> <span class="n">i_1</span> <span class="bp">×</span> <span class="bp">?</span><span class="n">m.1080</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1094</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span><span class="bp">ᵒᵈ</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Subtype.instPreorderSubtype</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">Subtype</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1109</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithBot.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithBot</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1121</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">instPreorderForAll</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">((</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.1135</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1164</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1183</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.1184</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">Prod.instPreorderProd</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1203</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="bp">×</span> <span class="bp">?</span><span class="n">m.1204</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1223</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span><span class="bp">ᵒᵈ</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Subtype.instPreorderSubtype</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">Subtype</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1243</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithBot.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithBot</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1260</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">instPreorderForAll</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">((</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.1279</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1314</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1338</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.1339</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">Prod.instPreorderProd</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1363</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="bp">×</span> <span class="bp">?</span><span class="n">m.1364</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">OrderDual.instPreorderOrderDual</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1388</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span><span class="bp">ᵒᵈ</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Subtype.instPreorderSubtype</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">Subtype</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1413</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithBot.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithBot</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1435</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">instPreorderForAll</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span>
+            <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">((</span><span class="n">i_4</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1458</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">m.1459</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span><span class="o">)</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span>
+            <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span> <span class="o">(</span><span class="n">i_4</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1458</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1500</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span><span class="o">))</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderHom.instPreorderOrderHom</span> <span class="n">to</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.954</span><span class="o">)</span> <span class="bp">→</span>
+        <span class="o">(</span><span class="n">i_1</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1026</span> <span class="n">i</span><span class="o">)</span> <span class="bp">→</span>
+          <span class="o">(</span><span class="n">i_2</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1134</span> <span class="n">i</span> <span class="n">i_1</span><span class="o">)</span> <span class="bp">→</span>
+            <span class="o">(</span><span class="n">i_3</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1278</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span><span class="o">)</span> <span class="bp">→</span>
+              <span class="o">(</span><span class="n">i_4</span> <span class="o">:</span> <span class="bp">?</span><span class="n">m.1458</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">m.1529</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span> <span class="bp">→</span><span class="n">o</span> <span class="bp">?</span><span class="n">m.1530</span> <span class="n">i</span> <span class="n">i_1</span> <span class="n">i_2</span> <span class="n">i_3</span> <span class="n">i_4</span><span class="o">)</span> <span class="bp">▶</span>
+</code></pre></div>
+<p>At what point did it go wrong? I've never seen one of these outputs before.</p>
+
+
+
+<a name="315091199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091199">(Dec 10 2022 at 15:01)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span> <span class="n">to</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="bp">?</span><span class="n">m.869</span> <span class="bp">?</span><span class="n">m.870</span> <span class="bp">▶</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">WithTop.preorder</span> <span class="n">to</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">WithTop</span> <span class="bp">?</span><span class="n">m.911</span><span class="o">)</span> <span class="bp">▶</span>
+</code></pre></div>
+
+
+
+<a name="315091297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091297">(Dec 10 2022 at 15:01)</a>:</h4>
+<p>second line is definitely bad, first line is ok iff the two metavariables are out params</p>
+
+
+
+<a name="315091386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091386">(Dec 10 2022 at 15:02)</a>:</h4>
+<p>so <code>OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</code> looks like the suspect</p>
+
+
+
+<a name="315091491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091491">(Dec 10 2022 at 15:02)</a>:</h4>
+<p>And what's wrong with this instance, which has lived in mathlib3 for a while now?</p>
+
+
+
+<a name="315091513"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091513" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091513">(Dec 10 2022 at 15:03)</a>:</h4>
+<p>what's the signature?</p>
+
+
+
+<a name="315091533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091533">(Dec 10 2022 at 15:03)</a>:</h4>
+<p>See the MWE above.</p>
+
+
+
+<a name="315091678"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091678" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ruben Van de Velde <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091678">(Dec 10 2022 at 15:04)</a>:</h4>
+<p>(<a href="https://leanprover-community.github.io/mathlib_docs/find/order_monoid_with_zero_hom_class.to_order_monoid_hom_class">docs#order_monoid_with_zero_hom_class.to_order_monoid_hom_class</a>)</p>
+
+
+
+<a name="315091735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315091735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315091735">(Dec 10 2022 at 15:04)</a>:</h4>
+<p>is  it true that the last two params in <code>MonoidHomClass</code> are outparams?</p>
+
+
+
+<a name="315092136"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092136" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092136">(Dec 10 2022 at 15:07)</a>:</h4>
+<p>You may need to mark <code>[Preorder α] [Preorder β] [MulZeroOneClass α] [MulZeroOneClass β]</code> as outparams. I thought this was fixed so that they were automatically marked as outparams? cc: <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span></p>
+
+
+
+<a name="315092398"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092398" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092398">(Dec 10 2022 at 15:09)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- `MonoidHomClass F M N` states that `F` is a type of `Monoid`-preserving homomorphisms.</span>
+<span class="sd">You should also extend this typeclass when you extend `MonoidHom`. -/</span>
+<span class="kd">@[to_additive]</span>
+<span class="kd">class</span> <span class="n">MonoidHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">N</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">MulHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span><span class="o">,</span> <span class="n">OneHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span>
+<span class="bp">#</span><span class="n">align</span> <span class="n">monoid_hom_class</span> <span class="n">MonoidHomClass</span>
+</code></pre></div>
+
+
+
+<a name="315092498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092498">(Dec 10 2022 at 15:10)</a>:</h4>
+<p>That seems like it might be worth posting as an issue</p>
+
+
+
+<a name="315092679"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092679" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092679">(Dec 10 2022 at 15:11)</a>:</h4>
+<p>that is, it is surprising to me that <code>OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</code> is being applied in this situation</p>
+
+
+
+<a name="315092852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092852">(Dec 10 2022 at 15:12)</a>:</h4>
+<p>what happens if you mark alpha and beta as outparams in the instance?</p>
+
+
+
+<a name="315092967"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315092967" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315092967">(Dec 10 2022 at 15:14)</a>:</h4>
+<p>these links are super-cool BTW</p>
+
+
+
+<a name="315093160"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315093160" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315093160">(Dec 10 2022 at 15:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315092852">said</a>:</p>
+<blockquote>
+<p>what happens if you mark alpha and beta as outparams in the instance?</p>
+</blockquote>
+<p>Doesn't fix it :-(</p>
+
+
+
+<a name="315093598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315093598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315093598">(Dec 10 2022 at 15:19)</a>:</h4>
+<p>Can you make an MWE just for this instance to be applied in a TC search? It shouldn't depend on anything other than the types of the classes and instances used</p>
+
+
+
+<a name="315094636"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315094636" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315094636">(Dec 10 2022 at 15:27)</a>:</h4>
+<p>It's this instance which causes the chaos:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">{</span><span class="n">ι</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">[</span><span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">α</span> <span class="n">i</span><span class="o">)]</span> <span class="o">:</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">α</span> <span class="n">i</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">__</span> <span class="o">:=</span> <span class="n">inferInstanceAs</span> <span class="o">(</span><span class="n">LE</span> <span class="o">(</span><span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">α</span> <span class="n">i</span><span class="o">))</span>
+  <span class="n">le_refl</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">i</span> <span class="bp">↦</span> <span class="n">le_refl</span> <span class="o">(</span><span class="n">a</span> <span class="n">i</span><span class="o">)</span>
+  <span class="n">le_trans</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">h₁</span> <span class="n">h₂</span> <span class="n">i</span> <span class="bp">↦</span> <span class="n">le_trans</span> <span class="o">(</span><span class="n">h₁</span> <span class="n">i</span><span class="o">)</span> <span class="o">(</span><span class="n">h₂</span> <span class="n">i</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="315094663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315094663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315094663">(Dec 10 2022 at 15:27)</a>:</h4>
+<p>Mathlib-free MWE on the way</p>
+
+
+
+<a name="315094756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315094756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315094756">(Dec 10 2022 at 15:28)</a>:</h4>
+<p>(unless someone tells me that something should be an outparam in the above instance)</p>
+
+
+
+<a name="315098339"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315098339" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315098339">(Dec 10 2022 at 15:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> is this OK as a MWE?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">Zero.</span><span class="o">{</span><span class="n">u</span><span class="o">}</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">One</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="n">where</span>
+
+<span class="c1">-- this instance (in mathlib) is just here in this example to ensure that</span>
+<span class="c1">-- typeclass search for `Preorder ?m_1` causes chaos;</span>
+<span class="kd">instance</span> <span class="o">{</span><span class="n">ι</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">α</span> <span class="n">i</span><span class="o">)]</span> <span class="o">:</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">α</span> <span class="n">i</span><span class="o">)</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">MulZeroClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">Zero</span> <span class="n">M₀</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">MulOneClass</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">One</span> <span class="n">M</span><span class="o">,</span> <span class="n">Mul</span> <span class="n">M</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">MulZeroOneClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">MulOneClass</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">M₀</span>
+
+<span class="kd">class</span> <span class="n">FunLike</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Sort</span> <span class="n">_</span><span class="o">))</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">&lt;|</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">β</span> <span class="n">a</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="mi">100</span><span class="o">)</span> <span class="o">{</span><span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">}</span> <span class="o">[</span><span class="n">FunLike</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">CoeFun</span> <span class="n">F</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">β</span> <span class="n">a</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">FunLike.coe</span>
+
+<span class="kd">class</span> <span class="n">MulHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">Mul</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">Mul</span> <span class="n">N</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">FunLike</span> <span class="n">F</span> <span class="n">M</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">N</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">OneHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">One</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">One</span> <span class="n">N</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">FunLike</span> <span class="n">F</span> <span class="n">M</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">N</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">ZeroHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">Zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">Zero</span> <span class="n">N</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">FunLike</span> <span class="n">F</span> <span class="n">M</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">N</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">MonoidHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">N</span><span class="o">]</span>
+  <span class="kd">extends</span> <span class="n">MulHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span><span class="o">,</span> <span class="n">OneHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span>
+
+<span class="kd">class</span> <span class="n">MonoidWithZeroHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="n">N</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">M</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">N</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span><span class="o">,</span> <span class="n">ZeroHomClass</span> <span class="n">F</span> <span class="n">M</span> <span class="n">N</span>
+
+<span class="kd">class</span> <span class="n">OrderMonoidHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">&lt;|</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">OrderMonoidWithZeroHomClass</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="n">outParam</span> <span class="bp">&lt;|</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span>
+  <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="kd">extends</span> <span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="n">where</span>
+
+<span class="c1">-- removing this instance makes the #synth below succeed</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="mi">1000</span><span class="o">)</span> <span class="n">OrderMonoidWithZeroHomClass.toOrderMonoidHomClass</span>
+    <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span>
+    <span class="o">[</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="o">:</span> <span class="n">OrderMonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="o">‹</span><span class="n">OrderMonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">›</span> <span class="k">with</span> <span class="o">}</span>
+
+<span class="kd">set_option</span> <span class="n">synthInstance.maxHeartbeats</span> <span class="mi">400</span> <span class="c1">-- make trace manageable</span>
+<span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span>
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">MulZeroOneClass</span> <span class="n">β</span><span class="o">]</span> <span class="o">[</span><span class="n">MonoidWithZeroHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span><span class="o">]</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">MonoidHomClass</span> <span class="n">F</span> <span class="n">α</span> <span class="n">β</span> <span class="c1">-- fails</span>
+</code></pre></div>
+
+
+
+<a name="315100601"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315100601" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315100601">(Dec 10 2022 at 16:18)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/issues/1940">https://github.com/leanprover/lean4/issues/1940</a></p>
+
+
+
+<a name="315100891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315100891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Frédéric Dupuis <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315100891">(Dec 10 2022 at 16:21)</a>:</h4>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span> Thanks a lot for distilling this down to an MWE!</p>
+
+
+
+<a name="315101003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315101003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315101003">(Dec 10 2022 at 16:22)</a>:</h4>
+<p>I quite like this kind of detective work. It teaches me more about the system. I've learnt several new things just from this conversation.</p>
+
+
+
+<a name="315123211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315123211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315123211">(Dec 10 2022 at 20:13)</a>:</h4>
+<blockquote>
+<p>You may need to mark [Preorder α] [Preorder β] [MulZeroOneClass α] [MulZeroOneClass β] as outparams. I thought this was fixed so that they were automatically marked as outparams?</p>
+</blockquote>
+<p>You're mixing things up, this has only incidentally to do with outparams.  The issue is that TC search shouldn't create a subgoal for the <code>[Preorder α]</code> argument (because that will almost certainly be the very very bad subgoal <code>Preorder ?m</code>).</p>
+<p>For automatically created instances, like the parent projection, we now mark these arguments as implicit instead of instance-implicit.  (This was the quick fix to <a href="https://github.com/leanprover/lean4/pull/1901">lean4#1901</a>)  We might need to do (something like) this also for manually declared instances if writing <code>{_ : Preorder α}</code> proves too cumbersome.</p>
+
+
+
+<a name="315128028"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315128028" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315128028">(Dec 10 2022 at 21:15)</a>:</h4>
+<p>Thanks a lot Gabriel! I've learnt a ton today.</p>
+
+
+
+<a name="315128756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315128756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315128756">(Dec 10 2022 at 21:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="311453">@Frédéric Dupuis</span> I've pushed Gabriel's fix to your branch.</p>
+
+
+
+<a name="315128989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315128989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315128989">(Dec 10 2022 at 21:28)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> I was thinking about that, but it seemed not to be the right solution in a lot of instances like this because we <em>do</em> want to use instance search once we know what alpha and beta are, because we won't be able to find those arguments by unification esp. if it's a stronger class than is expected by whatever is producing the outparam values (e.g if the instance only applies when the preorder on alpha is actually a linear order)</p>
+
+
+
+<a name="315134932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315134932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315134932">(Dec 10 2022 at 22:49)</a>:</h4>
+<p>That is wishful thinking and not at all what the square brackets mean today.</p>
+
+
+
+<a name="315134994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315134994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315134994">(Dec 10 2022 at 22:50)</a>:</h4>
+<p>Marking those arguments as instance implicit right now won't magically make TC search do the right thing.  It will just time out.</p>
+
+
+
+<a name="315135187"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315135187" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315135187">(Dec 10 2022 at 22:52)</a>:</h4>
+<p>If you mark then as implicit it should work with the current set up.  The LinearOrder instance should be synthesized during unification as a nested TC problem.</p>
+
+
+
+<a name="315135567"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315135567" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315135567">(Dec 10 2022 at 22:57)</a>:</h4>
+<p>Well, it works for now and I know what to look for later; we'll see if any problems show up later and if so we can revisit.</p>
+
+
+
+<a name="315135606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315135606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315135606">(Dec 10 2022 at 22:57)</a>:</h4>
+<p>I kind of agree that this is an inadequate solution.  We shouldn't need to tweak the braces everywhere (because it's awkward and inconsistent with other definitions).  TC search should probably also fill in the LinearOrder as a separate subgoal, but that's a much larger refactoring.</p>
+
+
+
+<a name="315136149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315136149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315136149">(Dec 10 2022 at 23:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315134932">said</a>:</p>
+<blockquote>
+<p>That is wishful thinking and not at all what the square brackets mean today.</p>
+</blockquote>
+<p>I understand that, but {} brackets are also not the right solution, which is why I recommended to make an issue for it. It's possible that we can delay fixing the problem by using {} brackets instead, but this will fail if you actually need to use instance search on these arguments, which seems like a fairly common situation for typeclass instances.</p>
+
+
+
+<a name="315136273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315136273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315136273">(Dec 10 2022 at 23:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315135187">said</a>:</p>
+<blockquote>
+<p>If you mark then as implicit it should work with the current set up.  The LinearOrder instance should be synthesized during unification as a nested TC problem.</p>
+</blockquote>
+<p>If you use implicits, why would it be solved as a nested TC problem at all? It would just be an implicit arg that can't be inferred.</p>
+
+
+
+<a name="315138994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315138994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315138994">(Dec 10 2022 at 23:40)</a>:</h4>
+<p>"Nested" TC problem means a TC problem that is created during unification. E.g. you unify <code>inferInstanceAs (Add Nat) =?= @AddMonoid.toAdd Nat ?m</code>, then Lean will try to synthesize an <code>AddMonoid Nat</code> (the type of <code>?m</code>) instance to unstuck the unification.</p>
+
+
+
+<a name="315139167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315139167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315139167">(Dec 10 2022 at 23:43)</a>:</h4>
+<p>(This solves the same issue as the unification hints in canonical structures, btw.)</p>
+
+
+
+<a name="315147877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315147877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Winston Yin <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315147877">(Dec 11 2022 at 01:43)</a>:</h4>
+<p>Is <a href="https://github.com/leanprover-community/mathlib4/pull/892#discussion_r1044162345">this</a> failure to synthesise a <code>Preorder</code> instance an example of the issue in this thread?</p>
+
+
+
+<a name="315149368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315149368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Winston Yin <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315149368">(Dec 11 2022 at 02:04)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib4/pull/927">mathlib4#927</a> also has problems synthesising <code>LE</code> instance, preventing any progress on the file. Happy to start a new thread if this isn't the same problem</p>
+
+
+
+<a name="315191533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315191533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315191533">(Dec 11 2022 at 11:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="416472">Winston Yin</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315147877">said</a>:</p>
+<blockquote>
+<p>Is <a href="https://github.com/leanprover-community/mathlib4/pull/892#discussion_r1044162345">this</a> failure to synthesise a <code>Preorder</code> instance an example of the issue in this thread?</p>
+</blockquote>
+<p>I don't think it is. Hovering over the <code>↑</code> in <code>failed to synthesize instance Preorder ↑s</code> indicates that it's <code>type_of_Set</code>, so it seems to me that the issue is that the instance <code>Subtype.instPreorderSubtype</code> isn't firing because it's looking for <code>Preorder (Subtype p)</code>. If you add the missing instance, e.g.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">[</span><span class="n">Preorder</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">Set</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Preorder</span> <span class="o">(</span><span class="bp">↑</span><span class="n">s</span><span class="o">)</span> <span class="o">:=</span> <span class="n">Subtype.instPreorderSubtype</span> <span class="n">s</span>
+</code></pre></div>
+<p>(although probably the construction should be filled in properly rather than relying on defeq abuse) then</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">monotoneOn_iff_monotone</span> <span class="o">:</span> <span class="n">MonotoneOn</span> <span class="n">f</span> <span class="n">s</span> <span class="bp">↔</span>
+  <span class="o">(</span><span class="n">Monotone</span> <span class="k">fun</span> <span class="n">a</span> <span class="o">:</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">a</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span>
+<span class="bp">...</span>
+</code></pre></div>
+<p>works (the proof breaks, but that's another issue)</p>
+
+
+
+<a name="315191977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315191977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315191977">(Dec 11 2022 at 11:20)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="416472">Winston Yin</span> <a href="#narrow/stream/287929-mathlib4/topic/FunLike.20issues/near/315149368">said</a>:</p>
+<blockquote>
+<p><a href="https://github.com/leanprover-community/mathlib4/pull/927">mathlib4#927</a> also has problems synthesising <code>LE</code> instance, preventing any progress on the file. Happy to start a new thread if this isn't the same problem</p>
+</blockquote>
+<p>Can you show me where the error is? I'm not even sure which file you're talking about in that PR. The first error in <code>Data.Nat.Order.Lemmas</code> is not related to LE.</p>
+
+
+
+<a name="315307441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/FunLike%20issues/near/315307441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/FunLike.20issues.html#315307441">(Dec 12 2022 at 08:00)</a>:</h4>
+<p>Coming late to this thread, but just in case not everyone has seen this: Gabriel recently gave #lint a power-up for detecting instances which will create bad typeclass searches (e.g. <code>Preorder ?α</code>). Your first step upon encountering a typeclass search blow-up should always be a #lint immediately before it, and then go solve any problems it finds before even beginning to think about the blow-up.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

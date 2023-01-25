@@ -1,0 +1,125 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Help.20understanding.20GADTs.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html">Help understanding GADTs</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="298185501"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298185501" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Juan Pablo Romero <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298185501">(Sep 10 2022 at 23:04)</a>:</h4>
+<p>I'm having an issue understanding how type information flows in GADTs:</p>
+<p><code>Expr</code> has two parameters: a value <code>A</code> and an environment <code>E</code>.  </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Expr</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">-&gt;</span> <span class="kt">Type</span> <span class="bp">-&gt;</span> <span class="kt">Type</span> <span class="mi">1</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">done</span> <span class="o">(</span><span class="n">a</span><span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">Expr</span> <span class="n">Unit</span> <span class="n">A</span>
+  <span class="bp">|</span> <span class="n">more</span> <span class="o">(</span><span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">(</span><span class="n">expr</span><span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span>
+
+<span class="kd">class</span> <span class="n">Subset</span> <span class="o">(</span><span class="n">E</span> <span class="n">Provided</span><span class="o">:</span> <span class="kt">Type</span><span class="o">)</span>
+
+
+<span class="kd">def</span> <span class="n">eval</span> <span class="o">(</span><span class="n">current</span><span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">[</span><span class="n">inst</span><span class="o">:</span> <span class="n">Subset</span> <span class="n">E</span> <span class="n">Provided</span><span class="o">]</span> <span class="o">(</span><span class="n">env</span><span class="o">:</span> <span class="n">Provided</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">current</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">done</span> <span class="n">a</span> <span class="bp">=&gt;</span>
+    <span class="c1">-- `E` should be equals to `Unit` here, no?</span>
+    <span class="o">()</span>
+
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">more</span> <span class="n">E1</span> <span class="n">_</span> <span class="n">expr</span> <span class="bp">=&gt;</span>
+    <span class="c1">-- `E` should be equals to `E1` here, no?</span>
+
+    <span class="c">/-</span><span class="cm"> ERROR: failed to synthesize instance Subset E1 Provided -/</span>
+    <span class="n">eval</span> <span class="n">expr</span> <span class="n">env</span>
+</code></pre></div>
+<p>My assumption is that after pattern matching, on each branch the compiler has more information about specific types, for example in the <code>.done</code> case I expect that <code>E</code>  is equal to <code>Unit</code>.</p>
+<p>In the <code>.more</code> case, I expect that <code>E</code> is equal to <code>E1</code>. Clearly that's not the case, and so the implicit instance is not being picked up from the scope.</p>
+<p>Any help would be appreciated.</p>
+
+
+
+<a name="298187430"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298187430" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298187430">(Sep 10 2022 at 23:38)</a>:</h4>
+<p>First things first a little terminology: we don't really use the term GADT in Lean, this is an inductive type, more specifically a family of types indexed by the two other Type parameters.</p>
+<p>Regarding your questions for equality in the branches, yes this is indeed the case and in fact you can make Lean tell you that this is the case by doing:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">eval</span> <span class="o">(</span><span class="n">current</span><span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">[</span><span class="n">inst</span><span class="o">:</span> <span class="n">Subset</span> <span class="n">E</span> <span class="n">Provided</span><span class="o">]</span> <span class="o">(</span><span class="n">env</span><span class="o">:</span> <span class="n">Provided</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">h</span><span class="o">:</span><span class="n">current</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">done</span> <span class="n">a</span> <span class="bp">=&gt;</span>
+    <span class="c1">-- `E` should be equals to `Unit` here, no?</span>
+    <span class="o">()</span>
+
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">more</span> <span class="n">E1</span> <span class="n">_</span> <span class="n">expr</span> <span class="bp">=&gt;</span>
+    <span class="c1">-- `E` should be equals to `E1` here, no?</span>
+
+    <span class="c">/-</span><span class="cm"> ERROR: failed to synthesize instance Subset E1 Provided -/</span>
+    <span class="n">eval</span> <span class="n">expr</span> <span class="n">env</span>
+</code></pre></div>
+<p>notice the <code>h:</code> at the match, in the <code>done</code> case this will give you:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">:</span> <span class="n">E</span> <span class="bp">=</span> <span class="n">Unit</span>
+<span class="n">h</span> <span class="o">:</span> <span class="n">HEq</span> <span class="n">current</span> <span class="o">(</span><span class="n">Expr.done</span> <span class="n">a</span><span class="o">)</span>
+</code></pre></div>
+<p>and in the <code>more</code> one:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">:</span> <span class="n">E</span> <span class="bp">=</span> <span class="n">E1</span>
+<span class="n">h</span> <span class="o">:</span> <span class="n">HEq</span> <span class="n">current</span> <span class="o">(</span><span class="n">Expr.more</span> <span class="n">E1</span> <span class="n">A</span> <span class="n">expr</span><span class="o">)</span>
+</code></pre></div>
+<p>however usually you do not need these theorems in scope since the Lean dependent pattern matcher is smart enough to apply these facts to your local context. For example had your function had another argument of type <code>E</code>, namely <code>foo</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">eval</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">E</span><span class="o">)</span> <span class="o">(</span><span class="n">current</span><span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">[</span><span class="n">inst</span><span class="o">:</span> <span class="n">Subset</span> <span class="n">E</span> <span class="n">Provided</span><span class="o">]</span> <span class="o">(</span><span class="n">env</span><span class="o">:</span> <span class="n">Provided</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">current</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">done</span> <span class="n">a</span> <span class="bp">=&gt;</span>
+    <span class="o">()</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">more</span> <span class="n">E1</span> <span class="n">_</span> <span class="n">expr</span> <span class="bp">=&gt;</span>
+    <span class="gr">sorry</span>
+</code></pre></div>
+<p>you will in both branches observe that the dependent pattern matcher has intelligently changed the type of <code>foo</code> to <code>Unit</code> and <code>E1</code> respectively. </p>
+<p>Now in order to fix the error you have two choices here, one would be to use the <code>h:</code> approach to get the equivalence proof in the branch and then apply it with a <code>▸</code>, the other would be to add the <code>inst</code> parameter to your pattern matcher because that will make it apply this theorem automatically again:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">eval</span> <span class="o">(</span><span class="n">current</span><span class="o">:</span> <span class="n">Expr</span> <span class="n">E</span> <span class="n">A</span><span class="o">)</span> <span class="o">[</span><span class="n">inst</span><span class="o">:</span> <span class="n">Subset</span> <span class="n">E</span> <span class="n">Provided</span><span class="o">]</span> <span class="o">(</span><span class="n">env</span><span class="o">:</span> <span class="n">Provided</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">current</span><span class="o">,</span> <span class="n">inst</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">done</span> <span class="n">a</span><span class="o">,</span> <span class="n">_</span> <span class="bp">=&gt;</span>    <span class="o">()</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">more</span> <span class="n">E1</span> <span class="n">_</span> <span class="n">expr</span><span class="o">,</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">eval</span> <span class="n">expr</span> <span class="n">env</span>
+</code></pre></div>
+<p>I would personally prefer this one because it creates less burden on the user to figure out which theorem to apply where etc. but it does of course look a little magical as well since we are ignoring the result in both cases pretty much.</p>
+
+
+
+<a name="298188476"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298188476" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Juan Pablo Romero <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298188476">(Sep 10 2022 at 23:58)</a>:</h4>
+<p>Thanks!</p>
+
+
+
+<a name="298188496"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298188496" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298188496">(Sep 10 2022 at 23:59)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395535">Juan Pablo Romero</span> has marked this topic as resolved.</p>
+
+
+
+<a name="298191713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298191713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298191713">(Sep 11 2022 at 00:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395535">Juan Pablo Romero</span> has marked this topic as unresolved.</p>
+
+
+
+<a name="298191717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298191717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Juan Pablo Romero <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298191717">(Sep 11 2022 at 00:57)</a>:</h4>
+<p>Quick followup question:  Is this a good way to get hold of inaccessible  values?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">let</span> <span class="n">eq</span><span class="o">:</span> <span class="n">E</span> <span class="bp">=</span> <span class="n">E1</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">assumption</span>
+</code></pre></div>
+<p>Or is there a way to avoid getting into tactic mode?</p>
+
+
+
+<a name="298214551"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Help%20understanding%20GADTs/near/298214551" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Help.20understanding.20GADTs.html#298214551">(Sep 11 2022 at 07:18)</a>:</h4>
+<p><code>‹E = E1›</code> (typed by <code>\f&lt;</code> and <code>\f&gt;</code>in vscode-lean) is a shorthand for <code>show E = E1 by assumption</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

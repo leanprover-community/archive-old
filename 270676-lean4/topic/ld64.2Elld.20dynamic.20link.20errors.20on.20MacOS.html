@@ -1,0 +1,114 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html">ld64.lld dynamic link errors on MacOS</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="274298669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274298669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274298669">(Mar 06 2022 at 10:42)</a>:</h4>
+<p>When I try to link to a dynamic lib on MacOS (like <a href="https://github.com/xubaiw/OpenSSL.lean/tree/main/examples/foo">this</a>), <code>leanc</code> gives me a <code>LC_DYLD_INFO_ONLY</code> error, followed with a bunch of <code>undefined symbol</code>s. The error looks like: </p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code>$ lake build
+&gt; /Users/xubaiw/.elan/toolchains/leanprover--lean4---nightly-2022-03-01/bin/leanc -o ./build/bin/foo ./build/ir/Main.o ./../.././build/ir/OpenSSL.o ./../.././build/bindings/libopenssl-shim.a /usr/local/Cellar//openssl@3/3.0.1//lib/libssl.dylib /usr/local/Cellar//openssl@3/3.0.1//lib/libcrypto.dylib
+error: ld64.lld: error: LC_DYLD_INFO_ONLY not found <span class="k">in</span> /usr/local/Cellar//openssl@3/3.0.1//lib/libssl.dylib
+ld64.lld: error: LC_DYLD_INFO_ONLY not found <span class="k">in</span> /usr/local/Cellar//openssl@3/3.0.1//lib/libcrypto.dylib
+
+ld64.lld: error: undefined symbol: _ERR_print_errors_fp
+&gt;&gt;&gt; referenced by ./../.././build/bindings/libopenssl-shim.a<span class="o">(</span>openssl-shim.o<span class="o">)</span>
+
+ld64.lld: error: undefined symbol: _SSL_set_bio
+...
+</code></pre></div>
+<p>While it successfully builds when I manually link them with system <code>clang</code> (with <code>--print-ldflags</code>).</p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code>$ clang -o ./build/bin/foo ./build/ir/Main.o ./../.././build/ir/OpenSSL.o ./../.././build/bindings/libopenssl-shim.a /usr/local/Cellar//openssl@3/3.0.1//lib/libssl.dylib /usr/local/Cellar//openssl@3/3.0.1//lib/libcrypto.dylib <span class="k">$(</span>leanc --print-ldflags<span class="k">)</span>
+$ ./build/bin/foo
+Hello, OpenSSL
+</code></pre></div>
+<p>So I suppose the problem arises from <code>ld64.lld</code>.  Any idea to solve this error?</p>
+
+
+
+<a name="274298747"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274298747" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274298747">(Mar 06 2022 at 10:44)</a>:</h4>
+<p>The code also builds when linked to <code>libcrypto.a</code> static lib.</p>
+
+
+
+<a name="274298882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274298882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274298882">(Mar 06 2022 at 10:48)</a>:</h4>
+<p>Now not sure if it's a general problem with all dynamic linking or just a OpenSSL specific problem. I'll try to work out a smaller example later tonight.</p>
+
+
+
+<a name="274311833"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274311833" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274311833">(Mar 06 2022 at 15:34)</a>:</h4>
+<p><span aria-label="thinking" class="emoji emoji-1f914" role="img" title="thinking">:thinking:</span> Things just go more interesting when I try to minimize the problem with two lean packages, one package compiled to shared lib and the other dynamically linked to that lib. </p>
+<p>This time <code>dyld</code> gives <code>Library not loaded</code> when I run the binary. It seems that leanc fails to link shared lib (but system clang also fails in this example).</p>
+<p>This <a href="https://github.com/xubaiw/lean-problem-dynamic-link">example</a> is made cross-platform, so you can test if it can work on other platforms.</p>
+
+
+
+<a name="274314904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274314904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274314904">(Mar 06 2022 at 16:38)</a>:</h4>
+<p>That just sounds like standard library lookup troubles. Try passing the library file path directly to the linker without <code>-l/-L</code>, or run the executable with <code>DYLD_LIBRARY_PATH</code> set to the library's folder.</p>
+
+
+
+<a name="274316916"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274316916" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274316916">(Mar 06 2022 at 17:07)</a>:</h4>
+<p>I have tried directly passing (using <code>moreLibTargets</code> only) and that didn't work though. <code>DYLD_LIBRARY_PATH</code> can run the executable but leads to a segfault.</p>
+
+
+
+<a name="274316987"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274316987" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274316987">(Mar 06 2022 at 17:08)</a>:</h4>
+<p>For the segfault, is there any problem with this?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[export bar1_greet]</span> <span class="kd">def</span> <span class="n">greet</span> <span class="o">(</span><span class="n">name</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:=</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"Hello, {name}!"</span>
+
+<span class="kd">@[extern "bar1_greet"]</span> <span class="kd">constant</span> <span class="n">greet'</span> <span class="o">:</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">String</span>
+</code></pre></div>
+
+
+
+<a name="274332877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/274332877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#274332877">(Mar 06 2022 at 22:48)</a>:</h4>
+<p>Not per se, as long as you call <code>initialize_bar1</code> first</p>
+
+
+
+<a name="276734536"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/276734536" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#276734536">(Mar 26 2022 at 16:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="414345">Xubai Wang</span> <a href="#narrow/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS/near/274298669">said</a>:</p>
+<blockquote>
+<p>When I try to link to a dynamic lib on MacOS (like <a href="https://github.com/xubaiw/OpenSSL.lean/tree/main/examples/foo">this</a>), <code>leanc</code> gives me a <code>LC_DYLD_INFO_ONLY</code> error, followed with a bunch of <code>undefined symbol</code>s.</p>
+</blockquote>
+<p>I encountered the same issue while assembling <a href="https://github.com/leanprover/lean4/pull/1076">https://github.com/leanprover/lean4/pull/1076</a>. Apparently Apple's linker recently switched to a different header format, which lld does not yet support: <a href="https://github.com/llvm/llvm-project/issues/54550">https://github.com/llvm/llvm-project/issues/54550</a><br>
+This shouldn't really matter in practice if you're also planning to distribute your software to machines running older versions of macOS, which would not understand the new format anyway. However, it turns out that Homebrew is not a great tool if you're planning to do that:<a href="https://news.ycombinator.com/item?id=12549208">https://news.ycombinator.com/item?id=12549208</a></p>
+
+
+
+<a name="289522142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/289522142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#289522142">(Jul 13 2022 at 21:16)</a>:</h4>
+<p>This should be fixed in the next LLVM release <a href="https://github.com/llvm/llvm-project/commit/94e0f8e001002b828c42048f383806295e7abbb2">https://github.com/llvm/llvm-project/commit/94e0f8e001002b828c42048f383806295e7abbb2</a></p>
+
+
+
+<a name="318573180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/ld64.lld%20dynamic%20link%20errors%20on%20MacOS/near/318573180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ramon Fernández Mir <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/ld64.2Elld.20dynamic.20link.20errors.20on.20MacOS.html#318573180">(Dec 30 2022 at 12:13)</a>:</h4>
+<p>Did you manage to fix the <code>LC_DYLD_INFO_ONLY</code> linker error? <span class="user-mention" data-user-id="414345">@Xubai Wang</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

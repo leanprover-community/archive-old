@@ -1,0 +1,165 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html">[rfc] kill the child workers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="243542726"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243542726" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243542726">(Jun 22 2021 at 16:33)</a>:</h4>
+<p>Since I'm not good at writing efficient code, I often manage to make Lean use 100% of the CPU.  To see what I mean, try out this code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">slow</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="n">slow</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span>
+<span class="n">elab</span> <span class="s2">"slower"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span>
+  <span class="n">toExpr</span> <span class="o">(</span><span class="n">slow</span> <span class="mi">0</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="n">slower</span>
+</code></pre></div>
+<p>You're now in a very unfortunate state:</p>
+<ul>
+<li>If you change something (for example add a space), Lean now uses 2 threads to occupy 200% of your CPU.</li>
+<li>Then you try to restart the file worker (in vscode this is the "refresh file dependencies" command), but this only makes the situation worse.  Because Lean now has two processes running and uses 300% of your CPU.</li>
+<li>Now your laptop is getting warm enough to cook your breakfast so you decide to close vscode.  But that doesn't help either: Lean continues to heat your apartment.  The file worker processes keep running.</li>
+</ul>
+<p>Therefore I propose the following three changes:</p>
+<ol>
+<li>We introduce a <code>IO.Process.Child.kill</code> function with the natural semantics.</li>
+<li>The watchdog kills the child when it receives a didClose notification and on exit.</li>
+<li>We add <code>terminateWhenParentExits</code> flag to <code>SpawnArgs</code>, which calls <code>prctl(PR_SET_PDEATHSIG, SIGTERM)</code> in the child (Linux-only).</li>
+<li>The watchdog sets this flags when spawning children (this is only a fallback measure since it's Linux-only).</li>
+</ol>
+
+
+
+<a name="243545028"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243545028" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243545028">(Jun 22 2021 at 16:49)</a>:</h4>
+<p>This likely only happens because we do not have "background" tasks but join on them on main thread exit, which we mostly do because it simplifies the task implementation and pleases lsan. We could implement background tasks... or simply call <code>System.exit</code> on worker main thread exit.</p>
+
+
+
+<a name="243545525"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243545525" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243545525">(Jun 22 2021 at 16:53)</a>:</h4>
+<p>Ah, that's a good point.</p>
+
+
+
+<a name="243546673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243546673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243546673">(Jun 22 2021 at 17:01)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/pull/543">https://github.com/leanprover/lean4/pull/543</a></p>
+
+
+
+<a name="243548658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243548658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243548658">(Jun 22 2021 at 17:14)</a>:</h4>
+<blockquote>
+<p>Let's see how many sanitizers this breaks in CI.</p>
+</blockquote>
+<p>Surprisingly, none (on my machine). Let's hope it stays that way...</p>
+
+
+
+<a name="243549826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243549826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243549826">(Jun 22 2021 at 17:22)</a>:</h4>
+<p>...hah</p>
+
+
+
+<a name="243553840"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243553840" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243553840">(Jun 22 2021 at 17:51)</a>:</h4>
+<p>I can't get it to leak locally even with something simple like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">args</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">IO.asTask</span> <span class="o">(</span><span class="k">do</span> <span class="n">IO.sleep</span> <span class="mi">10000</span><span class="bp">;</span> <span class="n">IO.println</span> <span class="n">args</span><span class="o">)</span>
+  <span class="n">IO.Process.exit</span> <span class="mi">0</span>
+</code></pre></div>
+<p>right now</p>
+
+
+
+<a name="243554078"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243554078" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243554078">(Jun 22 2021 at 17:52)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="243554139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243554139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243554139">(Jun 22 2021 at 17:53)</a>:</h4>
+<p>BTW, I've disabled lsan for the interactive tests now.</p>
+
+
+
+<a name="243557670"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243557670" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243557670">(Jun 22 2021 at 18:17)</a>:</h4>
+<p>Oh. Wow, ok that's good to know. I was starting to wonder why I had to run <code>pkill -f lean</code> so often.</p>
+
+
+
+<a name="243557826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243557826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243557826">(Jun 22 2021 at 18:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers/near/243553840">said</a>:</p>
+<blockquote>
+<p>I can't get it to leak locally even with something simple like</p>
+</blockquote>
+<p>Me neither, not even with this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">unsafe</span> <span class="kd">inductive</span> <span class="n">S</span>
+  <span class="bp">|</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="n">b</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">IO.Ref</span> <span class="n">S</span><span class="o">)</span>
+
+<span class="n">unsafe</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">r</span> <span class="o">:</span> <span class="n">IO.Ref</span> <span class="n">S</span> <span class="bp">←</span> <span class="n">IO.mkRef</span> <span class="n">S.a</span>
+  <span class="n">r.set</span> <span class="o">(</span><span class="n">S.b</span> <span class="n">r</span><span class="o">)</span>
+
+<span class="n">unsafe</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">args</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">foo</span>
+</code></pre></div>
+
+
+
+<a name="243567386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243567386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243567386">(Jun 22 2021 at 19:30)</a>:</h4>
+<p>That does leak for me; did you build with <code>-DSMALL_ALLOCATOR=OFF</code>?</p>
+
+
+
+<a name="243567810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243567810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243567810">(Jun 22 2021 at 19:33)</a>:</h4>
+<p>I get the feeling lsan does scan remaining thread stacks on exit for roots, in which case I'm even less sure why it fails on CI</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>==953921==T1: stack [0x7f23eb6fd000,0x7f23ebefbe00) size 0x7fee00; local=0x7f23ebefbd2c
+==953923==Processing thread 953921.
+==953923==Stack at 0x7ffdf4a83000-0x7ffdf5283000 (SP = 0x7ffdf527f848).
+==953923==TLS at 0x7f23eff50f40-0x7f23eff52140.
+==953923==Processing thread 953922.
+==953923==Stack at 0x7f23eb6fd000-0x7f23ebefbe00 (SP = 0x7f23ebef2780).
+==953923==TLS at 0x7f23ebefbe00-0x7f23ebefd000.
+</code></pre></div>
+
+
+
+<a name="243582268"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243582268" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243582268">(Jun 22 2021 at 21:38)</a>:</h4>
+<p>Oh well, a problem for another day. Let's squash the original bug first.</p>
+
+
+
+<a name="243692938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%5Brfc%5D%20kill%20the%20child%20workers/near/243692938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hunter Monroe <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.5Brfc.5D.20kill.20the.20child.20workers.html#243692938">(Jun 23 2021 at 18:24)</a>:</h4>
+<p>I oppose this subject line on ethical grounds. :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,70 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Metaprogramming.20with.20Expr.2EisProp.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.20with.20Expr.2EisProp.html">Metaprogramming with Expr.isProp</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="286541634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%20with%20Expr.isProp/near/286541634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Josh Clune <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.20with.20Expr.2EisProp.html#286541634">(Jun 17 2022 at 20:52)</a>:</h4>
+<p>Hi! I'm pretty new to metaprogramming and recently realized that the way I was attempting to identify proofs of elements of <code>Prop</code> wasn't fully correct. But although I think that I now understand the issue, I'm still not sure how to actually fix it.</p>
+<p>My current code takes a local declaration, looks at the type of its type, and passes it into <code>Expr.isProp</code>. The issue is that <code>Expr.isProp</code> just does a naive check to see whether the argument it was passed is a sort with the level <code>Level.zero</code>. This usually works, but doesn't seem to play nicely with terms that are built from other terms. </p>
+<p>For example, in this sample code, <code>hp</code> and <code>hpq</code> are correctly identified by <code>Expr.isProp</code> as being proofs of elements of <code>Prop</code>. But although <code>hq</code>'s type's type is printed as <code>Prop</code>, <code>hq</code>'s type's type doesn't pass the <code>Expr.isProp</code> test because <code>hq</code>'s type's type is listed as a sort with an mvar level.</p>
+<p>IsPropExample.lean:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span> <span class="n">Elab</span> <span class="n">Tactic</span> <span class="n">Term</span>
+
+<span class="n">initialize</span> <span class="n">registerTraceClass</span> <span class="bp">`</span><span class="n">myTactic</span>
+
+<span class="kd">def</span> <span class="n">get_level_from_sort</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">Level</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">Expr.sort</span> <span class="n">lvl</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">some</span> <span class="n">lvl</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">none</span>
+
+<span class="n">elab</span> <span class="s2">"print_type_info"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">withMainContext</span> <span class="k">do</span>
+  <span class="n">for</span> <span class="n">fVarId</span> <span class="k">in</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getLCtx</span><span class="o">)</span><span class="bp">.</span><span class="n">getFVarIds</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">ldecl</span> <span class="bp">←</span> <span class="n">getLocalDecl</span> <span class="n">fVarId</span>
+    <span class="n">trace</span><span class="o">[</span><span class="n">myTactic</span><span class="o">]</span> <span class="s2">"{ldecl.userName} type's type: {(← inferType ldecl.type)}"</span>
+    <span class="n">trace</span><span class="o">[</span><span class="n">myTactic</span><span class="o">]</span> <span class="s2">"{ldecl.userName} type's type is Prop: {(← inferType ldecl.type).isProp}"</span>
+    <span class="n">trace</span><span class="o">[</span><span class="n">myTactic</span><span class="o">]</span> <span class="s2">"{ldecl.userName} type's type level: {get_level_from_sort (← inferType ldecl.type)}"</span>
+</code></pre></div>
+<p>Main.lean:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">IsPropExample</span>
+
+<span class="kd">set_option</span> <span class="n">trace.myTactic</span> <span class="n">true</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">(</span><span class="n">hp</span> <span class="o">:</span> <span class="n">p</span><span class="o">)</span> <span class="o">(</span><span class="n">hpq</span> <span class="o">:</span> <span class="n">p</span> <span class="bp">→</span> <span class="n">q</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="k">have</span> <span class="n">hq</span> <span class="o">:=</span> <span class="n">hpq</span> <span class="n">hp</span>
+  <span class="n">print_type_info</span>
+  <span class="gr">sorry</span>
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">return</span> <span class="o">()</span>
+</code></pre></div>
+<p>I'm assuming that somewhere in this approach, I'm missing a step that would instantiate the metavariable in <code>hq</code>'s type's type's level, but I don't know what that step should be. What would be the correct way to approach this problem?</p>
+
+
+
+<a name="286542033"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%20with%20Expr.isProp/near/286542033" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.20with.20Expr.2EisProp.html#286542033">(Jun 17 2022 at 20:56)</a>:</h4>
+<blockquote>
+<p>I'm missing a step that would instantiate the metavariable in hq's type's type's level</p>
+</blockquote>
+<p>That step is called <code>Lean.Meta.instantiateMVars</code> :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

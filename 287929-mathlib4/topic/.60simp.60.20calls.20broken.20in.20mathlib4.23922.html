@@ -1,0 +1,225 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html">`simp` calls broken in mathlib4#922</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="314783451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314783451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jireh Loreaux <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314783451">(Dec 08 2022 at 22:23)</a>:</h4>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span> (or anyone who is interested): in <a href="https://github.com/leanprover-community/mathlib4/pull/922">mathlib4#922</a> there were two <code>simp</code> calls that were broken. I think this is because of the way coercions are handled now, but I could be wrong. You're welcome to have a look.</p>
+
+
+
+<a name="314787786"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314787786" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314787786">(Dec 08 2022 at 22:54)</a>:</h4>
+<p>If you add <code>@[simp] theorem foo (e : α ≃ β) (a : α) : e.toFun a = e a := rfl </code> then <code>simp</code> works again.</p>
+
+
+
+<a name="314788874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314788874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314788874">(Dec 08 2022 at 23:02)</a>:</h4>
+<p>I think what's happening is that in Lean 3 there was </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">to_fun_as_coe</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="bp">=</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>and this was <a href="https://github.com/leanprover-community/mathlib4/blob/87024ff9d72ca3ac0c45c33396de15fccce7fbef/Mathlib/Logic/Equiv/Defs.lean#L156-L157">not ported to mathlib4</a> because coercions are eagerly unfolded. However </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">to_fun_as_coe_apply</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">e</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>which we didn't need in Lean 3 is still playing a role in Lean 4. In fact I don't really understand what's going on here so we haven't got to the bottom of things yet: the type of <code>to_fun_as_coe</code> is <code>e.toFun = ↑e</code> and the up-arrow is actually <code>FunLike.coe</code>. However just adding in <code>to_fun_as_coe</code> doesn't fix your proof -- you need <code>to_fun_as_coe_apply</code> as a simp lemma.</p>
+
+
+
+<a name="314789714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314789714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314789714">(Dec 08 2022 at 23:09)</a>:</h4>
+<p>The syntactic tautology linter does not complain about <code>to_fun_as_coe</code>. The simplifier won't use it though:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>      <span class="bp">·</span> <span class="n">simp</span> <span class="c1">-- gets stuck where you were stuck</span>
+        <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">to_fun_as_coe</span><span class="o">]</span> <span class="c1">-- does nothing</span>
+        <span class="n">rw</span> <span class="o">[</span><span class="n">to_fun_as_coe</span><span class="o">,</span> <span class="n">to_fun_as_coe</span><span class="o">]</span> <span class="c1">-- changes the goal</span>
+        <span class="n">simp</span> <span class="c1">-- now works</span>
+</code></pre></div>
+
+
+
+<a name="314790371"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314790371" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314790371">(Dec 08 2022 at 23:14)</a>:</h4>
+<p>So (minimised) here's what I don't understand:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Logic.Equiv.Defs</span>
+
+<span class="c1">-- porting note: this lemma is now useless since coercions are eagerly unfolded</span>
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">to_fun_as_coe</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="bp">=</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">e</span> <span class="n">a</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="c1">-- fails</span>
+<span class="kd">example</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">e</span> <span class="n">a</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">to_fun_as_coe</span><span class="o">]</span> <span class="c1">-- works fine</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">to_fun_as_coe_apply</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">e</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">rfl</span>
+<span class="bp">#</span><span class="n">lint</span> <span class="c1">-- linter happy</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.toFun</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">e</span> <span class="n">a</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="c1">-- now works</span>
+</code></pre></div>
+<p>In Mathlib4 we don't have <code>to_fun_as_coe</code> at all, with the claim that it's not needed, however <code>to_fun_as_coe_apply</code> now seems to be needed, and I don't know why <code>to_fun_as_coe</code> won't be used as a simp lemma.</p>
+
+
+
+<a name="314797309"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314797309" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314797309">(Dec 09 2022 at 00:20)</a>:</h4>
+<p>It feels like your failures here are all because you're writing the wrong statements. After the coercion is set up, why even mention <code>toFun</code>?</p>
+
+
+
+<a name="314800603"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314800603" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314800603">(Dec 09 2022 at 00:57)</a>:</h4>
+<p>Surely the answer here is that we should have ported <code>@[simp] theorem to_fun_as_coe (e : α ≃ β) : e.toFun = e := rfl</code> after all, just making sure that the coercion on the RHS is <code>fun_like.coe</code>?</p>
+
+
+
+<a name="314800711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314800711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314800711">(Dec 09 2022 at 00:58)</a>:</h4>
+<p>I think we need to remove things like <a href="https://leanprover-community.github.io/mathlib_docs/find/add_monoid_hom.has_coe_to_fun">docs#add_monoid_hom.has_coe_to_fun</a> (in general, things with "Fallback <code>has_coe_to_fun</code> instances to help the elaborator"), because these now unfold eagerly to a different function than <a href="https://leanprover-community.github.io/mathlib4_docs/find/?pattern=FunLike.instCoeFunForAll#doc">docs4#FunLike.instCoeFunForAll</a> does</p>
+
+
+
+<a name="314831625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314831625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314831625">(Dec 09 2022 at 07:15)</a>:</h4>
+<p>Scott the <code>toFun</code> appeared as the current result of a <code>simp</code> call. I'll take a look and try and work out why it was there at all</p>
+
+
+
+<a name="314859130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314859130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314859130">(Dec 09 2022 at 10:13)</a>:</h4>
+<p>OK so here's some information what's going on. Note that I am still learning about coercions and I don't have all the answers.</p>
+<ul>
+<li>
+<p>Jireh found a simp call which broke after being ported. The hack he uses to get around this has been <a href="https://github.com/leanprover-community/mathlib4/blob/a88ea9caaadd1dc43dc7ef93d28c85f781a41251/Mathlib/Algebra/Group/WithOne/Basic.lean#L139-L143">merged to master</a> which is fine -- debugging changes in <code>simp</code> behaviour can be a long process and there's no point letting it get in the way of the rising tide.</p>
+</li>
+<li>
+<p>I pointed out that re-adding <code>@[simp] theorem to_fun_as_coe (e : α ≃ β) : e.toFun = e := rfl</code> (which was in Lean 3 but which was not ported to Lean 4 because it looks like a syntactic tautology) does <em>not</em> fix the problem. However <code>to_fun_as_coe</code> is <em>not</em> a syntatic tautology, because the coercion from <code>e</code> to a function is <em>not</em> <code>e.toFun</code>, it's <code>FunLike.coe</code>. We'll get on to why this doesn't fix the problem next.</p>
+</li>
+<li>
+<p>However, adding <code>@[simp] theorem to_fun_as_coe_apply (e : α ≃ β) (a : α) : e.toFun a = e a := rfl</code> <em>does</em> fix the problem. I have absolutely no idea why <code>simp</code> cannot prove <code>to_fun_as_coe_apply</code> using <code>to_fun_as_coe</code>; a simple rewrite works fine. That question is minimised further up this thread <a href="#narrow/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922/near/314790371">here</a>. </p>
+</li>
+<li>
+<p>My understanding of Scott's comment is that it says "<code>to_fun_as_coe_apply</code> should not be a <code>simp</code> lemma because the <em>actual</em> problem isn't the absence of <code>to_fun_as_coe_apply</code>, it's the fact that <code>simp</code> is turning something into <code>e.toFun</code> in the first place, so we should fix the problem by <em>removing</em> a rogue <code>simp</code> lemma rather than adding new ones to fix a problem which shouldn't be there in the first place."</p>
+</li>
+<li>
+<p>On the tube today I minimised why <code>simp</code> is giving us terms with <code>e.toFun</code> in and I don't understand this either. Here's a MWE (note that the goal is something which <code>simp</code> is producing in the actual example)</p>
+</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Group.WithOne.Basic</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">from mathlib:</span>
+
+<span class="cm">@[simp, to_additive]</span>
+<span class="cm">theorem MulHom.coe_mk [Mul M] [Mul N] (f : M → N) (hmul) : (MulHom.mk f hmul : M → N) = f := rfl</span>
+<span class="cm">-/</span>
+
+<span class="kd">example</span> <span class="o">[</span><span class="n">Mul</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">Mul</span> <span class="n">β</span><span class="o">]</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">≃*</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">Function.comp</span> <span class="o">(</span><span class="bp">↑</span><span class="o">(</span><span class="n">MulEquiv.toMulHom</span> <span class="o">(</span><span class="n">MulEquiv.symm</span> <span class="n">e</span><span class="o">)))</span>
+      <span class="o">(</span><span class="bp">↑</span><span class="o">(</span><span class="n">MulEquiv.toMulHom</span> <span class="n">e</span><span class="o">))</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">-- goal contains no `toFun`</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">MulHom.coe_mk</span><span class="o">]</span> <span class="c1">-- this lemma contains no `toFun`</span>
+  <span class="c1">-- goal now contains `MulHom.toFun` (the first `↑`)</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+<p>I'd appreciate advice about where to go from here. The cheap solution is to ignore the fact that I only half-understand what's going on, add <code>@[simp] to_fun_as_coe_apply</code> and move on. But Scott seemed averse to this and I'm independently interested in the other issues I've raised here.</p>
+
+
+
+<a name="314864348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314864348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314864348">(Dec 09 2022 at 10:41)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922/near/314800603">said</a>:</p>
+<blockquote>
+<p>Surely the answer here is that we should have ported <code>@[simp] theorem to_fun_as_coe (e : α ≃ β) : e.toFun = e := rfl</code> after all, just making sure that the coercion on the RHS is <code>fun_like.coe</code>?</p>
+</blockquote>
+<p>Yes, I removed this from the port because at that point the unfolded coercion was <code>toFun</code>, not <code>fun_like.coe</code>. So now it's a good idea to readd it.</p>
+
+
+
+<a name="314865104"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314865104" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314865104">(Dec 09 2022 at 10:46)</a>:</h4>
+<p>Given that we now have two spellings for the coercion, <code>toFun</code> and <code>FunLike.coe</code>, one should be simped to the other.</p>
+
+
+
+<a name="314866496"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314866496" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314866496">(Dec 09 2022 at 10:54)</a>:</h4>
+<p>Note that re-adding this <code>simp</code> lemma does not solve the problem, because for some reason the <code>apply</code> version cannot be proved by <code>simp</code>. So we add this too? I would like a diagnosis of what's going on. I'm busy for the next few hours but perhaps this is worth asking in #lean4</p>
+
+
+
+<a name="314867101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314867101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314867101">(Dec 09 2022 at 10:58)</a>:</h4>
+<p>My suspicion is that it's the same issue as this: <a href="#narrow/stream/287929-mathlib4/topic/.60simp.60.20failing.20on.20partial.20application.20of.20projections">https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/.60simp.60.20failing.20on.20partial.20application.20of.20projections</a></p>
+
+
+
+<a name="314868606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314868606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314868606">(Dec 09 2022 at 11:06)</a>:</h4>
+<p><code>trace.Meta.Tactic.simp</code> gives the same kinds of traces so looks like it's the same issue. This is definitely counterintuitive behaviour, having <code>simp</code> match partial applications except for structure fields. Should I file a bug?</p>
+
+
+
+<a name="314870318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314870318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314870318">(Dec 09 2022 at 11:16)</a>:</h4>
+<p>Example that doesn't depend on mathlib:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span>
+
+<span class="kd">structure</span> <span class="n">BundledFunction</span> <span class="o">(</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">toFun</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kn">namespace</span> <span class="n">BundledFunction</span>
+
+<span class="c1">-- `simp` doesn't seem to unify partial applications of structure projections:</span>
+<span class="c1">-- https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/.60simp.60.20failing.20on.20partial.20application.20of.20projections</span>
+<span class="kd">def</span> <span class="n">id</span> <span class="o">(</span><span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">BundledFunction</span> <span class="n">α</span> <span class="n">α</span> <span class="o">:=</span> <span class="o">⟨</span><span class="bp">λ</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">a</span><span class="o">⟩</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">coe_id</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">toFun</span> <span class="bp">=</span> <span class="n">_root_.id</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">toFun</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">coe_id</span><span class="o">,</span> <span class="n">id_eq</span><span class="o">]</span> <span class="c1">-- does not simplify anything</span>
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">toFun</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">coe_id</span><span class="o">,</span> <span class="n">id_eq</span><span class="o">]</span> <span class="c1">-- succeeds</span>
+
+<span class="c1">-- seems to be another instance of the same behaviour:</span>
+<span class="c1">-- https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922/near/314790371</span>
+
+<span class="kd">def</span> <span class="n">otherProjection</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">BundledFunction</span> <span class="n">α</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">f.toFun</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">toFun_eq_otherProjection</span> <span class="o">:</span> <span class="bp">@</span><span class="n">toFun</span> <span class="n">α</span> <span class="n">β</span> <span class="bp">=</span> <span class="n">otherProjection</span> <span class="o">:=</span> <span class="n">rfl</span>
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">id_apply</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">otherProjection</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">toFun</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">toFun_eq_otherProjection</span><span class="o">,</span> <span class="n">id_apply</span><span class="o">]</span> <span class="c1">-- does not simplify anything</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="n">id</span> <span class="n">α</span><span class="o">)</span><span class="bp">.</span><span class="n">toFun</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">toFun_eq_otherProjection</span><span class="o">,</span> <span class="n">id_apply</span><span class="o">]</span> <span class="c1">-- succeeds</span>
+
+<span class="kd">end</span> <span class="n">BundledFunction</span>
+
+<span class="c1">-- `simp` is happy with partial applications in other functions:</span>
+<span class="kd">def</span> <span class="n">id2</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">x</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">id2_eq_id</span> <span class="o">:</span> <span class="bp">@</span><span class="n">id2</span> <span class="n">α</span> <span class="bp">=</span> <span class="n">id</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">id2</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">id2_eq_id</span><span class="o">,</span> <span class="n">id_eq</span><span class="o">]</span> <span class="c1">-- works fine</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">id2</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">id2_eq_id</span><span class="o">,</span> <span class="n">id_eq</span><span class="o">]</span> <span class="c1">-- succeeds</span>
+</code></pre></div>
+
+
+
+<a name="314882819"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%60simp%60%20calls%20broken%20in%20mathlib4%23922/near/314882819" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.60simp.60.20calls.20broken.20in.20mathlib4.23922.html#314882819">(Dec 09 2022 at 12:21)</a>:</h4>
+<p>Issue: <a href="https://github.com/leanprover/lean4/pull/1937">lean4#1937</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

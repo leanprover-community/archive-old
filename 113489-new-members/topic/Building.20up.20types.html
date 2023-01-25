@@ -1,0 +1,149 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113489-new-members/topic/Building.20up.20types.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/index.html">new members</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html">Building up types</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="245845588"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245845588" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245845588">(Jul 13 2021 at 15:52)</a>:</h4>
+<p><em>The following question is not about the specific types I'm showing, but rather about how to approach formalization. Excuse the vaguery.</em></p>
+<p>Say we have a type and some function for it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">network</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="n">ℕ</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">network.count</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">network</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span>
+  <span class="n">n.l.length</span>
+</code></pre></div>
+<p>We often need to use <code>network</code>s with some specific constraints, so we define a new type to make this more ergonomic:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">constrained_network</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">underlying</span> <span class="o">:</span> <span class="n">network</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">constraint1</span> <span class="o">:</span> <span class="n">underlying.count</span> <span class="bp">&gt;</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">constraint2</span> <span class="o">:</span> <span class="n">underlying.count</span> <span class="bp">&lt;</span> <span class="mi">5</span><span class="o">)</span>
+</code></pre></div>
+<p>Quite naturally, it would be nice to be able to use the <code>network.count</code> on this type, but since <code>constrained_network</code> is a different type, we need to lift the implementation:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">constrained_network.count</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">constrained_network</span><span class="o">)</span> <span class="o">:</span> <span class="n">constrained_network</span> <span class="o">:=</span>
+  <span class="n">c.underlying.count</span>
+</code></pre></div>
+<p>Say we have a hundred properties like <code>count</code>, then we'll need to lift all of these, which is quite a nuisance.</p>
+<p>So instead we decide to formalize <code>constrained_network</code> as a subtype with accessors on it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">constrained_network</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">n</span> <span class="o">:</span> <span class="n">network</span> <span class="bp">//</span> <span class="n">n.count</span> <span class="bp">&gt;</span> <span class="mi">2</span> <span class="bp">∧</span> <span class="n">n.count</span> <span class="bp">&lt;</span> <span class="mi">5</span> <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">constrained_network.constaint1</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">constrained_network</span><span class="o">)</span> <span class="o">:</span> <span class="n">c.val.count</span> <span class="bp">&gt;</span> <span class="mi">2</span> <span class="o">:=</span> <span class="n">c.property.left</span>
+<span class="kd">def</span> <span class="n">constrained_network.constaint2</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">constrained_network</span><span class="o">)</span> <span class="o">:</span> <span class="n">c.val.count</span> <span class="bp">&lt;</span> <span class="mi">5</span> <span class="o">:=</span> <span class="n">c.property.right</span>
+</code></pre></div>
+<p>But even then we always have to dig down to the underlying network to use <code>count</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">constrained_network</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">c.val.count</span>
+</code></pre></div>
+<p>Is there some approach to building up concrete types from more general ones (like <code>constrained_network</code> from <code>network</code>), such that there is some form of inheritance of properties from the more general type? Or is this fundamentally not possible, as functions like the following couldn't be trivially lifted?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- Can't easily be adapted to `constrained_network`, as we need to make sure that the constraints aren't broken.</span>
+<span class="kd">def</span> <span class="n">network.add1</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">network</span><span class="o">)</span> <span class="o">:</span> <span class="n">network</span> <span class="o">:=</span> <span class="o">⟨</span><span class="mi">1</span> <span class="o">::</span> <span class="n">n.l</span><span class="o">⟩</span>
+</code></pre></div>
+<p>In other words, am I fundamentally stuck with manually adding new (duplicate) definitions for the more constrained types?</p>
+
+
+
+<a name="245846482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245846482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245846482">(Jul 13 2021 at 15:59)</a>:</h4>
+<p>Have you tried</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">constrained_network</span> <span class="kd">extends</span> <span class="n">network</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">constraint1</span> <span class="o">:</span> <span class="n">count</span> <span class="bp">&gt;</span> <span class="mi">2</span><span class="o">)</span>
+<span class="o">(</span><span class="n">constraint2</span> <span class="o">:</span> <span class="n">count</span> <span class="bp">&lt;</span> <span class="mi">5</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="245847962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245847962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245847962">(Jul 13 2021 at 16:09)</a>:</h4>
+<p><span class="user-mention" data-user-id="310045">@Eric Wieser</span> <br>
+That might be the solution I'm looking for.<br>
+There's one nitpick I have with it right now though:<br>
+I can't use <code>network.count</code> in the definition of <code>constrained_network</code>, since there's no available <code>network</code> upon which to use the property.<br>
+So instead I'd have to "unwrap" <code>network.count</code> and write:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">constrained_network</span> <span class="kd">extends</span> <span class="n">network</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">constraint1</span> <span class="o">:</span> <span class="n">l.length</span> <span class="bp">&gt;</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">constraint2</span> <span class="o">:</span> <span class="n">l.length</span> <span class="bp">&lt;</span> <span class="mi">5</span><span class="o">)</span>
+</code></pre></div>
+<p>I think this is fundamentally not solvable though, as otherwise Lean would have to provide some instance of <code>network</code> during the definition of <code>constrained_network </code>, which would be very strange.</p>
+
+
+
+<a name="245849372"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245849372" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245849372">(Jul 13 2021 at 16:19)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">constrained_network</span> <span class="kd">extends</span> <span class="n">network</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">constraint1</span> <span class="o">:</span> <span class="n">to_network.count</span> <span class="bp">&gt;</span> <span class="mi">2</span><span class="o">)</span>
+<span class="o">(</span><span class="n">constraint2</span> <span class="o">:</span> <span class="n">to_network.count</span> <span class="bp">&lt;</span> <span class="mi">5</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="245849448"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245849448" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245849448">(Jul 13 2021 at 16:20)</a>:</h4>
+<p>Or</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">constrained_network</span> <span class="kd">extends</span> <span class="n">underlying</span> <span class="o">:</span> <span class="n">network</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">constraint1</span> <span class="o">:</span> <span class="n">underlying.count</span> <span class="bp">&gt;</span> <span class="mi">2</span><span class="o">)</span>
+<span class="o">(</span><span class="n">constraint2</span> <span class="o">:</span> <span class="n">underlying.count</span> <span class="bp">&lt;</span> <span class="mi">5</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="245849476"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245849476" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245849476">(Jul 13 2021 at 16:20)</a>:</h4>
+<p>Oh brilliant! :D<br>
+Thanks</p>
+
+
+
+<a name="245849581"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245849581" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245849581">(Jul 13 2021 at 16:21)</a>:</h4>
+<p>Note you'll get different behavior with and without <code>set_option old_structure_cmd true</code> - you might want to try both and see which behaves best for you</p>
+
+
+
+<a name="245849953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245849953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245849953">(Jul 13 2021 at 16:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113489-new-members/topic/Building.20up.20types/near/245849581">said</a>:</p>
+<blockquote>
+<p>Note you'll get different behavior with and without <code>set_option old_structure_cmd true</code> - you might want to try both and see which behaves best for you</p>
+</blockquote>
+<p>Is that a Lean 4 thing? I'm still on Lean 3.</p>
+
+
+
+<a name="245850038"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245850038" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245850038">(Jul 13 2021 at 16:24)</a>:</h4>
+<p>No, that's a lean3 thing</p>
+
+
+
+<a name="245850055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245850055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245850055">(Jul 13 2021 at 16:24)</a>:</h4>
+<p>Lean4 has no old structures. Lean3 has them behind a <code>section</code>-local flag</p>
+
+
+
+<a name="245935322"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245935322" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245935322">(Jul 14 2021 at 09:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="372804">Marcus Rossel</span> has marked this topic as resolved.</p>
+
+
+
+<a name="245935331"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Building%20up%20types/near/245935331" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Building.20up.20types.html#245935331">(Jul 14 2021 at 09:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="372804">Marcus Rossel</span> has marked this topic as unresolved.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,80 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Custom.20instance.20deriving.20handlers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20instance.20deriving.20handlers.html">Custom instance deriving handlers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="290391838"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20instance%20deriving%20handlers/near/290391838" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Matej Penciak <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20instance.20deriving.20handlers.html#290391838">(Jul 21 2022 at 15:34)</a>:</h4>
+<p>This is something of a followup to this <a href="#narrow/stream/270676-lean4/topic/deriving.20extensions">very old thread</a>:</p>
+<p>I have some experience with metaprogramming and wanted to take a crack and writing an extension to the instance deriving mechanism, but I'm quickly realizing I'm out of my depth here. I know for a fact I'm doing things wrong because I'm always running into the <code>default handlers have not been implemented yet, ...</code> error no matter how simple of an example I try.</p>
+<p>I first started by copying the template from the deriving <code>BEq</code> file, and tried to strip it down to the easiest possible cases, but I'm finding debugging tricky, so I'm not sure where to even begin fixing my problems. Eventually I just copy and pasted the whole <code>BEq</code> deriving file and tried to modify it for <code>NBEq</code> (not BEq) and I was still getting the same error, which made me think I'm fundamentally misunderstanding things...</p>
+<p>I've included a minimal (non)working example below if that might help in figuring out what I'm doing wrong</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean.Elab.Deriving.Basic</span>
+<span class="kn">import</span> <span class="n">Lean.Elab.Deriving.Util</span>
+
+<span class="kd">universe</span> <span class="n">u</span>
+
+<span class="kd">class</span> <span class="n">Foo</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">foo</span> <span class="o">:</span> <span class="n">String</span>
+
+<span class="kn">section</span> <span class="n">making_handler</span>
+
+<span class="kn">namespace</span> <span class="n">Lean.Elab.Deriving.Foo</span>
+<span class="kn">open</span> <span class="n">Lean.Parser.Term</span>
+<span class="kn">open</span> <span class="n">Meta</span>
+
+<span class="kn">open</span> <span class="n">Command</span>
+
+<span class="kn">private</span> <span class="kd">def</span> <span class="n">mkFooFuns</span> <span class="o">(</span><span class="n">ctx</span> <span class="o">:</span> <span class="n">Context</span><span class="o">)</span> <span class="o">(</span><span class="n">name</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="n">Syntax</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">auxFunName</span> <span class="o">:=</span> <span class="n">ctx.auxFunNames</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kn">private</span> <span class="kd">def</span> <span class="bp">$</span><span class="o">(</span><span class="n">mkIdent</span> <span class="n">auxFunName</span><span class="o">):</span><span class="n">ident</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span> <span class="s2">"Bar"</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">mkFooInstanceCmds</span> <span class="o">(</span><span class="n">declName</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="o">(</span><span class="n">Array</span> <span class="n">Syntax</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">ctx</span> <span class="bp">←</span> <span class="n">mkContext</span> <span class="s2">"foo"</span> <span class="n">declName</span>
+  <span class="k">let</span> <span class="n">cmds</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[</span><span class="bp">←</span> <span class="n">mkFooFuns</span> <span class="n">ctx</span> <span class="n">declName</span><span class="o">]</span> <span class="bp">++</span> <span class="o">(</span><span class="bp">←</span> <span class="n">mkInstanceCmds</span> <span class="n">ctx</span> <span class="bp">`</span><span class="n">Foo</span> <span class="bp">#</span><span class="o">[</span><span class="n">declName</span><span class="o">])</span>
+  <span class="n">return</span> <span class="n">cmds</span>
+
+<span class="kd">def</span> <span class="n">mkFooHandler</span> <span class="o">(</span><span class="n">declNames</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Name</span><span class="o">)</span> <span class="o">:</span> <span class="n">CommandElabM</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">cmds</span> <span class="bp">←</span> <span class="n">liftTermElabM</span> <span class="n">none</span> <span class="bp">&lt;|</span> <span class="n">mkFooInstanceCmds</span> <span class="n">declNames</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
+  <span class="n">cmds.forM</span> <span class="n">elabCommand</span>
+  <span class="n">return</span> <span class="n">true</span>
+
+<span class="n">initialize</span>
+  <span class="n">registerBuiltinDerivingHandler</span> <span class="bp">`</span><span class="n">Foo</span> <span class="n">mkFooHandler</span>
+
+<span class="kd">end</span> <span class="n">Lean.Elab.Deriving.Foo</span>
+<span class="kd">end</span> <span class="n">making_handler</span>
+
+<span class="kn">section</span> <span class="n">testing_handler</span>
+
+<span class="kd">inductive</span> <span class="n">test</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">con1</span> <span class="o">:</span> <span class="n">test</span>
+  <span class="bp">|</span> <span class="n">con2</span> <span class="o">:</span> <span class="n">test</span>
+<span class="n">deriving</span> <span class="n">Foo</span> <span class="c1">-- default handlers have not been implemented yet, class: 'Foo' types: [test]</span>
+
+<span class="kd">end</span> <span class="n">testing_handler</span>
+</code></pre></div>
+
+
+
+<a name="290391948"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Custom%20instance%20deriving%20handlers/near/290391948" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Matej Penciak <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Custom.20instance.20deriving.20handlers.html#290391948">(Jul 21 2022 at 15:35)</a>:</h4>
+<p>(I should also mention that I tried having the instance handler in a separate module and importing it, but that doesn't work either)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

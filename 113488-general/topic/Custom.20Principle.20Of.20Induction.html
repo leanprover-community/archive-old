@@ -1,0 +1,260 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html">Custom Principle Of Induction</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="221643839"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221643839" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henning Dieterichs <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221643839">(Jan 05 2021 at 13:09)</a>:</h4>
+<p>I have a <code>tree</code> and a recursive proposition that no two branches share a leaf (<code>tree_disjoint: tree.disjoint</code>).<br>
+I would like to do an inductive proof, say that the list of all leaves of a tree has no duplicates.<br>
+Since I'm doing a lot of such inductive proofs, I want a very concise induction scheme.</p>
+<p>I don't like the mess that the <code>tree.disjoint</code> hypothesis produces though.<br>
+(In my actual scenario, I have more tree cases that represent marked edges and about 40 such inductive proofs.)<br>
+A standard inductive proof on <code>tree</code> adds <code>*.disjoint</code> to all induction hypothesis and it does not unfold <code>tree.disjoint</code>,<br>
+even though I only need the disjoint prop for the branch case. All other cases just unfold and pass the prop as is.</p>
+<p>So I was thinking of a custom induction scheme.</p>
+<p>I get this "mess" with <code>induction tr</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">case</span> <span class="n">Tree.leaf</span>
+    <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span>
+    <span class="n">t</span><span class="o">:</span> <span class="n">α</span>
+    <span class="n">tree_disjoint</span><span class="o">:</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">t</span><span class="o">)</span><span class="bp">.</span><span class="n">disjoint</span>
+
+    <span class="bp">⊢</span> <span class="n">C</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">t</span><span class="o">)</span>
+
+<span class="n">case</span> <span class="n">Tree.branch</span>
+    <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span>
+    <span class="n">t_tr1t_tr2</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span>
+    <span class="n">t_ih_tr1</span><span class="o">:</span> <span class="n">t_tr1.disjoint</span> <span class="bp">→</span> <span class="n">C</span> <span class="n">t_tr1</span>
+    <span class="n">t_ih_tr2</span><span class="o">:</span> <span class="n">t_tr2.disjoint</span> <span class="bp">→</span> <span class="n">C</span> <span class="n">t_tr2</span>
+    <span class="n">tree_disjoint</span><span class="o">:</span> <span class="o">(</span><span class="n">t_tr1.branch</span> <span class="n">t_tr2</span><span class="o">)</span><span class="bp">.</span><span class="n">disjoint</span>
+
+    <span class="bp">⊢</span> <span class="n">C</span> <span class="o">(</span><span class="n">t_tr1.branch</span> <span class="n">t_tr2</span><span class="o">)</span>
+</code></pre></div>
+<p>But I would like to get this with <code>induction tr using (Tree.disjoint_induction tree_disjoint)</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">case</span> <span class="n">Tree.leaf</span>
+    <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span>
+    <span class="n">t</span><span class="o">:</span> <span class="n">α</span>
+
+    <span class="bp">⊢</span> <span class="n">C</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">t</span><span class="o">)</span>
+
+<span class="n">case</span> <span class="n">Tree.branch</span>
+    <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span>
+    <span class="n">t_tr1t_tr2</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span>
+    <span class="n">t_ih_tr1</span><span class="o">:</span> <span class="n">C</span> <span class="n">t_tr1</span> <span class="c1">-- No disjoint hypothesis here!</span>
+    <span class="n">t_ih_tr2</span><span class="o">:</span> <span class="n">C</span> <span class="n">t_tr2</span>
+    <span class="c1">-- This is the only thing I need from tr.disjoint:</span>
+    <span class="n">tree_disjoint</span><span class="o">:</span> <span class="n">disjoint</span> <span class="n">t_tr1.leaves</span> <span class="n">t_tr2.leaves</span>
+
+    <span class="bp">⊢</span> <span class="n">C</span> <span class="o">(</span><span class="n">t_tr1.branch</span> <span class="n">t_tr2</span><span class="o">)</span>
+</code></pre></div>
+<p>I played around with a custom induction lemma, but failed. The <a href="https://leanprover.github.io/theorem_proving_in_lean/inductive_types.html">docs</a> don't say much about custom induction lemmas.<br>
+It seems like I cannot even add decidable_eq type classes (I non-deterministically get "induction tactic failed, major premise type is ill-formed").<br>
+Also, I don't know how to pass the prop <code>tr.tree</code> to the induction lemma.</p>
+<p>Do you have an idea? Is this even possible with a custom induction lemma?</p>
+<p>This is the context:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.finset</span>
+
+<span class="kd">inductive</span> <span class="n">Tree</span> <span class="o">(</span><span class="n">α</span><span class="o">:</span> <span class="kt">Type</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">leaf</span> <span class="o">(</span><span class="n">a</span><span class="o">:</span> <span class="n">α</span><span class="o">):</span> <span class="n">Tree</span>
+<span class="bp">|</span> <span class="n">branch</span> <span class="o">(</span><span class="n">tr1</span> <span class="n">tr2</span><span class="o">:</span> <span class="n">Tree</span><span class="o">)</span> <span class="o">:</span> <span class="n">Tree</span>
+
+<span class="kd">variables</span> <span class="o">{</span> <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span> <span class="o">}</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">α</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">Tree.leaves_list</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">list</span> <span class="n">α</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">a</span><span class="o">)</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">a</span> <span class="o">}</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">Tree.branch</span> <span class="n">tr1</span> <span class="n">tr2</span><span class="o">)</span> <span class="o">:=</span> <span class="n">tr1.leaves_list</span> <span class="bp">++</span> <span class="n">tr2.leaves_list</span>
+
+<span class="kd">def</span> <span class="n">Tree.leaves</span> <span class="o">(</span><span class="n">a</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span><span class="o">):</span> <span class="n">finset</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">a.leaves_list.to_finset</span>
+
+<span class="kd">def</span> <span class="n">Tree.disjoint</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">leaf</span><span class="o">)</span> <span class="o">:=</span> <span class="n">true</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">Tree.branch</span> <span class="n">tr1</span> <span class="n">tr2</span><span class="o">)</span> <span class="o">:=</span> <span class="n">tr1.disjoint</span> <span class="bp">∧</span> <span class="n">tr2.disjoint</span> <span class="bp">∧</span> <span class="n">disjoint</span> <span class="n">tr1.leaves</span> <span class="n">tr2.leaves</span>
+
+
+<span class="kd">lemma</span> <span class="n">Tree.rec_on2</span> <span class="o">{</span><span class="n">C</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="o">}</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">leaf</span><span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">C</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">a</span><span class="o">))</span>
+  <span class="o">(</span><span class="n">branch</span><span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">tr1</span> <span class="n">tr2</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h1</span><span class="o">:</span> <span class="n">C</span> <span class="n">tr1</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span><span class="o">:</span> <span class="n">C</span> <span class="n">tr2</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:</span> <span class="n">disjoint</span> <span class="n">tr1.leaves</span> <span class="n">tr2.leaves</span><span class="o">),</span> <span class="n">C</span> <span class="o">(</span><span class="n">tr1.branch</span> <span class="n">tr2</span><span class="o">)):</span>
+  <span class="n">C</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="gr">sorry</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">Tree.leaves_list.nodup</span> <span class="o">{</span> <span class="n">t</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="o">}</span> <span class="o">(</span><span class="n">tree_disjoint</span><span class="o">:</span> <span class="n">t.disjoint</span><span class="o">):</span>
+    <span class="n">t.leaves_list.nodup</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+    <span class="c1">-- This non-deterministically fails with `induction tactic failed, major premise type is ill-formed` in lean 3.21.0</span>
+  <span class="n">induction</span> <span class="n">t</span> <span class="n">using</span> <span class="n">Tree.rec_on2</span><span class="o">,</span>
+  <span class="o">{</span>
+    <span class="gr">sorry</span><span class="o">,</span>
+  <span class="o">},</span> <span class="o">{</span>
+    <span class="gr">sorry</span><span class="o">,</span>
+  <span class="o">}</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="221644990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221644990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henning Dieterichs <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221644990">(Jan 05 2021 at 13:22)</a>:</h4>
+<p>Why doesn't this work? <code>Tree.rec_on2</code> should be true.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">Tree.rec_on2</span> <span class="o">{</span> <span class="n">α</span><span class="o">:</span> <span class="kt">Type</span> <span class="o">}</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">C</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="o">}</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">n_disjoint</span><span class="o">:</span> <span class="n">n.disjoint</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">leaf</span><span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">C</span> <span class="o">(</span><span class="n">Tree.leaf</span> <span class="n">a</span><span class="o">))</span>
+  <span class="o">(</span><span class="n">branch</span><span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">tr1</span> <span class="n">tr2</span> <span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h1</span><span class="o">:</span> <span class="n">C</span> <span class="n">tr1</span><span class="o">)</span> <span class="o">(</span><span class="n">h2</span><span class="o">:</span> <span class="n">C</span> <span class="n">tr2</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span><span class="o">:</span> <span class="n">disjoint</span> <span class="n">tr1.leaves</span> <span class="n">tr2.leaves</span><span class="o">),</span> <span class="n">C</span> <span class="o">(</span><span class="n">tr1.branch</span> <span class="n">tr2</span><span class="o">)):</span>
+  <span class="n">C</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="gr">sorry</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">Tree.leaves_list.nodup</span> <span class="o">{</span> <span class="n">t</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="o">}</span> <span class="o">(</span><span class="n">tree_disjoint</span><span class="o">:</span> <span class="n">t.disjoint</span><span class="o">):</span>
+    <span class="n">t.leaves_list.nodup</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">induction</span> <span class="n">t</span> <span class="n">using</span> <span class="n">Tree.rec_on2</span><span class="o">,</span>
+  <span class="o">{</span> <span class="gr">sorry</span><span class="o">,</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="gr">sorry</span><span class="o">,</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="gr">sorry</span><span class="o">,</span> <span class="o">},</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="221663298"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221663298" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221663298">(Jan 05 2021 at 16:00)</a>:</h4>
+<p><del>All you need is <code>@[elab_as_eliminator]</code> tagging <code>Tree.rec_on2</code>, and then <code>induction t using Tree.rec_on2</code> works</del></p>
+
+
+
+<a name="221664171"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221664171" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221664171">(Jan 05 2021 at 16:06)</a>:</h4>
+<p>I just use <code>refine</code> instead of <code>induction using</code>, it's a lot more reliable</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">refine</span> <span class="n">Tree.rec_on2</span> <span class="n">t</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">a</span><span class="o">,</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">tr1</span> <span class="n">tr2</span> <span class="n">h1</span> <span class="n">h2</span> <span class="n">x</span><span class="o">,</span> <span class="n">_</span><span class="o">),</span>
+</code></pre></div>
+
+
+
+<a name="221664734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221664734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221664734">(Jan 05 2021 at 16:10)</a>:</h4>
+<p>What would be your proof for <code>Tree.rec_on2</code>? How are you going to show <code>disjoint tr1.leaves tr2.leaves</code>?</p>
+
+
+
+<a name="221665056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665056">(Jan 05 2021 at 16:11)</a>:</h4>
+<p>It seems a shame to have an <code>induction</code> tactic that intros all the hypotheses for you and applies case names, only to not be able to use it</p>
+
+
+
+<a name="221665423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665423">(Jan 05 2021 at 16:13)</a>:</h4>
+<p>I ran into a similar problem with <a href="#narrow/stream/113488-general/topic/.5Brecursor.5D.20doesn't.20understand.20coe_to_sort/near/217396242">https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/.5Brecursor.5D.20doesn't.20understand.20coe_to_sort/near/217396242</a></p>
+
+
+
+<a name="221665430"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665430" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665430">(Jan 05 2021 at 16:13)</a>:</h4>
+<p>are you volunteering to fix <code>induction using</code> in the C++?</p>
+
+
+
+<a name="221665604"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665604" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665604">(Jan 05 2021 at 16:15)</a>:</h4>
+<p>Perhaps if I had an understanding of the problem. Does lean4 have the same problem with <code>induction using</code>, or is there no <code>using</code> any more?</p>
+
+
+
+<a name="221665681"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665681" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665681">(Jan 05 2021 at 16:15)</a>:</h4>
+<p>I think lean 4 has something fancier, but equivalent</p>
+
+
+
+<a name="221665708"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221665708" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221665708">(Jan 05 2021 at 16:15)</a>:</h4>
+<p>I would assume it didn't inherit whatever bug this is</p>
+
+
+
+<a name="221667813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221667813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221667813">(Jan 05 2021 at 16:30)</a>:</h4>
+<p>Does <code>with_cases { refine ... }</code> or <code>with_cases { apply ... }</code> do anything useful? I think there's some related functionality there.</p>
+
+
+
+<a name="221667952"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221667952" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221667952">(Jan 05 2021 at 16:31)</a>:</h4>
+<p>It's certainly possible to get equivalent functionality if you use <code>with_cases</code>, but you would have to manually tag the subgoals</p>
+
+
+
+<a name="221668102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221668102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221668102">(Jan 05 2021 at 16:32)</a>:</h4>
+<p>I just don't find <code>induction using</code> to be very useful, so I don't really care that it's buggy</p>
+
+
+
+<a name="221669243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221669243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221669243">(Jan 05 2021 at 16:40)</a>:</h4>
+<p><code>with_cases { apply ... }</code> picks up the case names if you give them in the induction principle:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[elab_as_eliminator]</span>
+<span class="kd">lemma</span> <span class="n">nat_ind</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">(</span><span class="n">zero</span> <span class="o">:</span> <span class="n">P</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">successor</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">n</span><span class="o">,</span> <span class="n">P</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">P</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">))</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">P</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="n">nat.rec</span> <span class="n">zero</span> <span class="n">successor</span> <span class="n">n</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">P</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">}</span> <span class="o">(</span><span class="n">z</span> <span class="o">:</span> <span class="n">P</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">n</span><span class="o">,</span> <span class="n">P</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">P</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">))</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">P</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">with_cases</span> <span class="o">{</span> <span class="n">apply</span> <span class="n">nat_ind</span> <span class="o">},</span>
+  <span class="n">case</span> <span class="n">zero</span> <span class="o">{</span> <span class="n">exact</span> <span class="n">z</span><span class="o">},</span>
+  <span class="n">case</span> <span class="n">successor</span> <span class="o">:</span> <span class="n">m</span> <span class="n">ih</span> <span class="o">{</span> <span class="n">exact</span> <span class="n">s</span> <span class="n">m</span> <span class="n">ih</span> <span class="o">}</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p><code>with_cases { refine ... }</code> doesn't...</p>
+
+
+
+<a name="221684011"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221684011" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henning Dieterichs <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221684011">(Jan 05 2021 at 18:35)</a>:</h4>
+<blockquote>
+<p>I just use refine instead of induction using, it's a lot more reliable</p>
+</blockquote>
+<p>It does not tag the goals though... I like the <code>case ...</code> statement really much! <br>
+Thank you very much for the trick with <code>(λ tr1 tr2 h1 h2 x, _)</code>. I thought I had to use assume when after refine!</p>
+
+
+
+<a name="221684224"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221684224" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henning Dieterichs <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221684224">(Jan 05 2021 at 18:36)</a>:</h4>
+<blockquote>
+<p>What would be your proof for Tree.rec_on2? How are you going to show disjoint tr1.leaves tr2.leaves</p>
+</blockquote>
+<p>The first "case" of the induction proof should imply this!</p>
+
+
+
+<a name="221684937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Custom%20Principle%20Of%20Induction/near/221684937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henning Dieterichs <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Custom.20Principle.20Of.20Induction.html#221684937">(Jan 05 2021 at 18:43)</a>:</h4>
+<p><code>with_cases</code> is doing something strange here:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">Tree.leaves_list.nodup</span> <span class="o">{</span> <span class="n">t</span><span class="o">:</span> <span class="n">Tree</span> <span class="n">α</span> <span class="o">}</span> <span class="o">(</span><span class="n">tree_disjoint</span><span class="o">:</span> <span class="n">t.disjoint</span><span class="o">):</span>
+    <span class="n">t.leaves_list.nodup</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">with_cases</span> <span class="o">{</span> <span class="n">refine</span> <span class="n">Tree.rec_on2</span> <span class="n">t</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">a</span><span class="o">,</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">tr1</span> <span class="n">tr2</span> <span class="n">h1</span> <span class="n">h2</span> <span class="n">x</span><span class="o">,</span> <span class="n">_</span><span class="o">),</span>   <span class="o">},</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Adding <code>(λ a, _) (λ tr1 tr2 h1 h2 x, _),</code> has no effect!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

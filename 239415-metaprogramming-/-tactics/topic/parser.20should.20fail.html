@@ -1,0 +1,126 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html">parser should fail</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="239263086"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239263086" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239263086">(May 18 2021 at 14:30)</a>:</h4>
+<p>Hi all,</p>
+<p>The following parsing script is succeeding on cases I would prefer it to fail on. For example in the case <code>λ {α : Type u} [_inst_1 : linear_ordered_add_comm_group α], @with_top.linear_ordered_add_comm_monoid_with_top α),</code> there is an extra ")" at the very end which has no opening parenthesis to match it. This proof term successfully parses and type checks because the final ")" is just ignored. </p>
+<p><strong>How can I force the parser to consume the whole string, and fail if the whole string can't be parsed?</strong> </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">system.io</span>
+<span class="kn">import</span> <span class="n">all</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">parse_texpr_with_univs</span> <span class="o">(</span><span class="n">univs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">string</span><span class="o">):</span> <span class="n">lean.parser</span> <span class="n">pexpr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="c1">-- add all universe names in the list as universe levels</span>
+  <span class="n">univs.mmap</span> <span class="bp">$</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span><span class="o">,</span> <span class="n">lean.parser.add_local_level</span> <span class="n">s</span><span class="o">),</span>
+  <span class="c1">-- parse the buffer as a pexpr</span>
+  <span class="n">interactive.types.texpr</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:=</span> <span class="s2">"λ {α : Type u} [_inst_1 : linear_ordered_add_comm_group α], @with_top.linear_ordered_add_comm_monoid_with_top α)"</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">univs</span> <span class="o">:=</span> <span class="o">[</span><span class="s2">"u"</span><span class="o">],</span>
+
+  <span class="n">io.run_tactic</span> <span class="bp">$</span> <span class="k">do</span> <span class="o">{</span>
+    <span class="c1">-- parse the expression using the universe names</span>
+    <span class="n">t</span> <span class="bp">&lt;-</span> <span class="n">lean.parser.run_with_input</span> <span class="o">(</span><span class="n">parse_texpr_with_univs</span> <span class="n">univs</span><span class="o">)</span> <span class="n">s</span><span class="o">,</span>
+
+    <span class="c1">-- convert to proof term and check type</span>
+    <span class="n">e</span> <span class="bp">&lt;-</span> <span class="n">tactic.to_expr</span> <span class="n">t</span><span class="o">,</span>
+    <span class="n">tp</span> <span class="bp">&lt;-</span> <span class="n">tactic.infer_type</span> <span class="n">e</span><span class="o">,</span>
+    <span class="n">tactic.trace</span> <span class="n">tp</span>
+  <span class="o">}</span>
+</code></pre></div>
+<p>Thanks!</p>
+
+
+
+<a name="239264730"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239264730" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239264730">(May 18 2021 at 14:39)</a>:</h4>
+<p>I think using <code>run (with_input p s)</code> instead of <code>run_with_input</code> will solve your problem</p>
+
+
+
+<a name="239264798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239264798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239264798">(May 18 2021 at 14:39)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/lean.parser.run_with_input/src">src#lean.parser.run_with_input</a> just calls what I suggest, then throws away the information about the remaining input</p>
+
+
+
+<a name="239265034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239265034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239265034">(May 18 2021 at 14:40)</a>:</h4>
+<p>Since <code>run_with_input </code> is used nowhere in core lean or mathlib, perhaps the thing to do is just change <code>run_with_input </code> to perform the necessary check</p>
+
+
+
+<a name="239266472"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239266472" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239266472">(May 18 2021 at 14:48)</a>:</h4>
+<p>This does the job:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">run_with_input'</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">string</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">α</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">p</span> <span class="n">s</span><span class="o">,</span>
+<span class="k">do</span>
+  <span class="o">(</span><span class="n">p</span><span class="o">,</span> <span class="s2">""</span><span class="o">)</span> <span class="bp">←</span> <span class="n">run</span> <span class="o">(</span><span class="n">with_input</span> <span class="n">p</span> <span class="n">s</span><span class="o">),</span>
+  <span class="n">pure</span> <span class="n">p</span>
+</code></pre></div>
+<p>although you probably want it to emit a better error about the remaining content rather than just failing a pattern match</p>
+
+
+
+<a name="239268277"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239268277" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239268277">(May 18 2021 at 14:59)</a>:</h4>
+<p>Ahh great! Thank you <span class="user-mention" data-user-id="310045">@Eric Wieser</span></p>
+
+
+
+<a name="239269847"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239269847" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239269847">(May 18 2021 at 15:07)</a>:</h4>
+<p>I tested it and it works, but I don't understand why this works. On the surface it appears that the only difference between run_with_input and run_with_input' is how the result is retrieved.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">run_with_input</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">string</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">α</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">p</span> <span class="n">s</span><span class="o">,</span>
+  <span class="n">prod.fst</span> <span class="bp">&lt;$&gt;</span> <span class="n">run</span> <span class="o">(</span><span class="n">with_input</span> <span class="n">p</span> <span class="n">s</span><span class="o">)</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">run_with_input'</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">string</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">α</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">p</span> <span class="n">s</span><span class="o">,</span>
+<span class="k">do</span>
+  <span class="o">(</span><span class="n">p</span><span class="o">,</span> <span class="s2">""</span><span class="o">)</span> <span class="bp">←</span> <span class="n">run</span> <span class="o">(</span><span class="n">with_input</span> <span class="n">p</span> <span class="n">s</span><span class="o">),</span>
+  <span class="n">pure</span> <span class="n">p</span>
+</code></pre></div>
+
+
+
+<a name="239281395"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239281395" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239281395">(May 18 2021 at 16:12)</a>:</h4>
+<p>I think the intended use is to call <code>run_with_input</code> with a parser chain that ends with the <code>eof</code> parser</p>
+
+
+
+<a name="239285703"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239285703" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239285703">(May 18 2021 at 16:39)</a>:</h4>
+<p><code>(p, "") ← ...</code> means "call <code>failure</code> if the second item is not <code>""</code>"</p>
+
+
+
+<a name="239285767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239285767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239285767">(May 18 2021 at 16:40)</a>:</h4>
+<p>I wasn't able to find the eof parser. <a href="https://leanprover-community.github.io/mathlib_docs/find/lean.parser.eof">docs#lean.parser.eof</a> doesn't exist.</p>
+
+
+
+<a name="239285925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/parser%20should%20fail/near/239285925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/parser.20should.20fail.html#239285925">(May 18 2021 at 16:41)</a>:</h4>
+<p>We have <a href="https://leanprover-community.github.io/mathlib_docs/find/parser.eof">docs#parser.eof</a>, but isn't that a very different parser?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

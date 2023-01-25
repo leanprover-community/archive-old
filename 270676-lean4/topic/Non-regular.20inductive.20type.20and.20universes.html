@@ -1,0 +1,192 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html">Non-regular inductive type and universes</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="289008801"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289008801" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> ohhaimark <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289008801">(Jul 09 2022 at 00:43)</a>:</h4>
+<p>Is it possible to give appropriate universe levels to the following inductive type</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">term</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="o">{</span><span class="n">v</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="bp">→</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="o">:</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="o">:</span> <span class="n">term</span> <span class="o">(</span><span class="n">Option</span> <span class="n">v</span><span class="o">)</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+</code></pre></div>
+<p>or is it inheritly untypeable in lean?</p>
+
+
+
+<a name="289011106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289011106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Bailey <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289011106">(Jul 09 2022 at 01:43)</a>:</h4>
+<p>No, you can't have <code>(_ : Type)</code> in the constructor args if your inductive is also in <code>Type</code>. You can make it a parameter, but then you won't be able to change it to <code>Option _</code>.</p>
+
+
+
+<a name="289017610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289017610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289017610">(Jul 09 2022 at 04:12)</a>:</h4>
+<p>One way around this is to make your own type universe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">MyType</span> <span class="o">:</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">MyUnit</span>
+  <span class="bp">|</span> <span class="n">MyOption</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span>
+
+<span class="kd">def</span> <span class="n">MyType.toType</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">MyUnit</span> <span class="bp">=&gt;</span> <span class="n">Unit</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">MyOption</span> <span class="n">t</span> <span class="bp">=&gt;</span> <span class="n">Option</span> <span class="n">t.toType</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">CoeSort</span> <span class="n">MyType</span> <span class="kt">Type</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">MyType.toType</span>
+
+<span class="kd">inductive</span> <span class="n">term</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="o">{</span><span class="n">v</span> <span class="o">:</span> <span class="n">MyType</span><span class="o">}</span> <span class="bp">→</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="o">:</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="o">:</span> <span class="n">term</span> <span class="o">(</span><span class="bp">.</span><span class="n">MyOption</span> <span class="n">v</span><span class="o">)</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+</code></pre></div>
+
+
+
+<a name="289041598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289041598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289041598">(Jul 09 2022 at 13:29)</a>:</h4>
+<p>Or you can just put it in <code>Type 1</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">term</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="o">{</span><span class="n">v</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="bp">→</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="o">:</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="o">:</span> <span class="n">term</span> <span class="o">(</span><span class="n">Option</span> <span class="n">v</span><span class="o">)</span> <span class="bp">→</span> <span class="n">term</span> <span class="n">v</span>
+</code></pre></div>
+<p>a value <code>a : A : Sort u</code> cannot contain a <code>B : Sort v</code> unless <code>u &gt; v</code>. In your def, each of the constructors takes a parameter <code>v : Type 0</code>, so the type must live in at least <code>Type 1</code></p>
+
+
+
+<a name="289041820"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289041820" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289041820">(Jul 09 2022 at 13:32)</a>:</h4>
+<p>But if you're building a <code>Type 1</code> you should have pretty good justification for doing so -- types inhabiting higher universes are kinda annoying to work with sometimes</p>
+
+
+
+<a name="289109799"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Non-regular%20inductive%20type%20and%20universes/near/289109799" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> ohhaimark <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Non-regular.20inductive.20type.20and.20universes.html#289109799">(Jul 10 2022 at 15:42)</a>:</h4>
+<p>Awesome. I am now stuck on a termination proof for bind</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Ty</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">base</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">option</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">Ty</span> <span class="n">v</span>
+
+<span class="kd">def</span> <span class="n">Ty.pure</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span> <span class="o">:=</span> <span class="n">Ty.base</span> <span class="o">(</span><span class="n">v</span><span class="o">:=</span><span class="n">v</span><span class="o">)</span>
+
+<span class="kd">@[simp]</span> <span class="kd">def</span> <span class="n">Ty.type</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="n">base</span> <span class="bp">=&gt;</span> <span class="n">v</span>
+  <span class="bp">|</span> <span class="n">option</span> <span class="n">ty</span> <span class="bp">=&gt;</span> <span class="n">Option</span> <span class="n">ty.type</span>
+
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">CoeSort</span> <span class="o">(</span><span class="n">Ty</span> <span class="n">v</span><span class="o">)</span> <span class="kt">Type</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">Ty.type</span>
+
+<span class="kd">inductive</span> <span class="n">Term'</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="o">:</span> <span class="n">Term'</span> <span class="o">(</span><span class="n">Ty.option</span> <span class="n">a</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">a</span>
+
+<span class="kd">def</span> <span class="n">Term</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">Term'</span> <span class="bp">$</span> <span class="n">Ty.pure</span> <span class="n">a</span>
+
+<span class="kn">namespace</span> <span class="n">Term</span>
+<span class="kd">@[matchPattern]</span> <span class="kd">def</span> <span class="n">var</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">Term'.var</span>
+<span class="kd">@[matchPattern]</span> <span class="kd">def</span> <span class="n">app</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">Term'.app</span>
+<span class="kd">@[matchPattern]</span> <span class="kd">def</span> <span class="n">lam</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">Term'.lam</span>
+
+<span class="kd">def</span> <span class="n">liftTermEq</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="o">{</span><span class="n">ty'</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">w</span><span class="o">}</span> <span class="o">(</span><span class="n">eq</span> <span class="o">:</span> <span class="n">ty.type</span> <span class="bp">=</span> <span class="n">ty'.type</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">ty'</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">var</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">var</span> <span class="bp">$</span> <span class="n">eq</span> <span class="bp">▸</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">app</span> <span class="o">(</span><span class="n">liftTermEq</span> <span class="n">eq</span> <span class="n">t₁</span><span class="o">)</span> <span class="o">(</span><span class="n">liftTermEq</span> <span class="n">eq</span> <span class="n">t₂</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">t</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">lam</span> <span class="o">(</span><span class="n">liftTermEq</span> <span class="o">(</span><span class="kd">by</span> <span class="n">simp</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="n">eq</span><span class="o">])</span> <span class="n">t</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">liftTerm'</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span> <span class="bp">→</span> <span class="n">Term</span> <span class="n">ty</span> <span class="o">:=</span> <span class="n">liftTermEq</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rfl</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Term'</span> <span class="n">ty</span><span class="o">)</span> <span class="o">(</span><span class="n">Term</span> <span class="n">ty</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">liftTerm'</span>
+<span class="kd">instance</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Term'</span> <span class="o">(</span><span class="n">Ty.pure</span> <span class="n">a</span><span class="o">)</span><span class="bp">.</span><span class="n">option</span><span class="o">)</span> <span class="o">(</span><span class="n">Term</span> <span class="o">(</span><span class="n">Option</span> <span class="n">a</span><span class="o">))</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">liftTermEq</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rfl</span><span class="o">)</span>
+<span class="kd">instance</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Term</span> <span class="o">(</span><span class="n">Option</span> <span class="n">a</span><span class="o">))</span> <span class="o">(</span><span class="n">Term'</span> <span class="o">(</span><span class="n">Ty.pure</span> <span class="n">a</span><span class="o">)</span><span class="bp">.</span><span class="n">option</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="o">:=</span> <span class="n">liftTermEq</span> <span class="o">(</span><span class="kd">by</span> <span class="n">rfl</span><span class="o">)</span>
+
+
+<span class="kd">def</span> <span class="n">fvars</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">ty</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">var</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="o">[</span><span class="n">a</span><span class="o">]</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="bp">=&gt;</span> <span class="n">fvars</span> <span class="n">t₁</span> <span class="bp">++</span> <span class="n">fvars</span> <span class="n">t₂</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">t</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">fvars</span> <span class="n">t</span><span class="o">)</span><span class="bp">.</span><span class="n">bind</span> <span class="o">(</span><span class="k">fun</span>
+    <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+    <span class="bp">|</span> <span class="n">some</span> <span class="n">v</span> <span class="bp">=&gt;</span> <span class="n">List.pure</span> <span class="n">v</span><span class="o">)</span>
+
+<span class="kd">@[simp]</span> <span class="kd">def</span> <span class="n">depth</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">var</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="bp">=&gt;</span> <span class="n">max</span> <span class="o">(</span><span class="n">depth</span> <span class="n">t₁</span><span class="o">)</span> <span class="o">(</span><span class="n">depth</span> <span class="n">t₂</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">t</span> <span class="bp">=&gt;</span> <span class="n">depth</span> <span class="n">t</span> <span class="bp">+</span> <span class="mi">1</span>
+
+<span class="k">#check</span> <span class="n">List</span>
+
+<span class="kd">inductive</span> <span class="n">TermHas</span> <span class="o">{</span><span class="n">a</span><span class="o">}</span> <span class="o">:</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">a</span><span class="o">}</span> <span class="bp">→</span> <span class="n">ty</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">ty</span> <span class="bp">→</span> <span class="kt">Prop</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="n">TermHas</span> <span class="n">v</span> <span class="o">(</span><span class="n">var</span> <span class="n">v</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">app₁</span> <span class="o">:</span>  <span class="n">TermHas</span> <span class="n">v</span> <span class="n">t₁</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">v</span> <span class="o">(</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">app₂</span> <span class="o">:</span>  <span class="n">TermHas</span> <span class="n">v</span> <span class="n">t₂</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">v</span> <span class="o">(</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="o">:</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">a</span><span class="o">}</span> <span class="bp">→</span> <span class="o">{</span><span class="n">v</span> <span class="o">:</span> <span class="n">ty</span><span class="o">}</span> <span class="bp">→</span> <span class="o">{</span><span class="n">t'</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty.option</span><span class="o">}</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="o">(</span><span class="n">some</span> <span class="n">v</span><span class="o">)</span> <span class="n">t'</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">v</span> <span class="o">(</span><span class="n">lam</span> <span class="n">t'</span><span class="o">)</span>
+
+<span class="kd">@[simp]</span> <span class="kn">private</span> <span class="kd">def</span> <span class="n">sizeBind</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ty</span><span class="o">)</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">v</span> <span class="n">t</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">t</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">var</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">a</span> <span class="bp">.</span><span class="n">var</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">sizeBind</span> <span class="n">t₁</span> <span class="bp">$</span> <span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">app₁</span> <span class="n">h</span><span class="o">)</span> <span class="bp">+</span> <span class="o">(</span><span class="n">sizeBind</span> <span class="n">t₂</span> <span class="bp">$</span> <span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">app₂</span> <span class="n">h</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">t'</span> <span class="bp">=&gt;</span> <span class="n">sizeBind</span> <span class="n">t'</span> <span class="o">(</span><span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="n">v</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+    <span class="bp">|</span> <span class="n">some</span> <span class="n">v</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">h</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span>
+
+<span class="kd">@[simp]</span> <span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">bindAuxSize</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ty</span><span class="o">)</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">a</span> <span class="n">t</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">ty'</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">sizeBind</span> <span class="n">t</span> <span class="o">(</span><span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">sizeOf</span> <span class="bp">$</span> <span class="n">f</span> <span class="n">v</span> <span class="n">h</span><span class="o">)</span>
+
+<span class="c1">-- private def size_term_has_lt_bind</span>
+<span class="c1">--   {ty : Ty v}</span>
+<span class="c1">--   {ty' : Ty w}</span>
+<span class="c1">--   (t' : Term' ty.option)</span>
+<span class="c1">--   (b : ty)</span>
+<span class="c1">--   (h : TermHas b (lam t'))</span>
+<span class="c1">--   (f : (a : ty) → TermHas a (lam t') → Term' ty') :</span>
+<span class="c1">--   sizeOf (f b h) &lt; sizeBind t' (fun v h =&gt; match v with | none =&gt; 0 | some v =&gt; sizeOf $ f v $ .lam h) + 1</span>
+<span class="c1">--   := by sorry</span>
+
+<span class="kd">mutual</span>
+<span class="kn">private</span> <span class="kd">def</span> <span class="n">bindAux</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="o">{</span><span class="n">ty'</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">w</span><span class="o">}</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ty</span><span class="o">)</span> <span class="bp">→</span> <span class="n">TermHas</span> <span class="n">a</span> <span class="n">t</span> <span class="bp">→</span> <span class="n">Term'</span> <span class="n">ty'</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty'</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">t</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">var</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">a</span> <span class="bp">.</span><span class="n">var</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">app</span> <span class="n">t₁</span> <span class="n">t₂</span> <span class="bp">=&gt;</span>
+      <span class="c1">-- have : depth t₁ &lt; max (depth t₁) (depth t₂) + 1 := by sorry</span>
+      <span class="c1">-- have : depth t₂ &lt; max (depth t₁) (depth t₂) + 1 := by sorry</span>
+      <span class="bp">.</span><span class="n">app</span> <span class="o">(</span><span class="n">bindAux</span> <span class="n">t₁</span> <span class="bp">$</span> <span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">app₁</span> <span class="n">h</span><span class="o">)</span> <span class="o">(</span><span class="n">bindAux</span> <span class="n">t₂</span> <span class="bp">$</span> <span class="k">fun</span> <span class="n">v</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">app₂</span> <span class="n">h</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">t'</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">lam</span> <span class="bp">$</span> <span class="n">bindAux</span> <span class="n">t'</span> <span class="bp">$</span> <span class="k">fun</span> <span class="n">t</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="n">t</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">var</span> <span class="n">none</span>
+      <span class="bp">|</span> <span class="n">some</span> <span class="n">v</span> <span class="bp">=&gt;</span>
+          <span class="n">mapAux</span> <span class="n">some</span> <span class="o">(</span><span class="n">f</span> <span class="n">v</span> <span class="bp">$</span> <span class="bp">.</span><span class="n">lam</span> <span class="n">h</span><span class="o">)</span>
+<span class="kn">private</span> <span class="kd">def</span> <span class="n">mapAux</span> <span class="o">{</span><span class="n">ty</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">v</span><span class="o">}</span> <span class="o">{</span><span class="n">ty'</span> <span class="o">:</span> <span class="n">Ty</span> <span class="n">w</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="o">(</span><span class="n">ty</span> <span class="bp">→</span> <span class="n">ty'</span><span class="o">))</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term'</span> <span class="n">ty'</span> <span class="o">:=</span> <span class="n">bindAux</span> <span class="n">t</span> <span class="o">(</span><span class="k">fun</span> <span class="n">v</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">var</span> <span class="bp">$</span> <span class="n">f</span> <span class="n">v</span><span class="o">)</span>
+<span class="kd">end</span>
+<span class="n">termination_by</span>
+  <span class="n">bindAux</span> <span class="n">t</span> <span class="n">f</span> <span class="bp">=&gt;</span> <span class="n">bindAuxSize</span> <span class="n">t</span> <span class="n">f</span> <span class="bp">+</span> <span class="mi">1</span>
+  <span class="n">mapAux</span> <span class="n">f</span> <span class="n">t</span> <span class="bp">=&gt;</span> <span class="n">sizeOf</span> <span class="n">t</span>
+<span class="n">decreasing_by</span> <span class="gr">sorry</span>
+
+<span class="kd">def</span> <span class="n">pure</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">Term.var</span> <span class="n">a</span>
+<span class="kd">def</span> <span class="n">bind</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Term</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term</span> <span class="n">β</span> <span class="o">:=</span> <span class="n">bindAux</span> <span class="n">t</span> <span class="o">(</span><span class="k">fun</span> <span class="n">v</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">v</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Monad</span> <span class="n">Term</span> <span class="n">where</span>
+  <span class="n">pure</span> <span class="o">:=</span> <span class="n">pure</span>
+  <span class="n">bind</span> <span class="o">:=</span> <span class="n">bind</span>
+
+<span class="kd">end</span> <span class="n">Term</span>
+</code></pre></div>
+<p>I guess I can just apologize to lean for my lack of skills with `sorry'. Am I missing an easy WF relation to use, or tactics that can help me in the decreasing_by tactic?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

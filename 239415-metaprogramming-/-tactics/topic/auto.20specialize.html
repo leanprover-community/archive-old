@@ -1,0 +1,374 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html">auto specialize</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="244568922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244568922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244568922">(Jul 01 2021 at 13:51)</a>:</h4>
+<p>Can someone please hack a tactic together that adds <code>f x</code> to the tactic state for all <code>f</code> and <code>x</code> in the local context for which <code>f x</code> typechecks? (It shouldn't throw away <code>f</code> or <code>x</code>.)</p>
+
+
+
+<a name="244570166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244570166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244570166">(Jul 01 2021 at 13:58)</a>:</h4>
+<p>Recursively?</p>
+
+
+
+<a name="244570247"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244570247" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244570247">(Jul 01 2021 at 13:59)</a>:</h4>
+<p>No, I can call <code>repeat { foo }</code> if I need that.</p>
+
+
+
+<a name="244577958"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244577958" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244577958">(Jul 01 2021 at 14:46)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.basic</span>
+
+<span class="kn">open</span> <span class="n">lean</span> <span class="n">lean.parser</span> <span class="n">tactic</span> <span class="n">interactive</span> <span class="n">interactive.types</span> <span class="n">expr</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.specialize_all</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">loc</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">val</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">n</span><span class="o">,</span>
+  <span class="n">hs</span> <span class="bp">←</span> <span class="n">l.get_locals</span><span class="o">,</span>
+  <span class="n">hs.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">h</span><span class="o">,</span>
+    <span class="n">try</span> <span class="o">(</span><span class="k">do</span>
+      <span class="k">let</span> <span class="n">h'</span> <span class="o">:=</span> <span class="n">expr.mk_app</span> <span class="n">h</span> <span class="o">[</span><span class="n">val</span><span class="o">],</span>
+      <span class="n">t'</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">h'</span><span class="o">,</span>
+      <span class="n">note</span> <span class="o">(</span><span class="n">h.local_pp_name</span> <span class="bp">++</span> <span class="n">n</span><span class="o">)</span> <span class="n">none</span> <span class="n">h'</span><span class="o">))</span>
+
+<span class="kn">namespace</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">specialize_all</span> <span class="o">(</span><span class="n">val</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">ident</span><span class="o">)</span> <span class="o">(</span><span class="n">loc</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.specialize_all</span> <span class="n">val</span> <span class="n">loc</span>
+
+<span class="kd">end</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">γ</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">true</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">specialize_all</span> <span class="n">x</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+    <span class="n">extract_goal</span><span class="o">,</span>
+    <span class="n">trivial</span>
+  <span class="kd">end</span>
+
+<span class="sd">/--</span>
+<span class="sd">example {α : Type ?} {β : Type ?} {γ : Type ?}</span>
+<span class="sd">  (f g : α → β)</span>
+<span class="sd">  (h : β → γ)</span>
+<span class="sd">  (x y : α)</span>
+<span class="sd">  (f.x g.x : β)</span>
+<span class="sd">  (h.x : γ) :</span>
+<span class="sd">  true :=</span>
+<span class="sd">begin</span>
+<span class="sd">  admit,</span>
+<span class="sd">end</span>
+<span class="sd">-/</span>
+</code></pre></div>
+
+
+
+<a name="244578370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244578370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244578370">(Jul 01 2021 at 14:49)</a>:</h4>
+<p>As you can see, it's not perfect because applying x to h shouldn't work.</p>
+
+
+
+<a name="244582454"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244582454" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244582454">(Jul 01 2021 at 15:12)</a>:</h4>
+<p>Is there an easy way to fix that?</p>
+
+
+
+<a name="244582511"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244582511" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244582511">(Jul 01 2021 at 15:13)</a>:</h4>
+<p>Note that the version that I'm interested in is morally <code>specialize_all * at *</code>.</p>
+
+
+
+<a name="244597186"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244597186" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244597186">(Jul 01 2021 at 17:01)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.basic</span>
+
+<span class="kn">open</span> <span class="n">lean</span> <span class="n">lean.parser</span> <span class="n">tactic</span> <span class="n">interactive</span> <span class="n">interactive.types</span> <span class="n">expr</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.specialize_single</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">loc</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">val</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">n</span><span class="o">,</span>
+  <span class="n">valt</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">val</span><span class="o">,</span>
+  <span class="n">hs</span> <span class="bp">←</span> <span class="n">l.get_locals</span><span class="o">,</span>
+  <span class="n">hs.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">h</span><span class="o">,</span> <span class="k">do</span>
+    <span class="n">ht</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">h</span><span class="o">,</span>
+    <span class="n">try</span> <span class="bp">$</span> <span class="k">match</span> <span class="n">ht</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">pi</span> <span class="n">_</span> <span class="n">_</span> <span class="n">vt</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+        <span class="n">is_def_eq</span> <span class="n">vt</span> <span class="n">valt</span> <span class="bp">&gt;&gt;</span> <span class="n">note</span> <span class="o">(</span><span class="n">h.local_pp_name</span> <span class="bp">++</span> <span class="n">n</span><span class="o">)</span> <span class="n">none</span> <span class="o">(</span><span class="n">h.mk_app</span> <span class="o">[</span><span class="n">val</span><span class="o">])</span> <span class="bp">&gt;&gt;</span> <span class="n">pure</span> <span class="o">()</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">lam</span> <span class="n">_</span> <span class="n">_</span> <span class="n">vt</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+        <span class="n">is_def_eq</span> <span class="n">vt</span> <span class="n">valt</span> <span class="bp">&gt;&gt;</span> <span class="n">note</span> <span class="o">(</span><span class="n">h.local_pp_name</span> <span class="bp">++</span> <span class="n">n</span><span class="o">)</span> <span class="n">none</span> <span class="o">(</span><span class="n">h.mk_app</span> <span class="o">[</span><span class="n">val</span><span class="o">])</span> <span class="bp">&gt;&gt;</span> <span class="n">pure</span> <span class="o">()</span>
+      <span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">pure</span> <span class="o">()</span>
+    <span class="kd">end</span><span class="o">)</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.specialize_all</span> <span class="o">(</span><span class="n">hs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">simp_arg_type</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">loc</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="o">(</span><span class="n">lp</span><span class="o">,</span> <span class="n">ln</span><span class="o">,</span> <span class="n">ln'</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="bp">←</span> <span class="n">decode_simp_arg_list</span> <span class="n">hs</span><span class="o">,</span>
+  <span class="n">lp.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="k">do</span>
+    <span class="n">e</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="n">e</span><span class="o">,</span>
+    <span class="k">if</span> <span class="n">e.is_local_constant</span> <span class="k">then</span> <span class="n">tactic.specialize_single</span> <span class="n">e.local_pp_name</span> <span class="n">l</span>
+      <span class="k">else</span> <span class="n">pure</span> <span class="o">()),</span>
+  <span class="k">if</span> <span class="bp">!</span><span class="n">b</span> <span class="k">then</span> <span class="n">pure</span> <span class="o">()</span> <span class="k">else</span> <span class="o">(</span><span class="k">do</span>
+    <span class="n">ls</span> <span class="bp">←</span> <span class="n">tactic.local_context</span><span class="o">,</span>
+    <span class="n">ls.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="k">do</span>
+      <span class="k">if</span> <span class="n">expr.is_local_constant</span> <span class="n">e</span> <span class="k">then</span> <span class="n">tactic.specialize_single</span> <span class="n">e.local_pp_name</span> <span class="n">l</span> <span class="k">else</span> <span class="n">pure</span> <span class="o">()),</span>
+    <span class="n">pure</span> <span class="o">())</span>
+
+<span class="kn">namespace</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">specialize_all1</span> <span class="o">(</span><span class="n">val</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">ident</span><span class="o">)</span> <span class="o">(</span><span class="n">loc</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.specialize_single</span> <span class="n">val</span> <span class="n">loc</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">specialize_all</span> <span class="o">(</span><span class="n">vals</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">simp_arg_list</span><span class="o">)</span> <span class="o">(</span><span class="n">loc</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.specialize_all</span> <span class="n">vals</span> <span class="n">loc</span>
+
+<span class="kd">end</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">γ</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">z</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">γ</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">specialize_all</span> <span class="o">[</span><span class="bp">*</span><span class="o">]</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+    <span class="n">extract_goal</span><span class="o">,</span>
+    <span class="n">exact</span> <span class="n">h.z</span>
+  <span class="kd">end</span>
+
+<span class="sd">/--</span>
+<span class="sd">example {α : Type ?} {β : Type ?} {γ : Type ?}</span>
+<span class="sd">  (f g : α → β)</span>
+<span class="sd">  (h : β → γ)</span>
+<span class="sd">  (x y : α)</span>
+<span class="sd">  (z f.x g.x f.y g.y : β)</span>
+<span class="sd">  (h.z : γ) :</span>
+<span class="sd">  γ :=</span>
+<span class="sd">begin</span>
+<span class="sd">  admit,</span>
+<span class="sd">end</span>
+<span class="sd">-/</span>
+</code></pre></div>
+
+
+
+<a name="244597230"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244597230" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244597230">(Jul 01 2021 at 17:01)</a>:</h4>
+<p>It can be made neater with <code>loc.try_apply</code>, but this works for your specifications at least.</p>
+
+
+
+<a name="244597336"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244597336" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244597336">(Jul 01 2021 at 17:02)</a>:</h4>
+<p>And works if you repeat it, as you expect.</p>
+
+
+
+<a name="244599303"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244599303" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244599303">(Jul 01 2021 at 17:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="308899">@Yakov Pechersky</span> wonderful! thank you so much!</p>
+
+
+
+<a name="244601947"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244601947" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244601947">(Jul 01 2021 at 17:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="308899">@Yakov Pechersky</span> one more plea:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">surjective</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∀</span> <span class="n">y</span><span class="o">,</span> <span class="bp">∃</span> <span class="n">x</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">)</span> <span class="o">(</span><span class="n">hyp</span> <span class="o">:</span> <span class="n">surjective</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">surjective</span> <span class="n">g</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intro</span> <span class="n">z</span><span class="o">,</span>
+  <span class="n">unfold</span> <span class="n">surjective</span> <span class="n">at</span> <span class="n">hyp</span><span class="o">,</span> <span class="c1">-- can we avoid this step?</span>
+  <span class="n">specialize_all</span> <span class="o">[</span><span class="bp">*</span><span class="o">]</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+  <span class="n">tactic.auto_cases</span><span class="o">,</span>
+  <span class="n">tactic.auto_cases</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="bp">*</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="244602009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244602009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244602009">(Jul 01 2021 at 17:38)</a>:</h4>
+<p>I think that currently it is not "aggresive" enough. It only works for things that are visibly pi-like.</p>
+
+
+
+<a name="244606034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244606034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244606034">(Jul 01 2021 at 18:11)</a>:</h4>
+<p>how docs <a href="https://leanprover-community.github.io/mathlib_docs/tactics.html#specialize">tactic#specialize</a> do it? Can we just copy the approach used there?</p>
+
+
+
+<a name="244608030"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244608030" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244608030">(Jul 01 2021 at 18:28)</a>:</h4>
+<p><code>specialize f x y z</code> does it by basically doing <code>replace f := f x y z</code>. I don't know what happens if one did a type-illogical <code>specialize f f nat</code> or something like that. So <code>specialize</code> does no typechecking other than what happens in <code>i_to_expr</code>. I can fake it with something like <code>e &lt;- </code>(%%hyp %%val)` and hope that this deals with reducibility properly.</p>
+
+
+
+<a name="244608565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244608565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244608565">(Jul 01 2021 at 18:32)</a>:</h4>
+<p>Should be enough to <code>whnf</code> before the <code>match</code> with the right reducibility setting.</p>
+
+
+
+<a name="244614792"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244614792" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244614792">(Jul 01 2021 at 19:24)</a>:</h4>
+<p>I tried</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">ht'</span> <span class="bp">←</span> <span class="n">whnf</span> <span class="n">ht</span> <span class="n">transparency.reducible</span><span class="o">,</span>
+    <span class="n">try</span> <span class="bp">$</span> <span class="k">match</span> <span class="n">ht'</span> <span class="k">with</span>
+</code></pre></div>
+<p>but that didn't help</p>
+
+
+
+<a name="244616506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244616506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244616506">(Jul 01 2021 at 19:39)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.basic</span>
+
+<span class="kn">open</span> <span class="n">lean</span> <span class="n">lean.parser</span> <span class="n">tactic</span> <span class="n">interactive</span> <span class="n">interactive.types</span> <span class="n">expr</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.specialize_single</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">loc</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">val</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">n</span><span class="o">,</span>
+  <span class="n">valt</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">val</span><span class="o">,</span>
+  <span class="n">hs</span> <span class="bp">←</span> <span class="n">l.get_locals</span><span class="o">,</span>
+  <span class="n">hs.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">h</span><span class="o">,</span> <span class="n">try</span> <span class="o">(</span><span class="k">do</span>
+    <span class="n">ht</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">h</span><span class="o">,</span>
+    <span class="n">e</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">h</span> <span class="bp">%%</span><span class="n">val</span><span class="o">),</span>
+    <span class="n">et</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">e</span><span class="o">,</span>
+    <span class="n">note</span> <span class="o">(</span><span class="n">h.local_pp_name</span> <span class="bp">++</span> <span class="n">n</span><span class="o">)</span> <span class="n">none</span> <span class="n">e</span><span class="o">))</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.specialize_all</span> <span class="o">(</span><span class="n">hs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">simp_arg_type</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">loc</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="o">(</span><span class="n">lp</span><span class="o">,</span> <span class="n">ln</span><span class="o">,</span> <span class="n">ln'</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="bp">←</span> <span class="n">decode_simp_arg_list</span> <span class="n">hs</span><span class="o">,</span>
+  <span class="n">lp.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="k">do</span>
+    <span class="n">e</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="n">e</span><span class="o">,</span>
+    <span class="k">if</span> <span class="n">e.is_local_constant</span> <span class="k">then</span> <span class="n">tactic.specialize_single</span> <span class="n">e.local_pp_name</span> <span class="n">l</span>
+      <span class="k">else</span> <span class="n">pure</span> <span class="o">()),</span>
+  <span class="k">if</span> <span class="bp">!</span><span class="n">b</span> <span class="k">then</span> <span class="n">pure</span> <span class="o">()</span> <span class="k">else</span> <span class="o">(</span><span class="k">do</span>
+    <span class="n">ls</span> <span class="bp">←</span> <span class="n">tactic.local_context</span><span class="o">,</span>
+    <span class="n">ls.mmap'</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="k">do</span>
+      <span class="k">if</span> <span class="n">expr.is_local_constant</span> <span class="n">e</span> <span class="k">then</span> <span class="n">tactic.specialize_single</span> <span class="n">e.local_pp_name</span> <span class="n">l</span> <span class="k">else</span> <span class="n">pure</span> <span class="o">()),</span>
+    <span class="n">pure</span> <span class="o">())</span>
+
+<span class="kn">namespace</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">specialize_all1</span> <span class="o">(</span><span class="n">val</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">ident</span><span class="o">)</span> <span class="o">(</span><span class="n">loc</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.specialize_single</span> <span class="n">val</span> <span class="n">loc</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">specialize_all</span> <span class="o">(</span><span class="n">vals</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">simp_arg_list</span><span class="o">)</span> <span class="o">(</span><span class="n">loc</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">tactic.specialize_all</span> <span class="n">vals</span> <span class="n">loc</span>
+
+<span class="kd">end</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">surjective</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∀</span> <span class="n">y</span><span class="o">,</span> <span class="bp">∃</span> <span class="n">x</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">)</span> <span class="o">(</span><span class="n">hyp</span> <span class="o">:</span> <span class="n">surjective</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">surjective</span> <span class="n">g</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intro</span> <span class="n">z</span><span class="o">,</span>
+  <span class="n">specialize_all</span> <span class="o">[</span><span class="bp">*</span><span class="o">]</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+  <span class="n">tactic.auto_cases</span><span class="o">,</span>
+  <span class="n">tactic.auto_cases</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="bp">*</span> <span class="n">at</span> <span class="bp">*</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="244616639"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244616639" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244616639">(Jul 01 2021 at 19:40)</a>:</h4>
+<p>So my brute-force "create pexpr, elaborate it, make sure it is valid type" approach also works.</p>
+
+
+
+<a name="244617208"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244617208" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244617208">(Jul 01 2021 at 19:45)</a>:</h4>
+<p>Great! That does exactly what I want!</p>
+
+
+
+<a name="244670264"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670264" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670264">(Jul 02 2021 at 07:54)</a>:</h4>
+<p>I think this is a tactic that could potentially be nice to add to <code>tidy</code>.</p>
+
+
+
+<a name="244670332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670332">(Jul 02 2021 at 07:55)</a>:</h4>
+<p>But there is one catch: currently, if you have <code>f : X -&gt; Y</code> and <code>x : X</code>, then repeatedly calling <code>specialize_all [*] at *</code> will add many copies of <code>f x : Y</code>. So we somehow need to teach the tactic that it should fail if it isn't adding anything "new".</p>
+
+
+
+<a name="244670390"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670390" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670390">(Jul 02 2021 at 07:56)</a>:</h4>
+<p>But even then there is a catch. Because with endomorphisms <code>f : X -&gt; X</code> and <code>x : X</code>, you will end up getting <code>f (f (f x))</code> etc...</p>
+
+
+
+<a name="244670425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670425">(Jul 02 2021 at 07:57)</a>:</h4>
+<p>I'm not sure whether such loops can be easily detected. So we might need to run the tactic on some <code>gas</code> (and if it is added to <code>tidy</code>, then <code>tidy</code> would need to run on gas as well).</p>
+
+
+
+<a name="244670512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670512">(Jul 02 2021 at 07:58)</a>:</h4>
+<p>Finally, I think that <code>tidy</code> could use a <code>auto_choose</code> tactic, that breaks open existential hypotheses, even if the goal is a type, instead of a prop.</p>
+
+
+
+<a name="244670552"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244670552" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244670552">(Jul 02 2021 at 07:58)</a>:</h4>
+<p>With a combi of <code>specialize_all</code> and <code>auto_choose</code>, we could have a <code>tidy</code> that automatically proves <code>surjective (g \circ f) -&gt; surjective g</code>.</p>
+
+
+
+<a name="244685408"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244685408" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244685408">(Jul 02 2021 at 10:40)</a>:</h4>
+<p>Why do you need <code>auto_choose</code> for that surjective proof?</p>
+
+
+
+<a name="244687084"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244687084" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244687084">(Jul 02 2021 at 11:02)</a>:</h4>
+<p>Because <code>fsplit</code> might turn <code>\ex x, f x = y</code> into two goals <code>x : X</code> and <code>f m_1? = y</code> before we get a chance to do <code>cases</code> on the existential hyp.</p>
+
+
+
+<a name="244687140"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244687140" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244687140">(Jul 02 2021 at 11:02)</a>:</h4>
+<p>So then you are left with the <code>X</code> goal, and you need to use choice to extract a witness out of the existential hyp.</p>
+
+
+
+<a name="244687171"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/auto%20specialize/near/244687171" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/auto.20specialize.html#244687171">(Jul 02 2021 at 11:02)</a>:</h4>
+<p>I agree that this will produce a "overpowered" proof, and choice can be avoided. But I don't really care too much, in the case of <code>tidy</code> proofs.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

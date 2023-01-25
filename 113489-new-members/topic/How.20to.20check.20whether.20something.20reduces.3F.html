@@ -1,0 +1,85 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/index.html">new members</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html">How to check whether something reduces?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="274573555"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274573555" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jessie Grosen <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274573555">(Mar 08 2022 at 17:19)</a>:</h4>
+<p>Maybe I'm trying to do too much programming with dependent types than Lean is meant for, but I'm having some trouble figuring out which eliminators I should expect to reduce and which I shouldn't. I've been trying to figure this out experimentally with <code>#reduce</code>, but it seems like that reduces things further than the type checker will. Is there a better way to figure out how much the type checker will reduce something?</p>
+
+
+
+<a name="274574393"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274574393" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jessie Grosen <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274574393">(Mar 08 2022 at 17:25)</a>:</h4>
+<p>For example (based on what I'm working with right now),</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#reduce</span> <span class="bp">@</span><span class="n">fin.last_cases</span> <span class="mi">0</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">bool</span><span class="o">)</span> <span class="n">tt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">ff</span><span class="o">)</span> <span class="mi">0</span>
+</code></pre></div>
+<p>gives <code>tt</code>, but</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#check</span> <span class="o">(</span><span class="n">rfl</span> <span class="o">:</span> <span class="bp">@</span><span class="n">fin.last_cases</span> <span class="mi">0</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">bool</span><span class="o">)</span> <span class="n">tt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">ff</span><span class="o">)</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">tt</span><span class="o">)</span>
+</code></pre></div>
+<p>fails...</p>
+
+
+
+<a name="274582679"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274582679" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274582679">(Mar 08 2022 at 18:21)</a>:</h4>
+<p><del>What <code>0</code> is lean inferring there?</del> nevermind, I missed the <code>@</code></p>
+
+
+
+<a name="274602490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274602490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274602490">(Mar 08 2022 at 20:33)</a>:</h4>
+<p>I believe <code>#reduce</code> uses the kernel to reduce, but the typechecker/elaborator has its own term reducer. This one takes into account the <code>reducible</code>/<code>semireducible</code>/<code>irreducible</code> visibility attributes.  With this example, I tried making everything <code>reducible</code>, but it seems to get stuck. I'm guessing it's that <code>fin.reverse_induction</code> is defined using well-founded recursion, which usually is the culprit.</p>
+<p>The expectation seems to be that you'll at some point rewrite using the equation lemmas for the definition, which you can explore with the command</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#print</span> <span class="kd">prefix</span> <span class="n">fin.reverse_induction.equations</span>
+</code></pre></div>
+<p>The <code>simp</code> tactic uses these lemmas to unfold definitions, and once this is unfolded, <code>refl</code> goes through:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">@</span><span class="n">fin.last_cases</span> <span class="mi">0</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">bool</span><span class="o">)</span> <span class="n">tt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">ff</span><span class="o">)</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">tt</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">fin.last_cases</span><span class="o">,</span> <span class="n">fin.reverse_induction</span><span class="o">],</span>
+  <span class="n">refl</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="274602678"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274602678" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274602678">(Mar 08 2022 at 20:34)</a>:</h4>
+<p>A bit more manually:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">@</span><span class="n">fin.last_cases</span> <span class="mi">0</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">bool</span><span class="o">)</span> <span class="n">tt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">ff</span><span class="o">)</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">tt</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">fin.last_cases.equations._eqn_1</span><span class="o">,</span> <span class="n">fin.reverse_induction.equations._eqn_1</span><span class="o">],</span>
+  <span class="n">exact</span> <span class="n">rfl</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="274603770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/How%20to%20check%20whether%20something%20reduces%3F/near/274603770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/How.20to.20check.20whether.20something.20reduces.3F.html#274603770">(Mar 08 2022 at 20:43)</a>:</h4>
+<p>However, a lot of mathlib definitions are designed to be used through an "API".  In this case, <code>fin.last_cases</code> has a reduction lemma for this purpose, which you can use after putting <code>0</code> into the right form.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">@</span><span class="n">fin.last_cases</span> <span class="mi">0</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">bool</span><span class="o">)</span> <span class="n">tt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">ff</span><span class="o">)</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">tt</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="k">show</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">fin.last</span> <span class="mi">0</span><span class="o">,</span> <span class="k">from</span> <span class="n">rfl</span><span class="o">,</span>
+  <span class="c1">-- ⊢ fin.last_cases tt (λ (_x : fin 0), ff) (fin.last 0) = tt</span>
+  <span class="n">rw</span> <span class="n">fin.last_cases_last</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

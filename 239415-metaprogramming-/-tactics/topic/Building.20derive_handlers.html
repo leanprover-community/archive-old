@@ -1,0 +1,112 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html">Building derive_handlers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276863132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Building%20derive_handlers/near/276863132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html#276863132">(Mar 28 2022 at 12:10)</a>:</h4>
+<p>What's going wrong here? How can I get to the point where I can at least see my trace output?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[derive_handler]</span> <span class="kd">meta</span> <span class="kd">def</span> <span class="n">decidable_rel_derive_handler</span> <span class="o">:</span> <span class="n">derive_handler</span> <span class="o">:=</span>
+<span class="n">instance_derive_handler</span> <span class="bp">``</span><span class="n">decidable_rel</span> <span class="bp">$</span>
+<span class="k">do</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">tactic.get_env</span><span class="o">,</span>
+   <span class="n">tactic.fail</span> <span class="n">format</span><span class="bp">!</span><span class="s2">"Not implemented"</span>
+
+<span class="kd">set_option</span> <span class="n">trace.app_builder</span> <span class="n">true</span>
+
+<span class="kd">@[derive decidable_rel]</span>
+<span class="kd">inductive</span> <span class="n">both_zero</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">both_zero</span> <span class="mi">0</span> <span class="mi">0</span>
+</code></pre></div>
+<p>(fails with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">app_builder</span><span class="o">]</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">create</span> <span class="n">an</span> <span class="bp">'</span><span class="n">decidable_rel'</span><span class="bp">-</span><span class="n">application</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">solve</span> <span class="n">unification</span> <span class="n">constraint</span> <span class="n">for</span> <span class="bp">#</span><span class="mi">1</span> <span class="n">argument</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_0</span> <span class="bp">→</span> <span class="bp">?</span><span class="n">x_0</span> <span class="bp">→</span> <span class="kt">Prop</span> <span class="bp">=?=</span> <span class="kt">Prop</span><span class="o">)</span>
+</code></pre></div>
+<p>which I don't know the origin of)</p>
+
+
+
+<a name="276870313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Building%20derive_handlers/near/276870313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html#276870313">(Mar 28 2022 at 13:08)</a>:</h4>
+<p>You need to go one level deeper, into <a href="https://leanprover-community.github.io/mathlib_docs/find/instance_derive_handler">docs#instance_derive_handler</a></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">tactic</span>
+<span class="sd">/-- Given a tactic `tac` that can solve an application of `cls` in the right context,</span>
+<span class="sd">    `instance_derive_handler` uses it to build an instance declaration of `cls n`. -/</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">instance_derive_handler'</span> <span class="o">(</span><span class="n">cls</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">(</span><span class="n">tac</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span><span class="o">)</span> <span class="o">(</span><span class="n">univ_poly</span> <span class="o">:=</span> <span class="n">tt</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">modify_target</span> <span class="o">:</span> <span class="n">name</span> <span class="bp">→</span> <span class="n">list</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">expr</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">_</span> <span class="n">_</span><span class="o">,</span> <span class="n">pure</span><span class="o">)</span> <span class="o">:</span> <span class="n">derive_handler</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">p</span> <span class="n">n</span><span class="o">,</span>
+<span class="k">if</span> <span class="n">p.is_constant_of</span> <span class="n">cls</span> <span class="k">then</span>
+<span class="k">do</span> <span class="n">decl</span> <span class="bp">←</span> <span class="n">get_decl</span> <span class="n">n</span><span class="o">,</span>
+   <span class="n">cls_decl</span> <span class="bp">←</span> <span class="n">get_decl</span> <span class="n">cls</span><span class="o">,</span>
+   <span class="n">env</span> <span class="bp">←</span> <span class="n">get_env</span><span class="o">,</span>
+   <span class="n">guard</span> <span class="o">(</span><span class="n">env.is_inductive</span> <span class="n">n</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">fail</span> <span class="n">format</span><span class="bp">!</span><span class="s2">"failed to derive '{cls}', '{n}' is not an inductive type"</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">ls</span> <span class="o">:=</span> <span class="n">decl.univ_params.map</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">n</span><span class="o">,</span> <span class="k">if</span> <span class="n">univ_poly</span> <span class="k">then</span> <span class="n">level.param</span> <span class="n">n</span> <span class="k">else</span> <span class="n">level.zero</span><span class="o">,</span>
+   <span class="c1">-- incrementally build up target expression `Π (hp : p) [cls hp] ..., cls (n.{ls} hp ...)`</span>
+   <span class="c1">-- where `p ...` are the inductive parameter types of `n`</span>
+   <span class="k">let</span> <span class="n">tgt</span> <span class="o">:</span> <span class="n">expr</span> <span class="o">:=</span> <span class="n">expr.const</span> <span class="n">n</span> <span class="n">ls</span><span class="o">,</span>
+   <span class="o">⟨</span><span class="n">params</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="bp">←</span> <span class="n">mk_local_pis</span> <span class="o">(</span><span class="n">decl.type.instantiate_univ_params</span> <span class="o">(</span><span class="n">decl.univ_params.zip</span> <span class="n">ls</span><span class="o">)),</span>
+   <span class="n">trace</span> <span class="s2">"&gt;&gt;&gt;&gt;&gt;"</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">tgt</span> <span class="o">:=</span> <span class="n">tgt.mk_app</span> <span class="n">params</span><span class="o">,</span>
+   <span class="n">trace</span> <span class="s2">"###########"</span><span class="o">,</span>
+   <span class="n">tgt</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="n">cls</span> <span class="o">[</span><span class="n">tgt</span><span class="o">],</span>
+   <span class="n">trace</span> <span class="s2">"!!!!!!!!!!!"</span><span class="o">,</span>
+   <span class="n">tgt</span> <span class="bp">←</span> <span class="n">modify_target</span> <span class="n">n</span> <span class="n">params</span> <span class="n">tgt</span><span class="o">,</span>
+   <span class="n">tgt</span> <span class="bp">←</span> <span class="n">params.enum.mfoldr</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">⟨</span><span class="n">i</span><span class="o">,</span> <span class="n">param</span><span class="o">⟩</span> <span class="n">tgt</span><span class="o">,</span>
+   <span class="k">do</span> <span class="c1">-- add typeclass hypothesis for each inductive parameter</span>
+      <span class="n">tgt</span> <span class="bp">←</span> <span class="k">do</span> <span class="o">{</span>
+        <span class="n">guard</span> <span class="bp">$</span> <span class="n">i</span> <span class="bp">&lt;</span> <span class="n">env.inductive_num_params</span> <span class="n">n</span><span class="o">,</span>
+        <span class="n">param_cls</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="n">cls</span> <span class="o">[</span><span class="n">param</span><span class="o">],</span>
+        <span class="c1">-- TODO(sullrich): omit some typeclass parameters based on usage of `param`?</span>
+        <span class="n">pure</span> <span class="bp">$</span> <span class="n">expr.pi</span> <span class="bp">`</span><span class="n">a</span> <span class="n">binder_info.inst_implicit</span> <span class="n">param_cls</span> <span class="n">tgt</span>
+      <span class="o">}</span> <span class="bp">&lt;|&gt;</span> <span class="n">pure</span> <span class="n">tgt</span><span class="o">,</span>
+      <span class="n">pure</span> <span class="bp">$</span> <span class="n">tgt.bind_pi</span> <span class="n">param</span>
+   <span class="o">)</span> <span class="n">tgt</span><span class="o">,</span>
+   <span class="o">(</span><span class="n">_</span><span class="o">,</span> <span class="n">val</span><span class="o">)</span> <span class="bp">←</span> <span class="n">tactic.solve_aux</span> <span class="n">tgt</span> <span class="o">(</span><span class="n">intros</span> <span class="bp">&gt;&gt;</span> <span class="n">tac</span><span class="o">),</span>
+   <span class="n">val</span> <span class="bp">←</span> <span class="n">instantiate_mvars</span> <span class="n">val</span><span class="o">,</span>
+   <span class="k">let</span> <span class="n">trusted</span> <span class="o">:=</span> <span class="n">decl.is_trusted</span> <span class="bp">∧</span> <span class="n">cls_decl.is_trusted</span><span class="o">,</span>
+   <span class="n">add_protected_decl</span>
+     <span class="o">(</span><span class="n">declaration.defn</span> <span class="o">(</span><span class="n">n</span> <span class="bp">++</span> <span class="n">cls</span><span class="o">)</span>
+             <span class="o">(</span><span class="k">if</span> <span class="n">univ_poly</span> <span class="k">then</span> <span class="n">decl.univ_params</span> <span class="k">else</span> <span class="o">[])</span>
+             <span class="n">tgt</span> <span class="n">val</span> <span class="n">reducibility_hints.abbrev</span> <span class="n">trusted</span><span class="o">),</span>
+   <span class="n">set_basic_attribute</span> <span class="bp">`</span><span class="kd">instance</span> <span class="o">(</span><span class="n">n</span> <span class="bp">++</span> <span class="n">cls</span><span class="o">)</span> <span class="n">tt</span><span class="o">,</span>
+   <span class="n">pure</span> <span class="n">true</span>
+<span class="k">else</span> <span class="n">pure</span> <span class="n">false</span>
+<span class="kd">@[derive_handler]</span> <span class="kd">meta</span> <span class="kd">def</span> <span class="n">decidable_rel_derive_handler</span> <span class="o">:</span> <span class="n">derive_handler</span> <span class="o">:=</span>
+<span class="n">instance_derive_handler'</span> <span class="bp">``</span><span class="n">decidable_rel</span> <span class="bp">$</span>
+<span class="k">do</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">tactic.get_env</span><span class="o">,</span>
+   <span class="n">tactic.fail</span> <span class="n">format</span><span class="bp">!</span><span class="s2">"Not implemented"</span>
+
+<span class="kd">set_option</span> <span class="n">trace.app_builder</span> <span class="n">true</span>
+
+<span class="kd">@[derive decidable_rel]</span>
+<span class="kd">inductive</span> <span class="n">both_zero</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">both_zero</span> <span class="mi">0</span> <span class="mi">0</span>
+</code></pre></div>
+
+
+
+<a name="276870348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Building%20derive_handlers/near/276870348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html#276870348">(Mar 28 2022 at 13:08)</a>:</h4>
+<p>The error is coming from the line between <code>#####</code> and <code>!!!!!!!!!!</code></p>
+
+
+
+<a name="276871033"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Building%20derive_handlers/near/276871033" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Building.20derive_handlers.html#276871033">(Mar 28 2022 at 13:14)</a>:</h4>
+<p>Commenting out <code>let tgt := tgt.mk_app params,</code> gets me to your not implemented FWIW</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

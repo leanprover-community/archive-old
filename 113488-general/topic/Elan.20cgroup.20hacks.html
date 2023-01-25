@@ -1,0 +1,140 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Elan.20cgroup.20hacks.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html">Elan cgroup hacks</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="257211369"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257211369" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257211369">(Oct 12 2021 at 14:24)</a>:</h4>
+<p>I got fed up that compiling lean + having a few editors open would consume all my ram even if each individual Lean process uses less than 8GB, and I decided that today would be a nice day for me to learn about cgroups, so here is a hack for elan to run all lean binaries inside the same cgroup:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">From</span> <span class="n">a7495a9f372e95c4020989ab9b13ac9988cd776e</span> <span class="n">Mon</span> <span class="n">Sep</span> <span class="mi">17</span> <span class="mi">00</span><span class="o">:</span><span class="mi">00</span><span class="o">:</span><span class="mi">00</span> <span class="mi">2001</span>
+<span class="n">From</span><span class="o">:</span> <span class="n">Vierkantor</span> <span class="bp">&lt;</span><span class="n">vierkantor</span><span class="bp">@</span><span class="n">vierkantor.com</span><span class="bp">&gt;</span>
+<span class="n">Date</span><span class="o">:</span> <span class="n">Tue</span><span class="o">,</span> <span class="mi">12</span> <span class="n">Oct</span> <span class="mi">2021</span> <span class="mi">12</span><span class="o">:</span><span class="mi">44</span><span class="o">:</span><span class="mi">50</span> <span class="bp">+</span><span class="mi">0000</span>
+<span class="n">Subject</span><span class="o">:</span> <span class="o">[</span><span class="n">PATCH</span><span class="o">]</span> <span class="n">feat</span><span class="o">:</span> <span class="o">(</span><span class="n">Hackily</span><span class="o">)</span> <span class="n">run</span> <span class="n">inside</span> <span class="n">a</span> <span class="n">cgroup</span>
+
+<span class="c1">---</span>
+ <span class="n">src</span><span class="bp">/</span><span class="n">elan</span><span class="bp">/</span><span class="n">command.rs</span> <span class="bp">|</span> <span class="mi">34</span> <span class="bp">++++++++++++++++++++++++++++++++</span><span class="c1">--</span>
+ <span class="mi">1</span> <span class="n">file</span> <span class="n">changed</span><span class="o">,</span> <span class="mi">32</span> <span class="n">insertions</span><span class="o">(</span><span class="bp">+</span><span class="o">),</span> <span class="mi">2</span> <span class="n">deletions</span><span class="o">(</span><span class="bp">-</span><span class="o">)</span>
+
+<span class="n">diff</span> <span class="c1">--git a/src/elan/command.rs b/src/elan/command.rs</span>
+<span class="n">index</span> <span class="mi">0</span><span class="n">f92775..82b2480</span> <span class="mi">100644</span>
+<span class="c1">--- a/src/elan/command.rs</span>
+<span class="bp">+++</span> <span class="n">b</span><span class="bp">/</span><span class="n">src</span><span class="bp">/</span><span class="n">elan</span><span class="bp">/</span><span class="n">command.rs</span>
+<span class="bp">@@</span> <span class="bp">-</span><span class="mi">2</span><span class="o">,</span><span class="mi">6</span> <span class="bp">+</span><span class="mi">2</span><span class="o">,</span><span class="mi">7</span> <span class="bp">@@</span> <span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">ffi</span><span class="o">::</span><span class="n">OsStr</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">fs</span><span class="o">::</span><span class="n">File</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">io</span><span class="o">::{</span><span class="n">self</span><span class="o">,</span> <span class="n">Write</span><span class="o">,</span> <span class="n">BufRead</span><span class="o">,</span> <span class="n">BufReader</span><span class="o">,</span> <span class="n">Seek</span><span class="o">,</span> <span class="n">SeekFrom</span><span class="o">}</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">process</span><span class="o">::{</span><span class="n">self</span><span class="o">,</span> <span class="n">Command</span><span class="o">,</span> <span class="n">Stdio</span><span class="o">}</span><span class="bp">;</span>
+<span class="bp">+</span><span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">os</span><span class="o">::</span><span class="n">unix</span><span class="o">::</span><span class="n">process</span><span class="o">::</span><span class="n">CommandExt</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">std</span><span class="o">::</span><span class="n">time</span><span class="o">::</span><span class="n">Instant</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">regex</span><span class="o">::</span><span class="n">Regex</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">tempfile</span><span class="o">::</span><span class="n">tempfile</span><span class="bp">;</span>
+<span class="bp">@@</span> <span class="bp">-</span><span class="mi">12</span><span class="o">,</span><span class="mi">6</span> <span class="bp">+</span><span class="mi">13</span><span class="o">,</span><span class="mi">35</span> <span class="bp">@@</span> <span class="n">use</span> <span class="n">notifications</span><span class="o">::</span><span class="bp">*;</span>
+ <span class="n">use</span> <span class="n">elan_utils</span><span class="bp">;</span>
+ <span class="n">use</span> <span class="n">telemetry</span><span class="o">::{</span><span class="n">Telemetry</span><span class="o">,</span> <span class="n">TelemetryEvent</span><span class="o">}</span><span class="bp">;</span>
+
+<span class="bp">+#</span><span class="o">[</span><span class="n">cfg</span><span class="o">(</span><span class="n">unix</span><span class="o">)]</span>
+<span class="bp">+</span><span class="n">pub</span> <span class="n">fn</span> <span class="n">make_cgrouped_command</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span><span class="n">cmd</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">Command</span><span class="o">,</span>
+<span class="bp">+</span>                                            <span class="n">arg0</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">str</span><span class="o">,</span>
+<span class="bp">+</span>                                            <span class="n">args</span><span class="o">:</span> <span class="bp">&amp;</span><span class="o">[</span><span class="n">S</span><span class="o">])</span> <span class="bp">-&gt;</span> <span class="n">Command</span> <span class="o">{</span>
+<span class="bp">+</span>    <span class="k">let</span> <span class="n">mut</span> <span class="n">new_cmd</span> <span class="bp">=</span> <span class="n">Command</span><span class="o">::</span><span class="n">new</span><span class="o">(</span><span class="s2">"systemd-run"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg0</span><span class="o">(</span><span class="n">arg0</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"--user"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"--slice=lean.slice"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"-t"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"-P"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"-d"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"-q"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"--wait"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="s2">"-G"</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.arg</span><span class="o">(</span><span class="n">cmd.get_program</span><span class="o">())</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">for</span> <span class="n">arg</span> <span class="k">in</span> <span class="n">args</span> <span class="o">{</span>
+<span class="bp">+</span>        <span class="n">new_cmd.arg</span><span class="o">(</span><span class="n">arg</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="o">}</span>
+<span class="bp">+</span>    <span class="n">new_cmd</span>
+<span class="bp">+</span><span class="o">}</span>
+<span class="bp">+</span>
+<span class="bp">+#</span><span class="o">[</span><span class="n">cfg</span><span class="o">(</span><span class="n">windows</span><span class="o">)]</span>
+<span class="bp">+</span><span class="n">pub</span> <span class="n">fn</span> <span class="n">make_cgrouped_command</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span><span class="n">cmd</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">Command</span><span class="o">,</span>
+<span class="bp">+</span>                                            <span class="n">arg0</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">str</span><span class="o">,</span>
+<span class="bp">+</span>                                            <span class="n">args</span><span class="o">:</span> <span class="bp">&amp;</span><span class="o">[</span><span class="n">S</span><span class="o">])</span> <span class="bp">-&gt;</span> <span class="n">Command</span> <span class="o">{</span>
+<span class="bp">+</span>    <span class="k">let</span> <span class="n">mut</span> <span class="n">new_cmd</span> <span class="bp">=</span> <span class="n">Command</span><span class="o">::</span><span class="n">new</span><span class="o">(</span><span class="n">cmd.program</span><span class="o">())</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">new_cmd.args</span><span class="o">(</span><span class="n">args</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">cmd</span>
+<span class="bp">+</span><span class="o">}</span>
+
+ <span class="n">pub</span> <span class="n">fn</span> <span class="n">run_command_for_dir</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span><span class="n">cmd</span><span class="o">:</span> <span class="n">Command</span><span class="o">,</span>
+                                             <span class="n">arg0</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">str</span><span class="o">,</span>
+<span class="bp">@@</span> <span class="bp">-</span><span class="mi">41</span><span class="o">,</span><span class="mi">7</span> <span class="bp">+</span><span class="mi">71</span><span class="o">,</span><span class="mi">7</span> <span class="bp">@@</span> <span class="n">fn</span> <span class="n">telemetry_lean</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span><span class="n">mut</span> <span class="n">cmd</span><span class="o">:</span> <span class="n">Command</span><span class="o">,</span>
+
+     <span class="k">let</span> <span class="n">now</span> <span class="bp">=</span> <span class="n">Instant</span><span class="o">::</span><span class="n">now</span><span class="o">()</span><span class="bp">;</span>
+
+<span class="bp">-</span>    <span class="n">cmd.args</span><span class="o">(</span><span class="n">args</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">cmd</span> <span class="bp">=</span> <span class="n">make_cgrouped_command</span><span class="o">(</span><span class="bp">&amp;</span><span class="n">mut</span> <span class="n">cmd</span><span class="o">,</span> <span class="n">arg0</span><span class="o">,</span> <span class="n">args</span><span class="o">)</span><span class="bp">;</span>
+
+     <span class="k">let</span> <span class="n">has_color_args</span> <span class="bp">=</span> <span class="n">args.iter</span><span class="o">()</span><span class="bp">.</span><span class="n">any</span><span class="o">(</span><span class="bp">|</span><span class="n">e</span><span class="bp">|</span> <span class="o">{</span>
+         <span class="k">let</span> <span class="n">e</span> <span class="bp">=</span> <span class="n">e.as_ref</span><span class="o">()</span><span class="bp">.</span><span class="n">to_str</span><span class="o">()</span><span class="bp">.</span><span class="n">unwrap_or</span><span class="o">(</span><span class="s2">""</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">@@</span> <span class="bp">-</span><span class="mi">135</span><span class="o">,</span><span class="mi">7</span> <span class="bp">+</span><span class="mi">165</span><span class="o">,</span><span class="mi">7</span> <span class="bp">@@</span> <span class="n">fn</span> <span class="n">telemetry_lean</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span><span class="n">mut</span> <span class="n">cmd</span><span class="o">:</span> <span class="n">Command</span><span class="o">,</span>
+ <span class="n">fn</span> <span class="n">exec_command_for_dir_without_telemetry</span><span class="bp">&lt;</span><span class="n">S</span><span class="o">:</span> <span class="n">AsRef</span><span class="bp">&lt;</span><span class="n">OsStr</span><span class="bp">&gt;&gt;</span><span class="o">(</span>
+     <span class="n">mut</span> <span class="n">cmd</span><span class="o">:</span> <span class="n">Command</span><span class="o">,</span> <span class="n">arg0</span><span class="o">:</span> <span class="bp">&amp;</span><span class="n">str</span><span class="o">,</span> <span class="n">args</span><span class="o">:</span> <span class="bp">&amp;</span><span class="o">[</span><span class="n">S</span><span class="o">])</span> <span class="bp">-&gt;</span> <span class="n">Result</span><span class="bp">&lt;</span><span class="o">()</span><span class="bp">&gt;</span>
+ <span class="o">{</span>
+<span class="bp">-</span>    <span class="n">cmd.args</span><span class="o">(</span><span class="n">args</span><span class="o">)</span><span class="bp">;</span>
+<span class="bp">+</span>    <span class="n">cmd</span> <span class="bp">=</span> <span class="n">make_cgrouped_command</span><span class="o">(</span><span class="bp">&amp;</span><span class="n">mut</span> <span class="n">cmd</span><span class="o">,</span> <span class="n">arg0</span><span class="o">,</span> <span class="n">args</span><span class="o">)</span><span class="bp">;</span>
+
+     <span class="bp">//</span> <span class="n">FIXME</span> <span class="n">rust</span><span class="bp">-</span><span class="n">lang</span><span class="bp">/</span><span class="n">rust</span><span class="bp">#</span><span class="mi">32254</span><span class="bp">.</span> <span class="n">It's</span> <span class="n">not</span> <span class="n">clear</span> <span class="n">to</span> <span class="n">me</span>
+     <span class="bp">//</span> <span class="n">when</span> <span class="n">and</span> <span class="n">why</span> <span class="n">this</span> <span class="n">is</span> <span class="n">needed.</span>
+<span class="c1">--</span>
+<span class="mi">2</span><span class="bp">.</span><span class="mi">33</span><span class="bp">.</span><span class="mi">0</span>
+</code></pre></div>
+<p>Configure systemd to limit the memory usage:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">#</span> <span class="bp">~/.</span><span class="n">config</span><span class="bp">/</span><span class="n">systemd</span><span class="bp">/</span><span class="n">user</span><span class="bp">/</span><span class="n">lean.slice</span>
+<span class="o">[</span><span class="n">Slice</span><span class="o">]</span>
+<span class="n">MemoryHigh</span><span class="bp">=</span><span class="mi">12</span><span class="n">G</span>
+</code></pre></div>
+<p>This works successfully with Lean 3 on the command line, in Emacs and in Neovim.</p>
+
+
+
+<a name="257211518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257211518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257211518">(Oct 12 2021 at 14:25)</a>:</h4>
+<p>You should probably not actually do this yourself, which is why I used <code>git format-patch</code> output rather than link to a commit on GitHub, to make it slightly more difficult to apply the patch :)</p>
+
+
+
+<a name="257223856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257223856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257223856">(Oct 12 2021 at 15:41)</a>:</h4>
+<p>Fun. Another way to "handle" this would be not forking separate lean processes at all, right? As long as they're all using the same Lean version just speaking to one process entirely, even across the different editors? E.g.  a very simple "frontend" process (which you run multiple of) which just forwards incoming LSP requests to a common single backend instance of the lean process</p>
+
+
+
+<a name="257224794"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257224794" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257224794">(Oct 12 2021 at 15:47)</a>:</h4>
+<p>That also sounds reasonable, although I'm not sure how easy it would be forr the different threads to coordinate the memory usage limit. In essence, you'd be re-implementing cgroups from within Lean :)</p>
+
+
+
+<a name="257225438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257225438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257225438">(Oct 12 2021 at 15:51)</a>:</h4>
+<p>Another solution is to use <code>cgexec</code> in editor settings.</p>
+
+
+
+<a name="257225544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Elan%20cgroup%20hacks/near/257225544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Elan.20cgroup.20hacks.html#257225544">(Oct 12 2021 at 15:52)</a>:</h4>
+<p>(or write a <code>bash</code> wrapper around <code>elan</code> that uses <code>cgexec</code>)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

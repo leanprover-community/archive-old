@@ -1,0 +1,116 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/folding.20definitions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html">folding definitions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="275113818"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275113818" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275113818">(Mar 12 2022 at 19:47)</a>:</h4>
+<p>In Lean 3, there was a neat trick you could use to fold a definition in a proof. You could do <code>rw [&lt;- myDef]</code>. In Lean 4, <code>rw</code> does not seem to be using equational lemmas anymore. Trying the same with <code>simp</code>, you could try <code>simp only [&lt;- myDef]</code> which would give you: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">invalid</span> <span class="sc">'←'</span> <span class="n">modifier</span><span class="o">,</span> <span class="bp">'</span><span class="n">myDef'</span> <span class="n">is</span> <span class="n">a</span> <span class="n">declaration</span> <span class="n">name</span> <span class="n">to</span> <span class="n">be</span> <span class="n">unfolded</span>
+</code></pre></div>
+<p>Furthermore, it seems like equational lemmas are now declared private so they're not readily available to reference directly in <code>rw</code> or <code>simp</code>. Is there a different way to get the same outcome?</p>
+
+
+
+<a name="275115756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275115756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275115756">(Mar 12 2022 at 20:31)</a>:</h4>
+<p>Yes, <code>rw</code> is not using equational theorems yet. It is on the TODO list.</p>
+<blockquote>
+<p>it seems like equational lemmas are now declared private </p>
+</blockquote>
+<p>Yes, they are private, and they are generated on demand. Motivation: users that are using Lean as a programming language are not penalized with the performance overhead. </p>
+<blockquote>
+<p>Is there a different way to get the same outcome?</p>
+</blockquote>
+<p>You can force the equational theorems to be regenerated using the following hack.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"generate_eq_thms"</span> <span class="n">declName</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="kn">section</span> <span class="kn">attribute</span> <span class="o">[</span><span class="kn">local</span> <span class="n">simp</span><span class="o">]</span> <span class="bp">$</span><span class="n">declName</span> <span class="kd">end</span><span class="o">)</span>
+
+<span class="n">generate_eq_thms</span> <span class="n">List.length</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">bs</span> <span class="bp">=</span> <span class="n">a</span><span class="o">::</span><span class="n">as</span><span class="o">)</span> <span class="o">:</span> <span class="n">as.length</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">bs.length</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">List.length._eq_2</span><span class="o">]</span>
+  <span class="n">trace_state</span> <span class="c1">-- lhs was folded</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">h</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="275116750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275116750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275116750">(Mar 12 2022 at 20:55)</a>:</h4>
+<p>Nice, thanks! Is it legal to mention <code>List.length._eq_2</code> in <code>rw</code> because you're in the same namespace or does become more generally available once you forced their generation?</p>
+
+
+
+<a name="275116900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275116900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275116900">(Mar 12 2022 at 20:59)</a>:</h4>
+<blockquote>
+<p>does become more generally available once you forced their generation?</p>
+</blockquote>
+<p>This one. The <code>generate_eq_thms</code> command is generating new private theorems, and they are visible in the current file.</p>
+
+
+
+<a name="275117078"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275117078" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275117078">(Mar 12 2022 at 21:02)</a>:</h4>
+<p>Cool, thanks!</p>
+
+
+
+<a name="275119001"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275119001" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275119001">(Mar 12 2022 at 21:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="110026">@Simon Hudon</span> <a href="https://github.com/leanprover/lean4/commit/cf0ca026fb2ae24723f325de1cceaaeaeccf3001">https://github.com/leanprover/lean4/commit/cf0ca026fb2ae24723f325de1cceaaeaeccf3001</a></p>
+
+
+
+<a name="275119069"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275119069" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275119069">(Mar 12 2022 at 21:56)</a>:</h4>
+<p>Awesome! Thanks a lot!</p>
+
+
+
+<a name="275120786"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275120786" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275120786">(Mar 12 2022 at 22:47)</a>:</h4>
+<p>One question about your implementation: any reason not to use <code>getUnfoldEqnFor?</code> as well, possibly as a fallback if <code>getEqnsFor?</code> doesn't turn up anything?</p>
+
+
+
+<a name="275121163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275121163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275121163">(Mar 12 2022 at 22:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="110026">@Simon Hudon</span> Not sure if people use stuff such as <code>repeat rw [f]</code>. If we also apply the unfold theorem, it may produce nontermination.<br>
+BTW, we have an <code>unfold</code> tactic in Lean 4 for applying the unfold theorems.</p>
+
+
+
+<a name="275121482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275121482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275121482">(Mar 12 2022 at 23:06)</a>:</h4>
+<p>This might be a good place to borrow from ssreflect. It gives you a bunch of ascii decorations in <code>rewrite</code> and one of them is <code>! myLemma</code> (or <code>3 ! myLemma</code>). That should make <code>repeat rw [f, g, h]</code> less commonly necessary and gives you the opportunity, when using <code>!</code> with a definition, to just refuse to use the unfold lemma.</p>
+
+
+
+<a name="275121766"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275121766" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275121766">(Mar 12 2022 at 23:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="110026">@Simon Hudon</span> I am bored today, but not bored enough to implement these decorations :)</p>
+
+
+
+<a name="275122048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/folding%20definitions/near/275122048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/folding.20definitions.html#275122048">(Mar 12 2022 at 23:23)</a>:</h4>
+<p>Haha! I'm sure something better will come up! It's on my list anyway but nowhere near the top</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

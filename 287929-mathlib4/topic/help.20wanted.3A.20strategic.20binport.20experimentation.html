@@ -1,0 +1,588 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html">help wanted: strategic binport experimentation</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="249996029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/249996029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#249996029">(Aug 19 2021 at 14:40)</a>:</h4>
+<p>I think the binport oleans have become usable enough that power users could help a lot by starting to (strategically) experiment with them. The goal right now is to discover, isolate, and categorize issues efficiently. Here are some concrete questions:</p>
+<ul>
+<li>What <code>simp</code> calls break in Lean4 due to the discrimination tree indexing? Are there a few simple rules we could add to Binport to insert <code>no_index</code> annotations that would address the problems?</li>
+<li>Same question for typeclass synthesis.</li>
+<li>Are there <code>simp</code> or typeclass synthesis calls that are failing unexpectedly for reasons besides indexing?</li>
+<li>Post-facto <code>reducible</code> toggling is ignored, and all <code>irreducible</code> annotations are currently ignored as well. Are either of these causing serious issues behind the scenes?</li>
+<li>For things that do already work in Lean4, are there any significant performance regressions compared to Lean3?</li>
+<li>Are there any other issues that are not even on our radar yet?</li>
+</ul>
+<p>Notable differences between Binport and Mathlib3:</p>
+<ul>
+<li>Binport automatically translates names to Lean4 style, adding <code>'</code>s as necessary on non-def-eq clashes. The command <code>#lookup3 &lt;ident&gt;</code> prints the new Lean4 name. It is usually (but not always) what you would expect.</li>
+<li>Binport expands all coercions, just as Lean4 does but even more aggressively. It also replaces old coercion instances (e.g. <code>has_coe_to_fun</code>) with new ones (e.g. <code>CoeFun</code>).</li>
+<li>All numerals (i.e. <code>zero</code>/<code>one</code>/<code>bit0</code>/<code>bit1</code> terms) are wrapped with <code>OfNat</code> but otherwise unchanged.</li>
+<li>As mentioned above, post-facto <code>reducible</code> toggling is ignored, and all <code>irreducible</code> annotations are currently ignored as well.</li>
+<li>As of now, <code>nat.le</code> is not aligned to Lean4's <code>Nat.le</code>, which causes subtle headaches when working with natural numbers.</li>
+<li><code>foldl</code> notations are not yet auto-ported</li>
+<li>Many small changes in unification and other core algorithms may cause various things to fail or slow down for subtle reasons.</li>
+</ul>
+<p>Logistics:</p>
+<ul>
+<li>I regularly upload a <code>tar.gz</code> file to <a href="https://github.com/dselsam/mathport/releases/tag/v0.0.0.0">https://github.com/dselsam/mathport/releases/tag/v0.0.0.0</a> that, when extracted, produces the folder <code>Lib4</code>.</li>
+<li><code>import Mathlib</code> or <code>import Mathlib.Data.Real.Pi</code> will work if you set LEAN_PATH=&lt;path-to-lean4-lib&gt;:&lt;path-to-Lib4&gt;.</li>
+<li>In general, the binport <code>.olean</code>s should work with either <code>master</code> or <code>nightly</code>. Most commits to lean4 do not break compatibility.</li>
+<li>Obviously, it would be great to have CI for this and a leanpkg-friendly way of using them.</li>
+</ul>
+<p>Tips:</p>
+<ul>
+<li>For every Binported olean file <code>Foo.olean</code>, <span class="user-mention" data-user-id="110049">@Mario Carneiro</span>'s Synport produces <code>FooSyn.lean</code> with the best-effort syntactic port, which is name-translation-aware and already (syntactically) translates most declarations well. If you are experimenting with theorem <code>foo</code> in file <code>Foo.olean</code>, you may find it a useful starting point to copy-paste the decl from <code>FooSyn.lean</code> into a new file that imports <code>Foo</code>.</li>
+<li>Another approach is to just call <code>#check</code> on the imported theorem and copy-paste the result, factoring out arguments into variables as desired. Note: the Lean4 default pretty-printer is pretty good at concise roundtripping.</li>
+</ul>
+
+
+
+<a name="250046392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250046392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250046392">(Aug 19 2021 at 20:43)</a>:</h4>
+<p>Stupid question: How do I set <code>LEAN_PATH</code> (1) in VSCode and (2) from the command line? I tried </p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code> <span class="nv">LEAN_PATH</span><span class="o">=</span>/c/Users/Floris/.elan/toolchains/nightly/bin/lean.exe:/d/projects/portMathlib/Lib4 lean Personal/test.lean
+</code></pre></div>
+<p>and some variations, but it didn't seem to work (WIndows + MINGW64). Also, do I have to add my own <code>leanpkg.toml</code> file?</p>
+
+
+
+<a name="250048055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048055">(Aug 19 2021 at 20:57)</a>:</h4>
+<p><span class="user-mention" data-user-id="111080">@Floris van Doorn</span> I apologize for not having a cleaner setup yet. <code>LEAN_PATH</code> needs to point to the Lean libraries, not the executable. For me, this is <code>&lt;lean4-repo&gt;/build/release/stage1/lib/lean</code>, so I just open a terminal and write:</p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code><span class="nv">LEAN_PATH</span><span class="o">=</span>/home/dselsam/projects/lean4/build/release/stage1/lib/lean:/home/dselsam/projects/mathport/Lib4 code <span class="p">&amp;</span>
+</code></pre></div>
+
+
+
+<a name="250048251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048251">(Aug 19 2021 at 20:59)</a>:</h4>
+<p>If you use <code>elan</code> or some other way of getting the lean4 library, you might need to find the <code>stage1</code> directory. This might help: <code>find ~ -name "lean.mk"</code>.</p>
+
+
+
+<a name="250048450"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048450" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048450">(Aug 19 2021 at 21:00)</a>:</h4>
+<p><code>lib/lean</code> should already be in the LEAN_PATH implicitly (when running <code>lean</code>)</p>
+
+
+
+<a name="250048518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048518">(Aug 19 2021 at 21:01)</a>:</h4>
+<p>please teach me how to not have to specify <code>lib/lean</code>, this is a huge pain</p>
+
+
+
+<a name="250048610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048610">(Aug 19 2021 at 21:02)</a>:</h4>
+<p>is there a function to call to get the input to give to <code>initSearchPath</code>?</p>
+
+
+
+<a name="250048823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250048823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250048823">(Aug 19 2021 at 21:03)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> For people who are willing to download oleans, is there an easy way to add a leanpkg.toml to the binport oleans such that for a new project, leanpkg.toml can depend on binport with a relative path?</p>
+
+
+
+<a name="250049049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250049049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250049049">(Aug 19 2021 at 21:05)</a>:</h4>
+<p>I don't think so, leanpkg assumes it can build everything itself</p>
+
+
+
+<a name="250049234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250049234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250049234">(Aug 19 2021 at 21:06)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> You are talking about calling this from a different executable from <code>lean</code>, right? Then we can't know where the libraries could be located in relation to that executable. But if you assume that <code>lean</code> is in the <code>PATH</code>, you could call <code>lean --print-libdir</code></p>
+
+
+
+<a name="250049622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250049622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250049622">(Aug 19 2021 at 21:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>  Here is a hack I used in a test. </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">declareLeanPath</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">addAndCompile</span> <span class="bp">&lt;|</span> <span class="n">Declaration.defnDecl</span> <span class="o">{</span>
+    <span class="n">name</span>  <span class="o">:=</span> <span class="bp">`</span><span class="n">leanPath</span>
+    <span class="n">type</span>  <span class="o">:=</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">String</span>
+    <span class="n">value</span> <span class="o">:=</span> <span class="n">toExpr</span> <span class="bp">&lt;|</span> <span class="n">System.SearchPath.separator.toString.intercalate</span> <span class="o">((</span><span class="bp">←</span> <span class="n">Lean.getBuiltinSearchPath</span><span class="o">)</span><span class="bp">.</span><span class="n">map</span> <span class="n">toString</span><span class="o">)</span>
+    <span class="n">levelParams</span> <span class="o">:=</span> <span class="o">[]</span>
+    <span class="n">hints</span> <span class="o">:=</span> <span class="n">ReducibilityHints.abbrev</span>
+    <span class="n">safety</span> <span class="o">:=</span> <span class="n">DefinitionSafety.safe</span>
+  <span class="o">}</span>
+
+<span class="k">#eval</span> <span class="n">declareLeanPath</span>
+
+<span class="n">unsafe</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">initSearchPath</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{leanPath}{System.SearchPath.separator}build"</span>
+  <span class="n">withImportModules</span> <span class="o">[{</span> <span class="n">module</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">UserAttr.Tst</span> <span class="o">:</span> <span class="n">Import</span> <span class="o">}]</span> <span class="o">{}</span> <span class="mi">0</span> <span class="k">fun</span> <span class="n">env</span> <span class="bp">=&gt;</span> <span class="o">()</span>
+</code></pre></div>
+
+
+
+<a name="250049702"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250049702" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250049702">(Aug 19 2021 at 21:10)</a>:</h4>
+<p>We can make it less ugly in the future.</p>
+
+
+
+<a name="250049777"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250049777" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250049777">(Aug 19 2021 at 21:11)</a>:</h4>
+<p>ah, clever</p>
+
+
+
+<a name="250050199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250050199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250050199">(Aug 19 2021 at 21:13)</a>:</h4>
+<p>I guess you could also make <code>leanPath</code> a macro there to get a similar effect</p>
+
+
+
+<a name="250050319"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250050319" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250050319">(Aug 19 2021 at 21:14)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="n">IO.Process.run</span> <span class="o">{</span> <span class="n">cmd</span> <span class="o">:=</span> <span class="s2">"lean"</span><span class="o">,</span> <span class="n">args</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[</span><span class="s2">"--print-libdir"</span><span class="o">]</span> <span class="o">}</span>
+</code></pre></div>
+<p>This one will work even after moving the executable to other machines :)</p>
+
+
+
+<a name="250050557"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250050557" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250050557">(Aug 19 2021 at 21:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> However, leanpkg will happily call any <code>Makefile</code>, if it exists, instead of building .oleans on its own. That could be used for downloading the .oleans. But a more robust solution should probably use Lake.</p>
+
+
+
+<a name="250061877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250061877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250061877">(Aug 19 2021 at 23:37)</a>:</h4>
+<p>Ok, I managed to get Binport working from the command line using the following steps (part of my problem was that I tried to use <code>nightly</code>, which refers to Lean 3 nightly). Sebastian was right that I didn't have to specify the Lean libraries in <code>LEAN_PATH</code>.</p>
+<ul>
+<li>Download and extract the mathport-&lt;hash&gt;.tar.gz file here: <a href="https://github.com/dselsam/mathport/releases/tag/v0.0.0.0">https://github.com/dselsam/mathport/releases/tag/v0.0.0.0</a></li>
+<li>Run (<code>path/to/Lib4</code> is the path to the folder you just extacted)</li>
+</ul>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code><span class="nb">cd</span> path/to/Lib4
+elan install leanprover/lean4:nightly <span class="c1"># (if this fails, close VSCode and try again)</span>
+elan override <span class="nb">set</span> leanprover/lean4:nightly
+</code></pre></div>
+<ul>
+<li>Make a test file, for example <code>Personal/test.lean</code> with the contents</li>
+</ul>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Data.Real.Basic</span>
+
+<span class="kn">open</span> <span class="n">Real</span>
+
+<span class="k">#check</span> <span class="n">Real</span>
+</code></pre></div>
+<ul>
+<li>Run</li>
+</ul>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code><span class="nv">LEAN_PATH</span><span class="o">=</span>path/to/Lib4 lean Personal/test.lean
+</code></pre></div>
+
+
+
+<a name="250061926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250061926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250061926">(Aug 19 2021 at 23:38)</a>:</h4>
+<p>Is there also a way to configure <code>LEAN_PATH</code> for the Lean server in VSCode?</p>
+
+
+
+<a name="250063362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250063362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250063362">(Aug 20 2021 at 00:01)</a>:</h4>
+<p>Great, I am glad you got it to work.</p>
+
+
+
+<a name="250063729"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250063729" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250063729">(Aug 20 2021 at 00:07)</a>:</h4>
+<p>My question might be easy to miss in the previous message.</p>
+<blockquote>
+<p>Is there also a way to configure <code>LEAN_PATH</code> for the Lean server in VSCode?</p>
+</blockquote>
+
+
+
+<a name="250064047"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250064047" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250064047">(Aug 20 2021 at 00:12)</a>:</h4>
+<p>Sorry, I think I misunderstood your question. Does this not work for you?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">LEAN_PATH</span><span class="bp">=</span><span class="n">path</span><span class="bp">/</span><span class="n">to</span><span class="bp">/</span><span class="n">Lib4</span> <span class="n">code</span> <span class="n">Personal</span><span class="bp">/</span><span class="n">test.lean</span> <span class="bp">&amp;</span>
+</code></pre></div>
+
+
+
+<a name="250065240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065240">(Aug 20 2021 at 00:32)</a>:</h4>
+<p>Ah, I didn't understand that was the way to open VSCode.<br>
+If I run</p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code> <span class="nv">LEAN_PATH</span><span class="o">=</span>~/.elan/toolchains/leanprover--lean4---nightly/lib/lean:/d/projects/portMathlib/Lib4 code Personal/test.lean <span class="p">&amp;</span>
+</code></pre></div>
+<p>I get a bunch of errors, like this</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>test.lean:1:0
+file 'C:\Users\Floris\.elan\toolchains\leanprover--lean4---nightly\lib\lean\init.lean' not found in the LEAN_PATH
+test.lean:1:0
+file 'D:\projects\portMathlib\Lib4\Mathlib\Data\Real\Basic.lean' not found in the LEAN_PATH
+test.lean:1:0
+file 'C:\Users\Floris\.elan\toolchains\leanprover--lean4---nightly\lib\lean\Lean\Data\Name.lean' not found in the LEAN_PATH
+test.lean:2:0
+invalid import: init
+could not resolve import: init
+test.lean:2:0
+invalid import: Mathlib.Data.Real.Basic
+could not resolve import: Mathlib.Data.Real.Basic
+test.lean:2:0
+invalid import: Lean.Data.Name
+could not resolve import: Lean.Data.Name
+</code></pre></div>
+
+
+
+<a name="250065297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065297">(Aug 20 2021 at 00:34)</a>:</h4>
+<p>Is this the correct <code>lib/lean</code> (it's not in a folder <code>stage1</code>, but it is the output of  <code>lean --print-libdir</code></p>
+
+
+
+<a name="250065351"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065351" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065351">(Aug 20 2021 at 00:34)</a>:</h4>
+<p>I think you are calling lean3 :) <code>init.lean</code> is capitalized in Lean4. Maybe you are using the lean3 VSCode extension?</p>
+
+
+
+<a name="250065437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065437">(Aug 20 2021 at 00:35)</a>:</h4>
+<p>Oh, that might be true. Until now I believe my VSCode used the <code>leanpkg.toml</code> to figure out whether to use lean 3 or lean 4. (or maybe I disabled/enabled some extensions in different folders, not actually sure)</p>
+
+
+
+<a name="250065521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065521">(Aug 20 2021 at 00:36)</a>:</h4>
+<p>Another worrying sign: it is looking for <code>.lean</code> files (which don't exist) as opposed to <code>.olean</code> files (which do).</p>
+
+
+
+<a name="250065626"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065626" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065626">(Aug 20 2021 at 00:38)</a>:</h4>
+<p>My VSCode is happy with <code>.olean</code>s only, so this issue will probably go away once you are using the Lean4 extension.</p>
+
+
+
+<a name="250065801"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065801" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065801">(Aug 20 2021 at 00:42)</a>:</h4>
+<p>I'm now disabling the <code>lean</code> extension, and I have the <code>lean4</code> extension installed.</p>
+<p>If I do <code>LEAN_PATH=... code Personal/test.lean &amp;</code> [edited] the extension does not seem to activate at all (no highlighting, no yellow bars)<br>
+If I do <code>LEAN_PATH=... code . &amp;</code> I get the error</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>`leanpkg print-paths` failed:
+
+stderr:
+configuring Mathlib 0.1
+d:\projects\portMathlib\Lib4 must contain a unique '.lean' file as the package root
+</code></pre></div>
+
+
+
+<a name="250065925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065925">(Aug 20 2021 at 00:45)</a>:</h4>
+<p>Did you mean <code>code Personal/test.lean</code>?</p>
+
+
+
+<a name="250065931"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065931" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065931">(Aug 20 2021 at 00:45)</a>:</h4>
+<p>If I move away <code>Liquid.lean</code> I get</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>`leanpkg print-paths` failed:
+
+stderr:
+configuring Mathlib 0.1
+no such file or directory (error code: 2)
+  file: .\Mathlib\Data\Real\Basic.lean
+</code></pre></div>
+
+
+
+<a name="250065937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065937">(Aug 20 2021 at 00:46)</a>:</h4>
+<p>ah yes</p>
+
+
+
+<a name="250065989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065989">(Aug 20 2021 at 00:46)</a>:</h4>
+<p>that's what I did (and isn't working)</p>
+
+
+
+<a name="250065990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250065990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250065990">(Aug 20 2021 at 00:46)</a>:</h4>
+<p>I assume it uses the file suffix to guess the extension.</p>
+
+
+
+<a name="250066017"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066017" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066017">(Aug 20 2021 at 00:47)</a>:</h4>
+<p>No, I typed <code>test.lean</code>, just copied it wrong.</p>
+
+
+
+<a name="250066175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066175">(Aug 20 2021 at 00:50)</a>:</h4>
+<p>Yes, VSCode tends to use the file extension to decide which extension to activate.</p>
+
+
+
+<a name="250066190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066190">(Aug 20 2021 at 00:51)</a>:</h4>
+<p>What if you click on the language mode icon on the bottom right, and navigate to Lean4?</p>
+
+
+
+<a name="250066257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066257">(Aug 20 2021 at 00:52)</a>:</h4>
+<p>Ok, then I get syntax highlighting, but no compilation. Trying to refresh file dependencies gives <br>
+<a href="/user_uploads/3121/bs_0pLZUhuw_nbb3dZs3-rin/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/bs_0pLZUhuw_nbb3dZs3-rin/image.png" title="image.png"><img src="/user_uploads/3121/bs_0pLZUhuw_nbb3dZs3-rin/image.png"></a></div>
+
+
+
+<a name="250066348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066348">(Aug 20 2021 at 00:54)</a>:</h4>
+<p>It seems that the extension is happier (but still not happy) if I open the project folder...</p>
+
+
+
+<a name="250066370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066370">(Aug 20 2021 at 00:55)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250066257">said</a>:</p>
+<blockquote>
+<p>Ok, then I get syntax highlighting, but no compilation.</p>
+</blockquote>
+<p>This is what happens to me when LEAN_PATH is set wrong. Can you try creating a new folder with just <code>Test.lean</code>, moving to that folder, and then (with LEAN_PATH set) opening <code>code Test.lean &amp;</code>?</p>
+
+
+
+<a name="250066468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066468">(Aug 20 2021 at 00:57)</a>:</h4>
+<p>Or maybe you are in restricted mode and need to click "Trust workspace"?</p>
+
+
+
+<a name="250066619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066619">(Aug 20 2021 at 01:00)</a>:</h4>
+<p>That doesn't seem to work, still the same behavior... I think I'm also not in restricted mode<br>
+<a href="/user_uploads/3121/abbBtKjsEykYFikirKo5tr_5/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/abbBtKjsEykYFikirKo5tr_5/image.png" title="image.png"><img src="/user_uploads/3121/abbBtKjsEykYFikirKo5tr_5/image.png"></a></div>
+
+
+
+<a name="250066684"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066684" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066684">(Aug 20 2021 at 01:01)</a>:</h4>
+<p>This is what I did</p>
+<div class="codehilite" data-code-language="Bash"><pre><span></span><code>Floris@MSI MINGW64 /d/projects/portMathlib/Lib4
+$ <span class="nb">cd</span> Personal/
+
+Floris@MSI MINGW64 /d/projects/portMathlib/Lib4/Personal
+$ <span class="nv">LEAN_PATH</span><span class="o">=</span>~/.elan/toolchains/leanprover--lean4---nightly/lib/lean:/d/projects/portMathlib/Lib4 code Test.lean <span class="p">&amp;</span>
+<span class="o">[</span><span class="m">1</span><span class="o">]</span> <span class="m">1184</span>
+
+Floris@MSI MINGW64 /d/projects/portMathlib/Lib4/Personal
+$ lean --print-libdir
+c:<span class="se">\U</span>sers<span class="se">\F</span>loris<span class="se">\.</span>elan<span class="se">\t</span>oolchains<span class="se">\l</span>eanprover--lean4---nightly<span class="se">\l</span>ib<span class="se">\l</span>ean
+</code></pre></div>
+
+
+
+<a name="250066701"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250066701" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250066701">(Aug 20 2021 at 01:01)</a>:</h4>
+<p>I am sorry, this is a mess. I have very little experience with VSCode. It works fine on my end but I don't know how many ambient factors might be in play. If you still have energy, I might be able to help you better on Zoom with screen-sharing.</p>
+
+
+
+<a name="250067354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250067354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250067354">(Aug 20 2021 at 01:14)</a>:</h4>
+<p>Thanks Daniel, for helping me through this. The solution was to maken <code>leanprover/lean4:nightly</code> the default version for <code>elan</code>.</p>
+
+
+
+<a name="250067901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250067901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250067901">(Aug 20 2021 at 01:26)</a>:</h4>
+<p>I updated my earlier post (<a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250061877">https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250061877</a>) with hopefully robust instructions for how to get this working, even if you haven't used/installed Lean 4 before.</p>
+
+
+
+<a name="250096968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250096968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250096968">(Aug 20 2021 at 09:33)</a>:</h4>
+<p>A thing I do to make this sort of lean3/lean4 switching easier is just use Code Insiders for Lean4, and VSCode retail for lean3. Then neither of them can get confused :)</p>
+
+
+
+<a name="250097242"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250097242" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250097242">(Aug 20 2021 at 09:36)</a>:</h4>
+<p>VSCodium</p>
+
+
+
+<a name="250123814"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250123814" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250123814">(Aug 20 2021 at 14:21)</a>:</h4>
+<p>Am I right in thinking that this could become some sort of training ground for Lean 4? the game is to take an arbitrary file in some <code>training</code> branch of mathlib3, leave the imports as they are and then try and translate the rest manually into lean 4? It could be interesting for people who want to try learning Lean 4 by formalising mathematics which they find interesting -- they will not be limited by mathlib4's sketchy support for most things.</p>
+
+
+
+<a name="250124542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250124542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250124542">(Aug 20 2021 at 14:26)</a>:</h4>
+<p>Unfortunately the liquid (ea56bbc38c8b50c3569a7bf9560b4d0fc73eb978) and mathlib (5dc8bc169bd8773735520e6b9680ce3b65b80bd7) packages can no longer be imported together due to name clashes in <code>normed_group_hom_completion.lean</code>.</p>
+
+
+
+<a name="250125675"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250125675" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250125675">(Aug 20 2021 at 14:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250123814">said</a>:</p>
+<blockquote>
+<p>Am I right in thinking that this could become some sort of training ground for Lean 4? the game is to take an arbitrary file in some <code>training</code> branch of mathlib3, leave the imports as they are and then try and translate the rest manually into lean 4? It could be interesting for people who want to try learning Lean 4 by formalising mathematics which they find interesting -- they will not be limited by mathlib4's sketchy support for most things.</p>
+</blockquote>
+<p>Please note that I tried to phrase my request carefully ("power users ... strategically experiment with ... categorize issues efficiently"). The binport oleans are not ready for regular use. Right now, I think it only makes sense for experts who are invested in the port to experiment with them. I'll defer to them when it passes the threshold where casual users will have fun with them. Also, the better game might be starting from the synported files with an added <code>#exit</code> on top , and gradually pushing down the <code>#exit</code> as more declarations/proofs are "revived".</p>
+
+
+
+<a name="250127198"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250127198" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250127198">(Aug 20 2021 at 14:47)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250124542">said</a>:</p>
+<blockquote>
+<p>Unfortunately the liquid (ea56bbc38c8b50c3569a7bf9560b4d0fc73eb978) and mathlib (5dc8bc169bd8773735520e6b9680ce3b65b80bd7) packages can no longer be imported together due to name clashes in <code>normed_group_hom_completion.lean</code>.</p>
+</blockquote>
+<p>Lean 3 seems to use them together just fine according to CI. What's happening in Lean 4?</p>
+
+
+
+<a name="250189988"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250189988" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250189988">(Aug 21 2021 at 01:51)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250067901">said</a>:</p>
+<blockquote>
+<p>I updated my earlier post (<a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250061877">https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250061877</a>) with hopefully robust instructions for how to get this working, even if you haven't used/installed Lean 4 before.</p>
+</blockquote>
+<p>Thanks very much for this, <span class="user-mention" data-user-id="111080">@Floris van Doorn</span>, your instructions worked flawlessly.</p>
+
+
+
+<a name="250190554"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250190554" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250190554">(Aug 21 2021 at 02:07)</a>:</h4>
+<p>I'm still missing something fundamental here.</p>
+<p>If I go and implement a missing tactic, and push that to the mathlib4 repository, how will that ever be seen by mathport? None of the files in the mathport bundle import anything from mathlib4, so I'm not seeing how a synported file can take advantage of new implementations of tactics.</p>
+
+
+
+<a name="250191202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250191202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250191202">(Aug 21 2021 at 02:24)</a>:</h4>
+<p>In a different direction, I've also quickly got stuck playing with mathport. Following Floris' instructions, I opened <code>Mathlib/SetTheory/PgameSyn.lean</code>.</p>
+<p>The first error is <code>invalid field 'nth_le', the environment does not contain 'List.nth_le'</code> which is easily fixable by changing <code>nth_le</code> to <code>nthLe</code>. That then produces: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">List.nthLe</span> <span class="n">L</span> <span class="n">i.val</span> <span class="o">(</span><span class="n">_</span> <span class="o">:</span> <span class="n">i.1</span> <span class="bp">&lt;</span> <span class="n">List.length</span> <span class="n">L</span><span class="o">)</span>
+<span class="n">argument</span>
+  <span class="n">Fin'.is_lt</span> <span class="n">_</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="n">i.1</span> <span class="bp">&lt;</span> <span class="n">List.length</span> <span class="n">L</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">i.val</span> <span class="bp">&lt;</span> <span class="n">List.length'</span> <span class="n">L</span> <span class="o">:</span> <span class="kt">Prop</span>
+</code></pre></div>
+<p>which I'm mystified by. I can't find any trace of <code>List.length'</code> in Lean3, Lean4, mathlib3, or mathlib4.</p>
+<p>Is <code>binport</code> renaming Lean3's <code>list.length</code> to <code>List.length'</code> because it doesn't look the same as Lean4's <code>List.length</code>?</p>
+
+
+
+<a name="250191638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250191638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250191638">(Aug 21 2021 at 02:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250191202">said</a>:</p>
+<blockquote>
+<p>Is <code>binport</code> renaming Lean3's <code>list.length</code> to <code>List.length'</code> because it doesn't look the same as Lean4's <code>List.length</code>?</p>
+</blockquote>
+<p>I tried to warn about this in my original post:</p>
+<blockquote>
+<p>Binport automatically translates names to Lean4 style, adding <code>'</code>s as necessary on non-def-eq clashes. The command <code>#lookup3 &lt;ident&gt;</code> prints the new Lean4 name. It is usually (but not always) what you would expect.</p>
+</blockquote>
+
+
+
+<a name="250191740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250191740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250191740">(Aug 21 2021 at 02:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250191202">said</a>:</p>
+<blockquote>
+<p>Is <code>binport</code> renaming Lean3's <code>list.length</code> to <code>List.length'</code> because it doesn't look the same as Lean4's <code>List.length</code>?</p>
+</blockquote>
+<p>Yes, exactly. Binport first generates the candidate name <code>List.length</code> using the capitalization conventions, and then checks the environment to see if a declaration already exists with that name.</p>
+<ul>
+<li>If no such declaration exists, the candidate name is used</li>
+<li>If a declaration exists and is definitionally-equal to the lean3 one (or the natural extension of definitional equality for inductive types), it throws out the lean3 declaration and translates all future uses of it to the lean4 one. We refer to this as <em>aligning</em> the lean3 declaration to the lean4 one. </li>
+<li>If a declaration with the name already exists and it is not def-eq-compatible with the lean3 one, binport adds a <code>'</code> to the name and iteratively checks the environment again, etc.</li>
+</ul>
+
+
+
+<a name="250192081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250192081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250192081">(Aug 21 2021 at 02:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250190554">said</a>:</p>
+<blockquote>
+<p>I'm still missing something fundamental here.</p>
+<p>If I go and implement a missing tactic, and push that to the mathlib4 repository, how will that ever be seen by mathport? None of the files in the mathport bundle import anything from mathlib4, so I'm not seeing how a synported file can take advantage of new implementations of tactics.</p>
+</blockquote>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> and I are in the process of refactoring so that Mathport and the binport oleans it produces both depend on Mathlib4. Currently, they are disconnected, but soon the syntax synport generates will refer to the actual Mathlib4 tactics.</p>
+
+
+
+<a name="250195000"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250195000" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250195000">(Aug 21 2021 at 03:55)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation/near/250191202">said</a>:</p>
+<blockquote>
+<p>I opened <code>Mathlib/SetTheory/PgameSyn.lean</code>.</p>
+</blockquote>
+<p>There are many unfortunate capitalizations like this. I will add some support for an extensible word-split list (e.g. <code>pgame -&gt; ["p", "game"]</code>)</p>
+
+
+
+<a name="250196525"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250196525" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250196525">(Aug 21 2021 at 04:33)</a>:</h4>
+<p>Just for my understanding regarding the <code>List.length</code> issue, how are we going to deal with this? Mario earlier suggested that we could replace Lean4's <code>List.length</code> with the naive one, and add an <code>@[implementedBy]</code> attribute pointing to the tail recursive version.</p>
+
+
+
+<a name="250226526"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250226526" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250226526">(Aug 21 2021 at 16:48)</a>:</h4>
+<p>Not my department but here is a guess: it stays <code>List.length'</code> for now, and eventually once the compiler supports custom simp rules, <code>List.length</code> could become the slow version and we would write <code>@[csimp] theorem List.length_eq_lengthTR ...</code> to instruct the compiler to replace <code>List.length</code> with the tail recursive <code>List.lengthTR</code>.</p>
+
+
+
+<a name="250228356"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250228356" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250228356">(Aug 21 2021 at 17:31)</a>:</h4>
+<p>I am going to add basic <code>csimp</code> support. The basic version will only support "constant replacement" theorems of the form <code>@f = @g</code>. This is good enough for solving issues like <code>List.length'</code>. Unfortunately, full support for simp rules has been postponed, and we don't know when we will have cycles to work on it.</p>
+
+
+
+<a name="250229330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250229330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250229330">(Aug 21 2021 at 17:53)</a>:</h4>
+<p>Do you have a list of all problematic definitions?</p>
+
+
+
+<a name="250229774"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250229774" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250229774">(Aug 21 2021 at 18:03)</a>:</h4>
+<p>I can instrument binport to produce a list of all clashes. I thought I was already emitting these in the logs but I don't seem to be in an easily-greppable way.</p>
+
+
+
+<a name="250242487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/help%20wanted%3A%20strategic%20binport%20experimentation/near/250242487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/help.20wanted.3A.20strategic.20binport.20experimentation.html#250242487">(Aug 21 2021 at 23:15)</a>:</h4>
+<p>I added the <code>[csimp]</code> attribute. I have redefined <code>List.length</code> and <code>List.append</code> as we did in Lean 3. We can now align them.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

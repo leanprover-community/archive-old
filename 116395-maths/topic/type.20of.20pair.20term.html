@@ -1,0 +1,62 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/116395-maths/topic/type.20of.20pair.20term.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/index.html">maths</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/type.20of.20pair.20term.html">type of pair term</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="271756151"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/type%20of%20pair%20term/near/271756151" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/type.20of.20pair.20term.html#271756151">(Feb 13 2022 at 17:24)</a>:</h4>
+<p>hey all, this is not lean related, so i thought the maths channel would be appropriate:<br>
+i'm implementing type theory (inspired by <a href="http://math.andrej.com/2012/11/08/how-to-implement-dependent-type-theory-i/">http://math.andrej.com/2012/11/08/how-to-implement-dependent-type-theory-i/</a>).<br>
+i had a little problem when determining the type of a (dependent) pair term. the code was (roughly):</p>
+<div class="codehilite" data-code-language="Rust"><pre><span></span><code><span class="w">    </span><span class="n">Pair</span><span class="w"> </span><span class="p">(</span><span class="n">terms</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">terms</span><span class="p">.</span><span class="n">as_ref</span><span class="p">();</span><span class="w"></span>
+<span class="w">        </span><span class="kd">let</span><span class="w">     </span><span class="n">ta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">infer_term</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">tb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">infer_term</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">shift</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">tb</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="c1">// delta, cut_off</span>
+<span class="w">        </span><span class="n">Sigma</span><span class="p">(</span><span class="nb">Box</span>::<span class="n">new</span><span class="p">((</span><span class="n">ta</span><span class="p">,</span><span class="w"> </span><span class="n">tb</span><span class="p">)))</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>basically: infer the types of the sub-terms and construct a sigma type by shifting the second type (to account for the scope introduced by a sigma type).<br>
+the problem was: obviously, the sigma type could never refer to its fst value. i'm using syntactic equality of reduced terms as definitional equality. to check types i use definitional equality (and u1 &lt;= u2 for sorts).<br>
+so if the type of snd depends on the value passed into fst, that information gets lost.<br>
+i have solved the problem by substituting the value <code>a</code> (shifted by one) in <code>tb</code> (after shifting) with <code>Var(0)</code>.<br>
+and now for why i'm posting this:<br>
+i'm not too comfortable with the solution.<br>
+first of all, sub-tree matching is pretty expensive, compared to the other operations in the type checker.<br>
+secondly, i have not seen this "trick" anywhere else. the links to the code in the article are dead, but this seems to be the code from around that time: <a href="https://github.com/Andromedans/andromeda/blob/d7ec08f94331e1254dc4430607e7ea95b16a7f6f/typing.ml">https://github.com/Andromedans/andromeda/blob/d7ec08f94331e1254dc4430607e7ea95b16a7f6f/typing.ml</a> they also shift the type of snd, but there is no substitution.<br>
+the typing rule in mltt80 is: <code>(a: A) (b: B(a)) |- (a, b): (\Sigma x: A)B(x)</code>. i interpret the presence of <code>x</code> as the same kind of information loss that i've experienced before my change.<br>
+in conclusion: my "trick" seems fishy to me. maybe someone knows how this problem (determining the (dependent) type of a pair) is usually handled in type checking kernels.</p>
+<p>edit: here is an example that failed to type check (due to mismatched de bruijn indices in the type of the pair (a, b) - argument to g at the end - specifically, b's type was referring to the parameter <code>a</code>, not the first value of the pair -- this is the lean equivalent)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">f</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">T</span><span class="o">:</span> <span class="kt">Type</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span><span class="o">:</span> <span class="n">T</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span><span class="o">:</span> <span class="bp">Π</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="o">(</span><span class="bp">Σ</span> <span class="n">a</span> <span class="o">:</span> <span class="n">T</span><span class="o">,</span> <span class="n">f</span> <span class="n">a</span><span class="o">)),</span> <span class="n">f</span> <span class="n">x.1</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span><span class="o">:</span> <span class="n">T</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span><span class="o">:</span> <span class="n">f</span> <span class="n">a</span><span class="o">),</span> <span class="n">g</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">⟩</span>
+</code></pre></div>
+
+
+
+<a name="271760119"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/type%20of%20pair%20term/near/271760119" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/type.20of.20pair.20term.html#271760119">(Feb 13 2022 at 19:04)</a>:</h4>
+<p>I'm sure someone else can give you a better survey of general solutions, but Lean uses locally nameless, which I think would solve this by replacing occurrences of <code>a</code> in <code>b</code> with <code>Local(ta, unique)</code> instead of <code>Var(0)</code>, and then the result would be <code>Sigma (x : ta), tb.abstract(locals)</code>.</p>
+
+
+
+<a name="271760507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/type%20of%20pair%20term/near/271760507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonard Wiechmann <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/type.20of.20pair.20term.html#271760507">(Feb 13 2022 at 19:13)</a>:</h4>
+<p>Thanks <span class="user-mention" data-user-id="228466">@Chris B</span> ! So this does appear to be a "real" problem that needs to be addressed in a type checker. I was mostly worried that I did something wrong, elsewhere in my code (which could of course still be the case :P).<br>
+For now, I'm fine with my tree substitution thing. But if anyone else has something interesting about this topic, I'd of course still be interested!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

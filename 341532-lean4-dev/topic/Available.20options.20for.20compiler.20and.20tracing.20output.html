@@ -1,0 +1,113 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/index.html">lean4 dev</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html">Available options for compiler and tracing output</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="301979486"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301979486" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301979486">(Oct 02 2022 at 22:43)</a>:</h4>
+<p>I have tried looking at some code using <code>set_option ... true in</code> to start looking at LCNF and to look a bit more into what the compiler is doing.  Are these options documented anywhere?</p>
+<p>As a second follow-up, I was trying to see if there's a way to see what the result of instance search is.  For example, if I have e.g.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="n">Functor.map</span> <span class="o">(</span><span class="bp">.*</span><span class="mi">2</span><span class="o">)</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">,</span><span class="mi">3</span><span class="o">]</span>
+</code></pre></div>
+<p>and do the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span> <span class="k">in</span>
+<span class="k">#eval</span> <span class="n">Functor.map</span> <span class="o">(</span><span class="bp">.*</span><span class="mi">2</span><span class="o">)</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">,</span><span class="mi">3</span><span class="o">]</span>
+</code></pre></div>
+<p>I can see the output of instance search/resolution.  However, is there a way to see the "transformed" code, where e.g. the <code>Functor.map</code> has been "substituted" with <code>List.map</code>, as per <code>map</code> in the functor instance?<br>
+I can for example look at the code at the LCNF level, e.g. using <code>set_option trace.Compiler true</code> but that's a bit low level.  </p>
+<p>Finally, is there an equivalent of the above, say to see what the result of operator application is?  E.g. <code>#eval (.*2) &lt;$&gt; [1,2,3]</code> </p>
+<p>Thanks!</p>
+
+
+
+<a name="301979731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301979731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301979731">(Oct 02 2022 at 22:48)</a>:</h4>
+<p>Well there isn't really any substitution happening at the Lean level. For the the entirety of Lean, excluding the compiler, this is literally <a href="http://Functor.map">Functor.map</a> but the implicit <code>[Functor List]</code> instance will have been inserted as an explicit argument in the internal <code>Expr</code> version of this you can make this visible like so:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">pp.explicit</span> <span class="n">true</span> <span class="k">in</span>
+<span class="k">#check</span> <span class="n">Functor.map</span> <span class="o">(</span><span class="bp">.*</span><span class="mi">2</span><span class="o">)</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">,</span><span class="mi">3</span><span class="o">]</span>
+</code></pre></div>
+<p>Which will give you the term that Lean will actually operate on internally:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">@</span><span class="n">Functor.map</span> <span class="n">List</span> <span class="n">List.instFunctorList</span> <span class="n">Nat</span> <span class="n">Nat</span> <span class="o">(</span><span class="k">fun</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="bp">@</span><span class="n">HMul.hMul</span> <span class="n">Nat</span> <span class="n">Nat</span> <span class="n">Nat</span> <span class="o">(</span><span class="bp">@</span><span class="n">instHMul</span> <span class="n">Nat</span> <span class="n">instMulNat</span><span class="o">)</span> <span class="n">a</span> <span class="mi">2</span><span class="o">)</span>
+  <span class="o">(</span><span class="bp">@</span><span class="n">List.cons</span> <span class="n">Nat</span> <span class="mi">1</span> <span class="o">(</span><span class="bp">@</span><span class="n">List.cons</span> <span class="n">Nat</span> <span class="mi">2</span> <span class="o">(</span><span class="bp">@</span><span class="n">List.cons</span> <span class="n">Nat</span> <span class="mi">3</span> <span class="o">(</span><span class="bp">@</span><span class="n">List.nil</span> <span class="n">Nat</span><span class="o">))))</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span>
+</code></pre></div>
+<p>While using <code>List.map</code> could be proven to be equivalent (in fact even definitionally equivalent) Lean will never do this without the user telling it to do so ever. Only when we move to LCNF and start simplifying the code we will start to substitute these things in.</p>
+
+
+
+<a name="301979800"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301979800" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301979800">(Oct 02 2022 at 22:50)</a>:</h4>
+<p>Oh and regarding the question of where these options are documented...basically nowhere since their definitions are spread all over the code and we are adding new ones every other day but if you do <code>set_option</code> the auto completion will give you an exhaustive list of suggestions</p>
+
+
+
+<a name="301980661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301980661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301980661">(Oct 02 2022 at 23:05)</a>:</h4>
+<p>Perfect - the <code>pp.explicit</code> is what I was looking for - thanks!  What does <code>pp</code> stand for in this context?  I assume it's not the "PreProcessor" <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="301980801"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301980801" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301980801">(Oct 02 2022 at 23:06)</a>:</h4>
+<p>pretty printer</p>
+
+
+
+<a name="301980813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301980813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301980813">(Oct 02 2022 at 23:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output/near/301979800">said</a>:</p>
+<blockquote>
+<p>Oh and regarding the question of where these options are documented...basically nowhere since their definitions are spread all over the code and we are adding new ones every other day but if you do <code>set_option</code> the auto completion will give you an exhaustive list of suggestions</p>
+</blockquote>
+<p>Thanks, I noticed but they are still alien to me; I assume most of them are pass-specific anyway.</p>
+
+
+
+<a name="301980830"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301980830" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301980830">(Oct 02 2022 at 23:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output/near/301980801">said</a>:</p>
+<blockquote>
+<p>pretty printer</p>
+</blockquote>
+<p>D'oh!</p>
+
+
+
+<a name="301981942"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301981942" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301981942">(Oct 02 2022 at 23:27)</a>:</h4>
+<p>Most of the options are not compiler related at all, the ones for the new compiler are primarily in  <code>trace.Compiler</code></p>
+
+
+
+<a name="301982019"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301982019" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301982019">(Oct 02 2022 at 23:29)</a>:</h4>
+<p>the main useful one is <code>trace.Compiler.result</code> if you want to see the final result of compilation</p>
+
+
+
+<a name="301982036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301982036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301982036">(Oct 02 2022 at 23:29)</a>:</h4>
+<p>or <code>trace.compiler.ir.result</code> for the result of the old compiler</p>
+
+
+
+<a name="301982098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/Available%20options%20for%20compiler%20and%20tracing%20output/near/301982098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/Available.20options.20for.20compiler.20and.20tracing.20output.html#301982098">(Oct 02 2022 at 23:30)</a>:</h4>
+<p>That's great to know, thank you both for your help!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

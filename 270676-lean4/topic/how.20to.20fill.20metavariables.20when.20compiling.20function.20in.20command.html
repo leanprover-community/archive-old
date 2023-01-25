@@ -1,0 +1,82 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html">how to fill metavariables when compiling function in command</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="286045726"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286045726" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286045726">(Jun 14 2022 at 09:43)</a>:</h4>
+<p>I'm trying to compile a function after manually constructing its syntax, but I run into meta variables problems.<br>
+As a simple example, let's say I want to generate a function of type Nat that returns 42.<br>
+In regular lean I can just do <code>def f : Nat := 42</code> but here I'm getting an <code>(kernel) declaration has metavariables</code> error.<br>
+How can I fix it?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span> <span class="n">Term</span> <span class="n">Meta</span>
+
+<span class="n">elab</span> <span class="s2">"cmd"</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">name</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">f</span>
+  <span class="k">let</span> <span class="n">type</span> <span class="bp">&lt;-</span> <span class="n">liftTermElabM</span> <span class="bp">.</span><span class="n">none</span> <span class="bp">&lt;|</span> <span class="n">flip</span> <span class="n">elabTerm</span> <span class="bp">.</span><span class="n">none</span> <span class="bp">&lt;|</span> <span class="bp">&lt;-</span> <span class="bp">`</span><span class="o">(</span><span class="n">Nat</span><span class="o">)</span>
+  <span class="k">let</span> <span class="n">val</span> <span class="bp">&lt;-</span> <span class="n">liftTermElabM</span> <span class="n">name</span> <span class="bp">&lt;|</span> <span class="n">flip</span> <span class="n">elabTerm</span> <span class="o">(</span><span class="bp">.</span><span class="n">some</span> <span class="n">type</span><span class="o">)</span> <span class="bp">&lt;|</span> <span class="bp">&lt;-</span> <span class="bp">`</span><span class="o">(</span><span class="mi">42</span><span class="o">)</span>
+  <span class="k">let</span> <span class="n">decl</span> <span class="o">:=</span> <span class="n">Declaration.defnDecl</span> <span class="bp">&lt;|</span> <span class="n">mkDefinitionValEx</span> <span class="n">name</span> <span class="o">[]</span> <span class="n">type</span> <span class="n">val</span> <span class="bp">.</span><span class="n">opaque</span> <span class="bp">.</span><span class="n">safe</span>
+  <span class="k">match</span> <span class="o">(</span><span class="bp">&lt;-</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="n">addAndCompile</span> <span class="o">{}</span> <span class="n">decl</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">error</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+    <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">KernelException.declHasMVars</span> <span class="n">env</span> <span class="n">name</span> <span class="n">expr</span> <span class="bp">=&gt;</span>
+      <span class="n">IO.println</span> <span class="bp">&lt;|</span> <span class="s2">"declHasMVars"</span>
+      <span class="n">IO.println</span> <span class="bp">&lt;|</span> <span class="s2">"name: "</span> <span class="bp">++</span> <span class="n">name.toString</span>
+      <span class="n">IO.println</span> <span class="bp">&lt;|</span> <span class="s2">"expr: "</span> <span class="bp">++</span> <span class="n">expr.dbgToString</span>
+    <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="o">()</span>
+    <span class="n">throwError</span> <span class="o">(</span><span class="n">e.toMessageData</span> <span class="o">{})</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">ok</span> <span class="n">env</span> <span class="bp">=&gt;</span> <span class="n">setEnv</span> <span class="n">env</span>
+<span class="n">cmd</span>
+<span class="k">#print</span> <span class="n">f</span>
+</code></pre></div>
+<p>Thanks for suggestions/solutions</p>
+
+
+
+<a name="286046479"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286046479" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286046479">(Jun 14 2022 at 09:50)</a>:</h4>
+<p>There is a function <code>assignExprMVar</code> which you can use.</p>
+
+
+
+<a name="286046552"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286046552" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286046552">(Jun 14 2022 at 09:50)</a>:</h4>
+<p>Such as in the example <code>assignExprMVar mvarId2 (mkApp (mkConst ``Nat.succ) mvar)</code></p>
+
+
+
+<a name="286047501"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286047501" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286047501">(Jun 14 2022 at 09:58)</a>:</h4>
+<p>But the issue here is that they don't even know where the meta variables are no? At least I certainly cannot see any being introduced manually.</p>
+
+
+
+<a name="286047882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286047882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286047882">(Jun 14 2022 at 10:02)</a>:</h4>
+<p>I think <code>instantiateMVars</code> is what I need</p>
+
+
+
+<a name="286048490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/how%20to%20fill%20metavariables%20when%20compiling%20function%20in%20command/near/286048490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/how.20to.20fill.20metavariables.20when.20compiling.20function.20in.20command.html#286048490">(Jun 14 2022 at 10:07)</a>:</h4>
+<p>I replaced the let val line with <code>  let val &lt;- liftCoreM &lt;| MetaM.run' &lt;| return (&lt;- instantiateMVars (&lt;- (TermElabM.run' &lt;| 
+        withDeclName name &lt;| flip elabTerm (.some type) &lt;| &lt;- `(42))))</code> and it works (I know the style is ugly).</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

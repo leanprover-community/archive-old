@@ -1,0 +1,183 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html">Automatic proof for nat-sub</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="297632343"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297632343" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297632343">(Sep 07 2022 at 17:05)</a>:</h4>
+<p>Dear All,</p>
+<p>have you ever been annoyed by nat-subtraction?</p>
+<p>This post is in the intersection of <a href="#narrow/stream/113488-general/topic/Proofs.20that.20should.20be.20automatic">Proofs that should be automatic</a> and <a href="#narrow/stream/113488-general/topic/.60linarith.60.20failure"><code>linarith</code> failure</a>.</p>
+<p>I tried writing a simple-minded tactic that would split nat-subtractions in a goal into the two obvious cases and continue until all nat-subtractions have been removed.</p>
+<p>Below is the experimental tactic and the example showing that it works in the case that <span class="user-mention" data-user-id="479359">@Michael Stoll</span> mentioned in his post.</p>
+<p>Feel free to experiment and give comments!  If you like it, I can polish it and make a PR.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.linarith</span>
+
+<span class="kd">lemma</span> <span class="n">nat.le_cases</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">-</span> <span class="n">b</span> <span class="bp">=</span> <span class="mi">0</span> <span class="bp">∨</span> <span class="bp">∃</span> <span class="n">c</span><span class="o">,</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">c</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">by_cases</span> <span class="n">ab</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">exact</span> <span class="n">or.inl</span> <span class="o">(</span><span class="n">tsub_eq_zero_of_le</span> <span class="n">ab</span><span class="o">)</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">refine</span> <span class="n">or.inr</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">rcases</span> <span class="n">nat.exists_eq_add_of_le</span> <span class="o">((</span><span class="n">not_le.mp</span> <span class="n">ab</span><span class="o">)</span><span class="bp">.</span><span class="n">le</span><span class="o">)</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">c</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩,</span>
+    <span class="n">exact</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kn">namespace</span> <span class="n">tactic</span>
+
+<span class="sd">/--  `get_sub e` extracts a list of pairs `(a, b)` from the expression `e`, where `a - b` is a</span>
+<span class="sd">subexpression of `e`. -/</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">get_sub</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">expr</span> <span class="bp">×</span> <span class="n">expr</span><span class="o">))</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">%%</span><span class="n">a</span> <span class="bp">-</span> <span class="bp">%%</span><span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span> <span class="o">[</span><span class="n">ga</span><span class="o">,</span> <span class="n">gb</span><span class="o">]</span> <span class="bp">←</span> <span class="o">[</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">]</span><span class="bp">.</span><span class="n">mmap</span> <span class="n">get_sub</span><span class="o">,</span>
+                      <span class="n">return</span> <span class="o">((</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="o">::</span> <span class="o">(</span><span class="n">ga</span> <span class="bp">++</span> <span class="n">gb</span><span class="o">))</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">expr.app</span> <span class="n">f</span> <span class="n">a</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span> <span class="o">[</span><span class="n">gf</span><span class="o">,</span> <span class="n">ga</span><span class="o">]</span> <span class="bp">←</span> <span class="o">[</span><span class="n">f</span><span class="o">,</span> <span class="n">a</span><span class="o">]</span><span class="bp">.</span><span class="n">mmap</span> <span class="n">get_sub</span><span class="o">,</span>
+                      <span class="n">return</span> <span class="o">(</span><span class="n">gf</span> <span class="bp">++</span> <span class="n">ga</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">pure</span> <span class="o">[]</span>
+
+<span class="sd">/--  `remove_one_sub e` scans the expression `e` and selects the last occurrence of a</span>
+<span class="sd">subtractiion `a - b`.  It splits two cases:</span>
+<span class="sd">*  `a ≤ b`, in which case it replaces `a - b` with `0`, introduces the inequality `a ≤ b` into</span>
+<span class="sd">   the local context and continues from there;</span>
+<span class="sd">*  writes `a = b + c`, for some `c`, tries to substitute this equality and continues from there.</span>
+<span class="sd">-/</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">remove_one_sub</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">l</span> <span class="bp">←</span> <span class="n">get_sub</span> <span class="n">e</span><span class="o">,</span>
+  <span class="k">match</span> <span class="n">l.last'</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="o">:=</span> <span class="n">fail</span><span class="s2">"no subtractions"</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="c1">-- introduce names with the following meanings:</span>
+    <span class="c1">-- `eq0 : a - b = 0`, `exis : ∃ c, b + c = a`, `var = c`, `ide : b + c = a`</span>
+    <span class="o">[</span><span class="n">eq0</span><span class="o">,</span> <span class="n">exis</span><span class="o">,</span> <span class="n">var</span><span class="o">,</span> <span class="n">ide</span><span class="o">]</span> <span class="bp">←</span> <span class="o">[</span><span class="s2">"h"</span><span class="o">,</span> <span class="s2">"k"</span><span class="o">,</span> <span class="s2">"x"</span><span class="o">,</span> <span class="s2">"hx"</span><span class="o">]</span><span class="bp">.</span><span class="n">mmap</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span><span class="o">,</span> <span class="n">get_unused_name</span> <span class="n">y</span><span class="o">),</span>
+    <span class="c1">-- either `a ≤ b` or `a = b + c`</span>
+    <span class="n">cases</span> <span class="bp">`</span><span class="o">(</span><span class="n">nat.le_cases</span> <span class="bp">%%</span><span class="n">a</span> <span class="bp">%%</span><span class="n">b</span><span class="o">)</span> <span class="o">[</span><span class="n">eq0</span><span class="o">,</span> <span class="n">exis</span><span class="o">],</span>
+    <span class="c1">-- on the branch where `a ≤ b`...</span>
+      <span class="n">prf</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">eq0</span><span class="o">,</span>
+      <span class="n">rewrite_target</span> <span class="n">prf</span><span class="o">,</span>
+      <span class="n">preq</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">nat.sub_eq_zero_iff_le</span><span class="o">),</span>
+      <span class="n">rewrite_hyp</span> <span class="n">preq</span> <span class="n">prf</span><span class="o">,</span>
+      <span class="n">try</span> <span class="bp">`</span><span class="o">[</span> <span class="n">simp</span> <span class="o">],</span>
+    <span class="c1">-- on the branch where `b &lt; a`...</span>
+      <span class="n">swap</span><span class="o">,</span>
+      <span class="n">prf</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">exis</span><span class="o">,</span>
+      <span class="n">cases</span> <span class="n">prf</span> <span class="o">[</span><span class="n">var</span><span class="o">,</span> <span class="n">ide</span><span class="o">],</span>
+      <span class="n">prf</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">ide</span><span class="o">,</span>
+      <span class="c1">-- either substitute or rewrite</span>
+      <span class="n">subst</span> <span class="n">prf</span> <span class="bp">&lt;|&gt;</span> <span class="n">rewrite_target</span> <span class="n">prf</span><span class="o">,</span>
+      <span class="bp">`</span><span class="o">[</span> <span class="n">rw</span> <span class="n">nat.add_sub_cancel_left</span> <span class="o">]</span> <span class="bp">&lt;|&gt;</span> <span class="n">fail</span><span class="s2">"could not rewrite: something went wrong"</span><span class="o">,</span>
+      <span class="n">try</span> <span class="bp">`</span><span class="o">[</span> <span class="n">simp</span> <span class="o">]</span>
+  <span class="kd">end</span>
+
+<span class="kn">namespace</span> <span class="n">interactive</span>
+
+<span class="sd">/--  Iterate replacing a subtraction with two cases.  Once this is done, try `linarith` on</span>
+<span class="sd">all remaining goals. -/</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">remove_subs</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">iterate_at_most'</span> <span class="mi">10</span> <span class="bp">$</span> <span class="n">target</span> <span class="bp">&gt;&gt;=</span> <span class="n">remove_one_sub</span><span class="o">,</span>
+  <span class="n">any_goals'</span> <span class="bp">$</span> <span class="n">try</span> <span class="bp">$</span> <span class="bp">`</span><span class="o">[</span> <span class="n">linarith</span> <span class="o">]</span>
+
+<span class="kd">end</span> <span class="n">interactive</span>
+
+<span class="kd">end</span> <span class="n">tactic</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">i</span> <span class="n">l</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">:</span> <span class="mi">1</span> <span class="bp">≤</span> <span class="n">i</span> <span class="bp">→</span> <span class="n">i</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">≤</span> <span class="n">l</span> <span class="bp">→</span> <span class="n">i</span> <span class="bp">-</span> <span class="mi">1</span> <span class="bp">+</span> <span class="o">(</span><span class="n">l</span> <span class="bp">-</span> <span class="n">i</span> <span class="bp">-</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">l</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intros</span><span class="o">,</span>
+  <span class="n">remove_subs</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="297636043"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297636043" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297636043">(Sep 07 2022 at 17:26)</a>:</h4>
+<p>Of course, I would be happy to know situations where this tactic works, but it would probably be more useful to have examples where it does not work!</p>
+
+
+
+<a name="297636073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297636073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Stoll <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297636073">(Sep 07 2022 at 17:26)</a>:</h4>
+<p>You could remove the spurious <code>d</code> in the example <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="297636143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297636143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297636143">(Sep 07 2022 at 17:27)</a>:</h4>
+<p>Done!  I edited the code above.</p>
+
+
+
+<a name="297636976"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297636976" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297636976">(Sep 07 2022 at 17:31)</a>:</h4>
+<p>I think it would be useful to have a version without simps and linariths, so that it could be used mid-proof without introducing non-terminal simps.</p>
+
+
+
+<a name="297637689"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297637689" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297637689">(Sep 07 2022 at 17:35)</a>:</h4>
+<p>Andrew, good point!  If I end up making a PR, I'll definitely make sure not to introduce non-terminal simps!</p>
+
+
+
+<a name="297638156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297638156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297638156">(Sep 07 2022 at 17:37)</a>:</h4>
+<p>Btw, the simp there is mostly a lazy way of dealing with subtractions of the form <code>0 - x</code>.</p>
+
+
+
+<a name="297679137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297679137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297679137">(Sep 07 2022 at 21:48)</a>:</h4>
+<p>I created <a href="https://github.com/leanprover-community/mathlib/pull/16422">#16422</a>.</p>
+<p>The tactic no longer uses <code>simp</code> and will only use <code>linarith</code> if it is called via <code>remove_subs!</code>.</p>
+
+
+
+<a name="297986052"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/297986052" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#297986052">(Sep 09 2022 at 14:28)</a>:</h4>
+<p>Dear All,</p>
+<p>I realize that merging a tactic this close to the transition to Lean4 is not anyone's priority.</p>
+<p>Still, if someone could take a look at <a href="https://github.com/leanprover-community/mathlib/pull/16443">#16443</a> and give me some comments, I would be very grateful!  My main motivation is that I have been trying to do some Lean4 programming, but I still find it easier to go via Lean3 code.</p>
+<p>Thus, even if this tactic does not get merged, I could use a Lean3-mergeable version as a canvas to port it to Lean4.</p>
+<p>Thanks!</p>
+
+
+
+<a name="298305102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/298305102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#298305102">(Sep 12 2022 at 02:08)</a>:</h4>
+<p>Following up on the discussion <a href="#narrow/stream/217875-Is-there-code-for-X.3F/topic/.E2.9C.94.20converse.20of.20.60nat.2Esub_le_sub_left.60">here</a>, I made the small changes to make <code>remove_subs</code> to work with <code>tsub</code>.</p>
+<p>However, while the tactic does work, <code>linarith</code> seems to be much less developed for <code>canonically_ordered...</code> than for <code>nat</code>.</p>
+
+
+
+<a name="298339048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Automatic%20proof%20for%20nat-sub/near/298339048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Automatic.20proof.20for.20nat-sub.html#298339048">(Sep 12 2022 at 08:56)</a>:</h4>
+<p>Here are explicit examples highlighting the difference in behaviour of <code>linarith</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.real.nnreal</span>
+<span class="n">open_locale</span> <span class="n">nnreal</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">linarith</span>  <span class="c1">-- succeeds</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">R</span><span class="o">}</span> <span class="o">[</span><span class="n">canonically_linear_ordered_semifield</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">R</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">linarith</span>  <span class="c1">-- fails</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℝ</span><span class="bp">≥</span><span class="mi">0</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">linarith</span>  <span class="c1">-- fails</span>
+</code></pre></div>
+<p>Thus, if the truncated subtractions that <code>remove_subs</code> is going to eliminate are not in <code>nat</code>, then calling <code>remove_subs!</code> may be equivalent (but slower) to calling <code>remove_subs</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

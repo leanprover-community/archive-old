@@ -1,0 +1,707 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/OpenBSD.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html">OpenBSD</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="244282964"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244282964" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244282964">(Jun 29 2021 at 13:46)</a>:</h4>
+<p>I'm trying to install Lean on OpenBSD.<br>
+First, I had to remove <code>-ldl</code> from the flags because the build process breaks with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">ld</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">unable</span> <span class="n">to</span> <span class="n">find</span> <span class="n">library</span> <span class="bp">-</span><span class="n">ldl</span>
+</code></pre></div>
+<p>Ideally, the build process should detect this by itself, so I added the following to <code>src/CMakeLists.txt</code>:</p>
+<div class="codehilite" data-code-language="Diff"><pre><span></span><code><span class="gu">@@ -308,6 +308,10 @@ if (EMSCRIPTEN)</span>
+     # no dlopen
+ elseif((${CYGWIN} EQUAL "1") OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
+   # TODO(Jared): config dlopen windows support
+<span class="gi">+elseif(${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")</span>
+<span class="gi">+  # OpenBSD does NOT require -lcrypt, -ldl, or -lrt.</span>
+<span class="gi">+  # The functions provided by these libraries are part of libc.</span>
+<span class="gi">+  # See: https://www.openbsd.org/faq/ports/guide.html</span>
+ else()
+   set(EXTRA_LIBS ${EXTRA_LIBS} dl)
+ endif()
+</code></pre></div>
+<p>This solved the missing <code>dl</code> problem but then I hit this:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[ 68%] Built target bin_lean
+libc++abi: terminating with uncaught exception of type lean::exception: failed to locate Lean executable location
+</code></pre></div>
+<p>Apparently the builder is trying to find the Lean executable via <code>/proc</code>, and OpenBSD doesn't use/have procfs.</p>
+<p>Obs: Using <code>-j2</code> it went much further:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[ 98%] Linking CXX executable lean_js
+[ 98%] Built target lean_js
+gmake: *** [Makefile:166: all] Error 2
+</code></pre></div>
+<p>...but I suppose the problem is the same.</p>
+<p>Found a relevant discussion <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/SIGABRT.20while.20building.20Lean.html">here</a>, but FreeBSD does have procfs.</p>
+<p>Any ideas how I could go about solving this?</p>
+
+
+
+<a name="244283366"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244283366" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244283366">(Jun 29 2021 at 13:49)</a>:</h4>
+<p>Just to check, which version of Lean?</p>
+
+
+
+<a name="244283575"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244283575" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244283575">(Jun 29 2021 at 13:50)</a>:</h4>
+<p><span class="user-mention" data-user-id="132889">@Jean Lo</span> is our local BSD expert. But afaik it was always a bit tricky to get lean up and running on BSD.</p>
+
+
+
+<a name="244284278"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244284278" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244284278">(Jun 29 2021 at 13:54)</a>:</h4>
+<blockquote>
+<p>Just to check, which version of Lean?</p>
+</blockquote>
+<p>I just <code>git clone https://github.com/leanprover/lean</code> so I guess it's 3.  I'll try now with lean4.</p>
+
+
+
+<a name="244284510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244284510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244284510">(Jun 29 2021 at 13:56)</a>:</h4>
+<p>The leanprover/lean repo is outdated.  You should be using <code>https://github.com/leanprover-community/lean</code> instead.</p>
+
+
+
+<a name="244284544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244284544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244284544">(Jun 29 2021 at 13:56)</a>:</h4>
+<blockquote>
+<p>But afaik it was always a bit tricky to get lean up and running on BSD.</p>
+</blockquote>
+<p>Many times it's just a matter of getting rid of some bureaucratic linuxism here or there.  I'm hoping that it is the case with Lean.</p>
+
+
+
+<a name="244284641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244284641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244284641">(Jun 29 2021 at 13:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244284510">said</a>:</p>
+<blockquote>
+<p>The leanprover/lean repo is outdated.  You should be using <code>https://github.com/leanprover-community/lean</code> instead.</p>
+</blockquote>
+<p>It's a bit misleading that <a href="https://github.com/leanprover/lean#readme"><code>leanprover/lean</code>s readme</a> starts with "Important Lean 3.4.2 is the latest release. ". Should we reword that to prevent new users falling into this trap?</p>
+<p>(which would requiring getting Leo to un-archive the repo, edit the readme, then re-archive it)</p>
+
+
+
+<a name="244284717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244284717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244284717">(Jun 29 2021 at 13:58)</a>:</h4>
+<blockquote>
+<p>The leanprover/lean repo is outdated.</p>
+</blockquote>
+<p>Thanks!  Cloning that one to give it a try, also trying lean4..</p>
+
+
+
+<a name="244290225"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244290225" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244290225">(Jun 29 2021 at 14:28)</a>:</h4>
+<p>Worth noting that Lean 4 is pre-release, substantially different from Lean 3 and has no libraries at the moment. So depending on what you want to do, it might not be super useful even if you get it to work on BSD. ;)</p>
+
+
+
+<a name="244290435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244290435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244290435">(Jun 29 2021 at 14:30)</a>:</h4>
+<p>Although you can use Nix to build Lean 4, so if Nix supports OpenBSD, that should work.</p>
+
+
+
+<a name="244292197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244292197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244292197">(Jun 29 2021 at 14:42)</a>:</h4>
+<p>No Nix for OpenBSD :(</p>
+
+
+
+<a name="244292244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244292244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244292244">(Jun 29 2021 at 14:42)</a>:</h4>
+<p>About lean3 vs lean4, if I can get either of them working I'll be happy...</p>
+
+
+
+<a name="244292354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244292354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244292354">(Jun 29 2021 at 14:42)</a>:</h4>
+<p><code>leanprover-community/lean</code> gives me the exact same problem as the outdated <code>leanprover/lean</code>.  I'll try lean4 now.</p>
+
+
+
+<a name="244306266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244306266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jean Lo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244306266">(Jun 29 2021 at 16:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244283575">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="132889">Jean Lo</span> is our local BSD expert. But afaik it was always a bit tricky to get lean up and running on BSD.</p>
+</blockquote>
+<p>I'm far from an expert! I only made a lot of noise flailing around trying to get this to work around this time last year <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span></p>
+<p>I'm not sure if <span class="user-mention" data-user-id="384773">@Thanos Tsouanas</span> has also seen <a href="#narrow/stream/113488-general/topic/mystery.20mathlib.20errors.20in.20.60data.2Flist.60/near/198687133">this conversation</a>, and the <a href="https://github.com/jlpaca/lean-freebsd/commit/d679a73ca8889e79a28dbf5a601ff4ba9c6aef1b">patch</a> that replaced the bit of code that tries to follow the <code>/proc/&lt;pid&gt;/exe</code> symlink (which is causing the problem you are seeing) with  a <code>sysctl</code> call which works on BSD without procfs. That got  (the then-current version, 3.14.0, of) Lean to compile, but farther down the thread we discover that there seem to be other problems between 'producing a binary that runs' and 'producing a working Lean'.</p>
+<p>Hoping that this is of some help. Unfortunately that was as far as I got before I gave up for the time, so I'd love to know if this gets figured out!</p>
+
+
+
+<a name="244316397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244316397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244316397">(Jun 29 2021 at 17:21)</a>:</h4>
+<p>About lean4: I needed to tweak a few similar things here and there, but I cannot get past this point:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[ 82%] Built target leancpp
+error: failed to locate application
+/cave/thanos/lean/lean4/build/release/stage1/bin/../share/lean/lean.mk:99: ../build/release/stage1/lib/temp/Init.depend: No such file or directory
+make[7]: *** [/cave/thanos/lean/lean4/build/release/stage1/bin/../share/lean/lean.mk:51: ../build/release/stage1/lib/temp/Init.depend] Error 1
+</code></pre></div>
+<p>Not sure what this DEPS at line 99 of <code>lean.mk</code> is supposed to include, nor if a <code>Init.depend</code> file should really exist.</p>
+
+
+
+<a name="244316671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244316671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244316671">(Jun 29 2021 at 17:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="132889">@Jean Lo</span> , thanks for the link, I had not seen that conversation; I'll look into it and the corresponding patch.<br>
+Do you remember what problems were encountered "farther down the thread"?</p>
+
+
+
+<a name="244332323"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244332323" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jean Lo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244332323">(Jun 29 2021 at 19:13)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244316671">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="132889">Jean Lo</span> , thanks for the link, I had not seen that conversation; I'll look into it and the corresponding patch.<br>
+Do you remember what problems were encountered "farther down the thread"?</p>
+</blockquote>
+<p>Unfortunately I don't have a lot to say beyond what is written down in the thread itself: that the compiled binary trips over when it tries to compile mathlib, that we tried to see if we could figure out what was wrong by looking at which unit tests it failed, and that we didn't come up with anything conclusive in the end, I think. There are <a href="#narrow/stream/113488-general/topic/mystery.20mathlib.20errors.20in.20.60data.2Flist.60/near/198692709">test logs</a> posted in the thread, but since this is an old version of Lean, I suspect those logs are less enlightening than the ones that you can get by running the tests of the current version of Lean once it's built.</p>
+
+
+
+<a name="244333039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244333039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244333039">(Jun 29 2021 at 19:18)</a>:</h4>
+<p>Thanks!  Since <code>lean4</code> failed to build as well, I'll go back to <code>lean3</code>, try the FreeBSD patches on OpenBSD with possible adjustments and see if I can get it to compile and run those tests.  On it..</p>
+
+
+
+<a name="244424452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244424452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244424452">(Jun 30 2021 at 13:37)</a>:</h4>
+<p>I managed to build a binary but the test results are worse than the previous ones (which were both on an older version of lean and also on a different OS (FreeBSD):</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>67% tests passed, 467 tests failed out of 1415
+</code></pre></div>
+<p>I'm attatching the fails. <a href="/user_uploads/3121/o0XO-j-KcMfvHY1KW7VIdsrA/OpenBSD_test_fails">OpenBSD_test_fails</a></p>
+
+
+
+<a name="244424527"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244424527" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244424527">(Jun 30 2021 at 13:38)</a>:</h4>
+<p>(How) can I get a more verbose output on those failed tests?</p>
+
+
+
+<a name="244556497"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244556497" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244556497">(Jul 01 2021 at 12:19)</a>:</h4>
+<p><strong>Progress!</strong>  Turns out that all problems so far have been bit of linuxism here and there!  465 of those 467 failed tests was due to a non-posix flag to <code>diff</code>, so switching to GNU diff (available on OpenBSD as a package) we now have <strong>99% tests passed!</strong>:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>99% tests passed, 2 tests failed out of 1415
+
+Total Test time (real) = 612.87 sec
+
+The following tests FAILED:
+          1 - style_check (Failed)
+        626 - leanruntest_async_map.lean (Failed)
+</code></pre></div>
+
+
+
+<a name="244556615"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244556615" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244556615">(Jul 01 2021 at 12:20)</a>:</h4>
+<p>The first one, <code>style_check</code> isn't important cause all its errors are about the files I had to tamper with so it's easily fixable and inessential.</p>
+
+
+
+<a name="244556797"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244556797" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244556797">(Jul 01 2021 at 12:22)</a>:</h4>
+<p>So there's currently exactly one failed test: <code>626 - leanruntest_async_map.lean</code>:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>626/1415 Testing: leanruntest_async_map.lean
+626/1415 Test: leanruntest_async_map.lean
+Command: "/usr/local/bin/bash" "./test_single.sh" "/cave/thanos/lean/lean/build/release/shell/lean" "async_map.lean"
+Directory: /cave/thanos/lean/lean/src/../tests/lean/run
+"leanruntest_async_map.lean" start time: Jul 01 09:00 -03
+Output:
+----------------------------------------------------------
+-- testing async_map.lean
+-- using result from test_all.sh
+failed async_map.lean
+&lt;end of output&gt;
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Failed.
+"leanruntest_async_map.lean" end time: Jul 01 09:00 -03
+"leanruntest_async_map.lean" time elapsed: 00:00:00
+</code></pre></div>
+
+
+
+<a name="244557258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244557258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244557258">(Jul 01 2021 at 12:27)</a>:</h4>
+<p><code>async_map.lean</code> is this one:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">list.async_map</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">list</span> <span class="n">β</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">xs.map</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">task.delay</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">))</span><span class="bp">.</span><span class="n">map</span> <span class="n">task.get</span>
+
+<span class="k">#eval</span> <span class="o">((</span><span class="n">list.range</span> <span class="mi">1000000</span><span class="o">)</span><span class="bp">.</span><span class="n">async_map</span> <span class="o">(</span><span class="bp">+</span><span class="mi">1</span><span class="o">))</span><span class="bp">.</span><span class="n">foldl</span> <span class="o">(</span><span class="bp">+</span><span class="o">)</span> <span class="mi">0</span>
+</code></pre></div>
+
+
+
+<a name="244557660"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244557660" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244557660">(Jul 01 2021 at 12:31)</a>:</h4>
+<p>The output of the failed test doesn't seem particularly helpful.  Anybody can share some light on what this <code>async_map</code> is, if/how it is using the system, etc.?</p>
+
+
+
+<a name="244557812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244557812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244557812">(Jul 01 2021 at 12:32)</a>:</h4>
+<p>Can you run <code>lean async_map.lean</code> and post the error you get?</p>
+
+
+
+<a name="244558750"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244558750" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244558750">(Jul 01 2021 at 12:41)</a>:</h4>
+<p>Oh, I hadn't realized it was so simple to run those tests, thanks!</p>
+
+
+
+<a name="244558933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244558933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244558933">(Jul 01 2021 at 12:42)</a>:</h4>
+<p>So, <code>lean async_map.lean</code> produced no standard output but got Segmentation fault.</p>
+
+
+
+<a name="244577420"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244577420" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244577420">(Jul 01 2021 at 14:43)</a>:</h4>
+<p>Ok, somewhat of a success with this failed test too:<br>
+Changing the <code>1000000</code> of that <code>#eval</code> to a smaller number like <code>1000</code> completed the test successfully.<br>
+I changed it back to <code>1000000</code> but used <code>ulimit -Sd 8388608</code> and again, the test completes successfully.</p>
+
+
+
+<a name="244577653"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244577653" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244577653">(Jul 01 2021 at 14:44)</a>:</h4>
+<p>So: with minor/insignificant tweaks <strong>lean3 compiles on OpenBSD and passes 100% of the tests!</strong> <span aria-label="tada" class="emoji emoji-1f389" role="img" title="tada">:tada:</span></p>
+
+
+
+<a name="244578439"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244578439" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244578439">(Jul 01 2021 at 14:49)</a>:</h4>
+<p>One thing that might be worrying, but I am probably wrong: usually one would use <code>ulimit -Sd</code> to avoid "out of memory" errors, not segfaults.  However, this segfault went away this way.  It gives me the impression that there might be something wrong in the code that leads to an unnecessary segfault.</p>
+
+
+
+<a name="244578857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244578857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244578857">(Jul 01 2021 at 14:52)</a>:</h4>
+<p>The segfault looks like a stack overflow to me.  On linux, we can detect the stack size (see <code>stackinfo.cpp</code> and <code>thread.cpp</code>) and throw an exception instead of overflowing.  Maybe this doesn't work on openbsd?</p>
+
+
+
+<a name="244579781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244579781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244579781">(Jul 01 2021 at 14:57)</a>:</h4>
+<p>Hmmm I found two different <code>stackinfo.cpp</code>:<br>
+<code>tests/util/stackinfo.cpp</code> and <code>util/stackinfo.cpp</code><br>
+I think that the non-tests version should work on OpenBSD, it seems to be calling <a href="https://man.openbsd.org/getrlimit.2">getrlimit(2)</a>.</p>
+
+
+
+<a name="244580397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244580397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244580397">(Jul 01 2021 at 15:00)</a>:</h4>
+<p>Yeah, I'm just guessing here.  Can you run lean in a debugger and capture a stacktrace?</p>
+
+
+
+<a name="244580414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244580414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244580414">(Jul 01 2021 at 15:01)</a>:</h4>
+<p>The <code>__APPLE__</code> version and the "else" version are identical, and should work correctly on OpenBSD.<br>
+But I'm not sure this <code>stackinfo.cpp</code> is relevant when I'm running the tests, maybe the other one is?</p>
+<div class="codehilite" data-code-language="C++"><pre><span></span><code><span class="cp">#if defined(LEAN_WINDOWS)</span>
+<span class="kt">size_t</span> <span class="nf">get_stack_size</span><span class="p">(</span><span class="kt">int</span> <span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">LEAN_WIN_STACK_SIZE</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">lthread</span><span class="o">::</span><span class="n">get_thread_stack_size</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+<span class="cp">#elif defined (__APPLE__)</span>
+<span class="kt">size_t</span> <span class="nf">get_stack_size</span><span class="p">(</span><span class="kt">int</span> <span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Retrieve stack size of the main thread.</span>
+        <span class="k">struct</span> <span class="nc">rlimit</span> <span class="n">curr</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">getrlimit</span><span class="p">(</span><span class="n">RLIMIT_STACK</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">curr</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">throw_get_stack_size_failed</span><span class="p">();</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">curr</span><span class="p">.</span><span class="n">rlim_cur</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">lthread</span><span class="o">::</span><span class="n">get_thread_stack_size</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+<span class="cp">#else</span>
+<span class="kt">size_t</span> <span class="nf">get_stack_size</span><span class="p">(</span><span class="kt">int</span> <span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Retrieve stack size of the main thread.</span>
+        <span class="k">struct</span> <span class="nc">rlimit</span> <span class="n">curr</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">getrlimit</span><span class="p">(</span><span class="n">RLIMIT_STACK</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">curr</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">throw_get_stack_size_failed</span><span class="p">();</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">curr</span><span class="p">.</span><span class="n">rlim_cur</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">lthread</span><span class="o">::</span><span class="n">get_thread_stack_size</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+<span class="cp">#endif</span>
+</code></pre></div>
+
+
+
+<a name="244581200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244581200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244581200">(Jul 01 2021 at 15:05)</a>:</h4>
+<p>(Is there a reason that the two <code>stackinfo.cpp</code> files are different, or have they just fallen out of sync?)</p>
+
+
+
+<a name="244590643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244590643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244590643">(Jul 01 2021 at 16:08)</a>:</h4>
+<p>There's only one <code>stackinfo.cpp</code> file, and it's in <code>src/util/stackinfo.cpp</code>.  All of this is complete speculation, but a segfault that goes away with a ulimit change sounds very much like a stack overflow, and the detection code is not particularly portable.  I wouldn't be surprised if <code>save_stack_info</code> was miscompiled on openbsd, or if the thread stack size was not set correctly (or silently truncated by the wrong ulimit setting?).</p>
+
+
+
+<a name="244634858"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244634858" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244634858">(Jul 01 2021 at 22:30)</a>:</h4>
+<blockquote>
+<p>There's only one <code>stackinfo.cpp</code> file, and it's in <code>src/util/stackinfo.cpp</code>.</p>
+</blockquote>
+<p>There are two:</p>
+<ul>
+<li><a href="https://github.com/leanprover-community/lean/blob/master/src/util/stackinfo.cpp">https://github.com/leanprover-community/lean/blob/master/src/util/stackinfo.cpp</a></li>
+<li><a href="https://github.com/leanprover-community/lean/blob/master/src/tests/util/stackinfo.cpp">https://github.com/leanprover-community/lean/blob/master/src/tests/util/stackinfo.cpp</a></li>
+</ul>
+
+
+
+<a name="244635185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244635185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244635185">(Jul 01 2021 at 22:34)</a>:</h4>
+<p>Playing with different <code>ulimit</code> values I got some that it segfaults, one non-reproducable that SIGABRT'ed, and for small values it seem to be stuck (it was running 6 hours without any output).  Starting from values of about 2G it terminates successfully.</p>
+
+
+
+<a name="244638723"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244638723" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244638723">(Jul 01 2021 at 23:13)</a>:</h4>
+<p>Some questions, in no particular order:<br>
+(a) Does it seem safe to assume that Lean should work fine on my system given that it passed 100% of the tests?<br>
+(b) On the <code>async_map</code> test, the number <code>1000000</code> has any particular reason behind it?  I mean.. would it serve the same purpose if it was changed to <code>100000</code> or to <code>10000000</code>?<br>
+(c) Still curious about the two <code>stackinfo.cpp</code>, which from <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> 's answer I suppose the second one shouldn't exist..?<br>
+(d) Any hopes in getting someone to apply the tweaks "upstream" so that installation on OpenBSD becomes trivial?  If so, who would be the right person to <del>bug</del>help with this?</p>
+
+
+
+<a name="244667594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244667594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244667594">(Jul 02 2021 at 07:22)</a>:</h4>
+<p>The <code>tests</code> one is the the test (as the name implies), it's not used in lean.</p>
+
+
+
+<a name="244667695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244667695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244667695">(Jul 02 2021 at 07:24)</a>:</h4>
+<p>The meaning of 1000000 is "it should work for large lists".  If it can be worked around by setting the correct ulimit, then I would leave the test as it is.</p>
+
+
+
+<a name="244667741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244667741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244667741">(Jul 02 2021 at 07:24)</a>:</h4>
+<p>For other portability fixes, please file a PR at <a href="https://github.com/leanprover-community/lean">https://github.com/leanprover-community/lean</a></p>
+
+
+
+<a name="244694846"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244694846" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244694846">(Jul 02 2021 at 12:27)</a>:</h4>
+<p>Thanks a lot for the replies, <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span>! :D</p>
+<blockquote>
+<p>The tests one is the the test (as the name implies), it's not used in lean.</p>
+</blockquote>
+<p>Their methods of getting the stack size are different (trying to understand why), so when the tests are run, which of the two is used?</p>
+<blockquote>
+<p>The meaning of 1000000 is "it should work for large lists".</p>
+</blockquote>
+<p>Thought so!  I was wondering if there is something in mathlib (or some other widely used lib) that specifically demands "around such a high number" already.  I still think that the ulimit "fix" is more of a dirty hack than an actual fix.  Curious if on mac os it passes this test with a "low" ulimit like 1500000.</p>
+
+
+
+<a name="244694967"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244694967" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244694967">(Jul 02 2021 at 12:28)</a>:</h4>
+<blockquote>
+<p>For other portability fixes, please file a PR</p>
+</blockquote>
+<p>Perfect, thanks again!</p>
+
+
+
+<a name="244700130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244700130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244700130">(Jul 02 2021 at 13:14)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244694846">said</a>:</p>
+<blockquote>
+<p>Their methods of getting the stack size are different (trying to understand why), so when the tests are run, which of the two is used?</p>
+</blockquote>
+<p>I'm not sure I see the difference.  Both the test as well as Lean core use <code>save_stack_info</code> to save a pointer to the start of the stack, and then use <code>get_used_stack_size</code> to see how far are now away from the original pointer (= how much stack space we've used).</p>
+<p>In either case, the test that fails for you makes no use of <code>src/tests/util/stackinfo.cpp</code> whatsoever.</p>
+
+
+
+<a name="244724812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244724812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244724812">(Jul 02 2021 at 16:12)</a>:</h4>
+<p>Ah, I see now.  The tests one actually uses the core one, so the things that seemed to be missing, are actually there, just under the carpet.</p>
+<blockquote>
+<p>In either case, the test that fails for you makes no use of src/tests/util/stackinfo.cpp whatsoever.</p>
+</blockquote>
+<p>Perfect, so one less place to look for possible fixes.</p>
+
+
+
+<a name="244725040"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244725040" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244725040">(Jul 02 2021 at 16:14)</a>:</h4>
+<p>If someone with access to a mac os system can check this particular test (<code>async_map</code>) with a few low <code>ulimit</code>values like 1500000, 1000000, etc. , I'd be grateful.</p>
+
+
+
+<a name="244725321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244725321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Moritz Buhl <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244725321">(Jul 02 2021 at 16:17)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244577653">said</a>:</p>
+<blockquote>
+<p>So: with minor/insignificant tweaks <strong>lean3 compiles on OpenBSD and passes 100% of the tests!</strong> <span aria-label="tada" class="emoji emoji-1f389" role="img" title="tada">:tada:</span></p>
+</blockquote>
+<p>Is there any chance that you will build a port out of this?</p>
+
+
+
+<a name="244734064"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244734064" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244734064">(Jul 02 2021 at 17:30)</a>:</h4>
+<p>That's the idea but the best route is to first see if we can get those tweaks upstream.  I will file a PR as <span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> suggested.  But first I'd like to use it a bit to see if it's usable/stable-ish.</p>
+
+
+
+<a name="244804394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/244804394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jean Lo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#244804394">(Jul 03 2021 at 13:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/244577653">said</a>:</p>
+<blockquote>
+<p>So: with minor/insignificant tweaks <strong>lean3 compiles on OpenBSD and passes 100% of the tests!</strong> <span aria-label="tada" class="emoji emoji-1f389" role="img" title="tada">:tada:</span></p>
+</blockquote>
+<p>Love to see this! thanks so much for your work on this &amp; eagerly awaiting the fixes to be upstreamed.</p>
+
+
+
+<a name="246002558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002558">(Jul 14 2021 at 18:48)</a>:</h4>
+<p>So, took a break to play the NNG, seemed to work great on my browser (though it seems that sometimes one needs to hit an extra enter to get an extra blank line, in order for it to register that it's complete).</p>
+<p>Now back on trying to run things on my own system.<br>
+I see elan is not available, but leanproject installed fine.<br>
+I tried running it inside the <code>tutorials</code> dir, the <code>leanproject check</code> runs fine and lies to my face with a <em>"Everything looks fine."</em> message.<br>
+But trying to run something like <code>leanproject build</code> I get:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[Errno 2] No such file or directory: 'leanpkg'
+</code></pre></div>
+
+
+
+<a name="246002606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002606">(Jul 14 2021 at 18:48)</a>:</h4>
+<p>How/where/when is leanpkg normally installed?</p>
+
+
+
+<a name="246002665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002665">(Jul 14 2021 at 18:49)</a>:</h4>
+<p><code>leanpkg</code> comes with <code>lean</code>, you might try adding an alias to it.</p>
+
+
+
+<a name="246002666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002666">(Jul 14 2021 at 18:49)</a>:</h4>
+<p>Lean-mode seems to be working OK in Emacs, but I would like to install mathlib (even if it's in a "manual" way, and not auto-handled by elan/leanproject and whatnot).</p>
+
+
+
+<a name="246002844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002844">(Jul 14 2021 at 18:50)</a>:</h4>
+<p>Aaaaah!  Thanks <span class="user-mention" data-user-id="123965">@Bryan Gin-ge Chen</span> , I had missed that!</p>
+
+
+
+<a name="246002924"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246002924" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246002924">(Jul 14 2021 at 18:51)</a>:</h4>
+<p>I think you can have it point to <code>bin/leanpkg</code> in your <code>lean</code> directory.</p>
+
+
+
+<a name="246003152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246003152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246003152">(Jul 14 2021 at 18:53)</a>:</h4>
+<p>Yes, that's what I did, and now <code>leanproject build</code> is downloading some stuff..</p>
+
+
+
+<a name="246003318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246003318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246003318">(Jul 14 2021 at 18:54)</a>:</h4>
+<p>Still, would it be possible/sensible to simply install mathlib (and update it every now and then) somewhere under lean's path and use lean independently of the elan/leanproject toolchain?  (Via Emacs's lean-mode.)</p>
+
+
+
+<a name="246003669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246003669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246003669">(Jul 14 2021 at 18:57)</a>:</h4>
+<p>It is possible with <code>leanproject global-install</code>, but not recommended since different projects can depend on different versions of mathlib.</p>
+
+
+
+<a name="246004440"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246004440" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246004440">(Jul 14 2021 at 19:03)</a>:</h4>
+<p>So if elan was available for OpenBSD, elan would be the tool to organize all this for me, right?  Having various versions installed on my system (of lean, mathlib, etc.), and selecting the right one for each project based on the project's <code>leanpkg.toml</code>.  Is it more-or-less like this?</p>
+
+
+
+<a name="246005330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246005330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246005330">(Jul 14 2021 at 19:09)</a>:</h4>
+<p>Yep, that's right! In case you haven't already seen it, there's a bit of explanation here: <a href="https://leanprover-community.github.io/toolchain.html">https://leanprover-community.github.io/toolchain.html</a></p>
+
+
+
+<a name="246006780"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246006780" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246006780">(Jul 14 2021 at 19:21)</a>:</h4>
+<p>Thanks!!  I had come across this website, but lost it afterwards and was looking for it!  Ehehe...  Btw, I think in this site the text about adding a symlink to <code>lean</code> should be altered to mention <code>leanpkg</code> as well.</p>
+
+
+
+<a name="246007116"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246007116" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246007116">(Jul 14 2021 at 19:22)</a>:</h4>
+<p>Good idea! Do you mind making a PR? The source file is here: <a href="https://github.com/leanprover-community/leanprover-community.github.io/blob/newsite/templates/toolchain.md">https://github.com/leanprover-community/leanprover-community.github.io/blob/newsite/templates/toolchain.md</a></p>
+
+
+
+<a name="246008860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246008860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246008860">(Jul 14 2021 at 19:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/246004440">said</a>:</p>
+<blockquote>
+<p>So if elan was available for OpenBSD, elan would be the tool to organize all this for me, right?</p>
+</blockquote>
+<p>Don't expect too much.  elan downloads binary builds of lean (and we only build for amd64 linux and some other proprietary operating systems).  You can still use <code>elan</code> to manage locally-built versions of lean, but it's only half the fun.</p>
+
+
+
+<a name="246009003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246009003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246009003">(Jul 14 2021 at 19:36)</a>:</h4>
+<p>There's no reason we couldn't distribute OpenBSD binaries though, if Thanos submits a suitable patch.</p>
+
+
+
+<a name="246009072"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246009072" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246009072">(Jul 14 2021 at 19:37)</a>:</h4>
+<p>Oh wait, I guess it might be tricky to build with GitHub actions.</p>
+
+
+
+<a name="246009210"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246009210" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246009210">(Jul 14 2021 at 19:38)</a>:</h4>
+<p>Yes, that's also the reason we don't have builds for aarch64 linux and aarch64 mac.</p>
+
+
+
+<a name="246023130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246023130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246023130">(Jul 14 2021 at 21:18)</a>:</h4>
+<p>What is the deal with GitHub actions?  Sorry, I'm afraid I've only used github for personal projects so far, which is why I'm delaying the PR's here.  But getting on to it soon.</p>
+
+
+
+<a name="246023261"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246023261" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246023261">(Jul 14 2021 at 21:19)</a>:</h4>
+<p>(And that <code>leanproject build</code> inside the tutorials is still compiling, so it really seems like a good idea to have binary versions available.. )</p>
+
+
+
+<a name="246023462"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246023462" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246023462">(Jul 14 2021 at 21:21)</a>:</h4>
+<p>Once i'm done with the tutorials, in order to avoid recompiling the whole thing, could I simply copy the mathlib dir in some "more general" place and then add it to lean's path by editing <code>~/.lean/leanpkg.path</code> ?</p>
+
+
+
+<a name="246025495"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246025495" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246025495">(Jul 14 2021 at 21:40)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384773">Thanos Tsouanas</span> <a href="#narrow/stream/113488-general/topic/OpenBSD/near/246002558">said</a>:</p>
+<blockquote>
+<p>I tried running it inside the <code>tutorials</code> dir, the <code>leanproject check</code> runs fine and lies to my face with a <em>"Everything looks fine."</em> message.</p>
+</blockquote>
+<p>That's not a lie, that's you misunderstanding what this command is checking. And, as explained in the first paragraph of the <a href="https://github.com/leanprover-community/mathlib-tools/blob/master/README.md">README</a>:</p>
+<blockquote>
+<p>the tools described here won't give you anything if Lean itself is not available</p>
+</blockquote>
+
+
+
+<a name="246026544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246026544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246026544">(Jul 14 2021 at 21:51)</a>:</h4>
+<p>Hah, thanks, I was half-joking about the lying thing.  I wasn't expecting <code>leanproject</code> to actually come with lean/leanpkg included or anything like that; I just thought that missing... lean would be mentioned at least as a warning.</p>
+
+
+
+<a name="246026671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246026671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246026671">(Jul 14 2021 at 21:52)</a>:</h4>
+<p>But it does make sense after your message, so thanks again!  I guess it checks the project directory itself and not the toolkit one might need to actually use such project.</p>
+
+
+
+<a name="246054143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246054143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246054143">(Jul 15 2021 at 05:42)</a>:</h4>
+<p><del>never mind this sort of thing was already mentioned above</del></p>
+
+
+
+<a name="246061872"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246061872" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246061872">(Jul 15 2021 at 07:49)</a>:</h4>
+<p>Actually this check command could be removed since it fights an issue that is no longer present. As explained in <code>leanprojet -h</code>, it only checks that olean files (ie compiled lean files) are more recent than their source. Lean used to use timestamps to decide whether it should recompile stuff, and there were ways to mess up the timestamps without actually needing to recompile, hence wasting a lot of time and computing power.</p>
+
+
+
+<a name="246334902"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/246334902" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#246334902">(Jul 17 2021 at 17:31)</a>:</h4>
+<p>(I noticed also that in the source it checks both mathlib and core olean files, but in the description it mentions only mathlib ones.)<br>
+Thanks for the explanation, and good to know that the to-compile-or-not-to-compile became more sophisticated!</p>
+
+
+
+<a name="247872840"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/247872840" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Moritz Buhl <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#247872840">(Aug 01 2021 at 19:16)</a>:</h4>
+<p>Any news on this?</p>
+
+
+
+<a name="247874230"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/247874230" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#247874230">(Aug 01 2021 at 19:52)</a>:</h4>
+<p>I think tagging <span class="user-mention" data-user-id="384773">@Thanos Tsouanas</span> to be sure he sees this is a good idea.</p>
+
+
+
+<a name="249209449"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/249209449" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Moritz Buhl <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#249209449">(Aug 12 2021 at 08:32)</a>:</h4>
+<p>I thought about the <code>get_exe_location</code> function a bit:<br>
+OpenBSD does not offer a way to locate the binary. It would be possible to use argv[0] and PATH (if argv[0] is only the binary name) or cwd (if it is a path). Getting argv0 to the utility function should be terrible. And all this for two locations where this function is called.<br>
+Java is using the environment variable <code>JAVA_HOME</code> in a similar way, is this an option for lean3?</p>
+
+
+
+<a name="249779062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/249779062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Moritz Buhl <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#249779062">(Aug 17 2021 at 21:08)</a>:</h4>
+<p>tb has this <a href="https://marc.info/?l=openbsd-ports&amp;m=162914200004765&amp;w=2">https://marc.info/?l=openbsd-ports&amp;m=162914200004765&amp;w=2</a></p>
+
+
+
+<a name="261445648"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/OpenBSD/near/261445648" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thanos Tsouanas <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/OpenBSD.html#261445648">(Nov 15 2021 at 00:00)</a>:</h4>
+<p>Thanks for tagging me <span class="user-mention" data-user-id="127136">@Alex J. Best</span>, and sorry for the 4-month hiatus over here!<br>
+Happy and grateful to see that in the meantime tb created a Lean port for OpenBSD, as <span class="user-mention" data-user-id="424625">@Moritz Buhl</span> mentioned, making it so much easier to play with Lean natively!  (Lean v3.32.1 made it to the OpenBSD 7.0 release, and since last week OpenBSD-current has v3.35.1!)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,198 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html">On the implementation of attributes in doc-gen</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="271464962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271464962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271464962">(Feb 10 2022 at 17:29)</a>:</h4>
+<p>After reading through <a href="https://leanprover-community.github.io/mathlib4_docs/Lean/Attributes.html">https://leanprover-community.github.io/mathlib4_docs/Lean/Attributes.html</a> (yay I can use my own tool for something useful by now \o/) and the corresponding code it seems to me that implementing these pure tag based attributes is a triviality really but the ones that attach information won't be possible to do generically? After all there is never a constriant on the associated value to have a representation or to string.</p>
+<p>Hence my question: Which non tag based attributes should doc-gen look for per default? The only one that comes to mind from the top of my head would be the <code>implementedBy</code> one.</p>
+
+
+
+<a name="271466456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271466456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271466456">(Feb 10 2022 at 17:39)</a>:</h4>
+<p>This is a great question.</p>
+
+
+
+<a name="271466930"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271466930" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271466930">(Feb 10 2022 at 17:43)</a>:</h4>
+<p>To explain the status quo: in Lean 4 there are attributes, and then there's environment extensions.  Attributes are not persisted, they are similar to commands like <code>#eval</code>, they are triggered when a definition is elaborated but they are responsible to save any needed information.  After an attribute is elaborated, there is no record of its existence.</p>
+<p>Environment extensions are an API to store whatever data you want in the environment.  There is no way to inspect this data in a generic way.</p>
+
+
+
+<a name="271467170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271467170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271467170">(Feb 10 2022 at 17:45)</a>:</h4>
+<p>Practically, what you can do today is gather all the attributes that we care about and query the corresponding environment extensions about relevant information.  Hopefully this information can be translated back to a nice <code>@[simp]</code>.</p>
+
+
+
+<a name="271467616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271467616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271467616">(Feb 10 2022 at 17:48)</a>:</h4>
+<p>While this separation is bad to inspect attributes, it's actually a much better fit for some of the attributes we have in mathlib.  Attributes like <code>@[ext]</code>, <code>@[simps]</code>, <code>@[toAdditive]</code> are mostly used for their <em>side effects</em> (generating extensionality lemmas, projection lemmas, additive versions of definitions, resp.).  In Lean 3 we usually had to use two attributes, e.g. <code>ext</code> which triggered the side effect, and <code>_ext_core</code> which recorded the data in the environment.</p>
+
+
+
+<a name="271470416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271470416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271470416">(Feb 10 2022 at 18:06)</a>:</h4>
+<p>Should we have a generic interface for attributes that want to be visible on inspection? Perhaps attributes can register a <code>#print</code>-callback which queries their internal state and prints some additional information to be added to the report</p>
+
+
+
+<a name="271471549"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271471549" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271471549">(Feb 10 2022 at 18:13)</a>:</h4>
+<p>I'm not sure if you're mixing up attributes and env extensions.  Printing the internal state makes sense for environment extensions (and I think that would be a great idea, it only requires recording a Format/ToMessageData instance in the extension registration.)</p>
+<p>It would also be very useful (but much less clearly defined) to dump the state of the environment as attributes (i.e., syntax objects in the attr category).</p>
+
+
+
+<a name="271472143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271472143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271472143">(Feb 10 2022 at 18:17)</a>:</h4>
+<p>I meant attribute in the organizational sense. A single attribute might correspond to one or more environment extensions, but from the user perspective it's probably the attribute that is naming the file, for instance</p>
+
+
+
+<a name="271472424"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271472424" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271472424">(Feb 10 2022 at 18:19)</a>:</h4>
+<p>Actually, one such logical unit could correspond to many attributes and one env extension, or one attribute and many env extensions, and print-extensions would be another axis along which these components interact</p>
+
+
+
+<a name="271472857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271472857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271472857">(Feb 10 2022 at 18:22)</a>:</h4>
+<p>Re: attribute syntax, I think both options are reasonable. Perhaps a print-extension returns an object that can be printed either as a message data or as a syntax (with possibility for failure / opt out). I doubt we can "round trip" very effectively in general though</p>
+
+
+
+<a name="271562159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271562159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271562159">(Feb 11 2022 at 11:19)</a>:</h4>
+<p>There is also already functions like <code>registerTagAttribute</code> that add both the syntax and environment extension at the same time. Such functions could also register some other piece of information that could be used by doc-gen to retag definitions.</p>
+
+
+
+<a name="271562539"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271562539" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271562539">(Feb 11 2022 at 11:23)</a>:</h4>
+<p>AFAICT <code>registerTagAttribute</code> does not store the syntax anywhere.  (Though it's trivial to get back an equivalent attribute syntax since there's no parameters and the environment extension is essentially a list of declaration names.)</p>
+
+
+
+<a name="271722658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271722658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271722658">(Feb 13 2022 at 02:37)</a>:</h4>
+<p>I came up with this implementation for now <a href="https://github.com/leanprover/doc-gen4/blob/main/DocGen4/Attributes.lean">https://github.com/leanprover/doc-gen4/blob/main/DocGen4/Attributes.lean</a> ...I guess it is possible to generalize the special snowflake simp to a tag attribute and the tag attribute also to a ValueAttr with a bit more abstraction but I think it's fine like this for now <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span></p>
+<p>It also felt both amazing (as in that this works) but also hacky to abstract it this way, is this actually reasonable code or did I come up with a complete monstrosity?</p>
+
+
+
+<a name="271722775"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/271722775" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#271722775">(Feb 13 2022 at 02:40)</a>:</h4>
+<p>At least it works <a href="https://leanprover-community.github.io/mathlib4_docs/Init/Prelude.html">https://leanprover-community.github.io/mathlib4_docs/Init/Prelude.html</a> <span aria-label="octopus" class="emoji emoji-1f419" role="img" title="octopus">:octopus:</span></p>
+
+
+
+<a name="280217743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280217743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Edward Ayers <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280217743">(Apr 26 2022 at 14:28)</a>:</h4>
+<p>I bumped in to this too when implementing to_additive. In mathlib3 to_additive will copy over all of the attributes (from a fixed list) to the new additive definition, but you can't do this in Lean 4 because the attributes for a given declaration are not stored anywhere. Any ideas on how to implement a to_additive that copies over attributes?</p>
+
+
+
+<a name="280218708"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280218708" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280218708">(Apr 26 2022 at 14:34)</a>:</h4>
+<p>I think that's part of the reason a fixed list is used in Lean 3 too, there isn't a way to get all attributes for a given decl, but only a way to check if the declaration has an explicitly named attribute IIRC.<br>
+The fact that there are a lot of random attributes that are used internally too that we didn't want to copy, but it sounds like it should be similar in 4?</p>
+
+
+
+<a name="280218904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280218904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280218904">(Apr 26 2022 at 14:35)</a>:</h4>
+<p>Me and Johan had to do something similar for the import optimizing tool we wrote, where we began with the full list of used attributes in mathlib and pruned it down: see<br>
+<a href="https://github.com/alexjbest/dag-tools/blob/master/src/import_optimizer.lean#L67">https://github.com/alexjbest/dag-tools/blob/master/src/import_optimizer.lean#L67</a></p>
+
+
+
+<a name="280219808"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280219808" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280219808">(Apr 26 2022 at 14:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="121918">Edward Ayers</span> <a href="#narrow/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen/near/280217743">said</a>:</p>
+<blockquote>
+<p>I bumped in to this too when implementing to_additive. In mathlib3 to_additive will copy over all of the attributes (from a fixed list) to the new additive definition, but you can't do this in Lean 4 because the attributes for a given declaration are not stored anywhere. Any ideas on how to implement a to_additive that copies over attributes?</p>
+</blockquote>
+<p>In fact just straight up doing this might be something you do not want to do because there are attributes like <code>export</code> which would cause the same name to appear twice in the resulting c binary</p>
+
+
+
+<a name="280226435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280226435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Edward Ayers <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280226435">(Apr 26 2022 at 15:24)</a>:</h4>
+<p>I have a list of attributes that to_additive cares about so I'm not too worried about getting other attributes like <code>export</code>. The main problem is getting the attributes for a decl at all since they are not stored anywhere. I was thinking that it might be possible to implement an ad-hoc 'hasAttribute' for each of the attributes in my list.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="bp">`</span><span class="n">reducible</span><span class="o">,</span> <span class="bp">`</span><span class="n">_refl_lemma</span><span class="o">,</span> <span class="bp">`</span><span class="n">simp</span><span class="o">,</span> <span class="bp">`</span><span class="n">norm_cast</span><span class="o">,</span> <span class="bp">`</span><span class="kd">instance</span><span class="o">,</span> <span class="bp">`</span><span class="n">refl</span><span class="o">,</span> <span class="bp">`</span><span class="n">symm</span><span class="o">,</span> <span class="bp">`</span><span class="n">trans</span><span class="o">,</span> <span class="bp">`</span><span class="n">elab_as_eliminator</span><span class="o">,</span> <span class="bp">`</span><span class="n">no_rsimp</span><span class="o">,</span>
+<span class="bp">`</span><span class="n">continuity</span><span class="o">,</span> <span class="bp">`</span><span class="n">ext</span><span class="o">,</span> <span class="bp">`</span><span class="n">ematch</span><span class="o">,</span> <span class="bp">`</span><span class="n">measurability</span><span class="o">,</span> <span class="bp">`</span><span class="n">alias</span><span class="o">,</span> <span class="bp">`</span><span class="n">_ext_core</span><span class="o">,</span> <span class="bp">`</span><span class="n">_ext_lemma_core</span><span class="o">,</span> <span class="bp">`</span><span class="n">nolint</span><span class="o">,</span> <span class="bp">`</span><span class="kn">protected</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="280226594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280226594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280226594">(Apr 26 2022 at 15:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="121918">@Edward Ayers</span> We will try to add APIs for retrieving all attributes associated with a declaration.</p>
+
+
+
+<a name="280229562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280229562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280229562">(Apr 26 2022 at 15:49)</a>:</h4>
+<p>Note that the main use case with <code>to_additive</code> is to support <code>@[simp, to_additive]</code> (or was it <code>@[to_additive, simp]</code>?).  One option could be to have the <code>to_additive</code> attribute accept a list of attributes that are applied to both the additive and multiplicative definition.  Something like <code>@[to_additive [simp, norm_cast]]</code>.  This would also clarify the order in which the two attributes must be written.</p>
+
+
+
+<a name="280233584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280233584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280233584">(Apr 26 2022 at 16:17)</a>:</h4>
+<p>I'm talking about this, without ever having used Lean4, so I feel that whatever I say might be out of place.  There has been a few times where something "like" <code>to_additive</code>, but for other pairs of operations/relations.  The ones that appeared were</p>
+<ul>
+<li>proving a lemma about semigroups for the "opposite semigroup",</li>
+<li>proving a lemma about orders for the "dual order".</li>
+</ul>
+
+
+
+<a name="280234806"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280234806" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bryan Gin-ge Chen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280234806">(Apr 26 2022 at 16:27)</a>:</h4>
+<p>See <a href="https://github.com/leanprover-community/mathlib/pull/13461">#13461</a> as well for some more discussion on possible <code>to_*</code> analogues.</p>
+
+
+
+<a name="280234813"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280234813" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280234813">(Apr 26 2022 at 16:27)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/13461">#13461</a> is an issue about this for mathlib.</p>
+
+
+
+<a name="280235154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280235154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280235154">(Apr 26 2022 at 16:30)</a>:</h4>
+<p>Btw, I have been recently introduced to the (Lean3) <code>meta</code>-world by Arthur Paulino, so have <em>very</em> limited experience, but found the experience really rewarding.</p>
+<p>I would be happy to collaborate on helping with these issues, but I do not feel at all qualified to take them on alone.</p>
+
+
+
+<a name="280275906"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/On%20the%20implementation%20of%20attributes%20in%20doc-gen/near/280275906" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Edward Ayers <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen.html#280275906">(Apr 26 2022 at 21:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/On.20the.20implementation.20of.20attributes.20in.20doc-gen/near/280229562">said</a>:</p>
+<blockquote>
+<p>Note that the main use case with <code>to_additive</code> is to support <code>@[simp, to_additive]</code> (or was it <code>@[to_additive, simp]</code>?).  One option could be to have the <code>to_additive</code> attribute accept a list of attributes that are applied to both the additive and multiplicative definition.  Something like <code>@[to_additive [simp, norm_cast]]</code>.  This would also clarify the order in which the two attributes must be written.</p>
+</blockquote>
+<p>Right I'll implement it for <code>simp</code> for now, then it should be ready for review</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

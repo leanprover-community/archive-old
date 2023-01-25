@@ -1,0 +1,276 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html">Ordered merge slower than append-then-sort</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="266619236"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266619236" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266619236">(Jan 02 2022 at 15:36)</a>:</h4>
+<p>Hmm. I have arrays on the order of 1000s of elements, which are already ordered and I want to merge them into an ordered array. As a temporary hack I was appending them together, then sorting. This was too slow. I've tried to speed it up, but my code is quite a bit slower.</p>
+<p>I suspect the <code>append</code> is better optimized and dwarfing my code. Any suggestions?</p>
+<p>The obviously correct reference.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">as.append</span> <span class="n">bs</span> <span class="bp">|&gt;.</span><span class="n">heapSort</span> <span class="o">(</span><span class="n">hash</span> <span class="bp">.</span> <span class="bp">&lt;</span> <span class="n">hash</span> <span class="bp">.</span><span class="o">)</span>
+</code></pre></div>
+<p>The should-be-faster code. <code>@[specialize]</code> helped a little. Adding the bounds proofs did not have any effect.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[specialize]</span> <span class="kd">def</span> <span class="n">ordered_merge</span> <span class="o">(</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">Id.run</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">cs</span> <span class="o">:=</span> <span class="n">Array.mkEmpty</span> <span class="o">(</span><span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">)</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">left</span> <span class="o">:</span> <span class="n">USize</span> <span class="o">:=</span> <span class="mi">0</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">right</span> <span class="o">:</span> <span class="n">USize</span> <span class="o">:=</span> <span class="mi">0</span>
+
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span> <span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">]</span> <span class="k">do</span>
+        <span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">left.toNat</span> <span class="bp">&lt;</span> <span class="n">as.size</span> <span class="k">then</span>
+            <span class="k">if</span> <span class="n">h'</span> <span class="o">:</span> <span class="n">right.toNat</span> <span class="bp">&lt;</span> <span class="n">bs.size</span> <span class="k">then</span>
+                <span class="k">if</span> <span class="n">f</span> <span class="o">(</span><span class="n">as.uget</span> <span class="n">left</span> <span class="n">h</span><span class="o">)</span> <span class="o">(</span><span class="n">bs.uget</span> <span class="n">right</span> <span class="n">h'</span><span class="o">)</span> <span class="k">then</span>
+                    <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.push</span> <span class="bp">&lt;|</span> <span class="n">as.uget</span> <span class="n">left</span> <span class="n">h</span>
+                    <span class="n">left</span> <span class="o">:=</span> <span class="n">left</span> <span class="bp">+</span> <span class="mi">1</span>
+                <span class="k">else</span>
+                    <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.push</span> <span class="bp">&lt;|</span> <span class="n">bs.uget</span> <span class="n">right</span> <span class="n">h'</span>
+                    <span class="n">right</span> <span class="o">:=</span> <span class="n">right</span> <span class="bp">+</span> <span class="mi">1</span>
+            <span class="k">else</span>
+                <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">as</span><span class="o">[</span><span class="n">left.toNat</span> <span class="o">:]</span>
+                <span class="n">break</span>
+        <span class="k">else</span>
+            <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">bs</span><span class="o">[</span><span class="n">right.toNat</span> <span class="o">:]</span>
+            <span class="n">break</span>
+
+    <span class="n">cs</span>
+</code></pre></div>
+
+
+
+<a name="266620062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620062">(Jan 02 2022 at 15:58)</a>:</h4>
+<p><code>append</code> on <code>Array</code> is indeed better optimized because it uses a C implementation under the hood so you will have a hard time keeping up with that in Lean i suppose </p>
+<p>Out of curiosity, how are you measuring performance here? Do you have some cool setup for that or do you just time the execution of the binary?</p>
+
+
+
+<a name="266620290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620290">(Jan 02 2022 at 16:01)</a>:</h4>
+<p>I'm using <code>timeit</code> in Lean and looking at the process in htop. When it has many threads, it is building those arrays. When it uses only one, it is doing the merges.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">new</span> <span class="bp">&lt;-</span> <span class="n">timeit</span> <span class="s2">"join"</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">new</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[]</span>
+    <span class="n">for</span> <span class="n">t</span> <span class="k">in</span> <span class="n">tasks</span> <span class="k">do</span>
+        <span class="n">new</span> <span class="o">:=</span> <span class="n">new.ordered_merge</span> <span class="o">(</span><span class="bp">&lt;-</span> <span class="n">IO.ofExcept</span> <span class="o">(</span><span class="bp">&lt;-</span> <span class="n">IO.wait</span> <span class="n">t</span><span class="o">))</span> <span class="o">(</span><span class="n">hash</span> <span class="bp">.</span> <span class="bp">&lt;</span> <span class="n">hash</span> <span class="bp">.</span><span class="o">)</span>
+    <span class="n">new</span>
+</code></pre></div>
+
+
+
+<a name="266620313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620313">(Jan 02 2022 at 16:01)</a>:</h4>
+<p>Hmm. Looking at that part of the code again, I recall I was just doing append before in that loop, then doing the sort on the outside.</p>
+
+
+
+<a name="266620365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620365">(Jan 02 2022 at 16:02)</a>:</h4>
+<p>That'd further amplify the append vs. iteration significantly.</p>
+
+
+
+<a name="266620510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620510">(Jan 02 2022 at 16:05)</a>:</h4>
+<p>I don't think the <code>append</code> is implemented in C? Following back the implementation, it is all Lean. A little implemented with unsafe, but that is still Lean.</p>
+
+
+
+<a name="266620580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266620580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266620580">(Jan 02 2022 at 16:07)</a>:</h4>
+<p>Ahhh it was <code>Array.push</code> that is implemented in C right...I always mix those two up.</p>
+
+
+
+<a name="266621134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266621134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266621134">(Jan 02 2022 at 16:18)</a>:</h4>
+<p>Getting a nice speed up by just appending them and doing in-place swaps instead.</p>
+
+
+
+<a name="266621139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266621139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266621139">(Jan 02 2022 at 16:18)</a>:</h4>
+<p>But I think there is a bug so...</p>
+
+
+
+<a name="266621226"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266621226" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266621226">(Jan 02 2022 at 16:20)</a>:</h4>
+<p>Yeah.. it isn't interleaving them o.o</p>
+
+
+
+<a name="266621252"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266621252" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266621252">(Jan 02 2022 at 16:21)</a>:</h4>
+<p>Ah.</p>
+
+
+
+<a name="266624735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266624735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266624735">(Jan 02 2022 at 17:41)</a>:</h4>
+<p>Tired.. should really be sleeping and not doing silly things like figuring out how to merge sorted lists.. Anyway, I already have a "gallop" function (stolen shamelessly from <a href="https://docs.rs/datafrog">https://docs.rs/datafrog</a>) so I'm using that to find runs, then merge over runs. This improves performance at least.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[specialize]</span> <span class="kd">def</span> <span class="n">ordered_merge</span> <span class="o">(</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">Id.run</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">cs</span> <span class="o">:=</span> <span class="n">Array.mkEmpty</span> <span class="o">(</span><span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">)</span>
+
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">l</span> <span class="o">:=</span> <span class="mi">0</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">r</span> <span class="o">:=</span> <span class="mi">0</span>
+
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[</span><span class="mi">0</span> <span class="o">:</span> <span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">]</span> <span class="k">do</span>
+        <span class="k">if</span> <span class="n">l</span> <span class="bp">&gt;=</span> <span class="n">as.size</span> <span class="k">then</span>
+            <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">bs</span><span class="o">[</span><span class="n">r</span><span class="o">:]</span>
+            <span class="n">break</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="bp">&gt;=</span> <span class="n">bs.size</span> <span class="k">then</span>
+            <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">as</span><span class="o">[</span><span class="n">l</span><span class="o">:]</span>
+            <span class="n">break</span>
+
+        <span class="k">let</span> <span class="n">l'</span> <span class="o">:=</span> <span class="n">as.gallop</span> <span class="o">(</span><span class="n">f</span> <span class="bp">.</span> <span class="n">bs</span><span class="o">[</span><span class="n">r.min</span> <span class="o">(</span><span class="n">bs.size</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)])</span> <span class="n">l</span>
+        <span class="k">let</span> <span class="n">r'</span> <span class="o">:=</span> <span class="n">bs.gallop</span> <span class="o">(</span><span class="n">f</span> <span class="bp">.</span> <span class="n">as</span><span class="o">[</span><span class="n">l'.min</span> <span class="o">(</span><span class="n">as.size</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)])</span> <span class="n">r</span>
+        <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">as</span><span class="o">[</span><span class="n">l</span> <span class="o">:</span> <span class="n">l'</span><span class="o">]</span> <span class="bp">|&gt;.</span><span class="n">append</span> <span class="n">bs</span><span class="o">[</span><span class="n">r</span> <span class="o">:</span> <span class="n">r'</span><span class="o">]</span>
+        <span class="n">l</span> <span class="o">:=</span> <span class="n">l'</span>
+        <span class="n">r</span> <span class="o">:=</span> <span class="n">r'</span>
+
+    <span class="n">cs</span>
+</code></pre></div>
+
+
+
+<a name="266624874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266624874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266624874">(Jan 02 2022 at 17:44)</a>:</h4>
+<p>By faster I meant compared to my other code. Yet this is still slower than the "naive" <code>cs : = as.append bs |&gt;.heapSort</code> which doesn't even exploit the fact these are sorted. But at least gets to append many steps first to amortize it.</p>
+
+
+
+<a name="266625053"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625053" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625053">(Jan 02 2022 at 17:48)</a>:</h4>
+<p>Will try making that a k-way ordered merge tomorrow... or another time. Unless anyone else wants to take a stab. &lt;3</p>
+
+
+
+<a name="266625070"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625070" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625070">(Jan 02 2022 at 17:49)</a>:</h4>
+<p>This should suffice to complete the above code.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="o">[</span><span class="n">Hashable</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Hashable</span> <span class="o">(</span><span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="k">fun</span> <span class="n">ar</span> <span class="bp">=&gt;</span> <span class="n">ar.foldl</span> <span class="o">(</span><span class="k">fun</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">hash</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">))</span> <span class="mi">0</span><span class="o">⟩</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">gallop</span> <span class="o">(</span><span class="n">arr</span> <span class="o">:</span> <span class="bp">@&amp;</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">(</span><span class="n">start</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">stop</span> <span class="o">:=</span> <span class="n">arr.size</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+    <span class="k">let</span> <span class="n">stop</span> <span class="o">:=</span> <span class="n">stop.min</span> <span class="n">arr.size</span>
+
+    <span class="k">let</span> <span class="n">rec</span> <span class="n">leap_left</span> <span class="n">step</span> <span class="n">index</span> <span class="o">:=</span>
+        <span class="k">if</span> <span class="n">step</span> <span class="bp">&gt;</span> <span class="mi">0</span> <span class="k">then</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="bp">+</span> <span class="n">step</span> <span class="bp">&lt;</span> <span class="n">stop</span> <span class="bp">∧</span> <span class="n">f</span> <span class="n">arr</span><span class="o">[</span><span class="n">index</span> <span class="bp">+</span> <span class="n">step</span><span class="o">]</span> <span class="k">then</span>
+                <span class="n">leap_left</span> <span class="o">(</span><span class="n">step</span> <span class="bp">&gt;&gt;&gt;</span> <span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">index</span> <span class="bp">+</span> <span class="n">step</span><span class="o">)</span>
+            <span class="k">else</span>
+                <span class="n">leap_left</span> <span class="o">(</span><span class="n">step</span> <span class="bp">&gt;&gt;&gt;</span> <span class="mi">1</span><span class="o">)</span> <span class="n">index</span>
+        <span class="k">else</span>
+            <span class="n">index</span> <span class="bp">+</span> <span class="mi">1</span>
+
+    <span class="k">let</span> <span class="n">rec</span> <span class="n">leap_right</span> <span class="n">step</span> <span class="n">index</span> <span class="o">:=</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="bp">+</span> <span class="n">step</span> <span class="bp">&lt;</span> <span class="n">stop</span> <span class="bp">∧</span> <span class="n">f</span> <span class="n">arr</span><span class="o">[</span><span class="n">index</span> <span class="bp">+</span> <span class="n">step</span><span class="o">]</span> <span class="k">then</span>
+            <span class="n">leap_right</span> <span class="o">(</span><span class="n">step</span> <span class="bp">&lt;&lt;&lt;</span> <span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">index</span> <span class="bp">+</span> <span class="n">step</span><span class="o">)</span>
+        <span class="k">else</span>
+            <span class="n">leap_left</span> <span class="o">(</span><span class="n">step</span> <span class="bp">&gt;&gt;&gt;</span> <span class="mi">1</span><span class="o">)</span> <span class="n">index</span>
+
+    <span class="k">if</span> <span class="n">arr.size</span> <span class="bp">&gt;</span> <span class="n">start</span> <span class="bp">∧</span> <span class="n">f</span> <span class="n">arr</span><span class="o">[</span><span class="n">start</span><span class="o">]</span> <span class="k">then</span>
+        <span class="n">leap_right</span> <span class="mi">1</span> <span class="n">start</span>
+    <span class="k">else</span>
+        <span class="n">start</span>
+</code></pre></div>
+
+
+
+<a name="266625163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625163">(Jan 02 2022 at 17:51)</a>:</h4>
+<p>An invariant for that order function in the last merge function. <code>(hash . &lt;= hash .)</code> is necessary, not just <code>&lt;</code>.</p>
+
+
+
+<a name="266625312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625312">(Jan 02 2022 at 17:55)</a>:</h4>
+<p>I can't reproduce your performance problems at all.  You're probably getting non-deterministic results from using tasks and then attribute it to the merging algorithm.  This is the benchmark I've run:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Data.BinaryHeap</span>
+
+<span class="kd">@[specialize]</span> <span class="kd">def</span> <span class="n">ordered_merge</span> <span class="o">(</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">Id.run</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">cs</span> <span class="o">:=</span> <span class="n">Array.mkEmpty</span> <span class="o">(</span><span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">)</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">left</span> <span class="o">:</span> <span class="n">USize</span> <span class="o">:=</span> <span class="mi">0</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">right</span> <span class="o">:</span> <span class="n">USize</span> <span class="o">:=</span> <span class="mi">0</span>
+
+    <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[:</span> <span class="n">as.size</span> <span class="bp">+</span> <span class="n">bs.size</span><span class="o">]</span> <span class="k">do</span>
+        <span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">left.toNat</span> <span class="bp">&lt;</span> <span class="n">as.size</span> <span class="k">then</span>
+            <span class="k">if</span> <span class="n">h'</span> <span class="o">:</span> <span class="n">right.toNat</span> <span class="bp">&lt;</span> <span class="n">bs.size</span> <span class="k">then</span>
+                <span class="k">if</span> <span class="n">f</span> <span class="o">(</span><span class="n">as.uget</span> <span class="n">left</span> <span class="n">h</span><span class="o">)</span> <span class="o">(</span><span class="n">bs.uget</span> <span class="n">right</span> <span class="n">h'</span><span class="o">)</span> <span class="k">then</span>
+                    <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.push</span> <span class="bp">&lt;|</span> <span class="n">as.uget</span> <span class="n">left</span> <span class="n">h</span>
+                    <span class="n">left</span> <span class="o">:=</span> <span class="n">left</span> <span class="bp">+</span> <span class="mi">1</span>
+                <span class="k">else</span>
+                    <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.push</span> <span class="bp">&lt;|</span> <span class="n">bs.uget</span> <span class="n">right</span> <span class="n">h'</span>
+                    <span class="n">right</span> <span class="o">:=</span> <span class="n">right</span> <span class="bp">+</span> <span class="mi">1</span>
+            <span class="k">else</span>
+                <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">as</span><span class="o">[</span><span class="n">left.toNat</span> <span class="o">:]</span>
+                <span class="n">break</span>
+        <span class="k">else</span>
+            <span class="n">cs</span> <span class="o">:=</span> <span class="n">cs.append</span> <span class="n">bs</span><span class="o">[</span><span class="n">right.toNat</span> <span class="o">:]</span>
+            <span class="n">break</span>
+
+    <span class="n">cs</span>
+
+<span class="kd">@[specialize]</span>
+<span class="kd">def</span> <span class="n">heapSortMerge</span> <span class="o">(</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">as</span> <span class="bp">++</span> <span class="n">bs</span> <span class="bp">|&gt;.</span><span class="n">heapSort</span> <span class="n">f</span>
+
+<span class="kd">@[specialize]</span>
+<span class="kd">def</span> <span class="n">quickSortMerge</span> <span class="o">[</span><span class="n">Inhabited</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">as</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">as</span> <span class="bp">++</span> <span class="n">bs</span> <span class="bp">|&gt;.</span><span class="n">qsort</span> <span class="n">f</span>
+
+<span class="kd">def</span> <span class="n">as</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">List.range</span> <span class="mi">100000</span> <span class="bp">|&gt;.</span><span class="n">toArray</span>
+<span class="kd">def</span> <span class="n">bs</span> <span class="o">:</span> <span class="n">Array</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">List.range</span> <span class="mi">100000</span> <span class="bp">|&gt;.</span><span class="n">toArray</span>
+
+<span class="k">#eval</span> <span class="n">timeit</span> <span class="s2">"heapSortMerge"</span> <span class="k">do</span> <span class="o">()</span><span class="bp">;</span> <span class="n">heapSortMerge</span> <span class="n">as</span> <span class="n">bs</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">&lt;</span> <span class="bp">·</span><span class="o">)</span> <span class="bp">|&gt;.</span><span class="n">size</span> <span class="c1">-- 2.82s</span>
+<span class="k">#eval</span> <span class="n">timeit</span> <span class="s2">"ordered_merge"</span> <span class="k">do</span> <span class="o">()</span><span class="bp">;</span> <span class="n">ordered_merge</span> <span class="n">as</span> <span class="n">bs</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">&lt;</span> <span class="bp">·</span><span class="o">)</span> <span class="bp">|&gt;.</span><span class="n">size</span> <span class="c1">-- 185ms</span>
+<span class="k">#eval</span> <span class="n">timeit</span> <span class="s2">"quickSortMerge"</span> <span class="k">do</span> <span class="o">()</span><span class="bp">;</span> <span class="n">quickSortMerge</span> <span class="n">as</span> <span class="n">bs</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">&lt;</span> <span class="bp">·</span><span class="o">)</span> <span class="bp">|&gt;.</span><span class="n">size</span> <span class="c1">-- stack overflow</span>
+</code></pre></div>
+
+
+
+<a name="266625384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625384">(Jan 02 2022 at 17:56)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> Nice benchmark! However as mentioned above I noticed the real problem with the comparison. The heap sort method was deferred after appending many of these arrays. Thus the fair comparison would be a k-way merge.</p>
+
+
+
+<a name="266625402"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625402" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625402">(Jan 02 2022 at 17:57)</a>:</h4>
+<p>Other issues that I could see are:<br>
+1) Maybe your <code>hash</code> function is expensive<br>
+2) You're repeatedly merging arrays in a loop.  This is quadratic in the size of the <code>tasks</code> array.</p>
+
+
+
+<a name="266625459"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625459" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625459">(Jan 02 2022 at 17:58)</a>:</h4>
+<p>(2) is yes, until the k-way merge. The hash is Lean's normal hash which is cheap.</p>
+
+
+
+<a name="266625602"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625602" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625602">(Jan 02 2022 at 18:00)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> For my comparison, I see the deferred heap sort at 24s and the quadratic 2-way merge as 30s. I expect the k-way merge to be a lot better here.</p>
+
+
+
+<a name="266625668"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Ordered%20merge%20slower%20than%20append-then-sort/near/266625668" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sofia <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/Ordered.20merge.20slower.20than.20append-then-sort.html#266625668">(Jan 02 2022 at 18:02)</a>:</h4>
+<p>Either way I really need to get some sleep... I'd appreciate any further suggestions. &lt;3</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

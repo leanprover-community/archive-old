@@ -1,0 +1,65 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Bug.20in.20sizeOf.20generation.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Bug.20in.20sizeOf.20generation.html">Bug in sizeOf generation</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="313431540"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Bug%20in%20sizeOf%20generation/near/313431540" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Parth Shastri <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Bug.20in.20sizeOf.20generation.html#313431540">(Dec 02 2022 at 05:56)</a>:</h4>
+<p>The following inductive type yields a strange error.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Bug</span>
+  <span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="o">(</span><span class="n">Unit</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Bug</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Bug</span>
+</code></pre></div>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">a_ih</span><span class="bp">✝</span> <span class="o">()</span> <span class="o">()</span>
+<span class="n">argument</span> <span class="n">has</span> <span class="n">type</span>
+  <span class="n">Unit</span>
+<span class="n">but</span> <span class="n">function</span> <span class="n">has</span> <span class="n">type</span>
+  <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+</code></pre></div>
+<p>Using <code>set_option genSizeOf false</code> suppresses the error, suggesting it occurs in the code that generates the <code>sizeOf</code> definition.<br>
+I believe the bug lies in <a href="https://github.com/leanprover/lean4/blob/681bbe5cf40ebd45019db2a84cd04dc0c63b8539/src/Lean/Meta/SizeOf.lean#L76-L85">this function</a> which determines if the field is to be skipped:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">private</span> <span class="n">partial</span> <span class="kd">def</span> <span class="n">ignoreField</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">type</span> <span class="bp">←</span> <span class="n">whnf</span> <span class="o">(</span><span class="bp">←</span> <span class="n">inferType</span> <span class="n">x</span><span class="o">)</span>
+  <span class="k">if</span> <span class="n">type.isForall</span> <span class="k">then</span>
+    <span class="c1">-- TODO: add support for finite domains</span>
+    <span class="k">if</span> <span class="n">type.isArrow</span> <span class="bp">&amp;&amp;</span> <span class="n">type.bindingDomain</span><span class="bp">!.</span><span class="n">isConstOf</span> <span class="bp">``</span><span class="n">Unit</span> <span class="k">then</span>
+      <span class="n">ignoreField</span> <span class="n">type.bindingBody</span><span class="bp">!</span>
+    <span class="k">else</span>
+      <span class="n">return</span> <span class="n">true</span>
+  <span class="k">else</span>
+    <span class="n">return</span> <span class="n">false</span>
+</code></pre></div>
+<p>Notice that the recursive call is made directly on the body of the forall type, rather than an expression of that type. Then, the <code>inferType</code> will yield an incorrect result.<br>
+A possible fix is to replace the function with the following</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">private</span> <span class="n">partial</span> <span class="kd">def</span> <span class="n">ignoreField</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">MetaM</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">helper</span> <span class="o">(</span><span class="bp">←</span> <span class="n">inferType</span> <span class="n">x</span><span class="o">)</span>
+<span class="n">where</span>
+  <span class="n">helper</span> <span class="n">type</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">type</span> <span class="bp">←</span> <span class="n">whnf</span> <span class="n">type</span>
+    <span class="k">if</span> <span class="n">type.isForall</span> <span class="k">then</span>
+      <span class="c1">-- TODO: add support for finite domains</span>
+      <span class="k">if</span> <span class="n">type.isArrow</span> <span class="bp">&amp;&amp;</span> <span class="n">type.bindingDomain</span><span class="bp">!.</span><span class="n">isConstOf</span> <span class="bp">``</span><span class="n">Unit</span> <span class="k">then</span>
+        <span class="n">helper</span> <span class="n">type.bindingBody</span><span class="bp">!</span>
+      <span class="k">else</span>
+        <span class="n">return</span> <span class="n">true</span>
+    <span class="k">else</span>
+      <span class="n">return</span> <span class="n">false</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

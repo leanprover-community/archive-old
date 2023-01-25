@@ -1,0 +1,273 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/mutual.20recursive.20parsers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html">mutual recursive parsers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="226723077"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226723077" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kana <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226723077">(Feb 17 2021 at 20:49)</a>:</h4>
+<p>It is rather easy to write recursive parser like this (example from <code>data.buffer.parser</code>)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">private</span> <span class="kd">def</span> <span class="n">fix_core</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">parser</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">parser</span> <span class="n">α</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">failure</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span> <span class="o">(</span><span class="n">fix_core</span> <span class="n">n</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">fix</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">parser</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">input</span><span class="o">,</span> <span class="n">fix_core</span> <span class="n">f</span> <span class="o">(</span><span class="n">input.length</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="n">input</span>
+</code></pre></div>
+<p>But what if I want a lot of mutual recursive parsers?</p>
+<p>My current solution is:</p>
+<ol>
+<li>hlist</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">hprod</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">:</span> <span class="n">list</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="mi">1</span>
+<span class="bp">|</span> <span class="n">nil</span> <span class="o">:</span> <span class="n">hprod</span> <span class="o">[]</span>
+<span class="bp">|</span> <span class="n">cons</span> <span class="o">{</span><span class="n">α</span> <span class="n">αs</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">f</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">hprod</span> <span class="n">αs</span><span class="o">)</span> <span class="o">:</span> <span class="n">hprod</span> <span class="o">(</span><span class="n">α</span> <span class="o">::</span> <span class="n">αs</span><span class="o">)</span>
+
+<span class="kd">notation</span> <span class="bp">`⟦`</span> <span class="n">l</span><span class="o">:(</span><span class="n">foldr</span> <span class="bp">`</span><span class="o">,</span> <span class="bp">`</span> <span class="o">(</span><span class="n">h</span> <span class="n">t</span><span class="o">,</span> <span class="n">cons</span> <span class="n">h</span> <span class="n">t</span><span class="o">)</span> <span class="n">nil</span> <span class="bp">`⟧`</span><span class="o">)</span> <span class="o">:=</span> <span class="n">l</span>
+</code></pre></div>
+<ol start="2">
+<li>fixN by hprod</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">private</span> <span class="kd">def</span> <span class="n">fixN_core</span> <span class="o">{</span><span class="n">αs</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span> <span class="bp">→</span> <span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">hprod.pure</span> <span class="bp">@</span><span class="n">parser.failure</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span> <span class="o">(</span><span class="n">fixN_core</span> <span class="n">n</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">fixN</span> <span class="o">:</span> <span class="bp">∀</span><span class="o">{</span><span class="n">αs</span><span class="o">},</span> <span class="o">(</span><span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span> <span class="bp">→</span> <span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span><span class="o">)</span> <span class="bp">→</span> <span class="n">hprod</span> <span class="n">parser</span> <span class="n">αs</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="n">f</span> <span class="o">:=</span> <span class="n">hprod.nil</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">α</span><span class="o">::</span><span class="n">αs</span><span class="o">)</span> <span class="n">f</span> <span class="o">:=</span>
+  <span class="n">hprod.cons</span>
+    <span class="o">(</span><span class="bp">λ</span> <span class="n">input</span><span class="o">,</span> <span class="o">(</span><span class="n">fixN_core</span> <span class="n">f</span> <span class="o">(</span><span class="n">input.length</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">))</span><span class="bp">.</span><span class="n">head</span> <span class="n">input</span><span class="o">)</span>
+    <span class="o">(</span><span class="n">fixN</span> <span class="o">(</span><span class="n">hprod.tail</span> <span class="bp">∘</span> <span class="n">f</span> <span class="bp">∘</span> <span class="n">hprod.cons</span> <span class="n">failure</span><span class="o">))</span>
+</code></pre></div>
+<ol start="3">
+<li>example</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">parsers</span> <span class="o">:</span> <span class="n">hprod</span> <span class="n">parser</span>
+    <span class="o">[</span> <span class="n">value</span> <span class="c1">-- element</span>
+    <span class="o">,</span> <span class="n">list</span> <span class="n">value</span> <span class="c1">-- elements</span>
+    <span class="o">,</span> <span class="n">value</span> <span class="c1">-- value</span>
+    <span class="o">,</span> <span class="bp">...</span>
+    <span class="o">]</span> <span class="o">:=</span>
+  <span class="n">fixN</span> <span class="bp">$</span> <span class="bp">λ</span><span class="n">p</span><span class="o">,</span> <span class="k">match</span> <span class="n">p</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">⟦</span><span class="n">element</span><span class="o">,</span> <span class="n">elements</span><span class="o">,</span> <span class="n">valueP</span><span class="o">,</span> <span class="bp">...⟧</span> <span class="o">:=</span>
+    <span class="bp">⟦</span> <span class="c1">-- element</span>
+      <span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ws</span>
+    <span class="o">,</span> <span class="c1">-- elements</span>
+      <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="n">element</span>
+    <span class="o">,</span> <span class="c1">--value</span>
+      <span class="n">value.object</span> <span class="bp">&lt;$&gt;</span> <span class="n">object</span> <span class="bp">&lt;|&gt;</span>
+    <span class="o">,</span> <span class="bp">...</span>
+    <span class="bp">⟧</span>
+  <span class="kd">end</span>
+</code></pre></div>
+<p>Is there some better way to do this?</p>
+
+
+
+<a name="226724015"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226724015" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kana <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226724015">(Feb 17 2021 at 20:56)</a>:</h4>
+<p>I think I should try higher kinded structures like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">parsers</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">-&gt;</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">element</span> <span class="o">:</span> <span class="n">h</span> <span class="n">value</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">elements</span> <span class="o">:</span> <span class="n">h</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">))</span>
+   <span class="bp">...</span>
+</code></pre></div>
+
+
+
+<a name="226724253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226724253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226724253">(Feb 17 2021 at 20:57)</a>:</h4>
+<p>The usual workaround is to pass later parsers as arguments to earlier parsers</p>
+
+
+
+<a name="226724394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226724394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226724394">(Feb 17 2021 at 20:58)</a>:</h4>
+<p>I don't think generalizing the monad is necessary here in any case</p>
+
+
+
+<a name="226724577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226724577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226724577">(Feb 17 2021 at 20:59)</a>:</h4>
+<p>In your case, you can probably get away with just one main parser that you pass to all the others, namely <code>valueP</code></p>
+
+
+
+<a name="226724763"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226724763" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226724763">(Feb 17 2021 at 21:00)</a>:</h4>
+<p>do you have a MWE?</p>
+
+
+
+<a name="226725680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226725680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226725680">(Feb 17 2021 at 21:07)</a>:</h4>
+<p>here I made one for you</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.buffer.parser</span>
+
+<span class="kd">meta</span> <span class="kd">inductive</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">string</span> <span class="o">:</span> <span class="n">string</span> <span class="bp">→</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">object</span> <span class="o">:</span> <span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">)</span> <span class="bp">→</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">array</span> <span class="o">:</span> <span class="n">list</span> <span class="n">value</span> <span class="bp">→</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">number</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">bool</span> <span class="o">:</span> <span class="n">bool</span> <span class="bp">→</span> <span class="n">value</span>
+<span class="bp">|</span> <span class="n">null</span> <span class="o">:</span> <span class="n">value</span>
+
+<span class="kn">open</span> <span class="n">parser</span>
+<span class="kd">def</span> <span class="n">ws</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">unit</span> <span class="o">:=</span> <span class="gr">sorry</span>
+<span class="kd">def</span> <span class="n">ch'</span> <span class="o">:</span> <span class="n">char</span> <span class="bp">→</span> <span class="n">parser</span> <span class="n">unit</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">object</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">))</span> <span class="o">:=</span> <span class="gr">sorry</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="o">:=</span> <span class="n">value.object</span> <span class="bp">&lt;$&gt;</span> <span class="n">object</span> <span class="bp">&lt;|&gt;</span> <span class="n">value.array</span> <span class="bp">&lt;$&gt;</span> <span class="n">arrayP</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">element</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="o">:=</span> <span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ws</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">elements</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span> <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="n">element</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">arrayP</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span> <span class="n">ch'</span> <span class="sc">'['</span> <span class="bp">*&gt;</span> <span class="n">elements</span> <span class="bp">&lt;*</span> <span class="n">ch'</span> <span class="sc">'['</span>
+</code></pre></div>
+<p>Note that there isn't any order we can write the declarations since they are in a cyclic dependency</p>
+
+
+
+<a name="226726029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226726029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226726029">(Feb 17 2021 at 21:09)</a>:</h4>
+<p>However they aren't too far from being acyclic; if we break the dependence on <code>valueP</code> then everything becomes acyclic</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">object</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">))</span> <span class="o">:=</span> <span class="gr">sorry</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">element</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="o">:=</span> <span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ws</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">elements</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span> <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="o">(</span><span class="n">element</span> <span class="n">valueP</span><span class="o">)</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">arrayP</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span> <span class="n">ch'</span> <span class="sc">'['</span> <span class="bp">*&gt;</span> <span class="o">(</span><span class="n">elements</span> <span class="n">valueP</span><span class="o">)</span> <span class="bp">&lt;*</span> <span class="n">ch'</span> <span class="sc">'['</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="o">:=</span> <span class="n">value.object</span> <span class="bp">&lt;$&gt;</span> <span class="n">object</span> <span class="n">valueP</span> <span class="bp">&lt;|&gt;</span> <span class="n">value.array</span> <span class="bp">&lt;$&gt;</span> <span class="n">arrayP</span> <span class="n">valueP</span>
+</code></pre></div>
+<p>The trick here is that <code>valueP</code> is allowed to pass itself as an argument to all the other definitions</p>
+
+
+
+<a name="226726348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226726348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226726348">(Feb 17 2021 at 21:11)</a>:</h4>
+<p>Lean 4 has the notion of a mutual block that makes these kinds of recursions a lot easier. Lean 3 has mutual definitions too but they are not compiled very well</p>
+
+
+
+<a name="226726730"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226726730" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226726730">(Feb 17 2021 at 21:14)</a>:</h4>
+<p>Here's what it looks like with a lean 3 mutual def:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">mutual</span> <span class="kd">def</span> <span class="n">object</span><span class="o">,</span> <span class="n">element</span><span class="o">,</span> <span class="n">elements</span><span class="o">,</span> <span class="n">arrayP</span><span class="o">,</span> <span class="n">valueP</span>
+<span class="k">with</span> <span class="n">object</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">))</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span> <span class="gr">sorry</span>
+<span class="k">with</span> <span class="n">element</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span> <span class="o">(</span><span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ws</span><span class="o">)</span> <span class="n">x</span>
+<span class="k">with</span> <span class="n">elements</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="n">element</span> <span class="n">x</span>
+<span class="k">with</span> <span class="n">arrayP</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">'['</span> <span class="bp">*&gt;</span> <span class="n">elements</span> <span class="bp">&lt;*</span> <span class="n">ch'</span> <span class="sc">'['</span><span class="o">)</span> <span class="n">x</span>
+<span class="k">with</span> <span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span> <span class="o">(</span><span class="n">value.object</span> <span class="bp">&lt;$&gt;</span> <span class="n">object</span> <span class="bp">&lt;|&gt;</span> <span class="n">value.array</span> <span class="bp">&lt;$&gt;</span> <span class="n">arrayP</span><span class="o">)</span> <span class="n">x</span>
+</code></pre></div>
+<p>The <code>| x :=</code> nuisance parameter is because we can only use this to define values of function type, which <code>parser</code> happens to be</p>
+
+
+
+<a name="226726962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226726962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kana <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226726962">(Feb 17 2021 at 21:16)</a>:</h4>
+<p>My not so minimal WE (in MWE namespace)<br>
+<a href="https://gist.github.com/kana-sama/a4e2e7ca66f0bcefba9b5c15d3fe85a6">https://gist.github.com/kana-sama/a4e2e7ca66f0bcefba9b5c15d3fe85a6</a></p>
+
+
+
+<a name="226727063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226727063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kana <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226727063">(Feb 17 2021 at 21:17)</a>:</h4>
+<p>Thanks again, I am looking at  your example</p>
+
+
+
+<a name="226727308"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226727308" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226727308">(Feb 17 2021 at 21:19)</a>:</h4>
+<p>Here's a version of your MWE:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">MWE</span>
+<span class="kn">open</span> <span class="n">parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">parser_a</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">char</span><span class="o">))</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">char</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(::)</span> <span class="bp">&lt;$&gt;</span> <span class="n">ch</span> <span class="sc">'a'</span> <span class="bp">&lt;*&gt;</span> <span class="o">(</span><span class="n">b</span> <span class="bp">&lt;|&gt;</span> <span class="n">eof</span> <span class="bp">$&gt;</span> <span class="o">[])</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">parser_b</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">char</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(::)</span> <span class="bp">&lt;$&gt;</span> <span class="n">ch</span> <span class="sc">'b'</span> <span class="bp">&lt;*&gt;</span> <span class="o">(</span><span class="n">parser_a</span> <span class="n">parser_b</span> <span class="bp">&lt;|&gt;</span> <span class="n">eof</span> <span class="bp">$&gt;</span> <span class="o">[])</span>
+
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">abab</span> <span class="o">:=</span> <span class="n">list.as_string</span> <span class="bp">&lt;$&gt;</span> <span class="o">(</span><span class="n">parser_a</span> <span class="n">parser_b</span> <span class="bp">&lt;|&gt;</span> <span class="n">parser_b</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">abab.run</span> <span class="s2">"abab"</span>
+
+<span class="kd">end</span> <span class="n">MWE</span>
+</code></pre></div>
+
+
+
+<a name="226727736"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226727736" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kana <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226727736">(Feb 17 2021 at 21:22)</a>:</h4>
+<p>Oh thanks. So does <code>meta</code> have an effect like  "disable totality checker and mark function as possible partial"? It is what I want.</p>
+
+
+
+<a name="226728338"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226728338" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226728338">(Feb 17 2021 at 21:26)</a>:</h4>
+<p>And here's your longer example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">element</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="o">:=</span>
+  <span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ws</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">elements</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="o">(</span><span class="n">element</span> <span class="n">valueP</span><span class="o">)</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">member</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="k">do</span> <span class="n">key</span> <span class="bp">←</span> <span class="n">ws</span> <span class="bp">*&gt;</span> <span class="n">stringP</span> <span class="bp">&lt;*</span> <span class="n">ws</span><span class="o">,</span>
+    <span class="n">ch</span> <span class="sc">':'</span><span class="o">,</span>
+    <span class="n">value</span> <span class="bp">←</span> <span class="n">element</span> <span class="n">valueP</span><span class="o">,</span>
+    <span class="n">pure</span> <span class="o">⟨</span><span class="n">key</span><span class="o">,</span> <span class="n">value</span><span class="o">⟩</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">members</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">))</span> <span class="o">:=</span>
+  <span class="n">sep_by1</span> <span class="o">(</span><span class="n">ch'</span> <span class="sc">','</span><span class="o">)</span> <span class="o">(</span><span class="n">member</span> <span class="n">valueP</span><span class="o">)</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">object</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="o">(</span><span class="n">string</span> <span class="bp">×</span> <span class="n">value</span><span class="o">))</span> <span class="o">:=</span>
+  <span class="o">[]</span> <span class="bp">&lt;$</span> <span class="o">(</span><span class="n">ch</span> <span class="sc">'{'</span> <span class="bp">*&gt;</span> <span class="n">ws</span> <span class="bp">&lt;*</span> <span class="n">ch</span> <span class="sc">'}'</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span>
+  <span class="o">(</span><span class="n">ch</span> <span class="sc">'{'</span> <span class="bp">*&gt;</span> <span class="n">members</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ch</span> <span class="sc">'}'</span><span class="o">)</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">array</span> <span class="o">(</span><span class="n">valueP</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span><span class="o">)</span> <span class="o">:</span> <span class="n">parser</span> <span class="o">(</span><span class="n">list</span> <span class="n">value</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="o">[]</span> <span class="bp">&lt;$</span> <span class="o">(</span><span class="n">ch</span> <span class="sc">'['</span> <span class="bp">*&gt;</span> <span class="n">ws</span> <span class="bp">&lt;*</span> <span class="n">ch</span> <span class="sc">']'</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span>
+  <span class="o">(</span><span class="n">ch</span> <span class="sc">'['</span> <span class="bp">*&gt;</span> <span class="n">elements</span> <span class="n">valueP</span> <span class="bp">&lt;*</span> <span class="n">ch</span> <span class="sc">']'</span><span class="o">)</span>
+
+  <span class="kd">meta</span> <span class="kd">def</span> <span class="n">json_parser</span> <span class="o">:</span> <span class="n">parser</span> <span class="n">value</span> <span class="bp">|</span> <span class="n">x</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">value.object</span> <span class="bp">&lt;$&gt;</span> <span class="n">object</span> <span class="n">json_parser</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.array</span> <span class="bp">&lt;$&gt;</span> <span class="n">array</span> <span class="n">json_parser</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.string</span> <span class="bp">&lt;$&gt;</span> <span class="n">stringP</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.number</span> <span class="bp">&lt;$&gt;</span> <span class="n">nat</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.bool</span> <span class="n">true</span> <span class="bp">&lt;$</span> <span class="n">str</span> <span class="s2">"true"</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.bool</span> <span class="n">false</span> <span class="bp">&lt;$</span> <span class="n">str</span> <span class="s2">"false"</span> <span class="bp">&lt;|&gt;</span>
+  <span class="n">value.null</span> <span class="bp">&lt;$</span> <span class="n">str</span> <span class="s2">"null"</span><span class="o">)</span> <span class="n">x</span>
+
+  <span class="k">#eval</span> <span class="n">json_parser.run</span> <span class="s2">"[{</span><span class="se">\"</span><span class="s2">1</span><span class="se">\\</span><span class="s2">n</span><span class="se">\\</span><span class="s2">u0030</span><span class="se">\"</span><span class="s2">: 1}, 2]"</span>
+</code></pre></div>
+
+
+
+<a name="226728560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226728560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226728560">(Feb 17 2021 at 21:28)</a>:</h4>
+<p>It doesn't disable totality checking, i.e. matches still have to be exhaustive, but it does disable termination checking. In fact, in the first version of the code I just posted, I left off the <code>| x :=</code> part in <code>json_parser</code>, and doing this will cause the <code>#eval</code> line to stack overflow because it tries to eagerly evaluate all the closures before it even starts giving it the input</p>
+
+
+
+<a name="226728642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226728642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226728642">(Feb 17 2021 at 21:29)</a>:</h4>
+<p>the <code>| x :=</code> says that we should leave <code>json_parser</code> unevaluated (for example when this term appears in the other parsers) until we have an input to give it</p>
+
+
+
+<a name="226728926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/mutual%20recursive%20parsers/near/226728926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/mutual.20recursive.20parsers.html#226728926">(Feb 17 2021 at 21:31)</a>:</h4>
+<p>In lean 4 there is a <code>partial</code> keyword for enabling this particular functionality without also opting in to the unsafe parts of the language</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

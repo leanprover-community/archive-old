@@ -1,0 +1,856 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html">freeing pointers in FFI</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="268005473"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268005473" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268005473">(Jan 14 2022 at 12:11)</a>:</h4>
+<p>I'm working on bindings to SDL2 which is a rather imperative C media library.<br>
+<a href="https://github.com/Anderssorby/SDL.lean">https://github.com/Anderssorby/SDL.lean</a><br>
+I'm having troubles unifying the manual memory freeing of SDL with the finalizer of Lean reference counter.<br>
+For example manually freeing the pointed data with <code>SDL_FreeSurface</code> leads to segfault</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">SDL.freeSurface</span> <span class="n">surf</span>
+</code></pre></div>
+<p>when lean tries to free the <code>lean_object*</code> too later. Putting the <code>SDL_FreeSurface</code> inside the lean finalizer also leads to a segfault.<br>
+Do you have any tips?</p>
+
+
+
+<a name="268006335"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268006335" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268006335">(Jan 14 2022 at 12:21)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> you need to tell lean how to box/unbox objects</p>
+
+
+
+<a name="268006492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268006492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268006492">(Jan 14 2022 at 12:23)</a>:</h4>
+<p>Have you been able to make any of those C functions that rely on <code>lean_get_external_data</code> work?</p>
+
+
+
+<a name="268006781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268006781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268006781">(Jan 14 2022 at 12:26)</a>:</h4>
+<blockquote>
+<p>I'm having troubles unifying the manual memory freeing of SDL with the finalizer of Lean reference counter.</p>
+</blockquote>
+<p>Yes, that's because you're freeing it twice, once with <code>SDL_FreeSurface</code> and once with <code>free</code>.  You should remove the <code>SDL.freeSurface</code> function and call <code>SDL_FreeSurface</code> from the finalizer instead.</p>
+
+
+
+<a name="268007270"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268007270" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268007270">(Jan 14 2022 at 12:31)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> when is the finalizer called?</p>
+
+
+
+<a name="268007312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268007312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268007312">(Jan 14 2022 at 12:32)</a>:</h4>
+<p>Ok, that is ideal if I can avoid the manual freeing. I have been successfull with <code>lean_get_external_data</code> before</p>
+
+
+
+<a name="268007501"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268007501" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268007501">(Jan 14 2022 at 12:34)</a>:</h4>
+<p>The segfault happens in <code>lean_ptr_tag</code> so I'm not sure if the finalize function has been called yet</p>
+
+
+
+<a name="268007977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268007977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268007977">(Jan 14 2022 at 12:39)</a>:</h4>
+<p>To make it easier for me to have full control over what happens in C, I <a href="https://github.com/arthurpaulino/LeanMySQL/blob/33ca51ef98958f1ef58fff77a46dee602696a2b3/cpp/ffi.cpp#L17">wrap everything inside a struct</a></p>
+
+
+
+<a name="268008051"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268008051" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268008051">(Jan 14 2022 at 12:40)</a>:</h4>
+<p>What does <code>m_tag</code> do and store btw? It isn't documented in lean.h</p>
+
+
+
+<a name="268008254"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268008254" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268008254">(Jan 14 2022 at 12:42)</a>:</h4>
+<p>Hm, I already have enough structs from SDL I think.</p>
+
+
+
+<a name="268011368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268011368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268011368">(Jan 14 2022 at 13:13)</a>:</h4>
+<blockquote>
+<p>when is the finalizer called?</p>
+</blockquote>
+<p>When the surface object is no longer referenced (i.e., the refcount reaches zero).</p>
+
+
+
+<a name="268011933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268011933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268011933">(Jan 14 2022 at 13:18)</a>:</h4>
+<blockquote>
+<p>What does m_tag do and store btw? It isn't documented in lean.h</p>
+</blockquote>
+<p>It stores whether the object is an external/bignum/task/constructor/etc.</p>
+
+
+
+<a name="268012105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268012105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268012105">(Jan 14 2022 at 13:20)</a>:</h4>
+<p>If <code>lean_ptr_tag</code> segfaults, then that's because you pass it a null/invalid pointer.  (Which you might have got from the Inhabited instance for Surface.)</p>
+
+
+
+<a name="268012126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268012126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268012126">(Jan 14 2022 at 13:20)</a>:</h4>
+<p>The whole PointedType business is a giant footgun tbh.</p>
+
+
+
+<a name="268012802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268012802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268012802">(Jan 14 2022 at 13:26)</a>:</h4>
+<p>There is a segfault after <code>lean_render_copy</code> which is void </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="mi">155</span> <span class="n">x_24</span> <span class="bp">=</span> <span class="n">lean_sdl_render_copy</span><span class="o">(</span><span class="n">x_9</span><span class="o">,</span> <span class="n">x_22</span><span class="o">,</span> <span class="n">x_23</span><span class="o">)</span><span class="bp">;</span>
+<span class="mi">156</span> <span class="n">lean_dec</span><span class="o">(</span><span class="n">x_22</span><span class="o">)</span><span class="bp">;</span>
+<span class="mi">157</span> <span class="n">lean_dec</span><span class="o">(</span><span class="n">x_9</span><span class="o">)</span><span class="bp">;</span>
+<span class="mi">158</span> <span class="k">if</span> <span class="o">(</span><span class="n">lean_obj_tag</span><span class="o">(</span><span class="n">x_24</span><span class="o">)</span> <span class="bp">==</span> <span class="mi">0</span><span class="o">)</span> <span class="bp">&lt;</span><span class="c1">-- here</span>
+</code></pre></div>
+<p>Why does it try to read a void value? I used <code>IO Unit</code> for void, but is there an explicit way to return unit?</p>
+
+
+
+<a name="268012856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268012856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268012856">(Jan 14 2022 at 13:27)</a>:</h4>
+<p>That's <code>IO Unit</code>, not void. <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+<a name="268012901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268012901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268012901">(Jan 14 2022 at 13:27)</a>:</h4>
+<blockquote>
+<p>but is there an explicit way to return unit?</p>
+</blockquote>
+<p><code> io_result_mk_ok(box(0))</code></p>
+
+
+
+<a name="268014142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268014142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268014142">(Jan 14 2022 at 13:38)</a>:</h4>
+<p>Hm, but I need to make sure Window is not finalized before the program is over. For now it seems manually calling destroyWindow makes most sense.</p>
+
+
+
+<a name="268014240"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268014240" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268014240">(Jan 14 2022 at 13:39)</a>:</h4>
+<p>As long as you use <em>either</em> the finalizer <em>or</em> a manual free function, you should be fine.</p>
+
+
+
+<a name="268014929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268014929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268014929">(Jan 14 2022 at 13:44)</a>:</h4>
+<p>Seems like this solved everything. Thanks</p>
+
+
+
+<a name="268029394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268029394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268029394">(Jan 14 2022 at 15:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268012126">said</a>:</p>
+<blockquote>
+<p>The whole PointedType business is a giant footgun tbh.</p>
+</blockquote>
+<p>Could you elaborate? I'm curious what problems you see and how you would address them with a different approach</p>
+
+
+
+<a name="268030883"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268030883" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268030883">(Jan 14 2022 at 15:45)</a>:</h4>
+<p>The footgun is clear, I hope.  If you do <code>constant MyFfiType : PointedType</code>, then you get <code>MyFfiType.val : MyFfiType.type</code> for free.  And this is box(0) in the VM, so all your FFI functions will crash unless they handle this special case.  Even worse, you typically define <code>instance : Inhabited MyFfiType.type := ⟨MyFfiType.val⟩</code> which means that you only need an <code>[Inhabited MyFfiType.type]</code> argument to get this special value.  It's the million-dollar mistake ("null") all over again.</p>
+
+
+
+<a name="268031087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268031087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268031087">(Jan 14 2022 at 15:46)</a>:</h4>
+<p>Is there some easy way I can convert an Option Data to a Data* ptr. So that none is NULL and some data is get_exteranl_data</p>
+
+
+
+<a name="268031091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268031091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268031091">(Jan 14 2022 at 15:46)</a>:</h4>
+<p>My plan would be to replace <code>PointedType</code> with <code>{ α : Type // Nonempty α }</code>.  This doesn't give you access to any "null" value, but suffices for <code>constant frob : MyFfiType.type → MyFfiType.type</code>.</p>
+
+
+
+<a name="268031847"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268031847" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268031847">(Jan 14 2022 at 15:51)</a>:</h4>
+<p>Well, it seems the point is that we are explicitly asking for an inhabited type here, i.e. one with a null value. Ideally we should have a way to just have <code>constant Foo : Type</code> if <code>Foo</code> does not admit a null value</p>
+
+
+
+<a name="268031917"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268031917" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268031917">(Jan 14 2022 at 15:52)</a>:</h4>
+<p>The whole pattern with inhabited types seems to be that we want programmy types to have default values when possible</p>
+
+
+
+<a name="268032268"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032268" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032268">(Jan 14 2022 at 15:54)</a>:</h4>
+<p>If you replace <code>Inhabited</code> with <code>Nonempty</code> in <code>PointedType</code>, I think you also have to replace it in the checks on <code>partial</code> and <code>constant</code></p>
+
+
+
+<a name="268032542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032542">(Jan 14 2022 at 15:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268030883">said</a>:</p>
+<blockquote>
+<p>The footgun is clear, I hope.  If you do <code>constant MyFfiType : PointedType</code>, then you get <code>MyFfiType.val : MyFfiType.type</code> for free.  And this is box(0) in the VM, so all your FFI functions will crash unless they handle this special case.</p>
+</blockquote>
+<p>This seems odd to me (the part about the null value being box(0) specifically). Aren't you supposed to provide/override this function as part of the FFI implementation?</p>
+
+
+
+<a name="268032676"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032676" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032676">(Jan 14 2022 at 15:57)</a>:</h4>
+<blockquote>
+<p>I think you also have to replace it in the checks on partial and constant</p>
+</blockquote>
+<p>Indeed, that's what I want to do.</p>
+
+
+
+<a name="268032818"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032818" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032818">(Jan 14 2022 at 15:58)</a>:</h4>
+<blockquote>
+<p>This seems odd to me (the part about the null value being box(0) specifically).</p>
+</blockquote>
+<p><code>constant</code> only hides the implementation (i.e., you can't prove that <code>MyFfiType</code> is the default <code>PointedType</code> value).  But the implementation is still used by the VM.</p>
+
+
+
+<a name="268032885"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032885" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032885">(Jan 14 2022 at 15:58)</a>:</h4>
+<p>Same thing if you define a natural number constant:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">N</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="mi">42</span>
+<span class="k">#eval</span> <span class="n">N</span> <span class="c1">-- 42</span>
+</code></pre></div>
+
+
+
+<a name="268032922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032922">(Jan 14 2022 at 15:59)</a>:</h4>
+<p>But part of the "idiom" here is that you are replacing this function with something else, or else there is no point in the <code>constant</code></p>
+
+
+
+<a name="268032961"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268032961" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268032961">(Jan 14 2022 at 15:59)</a>:</h4>
+<p>Except that the default <code>PointedType</code> value consists of the type <code>PUnit</code> with <code>PUnit.star</code> as the value (which is represented as box(0))</p>
+
+
+
+<a name="268033124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033124">(Jan 14 2022 at 16:00)</a>:</h4>
+<p>a <code>constant</code> with no definition and no <code>implementedBy</code> or <code>extern</code> seems like a very weird thing to do IMO</p>
+
+
+
+<a name="268033179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033179">(Jan 14 2022 at 16:00)</a>:</h4>
+<p>This is completely normal and idiomatic for FFI types though.</p>
+
+
+
+<a name="268033221"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033221" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033221">(Jan 14 2022 at 16:01)</a>:</h4>
+<p>don't FFI types always <code>extern</code> the constant?</p>
+
+
+
+<a name="268033234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033234">(Jan 14 2022 at 16:01)</a>:</h4>
+<p>Never for the type, as far as I can see. Only for the FFI functions.</p>
+
+
+
+<a name="268033291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033291">(Jan 14 2022 at 16:01)</a>:</h4>
+<p>...I'm very confused how anything is supposed to work then</p>
+
+
+
+<a name="268033313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033313">(Jan 14 2022 at 16:01)</a>:</h4>
+<p>You do want to have NULL pointers in some FFI scenarios though. Like I described. How is Option represented?</p>
+
+
+
+<a name="268033393"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033393" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033393">(Jan 14 2022 at 16:02)</a>:</h4>
+<p>Your type can explicitly do something with nulls if you want</p>
+
+
+
+<a name="268033471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033471">(Jan 14 2022 at 16:02)</a>:</h4>
+<p>You can either put <code>Option</code> around your type, or just have an API that reflects the possibility that the type has a null value (and every function has to accommodate this)</p>
+
+
+
+<a name="268033666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268033666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268033666">(Jan 14 2022 at 16:04)</a>:</h4>
+<blockquote>
+<p>...I'm very confused how anything is supposed to work then</p>
+</blockquote>
+<p>The general idea is this (add coercions, definitions, etc. to your liking):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">MyType</span> <span class="o">:</span> <span class="n">PointedType</span>
+<span class="kd">@[extern "function1_impl"]</span>
+<span class="kd">constant</span> <span class="n">function1</span> <span class="o">:</span> <span class="n">MyType.type</span> <span class="bp">→</span> <span class="n">MyType.type</span>
+<span class="kd">@[extern "function2_impl"]</span>
+<span class="kd">constant</span> <span class="n">function2</span> <span class="o">:</span> <span class="n">MyType.type</span> <span class="bp">→</span> <span class="n">MyType.type</span> <span class="bp">→</span> <span class="n">MyType.type</span>
+</code></pre></div>
+
+
+
+<a name="268034008"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034008" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034008">(Jan 14 2022 at 16:06)</a>:</h4>
+<p>yeah, I see a bug there if you aren't adding an <code>extern</code> on the first constant</p>
+
+
+
+<a name="268034124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034124">(Jan 14 2022 at 16:07)</a>:</h4>
+<p>I think what you expected is this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[extern "mk_empty_mytype"]</span>
+<span class="kd">constant</span> <span class="n">MyType</span> <span class="o">:</span> <span class="n">PointedType</span>
+</code></pre></div>
+<p>Note that this will only work if you can actually provide a default value.  (And many FFI types don't have them.)</p>
+
+
+
+<a name="268034287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034287">(Jan 14 2022 at 16:08)</a>:</h4>
+<p>What I would like to write in the case of no default is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">MyType</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="kd">@[extern "function1_impl"]</span>
+<span class="kd">constant</span> <span class="n">function1</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span>
+<span class="kd">@[extern "function2_impl"]</span>
+<span class="kd">constant</span> <span class="n">function2</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span>
+</code></pre></div>
+
+
+
+<a name="268034425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034425">(Jan 14 2022 at 16:09)</a>:</h4>
+<p>assuming that gives an error about non-inhabited types for the latter constants, you can also write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">MyType</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="kd">@[extern "function1_impl"]</span>
+<span class="kd">constant</span> <span class="n">function1</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span> <span class="o">:=</span> <span class="n">id</span>
+<span class="kd">@[extern "function2_impl"]</span>
+<span class="kd">constant</span> <span class="n">function2</span> <span class="o">:</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span> <span class="bp">→</span> <span class="n">MyType</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">id</span>
+</code></pre></div>
+
+
+
+<a name="268034510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034510">(Jan 14 2022 at 16:10)</a>:</h4>
+<p>This doesn't let you write <code>constant function3 : Nat → MyType</code> though.</p>
+
+
+
+<a name="268034638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034638">(Jan 14 2022 at 16:10)</a>:</h4>
+<p>True. But if your function has such an API then you can define <code>MyType.val := function3 0</code></p>
+
+
+
+<a name="268034771"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034771" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034771">(Jan 14 2022 at 16:11)</a>:</h4>
+<p>I think you have the order wrong, you'd need to write a C function <code>function3_0_impl</code> and say <code>@[extern "function3_0_impl"] constant MyType : PointedType</code>.</p>
+
+
+
+<a name="268034851"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034851" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034851">(Jan 14 2022 at 16:12)</a>:</h4>
+<p>And then function3 is <em>always</em> executed on initialization, whether you want it or not.</p>
+
+
+
+<a name="268034953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034953">(Jan 14 2022 at 16:13)</a>:</h4>
+<p>What if the constructor is in an <code>IO</code> action? Like <code>function3 : Nat -&gt; IO MyType</code></p>
+
+
+
+<a name="268034984"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268034984" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268034984">(Jan 14 2022 at 16:13)</a>:</h4>
+<p>can we have a default IO action for this case?</p>
+
+
+
+<a name="268035035"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035035" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035035">(Jan 14 2022 at 16:13)</a>:</h4>
+<p>That would actually work (because <code>IO</code> happens to be inhabited), but <code>Nat → BaseIO MyType</code> runs into the same issues as <code>Nat → MyType</code>.</p>
+
+
+
+<a name="268035253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035253">(Jan 14 2022 at 16:14)</a>:</h4>
+<p>If the constructor is pure, then evaluating it on startup is probably fine, and if it's not then you probably have the IO situation</p>
+
+
+
+<a name="268035289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035289">(Jan 14 2022 at 16:15)</a>:</h4>
+<p>not sure how much to worry about the <code>BaseIO</code> version</p>
+
+
+
+<a name="268035367"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035367" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035367">(Jan 14 2022 at 16:15)</a>:</h4>
+<p>what happens when a <code>BaseIO</code> computation fails?</p>
+
+
+
+<a name="268035467"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035467" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035467">(Jan 14 2022 at 16:16)</a>:</h4>
+<p>is that just undefined behavior or something?</p>
+
+
+
+<a name="268035473"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268035473" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268035473">(Jan 14 2022 at 16:16)</a>:</h4>
+<p>It can only abort or exit the process, not fail in the same sense as IO.</p>
+
+
+
+<a name="268036022"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036022" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036022">(Jan 14 2022 at 16:19)</a>:</h4>
+<p>I think the worst case scenario, if you have a complex not-necessarily-inhabited FFI type with a bunch of random functions on it, is that you put the whole API in a structure and make a constant for it. Then you have to prove that some type has a model for the whole thing, which is presumably possible unless the new type is literally inconsistent</p>
+
+
+
+<a name="268036275"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036275" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036275">(Jan 14 2022 at 16:21)</a>:</h4>
+<blockquote>
+<p>and make a constant for it</p>
+</blockquote>
+<p>That's a moderately bad idea because you'll have indirect function calls via closures instead of direct ones.</p>
+
+
+
+<a name="268036318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036318">(Jan 14 2022 at 16:21)</a>:</h4>
+<p>I was hoping that would be optimized away</p>
+
+
+
+<a name="268036384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036384">(Jan 14 2022 at 16:21)</a>:</h4>
+<p>they should still be calls to known functions, i.e. it is optimizable</p>
+
+
+
+<a name="268036607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036607">(Jan 14 2022 at 16:23)</a>:</h4>
+<p>I feel like we still haven't found the best approach here for communicating an FFI interface to lean with suitable consistency checks</p>
+
+
+
+<a name="268036692"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036692" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036692">(Jan 14 2022 at 16:24)</a>:</h4>
+<p>I'm not sure how you expect this to happen.  It's an opaque definition in C.  Lean can't see through it.  And I wouldn't count on LTO being able to see through it (the lean_apply functions are huge and unlikely to be inlined);</p>
+
+
+
+<a name="268036899"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268036899" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268036899">(Jan 14 2022 at 16:25)</a>:</h4>
+<blockquote>
+<p>I feel like we still haven't found the best approach here for communicating an FFI interface to lean with suitable consistency checks</p>
+</blockquote>
+<p>What's wrong with my <code>PointedType := { α // Nonempty α }</code> proposal?  That seems like the most incremental change which still gets rid of the initialization/default value issue.</p>
+
+
+
+<a name="268037036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268037036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268037036">(Jan 14 2022 at 16:26)</a>:</h4>
+<p>Is there some easy way to translate between lean structures and c structs with the same fields btw?</p>
+
+
+
+<a name="268037145"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268037145" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268037145">(Jan 14 2022 at 16:27)</a>:</h4>
+<p>I'm thinking something like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">struct</span> <span class="n">FooApi</span> <span class="n">where</span>
+  <span class="n">T</span> <span class="o">:</span> <span class="kt">Type</span>
+  <span class="n">f</span> <span class="o">:</span> <span class="n">T</span> <span class="bp">-&gt;</span> <span class="n">T</span>
+
+<span class="kd">def</span> <span class="n">FooModel</span> <span class="o">:=</span> <span class="n">empty</span>
+<span class="kd">@[extern "foo_f_impl"]</span>
+<span class="kd">def</span> <span class="n">FooModel.f</span> <span class="o">:</span> <span class="n">FooModel</span> <span class="bp">-&gt;</span> <span class="n">FooModel</span> <span class="o">:=</span> <span class="n">id</span>
+
+<span class="kd">constant</span> <span class="n">FooWitness</span> <span class="o">:</span> <span class="n">FooApi</span> <span class="o">:=</span> <span class="bp">\&lt;</span><span class="n">FooModel</span><span class="o">,</span> <span class="n">FooModel.f</span><span class="bp">\&gt;</span>
+
+<span class="kd">def</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">FooWitness.T</span>
+<span class="kd">def</span> <span class="n">Foo.f</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">-&gt;</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">FooWitness.f</span>
+</code></pre></div>
+<p>The lean compiler should be able to work out that <code>Foo.f</code> is a direct call to <code>foo_f_impl</code></p>
+
+
+
+<a name="268037428"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268037428" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268037428">(Jan 14 2022 at 16:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268036899">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>I feel like we still haven't found the best approach here for communicating an FFI interface to lean with suitable consistency checks</p>
+</blockquote>
+<p>What's wrong with my <code>PointedType := { α // Nonempty α }</code> proposal?  That seems like the most incremental change which still gets rid of the initialization/default value issue.</p>
+</blockquote>
+<p>I think there should be a way to mark <em>types</em> as being FFI-overridden, such that lean can give an error/warning on any function that uses the type's "fake" definition and is not overridden</p>
+
+
+
+<a name="268037856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268037856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268037856">(Jan 14 2022 at 16:32)</a>:</h4>
+<p>Another alternative, similar to using <code>Nonempty</code>, is to use <code>noncomputable constant Foo : PointedType</code> to opt out of code generation for the <code>.val</code> function</p>
+
+
+
+<a name="268045035"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268045035" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268045035">(Jan 14 2022 at 17:25)</a>:</h4>
+<blockquote>
+<p>I'm thinking something like this:</p>
+</blockquote>
+<p>Indeed, it's possible to "launder" the API in this way.  (Although <code>NonScalar</code> might be more useful than <code>Empty</code>, in general.)  The setup is pretty cumbersome though.</p>
+
+
+
+<a name="268045188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268045188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268045188">(Jan 14 2022 at 17:26)</a>:</h4>
+<p>it does look like something that can/should be automated by a macro, especially because of the footguns</p>
+
+
+
+<a name="268045360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268045360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268045360">(Jan 14 2022 at 17:27)</a>:</h4>
+<p>but the macro expansion should hopefully not require too much analysis to get good code, so if as you say there is an inefficiency in going via the structure then this isn't the best solution</p>
+
+
+
+<a name="268045487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268045487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268045487">(Jan 14 2022 at 17:28)</a>:</h4>
+<p>No the "laundering" should be zero-cost (or at least be zero-cost after adding enough @[inline]).</p>
+
+
+
+<a name="268048585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268048585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268048585">(Jan 14 2022 at 17:53)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">I</span> <span class="n">think</span> <span class="n">there</span> <span class="n">should</span> <span class="n">be</span> <span class="n">a</span> <span class="n">way</span> <span class="n">to</span> <span class="n">mark</span> <span class="bp">*</span><span class="n">types</span><span class="bp">*</span> <span class="n">as</span> <span class="n">being</span> <span class="n">FFI</span><span class="bp">-</span><span class="n">overridden</span><span class="o">,</span> <span class="n">such</span> <span class="n">that</span> <span class="n">lean</span> <span class="n">can</span> <span class="n">give</span> <span class="n">an</span> <span class="n">error</span><span class="bp">/</span><span class="n">warning</span> <span class="n">on</span> <span class="n">any</span> <span class="n">function</span> <span class="n">that</span> <span class="n">uses</span> <span class="n">the</span> <span class="n">type's</span> <span class="s2">"fake"</span> <span class="kd">definition</span> <span class="n">and</span> <span class="n">is</span> <span class="n">not</span> <span class="n">overridden</span>
+<span class="bp">````</span>
+<span class="n">Doesn't</span> <span class="n">having</span> <span class="bp">`</span><span class="n">MyType</span><span class="bp">`</span> <span class="n">be</span> <span class="n">a</span> <span class="kd">constant</span> <span class="o">(</span><span class="n">e.g.</span><span class="o">,</span> <span class="bp">`</span><span class="n">const</span> <span class="n">MyType</span> <span class="o">:</span> <span class="n">PointedType</span><span class="bp">`</span><span class="o">)</span> <span class="n">prevent</span> <span class="n">one</span> <span class="k">from</span> <span class="n">using</span> <span class="n">the</span> <span class="n">type's</span> <span class="n">fake</span> <span class="kd">definition</span><span class="bp">?</span>
+</code></pre></div>
+
+
+
+<a name="268049830"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268049830" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268049830">(Jan 14 2022 at 18:02)</a>:</h4>
+<p>No, that only prevents lean from being able to use the definition in proofs. The compiler will see through <code>constant</code> definitions</p>
+
+
+
+<a name="268050143"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268050143" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268050143">(Jan 14 2022 at 18:04)</a>:</h4>
+<p>For types, this is fine since types have no compiler content, but <code>PointedType</code> is a combination of a type and a value, so it is computationally relevant (and you can use <code>#eval MyType.val</code> to execute code producing this bad value)</p>
+
+
+
+<a name="268053610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268053610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268053610">(Jan 14 2022 at 18:32)</a>:</h4>
+<p>I used <code>PointedType.val</code> as an intentional NULL in SDL which is a very useful option to have.</p>
+
+
+
+<a name="268053880"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268053880" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268053880">(Jan 14 2022 at 18:34)</a>:</h4>
+<p>Just (a related) fyi: you should never use <code>(lean_object *) NULL</code>.  This is a special value reserved by the runtime.</p>
+
+
+
+<a name="268053934"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268053934" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268053934">(Jan 14 2022 at 18:34)</a>:</h4>
+<p>I get an error with <code>#eval MyType.val</code> due to the lack of <code>Repr</code>, but I see your point.  From some limited testing, it seems like you could mark the constant as <code>noncomputable</code> and that will prevent the evaluator from synthesizing that code.<br>
+Does that have the semantics that you are looking for?</p>
+
+
+
+<a name="268062532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268062532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268062532">(Jan 14 2022 at 19:45)</a>:</h4>
+<p>Unfortnulately this wasn't as useful as I hoped. I wanted that only lean_get_external_data returned NULL</p>
+
+
+
+<a name="268063215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268063215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268063215">(Jan 14 2022 at 19:51)</a>:</h4>
+<p>If there was some way I could destructure lean types in C I could use an option type directly perhaps.</p>
+
+
+
+<a name="268068738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268068738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268068738">(Jan 14 2022 at 20:31)</a>:</h4>
+<p>I tried to do this to get a NULL pointer like this</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="cm">/*</span>
+<span class="cm">SDL.SDL_Rect_NULL : Thunk SDL_Rect</span>
+<span class="cm">*/</span><span class="w"></span>
+<span class="n">lean_obj_res</span><span class="w"> </span><span class="nf">lean_sdl_rect_null</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">lean_alloc_external</span><span class="p">(</span><span class="n">get_sdl_rect_class</span><span class="p">(),</span><span class="w"> </span><span class="p">(</span><span class="n">SDL_Rect</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="nb">NULL</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Which causes</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">src.c</span><span class="o">:</span><span class="mi">351</span><span class="o">:</span><span class="mi">25</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">called</span> <span class="n">object</span> <span class="n">type</span> <span class="bp">'</span><span class="n">lean_object</span> <span class="bp">*'</span> <span class="n">is</span> <span class="n">not</span> <span class="n">a</span> <span class="n">function</span> <span class="n">or</span> <span class="n">function</span> <span class="n">pointer</span>
+<span class="n">SDL</span><span class="bp">-</span><span class="n">cc</span><span class="bp">&gt;</span> <span class="n">x_1</span> <span class="bp">=</span> <span class="n">lean_sdl_rect_null</span><span class="o">()</span><span class="bp">;</span>
+</code></pre></div>
+
+
+
+<a name="268071027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268071027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268071027">(Jan 14 2022 at 20:51)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="268073008"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268073008" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268073008">(Jan 14 2022 at 21:08)</a>:</h4>
+<p>But why are you trying to return <code>NULL</code> to Lean?</p>
+
+
+
+<a name="268073102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268073102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268073102">(Jan 14 2022 at 21:09)</a>:</h4>
+<p>I can't help but think there is some kind of conceptual misuse of the FFI</p>
+
+
+
+<a name="268076114"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268076114" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268076114">(Jan 14 2022 at 21:37)</a>:</h4>
+<p>Sure, there are ways to avoid using NULL which has a real meaning in the SDL API. But what would be the best way to do it? I would most want to ba able to convert an Option.none to a NULL pointer in those cases, but doing that requires destructuring the data representation of Option in C which is not so nice.</p>
+
+
+
+<a name="268076364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268076364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268076364">(Jan 14 2022 at 21:40)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> What is the type declaration in Lean for the function that binds to <code>lean_sdl_rect_null</code>?  Is it pure or in IO?</p>
+
+
+
+<a name="268076446"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268076446" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268076446">(Jan 14 2022 at 21:41)</a>:</h4>
+<p>If it is in IO, then it should take an extra unused argument for the "RealWorld" argument, e.g., <code>lean_obj_res lean_sdl_rect_null(lean_object* _rw)</code>.</p>
+
+
+
+<a name="268077809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268077809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268077809">(Jan 14 2022 at 21:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> I want to apologize upfront for not being able to understand your intent in the context of your lib, but I want to express a mental model that helps me to understand the FFI. Please take it with a grain of salt, for I'm not sure if it can help you.</p>
+<p>I like to think of the FFI usage as something similar to object oriented programming. You have access to the objects and its methods, but you can't access its implementations. In this sense, any need to deal with <code>NULL</code> should be handled in C. Similarly, you don't want to be dealing with Java object pointers that point nowhere.</p>
+
+
+
+<a name="268077946"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268077946" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268077946">(Jan 14 2022 at 21:55)</a>:</h4>
+<p>Lean side</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[extern "lean_sdl_rect_null"]</span>
+<span class="kd">def</span> <span class="n">SDL_Rect_NULL</span> <span class="o">:</span> <span class="n">Thunk</span> <span class="n">SDL_Rect</span> <span class="o">:=</span> <span class="n">SDL_RectP.val</span>
+</code></pre></div>
+
+
+
+<a name="268078137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268078137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268078137">(Jan 14 2022 at 21:57)</a>:</h4>
+<p>This is probably not the ideal way to do this. But I need to represent NULL in some way since this means that the function uses a default.</p>
+
+
+
+<a name="268078261"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268078261" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268078261">(Jan 14 2022 at 21:58)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">SDL_RectP</span> <span class="o">:</span> <span class="n">PointedType</span>
+
+<span class="kd">def</span> <span class="n">SDL_Rect</span> <span class="o">:=</span> <span class="n">SDL_RectP.type</span>
+</code></pre></div>
+
+
+
+<a name="268078585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268078585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268078585">(Jan 14 2022 at 22:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="433842">Anders Christiansen Sørby</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268078137">said</a>:</p>
+<blockquote>
+<p>This is probably not the ideal way to do this. But I need to represent NULL in some way since this means that the function uses a default.</p>
+</blockquote>
+<p>You need to pass <em>something</em> from Lean to C in a way that C understands it as <code>NULL</code>?</p>
+
+
+
+<a name="268079144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268079144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268079144">(Jan 14 2022 at 22:04)</a>:</h4>
+<p>Yes, or something I can translate to NULL</p>
+
+
+
+<a name="268079676"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268079676" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268079676">(Jan 14 2022 at 22:08)</a>:</h4>
+<p>I'd use a struct to encapsulate that info, with a field whose value is initiated with <code>NULL</code></p>
+
+
+
+<a name="268079826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268079826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268079826">(Jan 14 2022 at 22:09)</a>:</h4>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span> <span class="nc">some_data</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">PTR_TYPE</span><span class="o">*</span><span class="w"> </span><span class="n">ptr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"> </span><span class="n">some_data</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+
+
+
+<a name="268079997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268079997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268079997">(Jan 14 2022 at 22:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="433842">Anders Christiansen Sørby</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268068738">said</a>:</p>
+<blockquote>
+<p>I tried to do this to get a NULL pointer like this &lt;snip&gt; Which causes</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">src.c</span><span class="o">:</span><span class="mi">351</span><span class="o">:</span><span class="mi">25</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">called</span> <span class="n">object</span> <span class="n">type</span> <span class="bp">'</span><span class="n">lean_object</span> <span class="bp">*'</span> <span class="n">is</span> <span class="n">not</span> <span class="n">a</span> <span class="n">function</span> <span class="n">or</span> <span class="n">function</span> <span class="n">pointer</span>
+<span class="n">SDL</span><span class="bp">-</span><span class="n">cc</span><span class="bp">&gt;</span> <span class="n">x_1</span> <span class="bp">=</span> <span class="n">lean_sdl_rect_null</span><span class="o">()</span><span class="bp">;</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>What is the code producing the latter error? it seems like you passed a <code>lean_object *</code> directly as an <code>SDL_Rect *</code> to an SDL function instead of unwrapping it like you should. Since the lean_external API accepts <code>void *</code> payloads, I suspect that using <code>NULL</code> in the way of your first code block is fine, but you are making a mistake somewhere else causing the error.</p>
+
+
+
+<a name="268080262"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080262" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080262">(Jan 14 2022 at 22:13)</a>:</h4>
+<p><span class="user-mention" data-user-id="451983">@Arthur Paulino</span>  Sure, but I was looking for the minimal boilerplate solution.</p>
+
+
+
+<a name="268080550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080550">(Jan 14 2022 at 22:14)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> Hm, I thought so too, but I can't see where...</p>
+
+
+
+<a name="268080677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080677">(Jan 14 2022 at 22:15)</a>:</h4>
+<p>who is producing that error? What is <code>src.c</code>? I don't see it in your project</p>
+
+
+
+<a name="268080691"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080691" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080691">(Jan 14 2022 at 22:15)</a>:</h4>
+<p>I tested code generation and for a thunk, Lean expects it to be a constant.</p>
+
+
+
+<a name="268080794"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080794" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080794">(Jan 14 2022 at 22:16)</a>:</h4>
+<p>So the compiler is likely looking for a declaration such as <code>LEAN_EXPORT lean_object* lean_sdl_rect_null</code></p>
+
+
+
+<a name="268080926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268080926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268080926">(Jan 14 2022 at 22:18)</a>:</h4>
+<p>I found the problem. I need to use a <code>Unit -&gt; SDL_Rect</code> signature to make it behave like a function with no args</p>
+
+
+
+<a name="268081049"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268081049" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268081049">(Jan 14 2022 at 22:19)</a>:</h4>
+<p><code>Unit -&gt; SDL_Rect</code> will likely make it a function that takes a single argument, but the argument can be ignored.</p>
+
+
+
+<a name="268081160"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268081160" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268081160">(Jan 14 2022 at 22:20)</a>:</h4>
+<p>I thought so, but it does not. It works with no args.</p>
+
+
+
+<a name="268081671"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268081671" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268081671">(Jan 14 2022 at 22:26)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="433842">Anders Christiansen Sørby</span> <a href="#narrow/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI/near/268078137">said</a>:</p>
+<blockquote>
+<p>This is probably not the ideal way to do this. But I need to represent NULL in some way since this means that the function uses a default.</p>
+</blockquote>
+<p>Why not just use <code>Option SDL_Rect</code> for functions that accept possibly NULL rect arguments?</p>
+
+
+
+<a name="268081999"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268081999" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268081999">(Jan 14 2022 at 22:28)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> What I meant by that is that if you look in the Lean generated C code, you'll see it declares a function like <code>lean_object* lean_sdl_rect_null(lean_object*)</code>. </p>
+<p>Of course, it's fine to link that against a function definition that takes no arguments, because that's ABI compatible when you don't actually use the argument.</p>
+
+
+
+<a name="268082441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268082441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268082441">(Jan 14 2022 at 22:32)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> That is what I first tried, but I don't know how to unwrap an lean_object* which is an option on the C side.</p>
+
+
+
+<a name="268082533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268082533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268082533">(Jan 14 2022 at 22:33)</a>:</h4>
+<p>Would be nice if there was such a function. <code>void *lean_option_unwrap(lean_obj_arg a)</code></p>
+
+
+
+<a name="268082658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268082658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268082658">(Jan 14 2022 at 22:34)</a>:</h4>
+<p>Which is NULL for none and get_external_data(b) for some b</p>
+
+
+
+<a name="268083031"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268083031" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268083031">(Jan 14 2022 at 22:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> to unwrap an <code>Option</code>, first check if it is <code>none</code> (e.g., <code>1</code>) by checking if the <code>lean_object</code> is a scalar (i.e., with <code>lean_is_scalar</code>). Otherwise, if the <code>Option</code> is instead a <code>some</code>, you can get the inner <code>lean_object</code> with <code>some_val = lean_ctor_get(opt_obj, 0)</code>.</p>
+
+
+
+<a name="268083133"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268083133" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268083133">(Jan 14 2022 at 22:39)</a>:</h4>
+<p>Ok, thanks. That is what I've been looking for. Is this documented anywhere?</p>
+
+
+
+<a name="268084256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268084256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anders Christiansen Sørby <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268084256">(Jan 14 2022 at 22:51)</a>:</h4>
+<p>So this should do it</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Unwrap an Option of an external object as data for some</span>
+<span class="cm"> * or NULL for none. Unsafe.</span>
+<span class="cm"> */</span><span class="w"></span>
+<span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="nf">lean_option_unwrap</span><span class="p">(</span><span class="n">b_lean_obj_arg</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lean_is_scalar</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">lean_scalar_to_int</span><span class="p">(</span><span class="n">a</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">lean_object</span><span class="w"> </span><span class="o">*</span><span class="n">some_val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lean_ctor_get</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">lean_get_external_data</span><span class="p">(</span><span class="n">some_val</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+
+
+<a name="268100087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/freeing%20pointers%20in%20FFI/near/268100087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/freeing.20pointers.20in.20FFI.html#268100087">(Jan 15 2022 at 02:50)</a>:</h4>
+<p><span class="user-mention" data-user-id="433842">@Anders Christiansen Sørby</span> You don't need the <code>lean_scalar_to_int</code>. You just need <code>lean_is_scalar</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

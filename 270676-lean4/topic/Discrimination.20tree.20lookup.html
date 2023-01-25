@@ -1,0 +1,126 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Discrimination.20tree.20lookup.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html">Discrimination tree lookup</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="299298828"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299298828" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299298828">(Sep 17 2022 at 10:12)</a>:</h4>
+<p>My mental model of discrimination trees used to be that if you insert a key expression <code>k</code> into the tree and then query it with <code>getUnify q</code>, the returned array will include the value associated to <code>k</code> whenever <code>k</code> unifies with <code>q</code>. However, this does not seem to be the case. A concrete example from Aesop, where I use discr trees with <code>default</code> transparency for indexing: if <code>k = _ ++ _</code> and <code>q = [a] ++ l</code>, then the first thing <code>getUnify</code> does is <code>whnf q</code>, which reduces <code>q</code> to <code>a :: l</code> and so the <code>++</code> branch of the tree is never explored and <code>k</code> is not found. I can whip up an MWE if desired.</p>
+<p>Is this expected or a bug? I guess if you wanted to fix this, you'd have to perform two traversals, one before <code>whnf</code> which explores the <code>++</code> branch and one after <code>whnf</code> which explores the <code>::</code> branch (and similar recursively, for every iteration of the lookup loop). But this may not even be enough: <code>q</code> may have additional reducts with different head symbols(?). So this fix sounds quite expensive.</p>
+<p>cc <span class="user-mention" data-user-id="121058">@Jasmin Blanchette</span></p>
+
+
+
+<a name="299303193"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299303193" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299303193">(Sep 17 2022 at 10:52)</a>:</h4>
+<blockquote>
+<p>where I use discr trees with <code>default</code> transparency for indexing:</p>
+</blockquote>
+<p>This is the problem.  We always use reducible transparency for discrimination trees.</p>
+
+
+
+<a name="299303438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299303438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299303438">(Sep 17 2022 at 10:54)</a>:</h4>
+<p>As you've observed, extending this to default transparency requires extra work.  We would indeed need to store multiple reductions in the discrimination tree.</p>
+
+
+
+<a name="299306823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299306823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299306823">(Sep 17 2022 at 11:17)</a>:</h4>
+<p>Okay, but the problem remains when I use <code>reducible</code> transparency, doesn't it? For example, I can make <code>++</code> reducible and get the same behaviour with stock discr trees.</p>
+<p>I also don't see how I could put more information into the tree to fix this. At the point where I put a lemma with conclusion, say, <code>l ++ l' = l'</code> in the tree, it seems really hard to anticipate all the possible instances of <code>l</code> and <code>l'</code> that would lead to a different reduction (e.g. <code>l = [a]</code>).</p>
+
+
+
+<a name="299307330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299307330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299307330">(Sep 17 2022 at 11:21)</a>:</h4>
+<blockquote>
+<p>I can make <code>++</code> reducible and get the same behaviour with stock discr trees.</p>
+</blockquote>
+<p>You shouldn't and we don't.</p>
+
+
+
+<a name="299307414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299307414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299307414">(Sep 17 2022 at 11:21)</a>:</h4>
+<p>The general rule being that recursive definitions are not reducible.</p>
+
+
+
+<a name="299307519"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299307519" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299307519">(Sep 17 2022 at 11:22)</a>:</h4>
+<p>We have lots of non-recursive reducible definitions, but those are fine because they can just be expanded as a preprocessing.</p>
+
+
+
+<a name="299308835"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299308835" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299308835">(Sep 17 2022 at 11:33)</a>:</h4>
+<p>Okay, thanks. I guess for the moment I'll go back to using reducible transparency for indexing; that's also an unfortunate restriction but at least it provides predictable behaviour. Longer-term I'd like to see whether this can be fixed properly without tanking performance too much.</p>
+
+
+
+<a name="299309175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299309175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299309175">(Sep 17 2022 at 11:35)</a>:</h4>
+<p>I feel like this is a bit of an <a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a> question.  Many other parts of Lean also work with reducible transparency, in particular all other proof search procedures: <code>simp</code>, type-class synthesis, etc.  Using the same transparency setting is a consistency feature, not a bug.™</p>
+
+
+
+<a name="299313096"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299313096" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299313096">(Sep 17 2022 at 12:09)</a>:</h4>
+<p>I see the argument, but I'm really not sure about this in the context of Aesop. When I do indexing with <code>reducible</code> transparency, <code>apply</code> rules don't work like the <code>apply</code> tactic any more; they work like <code>apply</code>with <code>reducible</code> transparency. So a rule which concludes <code>P (a :: l)</code> doesn't apply to the goal <code>P ([a] ++ l)</code>. I guess the Lean way is to let <code>simp</code> compensate for this by registering all the reduction rules as <code>simp</code> lemmas.</p>
+<p>One particular application where this will be problematic is using Aesop to emulate tactics such as <code>measurability</code>. The banged version, which uses <code>default</code> transparency, cannot easily be expressed as an Aesop call if Aesop is effectively restricted to <code>reducible</code>.</p>
+
+
+
+<a name="299321833"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299321833" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299321833">(Sep 17 2022 at 13:28)</a>:</h4>
+<p>AFAICT <code>measurability!</code> is never used in mathlib. And <code>continuity!</code> is only used five times, which would be easy to fix.</p>
+
+
+
+<a name="299322054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299322054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299322054">(Sep 17 2022 at 13:30)</a>:</h4>
+<p>From a high-level point of view, I think it would be better to use reducible transparency exclusively and add extra lemmas to bridge the gaps.</p>
+
+
+
+<a name="299322529"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299322529" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299322529">(Sep 17 2022 at 13:35)</a>:</h4>
+<p>Looking at some of the uses of <code>continuity!</code> in mathlib, this would imho be an improvement: e.g. in <code>unit_interval.lean</code>, we can just replace <code>continuity!</code> with <code>unfold symm; continuity</code>.</p>
+
+
+
+<a name="299344914"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299344914" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299344914">(Sep 17 2022 at 17:05)</a>:</h4>
+<p>As an end user I've seen this <code>unfold thing; high-powered-tactic</code> idiom before and I always wish that the tactic was that bit more powerful; you can see why things like <code>continiity!</code> have ended up existing</p>
+
+
+
+<a name="299523992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299523992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jasmin Blanchette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299523992">(Sep 19 2022 at 08:40)</a>:</h4>
+<p>Jannis, I think your mental model was very simplistic. I'd expect the current behavior to be a feature, not a bug -- doing lookup up to computation must be very difficult.</p>
+
+
+
+<a name="299524194"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Discrimination%20tree%20lookup/near/299524194" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jasmin Blanchette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Discrimination.20tree.20lookup.html#299524194">(Sep 19 2022 at 08:42)</a>:</h4>
+<p>Oh, I just discovered the rest of the thread. Just ignore my comment. ;)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

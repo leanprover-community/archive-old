@@ -1,0 +1,87 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html">free memory in the ffi</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="320359134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320359134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Remy Citerin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320359134">(Jan 10 2023 at 00:44)</a>:</h4>
+<p>Hi !<br>
+I tried to use the FFI to import functions coded in C, I spent some time there and now I can create functions, constructors / destructors but I have a problem, I can't to free the memory I allocated in these functions (initially I wanted to redo my own vector class which uses <code>std::vector</code> and <code>forall x:Fin n, a</code> as model, instead of <code>List a</code> ), I looked at the code and found that it is this function that frees the memory:</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="k">extern</span><span class="w"> </span><span class="s">"C"</span><span class="w"> </span><span class="n">LEAN_EXPORT</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">lean_free_object</span><span class="p">(</span><span class="n">lean_object</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">lean_ptr_tag</span><span class="p">(</span><span class="n">o</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">LeanArray</span><span class="p">:</span><span class="w">       </span><span class="k">return</span><span class="w"> </span><span class="n">lean_dealloc</span><span class="p">(</span><span class="n">o</span><span class="p">,</span><span class="w"> </span><span class="n">lean_array_byte_size</span><span class="p">(</span><span class="n">o</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">LeanScalarArray</span><span class="p">:</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">lean_dealloc</span><span class="p">(</span><span class="n">o</span><span class="p">,</span><span class="w"> </span><span class="n">lean_sarray_byte_size</span><span class="p">(</span><span class="n">o</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">LeanString</span><span class="p">:</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="n">lean_dealloc</span><span class="p">(</span><span class="n">o</span><span class="p">,</span><span class="w"> </span><span class="n">lean_string_byte_size</span><span class="p">(</span><span class="n">o</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">LeanMPZ</span><span class="p">:</span><span class="w">         </span><span class="n">to_mpz</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">m_value</span><span class="p">.</span><span class="o">~</span><span class="n">mpz</span><span class="p">();</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">lean_free_small_object</span><span class="p">(</span><span class="n">o</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w">              </span><span class="k">return</span><span class="w"> </span><span class="n">lean_free_small_object</span><span class="p">(</span><span class="n">o</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>it is therefore possible to free memory that matches on existing types but without the possibility of adding cases or redirecting the pointer to lean_free_small_object to a new function, which is problematic for managing external libraries that depend on their own allocators. Do you think this can be fixed in a next version of lean? One solution I've thought of is to have something like LeanCustom and one can reinterpret cast <code>o</code> to a struct that contains a pointer to its free memory function, but there may be a other solutions</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="cp">#define LeanCustom 4242</span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="n">DeallocFun</span><span class="p">)(</span><span class="n">lean_object</span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">);</span><span class="w"></span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">lean_object</span><span class="w"> </span><span class="n">obj</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">DeallocFun</span><span class="w"> </span><span class="n">custom_free</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"> </span><span class="n">lean_custom</span><span class="p">;</span><span class="w"></span>
+
+<span class="k">extern</span><span class="w"> </span><span class="s">"C"</span><span class="w"> </span><span class="n">LEAN_EXPORT</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">lean_free_object</span><span class="p">(</span><span class="n">lean_object</span><span class="w"> </span><span class="o">*</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="cm">/* same at the original */</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="no">LeanCustom</span><span class="p">:</span><span class="w"></span>
+<span class="w">        </span><span class="n">lean_custom</span><span class="w"> </span><span class="o">*</span><span class="n">custom</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">lean_custom</span><span class="o">*</span><span class="p">)</span><span class="n">o</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">custom</span><span class="o">-&gt;</span><span class="n">custom_free</span><span class="p">(</span><span class="n">o</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="cm">/* same at the oringinal */</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+
+
+<a name="320364809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320364809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320364809">(Jan 10 2023 at 01:47)</a>:</h4>
+<p>When you register external classes, you also can register handlers for freeing your external objects.</p>
+<p>Example: <a href="https://github.com/JamesGallicchio/LeanColls/blob/main/bindings/leancolls_array.c">https://github.com/JamesGallicchio/LeanColls/blob/main/bindings/leancolls_array.c</a></p>
+
+
+
+<a name="320364917"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320364917" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320364917">(Jan 10 2023 at 01:48)</a>:</h4>
+<p>(that's my reimplementation of arrays... <span aria-label="big smile" class="emoji emoji-1f604" role="img" title="big smile">:big_smile:</span>)</p>
+
+
+
+<a name="320368078"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320368078" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Remy Citerin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320368078">(Jan 10 2023 at 02:30)</a>:</h4>
+<p>oh I didn't see that, thanks for the help!</p>
+
+
+
+<a name="320368527"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320368527" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320368527">(Jan 10 2023 at 02:37)</a>:</h4>
+<p>FFI stuff is very minimally documented, so if you have questions don't hesitate to ask -- I spent way too much time trying to dig through lean.h for answers instead of bugging people on Zulip like I should have!</p>
+<p>This thread is also a good general source of answers on FFI stuff: <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20usage">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C.20FFI.20usage</a></p>
+
+
+
+<a name="320368751"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/free%20memory%20in%20the%20ffi/near/320368751" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Remy Citerin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/free.20memory.20in.20the.20ffi.html#320368751">(Jan 10 2023 at 02:41)</a>:</h4>
+<p>I just went to see the code and I hadn't seen that LeanExternal existed <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span> (it is in <code>runtime/object.cpp</code> and not <code>lean.h</code>), and <code>lean_del_core </code> check if the tag is <code>LeanExternal</code> before calling <code>lean_free_object</code> and does something similar by looking for the function pointer in the class definition <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

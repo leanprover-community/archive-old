@@ -1,0 +1,94 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html">Metaprogramming: Importing modules</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="239572173"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239572173" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrian Marti <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239572173">(May 20 2021 at 11:11)</a>:</h4>
+<p>I am experimenting with using the <code>Lean</code> package in order to produce my own <code>.olean</code> files. I am running into an issue when importing modules. One can reproduce the problem in a new nix flake lean package, where the only source file contains the following code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">args</span><span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">searchPathRef.set</span> <span class="o">[</span><span class="s2">"/nix/store/xn6b2h5izwi786gs5995fn0fcs7yif06-lean-stage1/lib/lean"</span><span class="o">]</span>
+
+  <span class="k">let</span> <span class="n">env</span> <span class="bp">&lt;-</span> <span class="n">importModules</span> <span class="o">[{</span><span class="n">module</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Init</span><span class="o">}]</span> <span class="n">Options.empty</span>
+
+<span class="c1">-- #eval main []</span>
+</code></pre></div>
+<p>Interestingly, the editor runs <code>#eval main []</code> fine, and it even works if I omit running <code>searchPathRef.set</code>, as the search path seems to be set correctly by default. But if I run the executable component of the package with <code>nix run .#executable</code>, I get the following output:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">uncaught</span> <span class="n">exception</span><span class="o">:</span> <span class="n">could</span> <span class="n">not</span> <span class="n">find</span> <span class="n">native</span> <span class="n">implementation</span> <span class="n">of</span> <span class="n">external</span> <span class="n">declaration</span> <span class="bp">'</span><span class="n">Nat.div'</span>
+</code></pre></div>
+<p>If I omit the <code>seachPathRef.set ...</code> line, it does not fine the <code>Init</code> module at all when running <code>nix run .#executable</code>, the <code>searchPathRef</code> seems to be the empty list and thus we get the error:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">uncaught</span> <span class="n">exception</span><span class="o">:</span> <span class="n">unknown</span> <span class="n">package</span> <span class="bp">'</span><span class="n">Init'</span>
+</code></pre></div>
+<p>Am I missing something? Do I need to manually point to the native implementations of <code>Init</code>? Although it seemed to me that those implementations were already in the <code>.a</code> files in <code>/nix/store/xn6b2h5izwi786gs5995fn0fcs7yif06-lean-stage1/lib/lean</code>.</p>
+<p>I am not even interested in using those native implementations, since I only want to create <code>.olean</code> files.</p>
+
+
+
+<a name="239573272"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239573272" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239573272">(May 20 2021 at 11:20)</a>:</h4>
+<p>See <a href="#narrow/stream/270676-lean4/topic/unknown.20package.20'Init'/near/231097911">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unknown.20package.20'Init'/near/231097911</a>. You should be able to do this in Nix by passing <code>leancFlags = ["-rdynamic"];</code> to <code>buildLeanPackage</code>.</p>
+
+
+
+<a name="239573571"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239573571" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrian Marti <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239573571">(May 20 2021 at 11:23)</a>:</h4>
+<p>Note that setting <code>LEAN_PATH="/nix/store/xn6b2h5izwi786gs5995fn0fcs7yif06-lean-stage1/lib/lean"</code>  and running <code>initSearchPath</code> instead of <code>searchPathRef.set...</code> produces exactly the same result:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">uncaught</span> <span class="n">exception</span><span class="o">:</span> <span class="n">could</span> <span class="n">not</span> <span class="n">find</span> <span class="n">native</span> <span class="n">implementation</span> <span class="n">of</span> <span class="n">external</span> <span class="n">declaration</span> <span class="bp">'</span><span class="n">Nat.div'</span>
+</code></pre></div>
+
+
+
+<a name="239573637"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239573637" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239573637">(May 20 2021 at 11:23)</a>:</h4>
+<p>Now, the reason importing can trigger the interpreter in the first place is that the <code>[init]</code> attribute runs code on import to initialize e.g. some <code>IO.Ref</code> objects. This might not be strictly necessary depending on your use case, but currently it cannot be turned off.</p>
+
+
+
+<a name="239573641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239573641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrian Marti <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239573641">(May 20 2021 at 11:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules/near/239573272">said</a>:</p>
+<blockquote>
+<p>See <a href="#narrow/stream/270676-lean4/topic/unknown.20package.20'Init'/near/231097911">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unknown.20package.20'Init'/near/231097911</a>. You should be able to do this in Nix by passing <code>leancFlags = ["-rdynamic"];</code> to <code>buildLeanPackage</code>.</p>
+</blockquote>
+<p>Okay, thank you, I will try that</p>
+
+
+
+<a name="239578161"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239578161" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrian Marti <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239578161">(May 20 2021 at 12:00)</a>:</h4>
+<p>Okay, my code now works if I package it with <code>leanpkg</code>, thanks to the stream you referenced. So that is already big progress and I wouldn't mind changing to using leanpkg instead of nix. But for the record, passing <code>leancFlags = ["-rdynamic"];</code> to <code>buildLeanPackage</code> did not make a difference and it still outputs the same <code>uncaught exception: could not find native implementation of external declaration 'Nat.div'
+</code> error.</p>
+
+
+
+<a name="239579215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239579215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239579215">(May 20 2021 at 12:09)</a>:</h4>
+<p>Oh I see, we don't use them for linking. I added a new parameter <code>linkFlags</code> for that.</p>
+
+
+
+<a name="239580625"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Metaprogramming%3A%20Importing%20modules/near/239580625" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrian Marti <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Metaprogramming.3A.20Importing.20modules.html#239580625">(May 20 2021 at 12:20)</a>:</h4>
+<p>Thanks! Everything works now!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

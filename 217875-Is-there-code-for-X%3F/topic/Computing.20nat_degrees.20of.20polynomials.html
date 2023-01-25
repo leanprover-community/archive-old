@@ -1,0 +1,382 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/index.html">Is there code for X?</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html">Computing nat_degrees of polynomials</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="280739210"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/280739210" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#280739210">(Apr 30 2022 at 14:31)</a>:</h4>
+<p>Dear All,</p>
+<p>once/if <code>move_add</code> gets merged into mathlib, it will be simpler to implement a tactic that will compute <code>nat_degree</code>s of relatively "explicit" polynomials.  In its simplest form, given a sum of terms of the form <code>C a * X ^ n</code>, where</p>
+<ul>
+<li><code>a</code> is in a semiring,</li>
+<li><code>n</code> is a closed term of type <code>nat</code>,</li>
+<li>the term of highest degree is unique,</li>
+<li>there is floating around an assumption that says that the coefficient of the term of highest degree is non-zero,</li>
+</ul>
+<p>the tactic would be able to compute the <code>nat_degree</code> of such an expression.  Of course, each of the various items above can be given more attention and the scope of the tactic could increase.</p>
+<p>My question is: would such a tactic be desired?  Patrick said that it would be good as a <code>norm_num</code> extension, for instance.</p>
+<p>Before I start making progress on this, I would like to know whether this would be useful or not!</p>
+<p>Thanks!</p>
+
+
+
+<a name="280739696"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/280739696" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#280739696">(Apr 30 2022 at 14:42)</a>:</h4>
+<p>The <a href="#narrow/stream/113488-general/topic/Cubics/near/279005649">suggestion</a> where this arose.</p>
+
+
+
+<a name="280740025"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/280740025" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#280740025">(Apr 30 2022 at 14:50)</a>:</h4>
+<p>I definitely think it would be useful, these sort of goals are very annoying. Ideally it would also be able to handle <code>degree</code> <code>leading_term</code> and <code>monic</code> goals appropriately</p>
+
+
+
+<a name="281461935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281461935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281461935">(May 06 2022 at 16:21)</a>:</h4>
+<p>Dear All,</p>
+<p>I've playing around with a tactic to compute <code>nat_degree</code>s of polynomials.  Currently, it is quite gullible and not tested very much, but below is what I have.  It is based on <code>move_add</code> (<a href="https://github.com/leanprover-community/mathlib/tree/aa_sort">branch#aa_sort</a>).</p>
+<p><em>When it should work for now.</em><br>
+If the goal is <code>nat_degree (expression) = n</code>, <code>compute_degree</code> should close the goal if:</p>
+<ul>
+<li>the leading term of <code>expression</code> is <code>X ^ n</code>,</li>
+<li>all remaining terms are of the form <code>C a * X ^ a</code> or <code>monomial a r</code> (and have degree smaller than <code>n</code>).</li>
+</ul>
+<p>Repetitions in degrees of non-highest terms is allowed.</p>
+<p>It is easy to implement improvements, and I am planning to do that.  If you have any comment, though, I would be very happy to hear them!</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.move_add</span>
+<span class="kn">import</span> <span class="n">data.polynomial.degree.lemmas</span>
+<span class="kn">open</span> <span class="n">polynomial</span>
+<span class="n">open_locale</span> <span class="n">polynomial</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">nontrivial</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">f</span> <span class="n">g</span> <span class="n">h</span> <span class="o">:</span> <span class="n">R</span><span class="o">[</span><span class="n">X</span><span class="o">]}</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="n">e</span> <span class="o">:</span> <span class="n">R</span><span class="o">}</span>
+
+<span class="kn">section</span> <span class="n">silly_poly_lemmas</span>
+
+<span class="kd">lemma</span> <span class="n">polynomial.nat_degree_monomial_le</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">polynomial.monomial</span> <span class="n">n</span> <span class="n">a</span><span class="o">)</span><span class="bp">.</span><span class="n">nat_degree</span> <span class="bp">≤</span> <span class="n">n</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">classical</span><span class="o">,</span>
+  <span class="n">rw</span> <span class="n">polynomial.nat_degree_monomial</span><span class="o">,</span>
+  <span class="n">split_ifs</span><span class="bp">;</span> <span class="n">simp</span><span class="o">,</span>
+<span class="kd">end</span>
+<span class="kd">lemma</span> <span class="n">polynomial.nat_degree_C_mul_X_le</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">((</span><span class="n">C</span> <span class="n">a</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">R</span><span class="o">)</span> <span class="bp">*</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">R</span><span class="o">))</span><span class="bp">.</span><span class="n">nat_degree</span> <span class="bp">≤</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">nat_degree_C_mul_le</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">trans</span> <span class="n">nat_degree_X_le</span>
+
+<span class="kd">end</span> <span class="n">silly_poly_lemmas</span>
+
+<span class="kn">open</span> <span class="n">tactic</span> <span class="n">interactive</span> <span class="n">expr</span>
+
+<span class="kn">namespace</span> <span class="n">tactic.interactive</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">guess_deg</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">expr</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="k">let</span> <span class="n">n0</span> <span class="o">:=</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">nat.zero</span><span class="o">),</span>
+  <span class="k">let</span> <span class="n">n1</span> <span class="o">:=</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">nat.zero.succ</span><span class="o">),</span>
+  <span class="n">pX</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.X</span><span class="o">),</span>
+  <span class="k">match</span> <span class="n">e.app_fn</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">coe_fn</span> <span class="bp">$</span> <span class="n">polynomial.monomial</span> <span class="bp">%%</span><span class="n">n</span><span class="o">)</span> <span class="o">:=</span> <span class="n">return</span> <span class="n">n</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">coe_fn</span> <span class="bp">$</span> <span class="n">polynomial.C</span><span class="o">)</span> <span class="o">:=</span> <span class="n">n0</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="o">:=</span> <span class="k">do</span>
+          <span class="n">bo</span> <span class="bp">←</span> <span class="n">succeeds</span> <span class="bp">$</span> <span class="n">unify</span> <span class="n">e</span> <span class="n">pX</span><span class="o">,</span>
+          <span class="k">if</span> <span class="n">bo</span> <span class="k">then</span> <span class="n">n1</span> <span class="k">else</span>
+            <span class="o">(</span> <span class="k">do</span> <span class="k">let</span> <span class="n">margs</span> <span class="o">:=</span> <span class="n">e.get_app_args</span><span class="o">,</span>
+              <span class="n">margs.nth</span> <span class="mi">4</span> <span class="bp">&gt;&gt;=</span> <span class="n">return</span> <span class="o">)</span> <span class="bp">&lt;|&gt;</span>
+            <span class="o">(</span> <span class="k">do</span> <span class="n">val</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.nat_degree</span><span class="o">),</span>
+              <span class="n">return</span> <span class="bp">$</span> <span class="n">expr.mk_app</span> <span class="n">val</span> <span class="o">[</span><span class="n">e</span><span class="o">]</span> <span class="o">)</span>
+          <span class="kd">end</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">get_factors_add</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">expr</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">has_mul.mul</span> <span class="bp">%%</span><span class="n">a</span> <span class="bp">%%</span><span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+                              <span class="n">ga</span> <span class="bp">←</span> <span class="n">get_factors_add</span> <span class="n">a</span><span class="o">,</span>
+                              <span class="n">gb</span> <span class="bp">←</span> <span class="n">get_factors_add</span> <span class="n">b</span><span class="o">,</span>
+                              <span class="n">mk_app</span> <span class="bp">`</span><span class="n">has_add.add</span> <span class="o">[</span><span class="n">ga</span><span class="o">,</span> <span class="n">gb</span><span class="o">]</span> <span class="bp">&gt;&gt;=</span> <span class="n">return</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">guess_deg</span> <span class="n">e</span> <span class="bp">&gt;&gt;=</span> <span class="n">return</span>
+
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">compute_degree</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="bp">`</span><span class="o">(</span><span class="n">polynomial.nat_degree</span> <span class="bp">%%</span><span class="n">tl</span> <span class="bp">=</span> <span class="bp">%%</span><span class="n">tr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">n0</span> <span class="o">:=</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">nat.zero</span><span class="o">),</span>
+  <span class="k">let</span> <span class="n">summ</span> <span class="o">:=</span> <span class="o">(</span><span class="n">get_summands</span> <span class="n">tl</span><span class="o">),</span>
+  <span class="n">rere</span> <span class="bp">←</span> <span class="n">summ.mmap</span> <span class="n">get_factors_add</span><span class="o">,</span>
+  <span class="n">mario</span> <span class="bp">←</span> <span class="n">rere.mmap</span> <span class="o">(</span><span class="n">eval_expr</span> <span class="n">ℕ</span><span class="o">),</span>
+  <span class="k">let</span> <span class="n">m</span> <span class="o">:=</span> <span class="n">mario.maximum</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">m'</span> <span class="o">:=</span> <span class="n">m.get_or_else</span> <span class="mi">0</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">szd</span> <span class="o">:=</span> <span class="n">summ.zip</span> <span class="n">mario</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">fil</span> <span class="o">:</span> <span class="n">list</span> <span class="n">pexpr</span> <span class="o">:=</span> <span class="o">((</span><span class="n">szd.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">×</span> <span class="n">ℕ</span><span class="o">,</span> <span class="n">e.2</span> <span class="bp">=</span> <span class="n">m'</span><span class="o">))</span><span class="bp">.</span><span class="n">map</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="n">pexpr.of_expr</span> <span class="n">e.1</span><span class="o">)),</span>
+  <span class="k">let</span> <span class="n">ffil</span> <span class="o">:</span> <span class="n">list</span> <span class="o">(</span><span class="n">bool</span> <span class="bp">×</span> <span class="n">pexpr</span><span class="o">)</span> <span class="o">:=</span> <span class="o">([</span><span class="n">ff</span><span class="o">]</span><span class="bp">.</span><span class="n">zip</span> <span class="n">fil</span><span class="o">),</span>
+  <span class="n">move_add_with_errors</span> <span class="n">ffil</span> <span class="n">none</span><span class="o">,</span>
+  <span class="bp">`</span><span class="o">[</span><span class="n">rw</span> <span class="o">[</span><span class="n">polynomial.nat_degree_add_eq_right_of_nat_degree_lt</span><span class="o">,</span> <span class="n">polynomial.nat_degree_X_pow</span><span class="o">],</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">polynomial.nat_degree_X_pow</span><span class="o">],</span>
+    <span class="n">refine</span> <span class="n">nat.lt_succ_of_le</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">refine</span> <span class="o">(</span><span class="n">polynomial.nat_degree_add_le</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">trans</span> <span class="n">_</span><span class="o">,</span>
+             <span class="n">refine</span> <span class="n">max_le</span> <span class="n">_</span> <span class="n">_</span> <span class="o">},</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">rw</span> <span class="bp">←</span> <span class="n">polynomial.monomial_eq_C_mul_X</span> <span class="o">},</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">rw</span> <span class="n">polynomial.monomial_mul_monomial</span> <span class="o">},</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">refine</span> <span class="o">(</span><span class="n">polynomial.nat_degree_monomial_le</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">trans</span> <span class="n">_</span> <span class="o">},</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">refine</span> <span class="o">(</span><span class="n">polynomial.nat_degree_C_mul_le</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">trans</span> <span class="n">_</span> <span class="o">},</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">norm_num</span> <span class="o">},</span>  <span class="c1">-- norm_num could be used earlier, but is *slightly* slower</span>
+    <span class="n">repeat</span> <span class="o">{</span> <span class="n">assumption</span> <span class="o">}</span> <span class="c1">-- these assumptions are</span>
+                          <span class="c1">-- the type of the semiring and</span>
+                          <span class="c1">-- the instance that it is a semiring.</span>
+                          <span class="c1">-- They appear to arise from `pX` in `guess_deg`,</span>
+                          <span class="c1">-- which has no way of figuring out what `R` is.</span>
+     <span class="o">]</span>
+
+<span class="kd">end</span> <span class="n">tactic.interactive</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">h</span> <span class="o">:</span> <span class="n">C</span> <span class="n">d</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">}</span> <span class="o">(</span><span class="n">f10</span> <span class="o">:</span> <span class="n">f.nat_degree</span> <span class="bp">≤</span> <span class="mi">10</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">nat_degree</span> <span class="o">(</span><span class="n">monomial</span> <span class="mi">5</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">monomial</span> <span class="mi">1</span> <span class="n">c</span> <span class="bp">+</span> <span class="n">monomial</span> <span class="mi">7</span> <span class="n">d</span> <span class="bp">+</span> <span class="n">monomial</span> <span class="mi">9</span> <span class="mi">1</span> <span class="bp">+</span>
+    <span class="n">C</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">0</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">5</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">+</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">10</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">e</span> <span class="bp">*</span> <span class="n">X</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">10</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">compute_degree</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="281462292"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281462292" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281462292">(May 06 2022 at 16:24)</a>:</h4>
+<p>A first easy addition will be to extract the coefficient from the leading term and scan the context to look for an assumption saying that it is non-zero.  This will make the tactic work for non-monic polynomials, provided there is in context a proof of the fact that the leading coefficient is non-zero.</p>
+
+
+
+<a name="281463452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281463452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281463452">(May 06 2022 at 16:35)</a>:</h4>
+<p>Alex, I like your suggestions, I will work on them.  I'm just starting from this part!</p>
+
+
+
+<a name="281689677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281689677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281689677">(May 09 2022 at 14:09)</a>:</h4>
+<p><span class="user-mention" data-user-id="127136">@Alex J. Best</span> , since you had expressed interest in such automation, I now have a concrete proposal!  PR <a href="https://github.com/leanprover-community/mathlib/pull/14040">#14040</a> defines two tactics:</p>
+<ul>
+<li><code>compute_degree_le</code>, whose aim is to close goals of the form <code>f.nat_degree ≤ d</code>,</li>
+<li><code>compute_degree</code>, whose aim is to close goals of the form <code>f.nat_degree = d</code>.</li>
+</ul>
+<p>In both cases, the exponents should be closed expressions of type <code>nat</code>.  Also, there is the requirement that a unique term of highest degree appears and that this term is of the form <code>X ^ n, X</code> or, assuming also that <code>a ≠ 0</code> is in context, <code>C a * X ^ n, C a * X</code>.</p>
+<p>It should be easy to generalize these assumptions, allowing for more interesting polynomials, but I would rather leave this for some other PR!</p>
+
+
+
+<a name="281693901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281693901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281693901">(May 09 2022 at 14:39)</a>:</h4>
+<p>Why isn't this being merged into the direct <code>norm_num</code> architecture?</p>
+
+
+
+<a name="281694562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281694562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281694562">(May 09 2022 at 14:43)</a>:</h4>
+<p>I feel that <code>norm_num</code> is very polished and sophisticated, while this is somewhat crude and rough.  Maybe, after some iterations of the review process, it might go into <code>norm_num</code>.  Note that this is the second tactic that I write...</p>
+
+
+
+<a name="281694718"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281694718" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281694718">(May 09 2022 at 14:44)</a>:</h4>
+<p>Also, right now it is somewhat buggy and fails in some situations where I would like it to actually work out-of-the-box.</p>
+
+
+
+<a name="281695024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281695024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281695024">(May 09 2022 at 14:46)</a>:</h4>
+<p>For instance, to get the functionality with the <code>C a * X ^ ??</code> fully working, I would have to figure out how to get <code>nontriviality</code> to kick in, once there is an assumption of the form <code>a ≠ 0</code>.  This is a meta-problem, not really a maths one!</p>
+
+
+
+<a name="281695935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281695935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281695935">(May 09 2022 at 14:52)</a>:</h4>
+<p>Conceivably you could just use <code>assumption</code> to prove that <code>a ≠ 0</code></p>
+
+
+
+<a name="281695971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281695971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281695971">(May 09 2022 at 14:53)</a>:</h4>
+<p>Or require it be used as <code>norm_num [h]</code>, which I think is already possible syntax</p>
+
+
+
+<a name="281696355"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281696355" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281696355">(May 09 2022 at 14:55)</a>:</h4>
+<p>Yes, assumption is ok.  At some point in the process, though, after it used the assumption, it seems to still be looking for a non-triviality assumption.  It might be a non-triviality assumption in some lemma that could likely be replaced or weakened, but I have not yet debugged it.</p>
+
+
+
+<a name="281696593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281696593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281696593">(May 09 2022 at 14:57)</a>:</h4>
+<p>Well, if <code>R</code> is trivial then <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.unique">docs#polynomial.unique</a> says everything is of <code>nat_degree</code> 0</p>
+
+
+
+<a name="281696694"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281696694" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281696694">(May 09 2022 at 14:57)</a>:</h4>
+<p>But I guess your point is that you have <code>nontrivial</code> in your assumptions and the meta code isn't finding it?</p>
+
+
+
+<a name="281697713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281697713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281697713">(May 09 2022 at 15:03)</a>:</h4>
+<p>Well, nontrivial is a consequence of <code>a ≠ 0</code> but is not automatically an instance, so some lemmas used, I think, fail in some applications.  I will debug it: it should be easy and I also think that I probably want to handle the lead term separately anyway.</p>
+
+
+
+<a name="281697876"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281697876" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Stoll <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281697876">(May 09 2022 at 15:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="321459">Damiano Testa</span> <a href="#narrow/stream/217875-Is-there-code-for-X.3F/topic/Computing.20nat_degrees.20of.20polynomials/near/281689677">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="127136">Alex J. Best</span> , since you had expressed interest in such automation, I now have a concrete proposal!  PR <a href="https://github.com/leanprover-community/mathlib/pull/14040">#14040</a> defines two tactics:</p>
+<ul>
+<li><code>compute_degree_le</code>, whose aim is to close goals of the form <code>f.nat_degree ≤ d</code>,</li>
+<li><code>compute_degree</code>, whose aim is to close goals of the form <code>f.nat_degree = d</code>.</li>
+</ul>
+</blockquote>
+<p>It would make sense to add <code>degree_ne_zero</code> or similar, since this is a common condition in the context of proving existence of roots of polynomials in alg. closed fields, or more generally when need non-units in the polynomial ring.</p>
+
+
+
+<a name="281698524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281698524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281698524">(May 09 2022 at 15:09)</a>:</h4>
+<p>Getting the degree_ne_zero part should be easy: thanks for the suggestion!</p>
+
+
+
+<a name="281698589"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281698589" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281698589">(May 09 2022 at 15:09)</a>:</h4>
+<p>(Note that for the moment this is only for <code>nat_degree</code>, but adapting to <code>degree</code> should also be straightforward.)</p>
+
+
+
+<a name="281707779"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281707779" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281707779">(May 09 2022 at 16:12)</a>:</h4>
+<p>Ok, I think that the issue is that <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.nat_degree_X_pow">docs#polynomial.nat_degree_X_pow</a> proves the exact degree, not the inequality and for this uses the <code>nontrivial</code> assumption.  There seems to not be <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.nat_degree_X_pow_le">docs#polynomial.nat_degree_X_pow_le</a> [lemma not existing] (and possibly a few other edge cases), which prove the inequality with no extra typeclass assumptions.  I think that with this, the tactic will work better.</p>
+<p>Still, I will chop off the computation of the degree of the highest term, since it will make for easier and more streamlined logic/code.</p>
+
+
+
+<a name="281966301"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281966301" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281966301">(May 11 2022 at 13:39)</a>:</h4>
+<p>I have streamlined the code a bit and, thanks for several very helpful answers in the metaprogramming stream, I was able to get the <code>nontriviality</code> assumptions to kick in!  Right now, PR <a href="https://github.com/leanprover-community/mathlib/pull/14040">#14040</a> has a fairly stable <code>compute_degree</code> and <code>compute_degree_le</code> tactics that close goals of the form <code>f.nat_degree = d</code> and <code>f.nat_degree ≤ d</code>, where <code>f</code> is an "explicit" polynomial.</p>
+<p>The PR looks large, but the only relevant file is under 300 lines long and several of these lines are extended comments and doc-strings and doc-module.</p>
+
+
+
+<a name="281966562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281966562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281966562">(May 11 2022 at 13:41)</a>:</h4>
+<p>The strategy is to isolate a term of "highest degree" and proceed from there.  This means that getting the tactic to also close <code>monic</code> and <code>leading_coeff</code>s goals should be relatively straightforward.  However, since this PR also depends on the previous <code>move_add</code> PR, I will wait to implement these further features.</p>
+
+
+
+<a name="281966565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281966565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281966565">(May 11 2022 at 13:41)</a>:</h4>
+<p>Moreover, I am conscious of the "imminent" switch to Lean4 and have started seeing how to implement <code>move_add</code> in Lean4.</p>
+
+
+
+<a name="281974043"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281974043" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281974043">(May 11 2022 at 14:31)</a>:</h4>
+<p>Do these work for <code>.degree</code> too? If not, perhaps the lemma should be called <code>compute_nat_degree</code>!</p>
+
+
+
+<a name="281974295"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281974295" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281974295">(May 11 2022 at 14:33)</a>:</h4>
+<p>Making them work for <code>degree</code> is a todo, actually a very easy one!  I have a preference for maintaining the name short.</p>
+
+
+
+<a name="281974525"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281974525" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281974525">(May 11 2022 at 14:34)</a>:</h4>
+<p>If you want, I will get them to work with <code>degree</code> as well: since the interesting case is when you are trying to compute the degree of a polynomial of <em>non-zero</em> <code>nat_degree</code>, I can simply convert <code>degree</code> to <code>nat_degree</code> and leave the tactic unchanged otherwise.  If it fails, it means that you were trying to use the tactic to prove that the degree of a constant polynomial was zero.</p>
+
+
+
+<a name="281974911"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281974911" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281974911">(May 11 2022 at 14:36)</a>:</h4>
+<p>Does it make sense to make this a norm_num plugin?</p>
+
+
+
+<a name="281975538"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281975538" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281975538">(May 11 2022 at 14:41)</a>:</h4>
+<p>This was Patrick's suggestion as well.  I am happy to make it a plug-in, but I do not really know what it entails (or how to do it).</p>
+
+
+
+<a name="281975874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281975874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281975874">(May 11 2022 at 14:43)</a>:</h4>
+<p>Does looking at <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.norm_fin.eval_ineq/src">src#tactic.norm_fin.eval_ineq</a> help at all?</p>
+
+
+
+<a name="281976099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281976099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281976099">(May 11 2022 at 14:44)</a>:</h4>
+<p>In fact, <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.norm_num.eval_gcd/src">src#tactic.norm_num.eval_gcd</a> is probably a better template</p>
+
+
+
+<a name="281976291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281976291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281976291">(May 11 2022 at 14:45)</a>:</h4>
+<p>You just have to return the pair <code>(degree_it_evaluates_to, proof_its_that_degree)</code></p>
+
+
+
+<a name="281976505"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281976505" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281976505">(May 11 2022 at 14:47)</a>:</h4>
+<p>Ok, <code>degree_it_evaluates_to</code> I have and is easy.</p>
+<p>Should I extract the proof term from the tactic or should I provide the tactic that produces the proof?</p>
+
+
+
+<a name="281976534"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281976534" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281976534">(May 11 2022 at 14:47)</a>:</h4>
+<p>(I am looking at the template, but I am still processing it!)</p>
+
+
+
+<a name="281976963"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/281976963" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#281976963">(May 11 2022 at 14:50)</a>:</h4>
+<p>For the moment, I am simply skipping the <code>mk_instance_cache</code>, right?</p>
+
+
+
+<a name="282001664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/282001664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#282001664">(May 11 2022 at 17:40)</a>:</h4>
+<p>I have not yet figured out the <code>norm_num</code> thing, but have added support for <code>degree</code>.  As you can imagine it has not been tested much, but works in some examples!</p>
+
+
+
+<a name="282001767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/282001767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#282001767">(May 11 2022 at 17:41)</a>:</h4>
+<p>So far, the support for <code>degree</code> is limited computing exact degree (no ≤ allowed) and discards the case in which the degree is ⊥.</p>
+
+
+
+<a name="286318891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/Computing%20nat_degrees%20of%20polynomials/near/286318891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/Computing.20nat_degrees.20of.20polynomials.html#286318891">(Jun 16 2022 at 08:01)</a>:</h4>
+<p>Dear All,</p>
+<p>I split off <a href="https://github.com/leanprover-community/mathlib/pull/14762">#14762</a> from the main PR <a href="https://github.com/leanprover-community/mathlib/pull/14040">#14040</a> to compute degrees of polynomials.  This contains the easier step of proving that the degree of a polynomial is at most something.</p>
+<p>For instance</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="mi">1</span> <span class="bp">+</span> <span class="n">n</span> <span class="bp">≤</span> <span class="mi">10</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">degree</span> <span class="o">(</span><span class="mi">5</span> <span class="bp">*</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">5</span> <span class="bp">+</span> <span class="o">(</span><span class="n">X</span> <span class="bp">*</span> <span class="n">monomial</span> <span class="n">n</span> <span class="mi">1</span> <span class="bp">+</span> <span class="n">X</span> <span class="bp">*</span> <span class="n">X</span><span class="o">)</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">X</span> <span class="bp">^</span> <span class="mi">10</span><span class="o">)</span> <span class="bp">≤</span> <span class="mi">10</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">compute_degree_le</span>
+</code></pre></div>
+<p>works.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

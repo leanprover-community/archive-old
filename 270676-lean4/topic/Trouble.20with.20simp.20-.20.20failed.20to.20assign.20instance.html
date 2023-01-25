@@ -1,0 +1,330 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html">Trouble with simp -  failed to assign instance</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="261118925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261118925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261118925">(Nov 11 2021 at 11:01)</a>:</h4>
+<p>I'm having a problem with <code>simp</code> tactic as it does not want to use certain theorem because of an error  <code>failed to assign instance</code>. </p>
+<p>I did some investigation and the problem is that I have two instances,  <code>SemiHilbert.toVec</code> and  <code>instVecℝ</code>, that fails to be proven equal, i.e. <code>isDefEq</code> evaluates to false inside of <code>simp</code> tactic.</p>
+<p>The weird thing is that outside of <code>simp</code> tactic the <code>isDefEq</code> evaluates to true. The problem is that <code>whnf</code> inside of the function <code>synthesizeArgs</code>(in  Lean/Meta/Tactic/Simp/Rewrite.lean) does not reduce  either <code>SemiHilbert.toVec</code>  or <code>instVecℝ</code>, but calling <code>whnf</code> on these in a simple file reduces both to:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Vec.mk</span> <span class="n">instVecℝ.proof_1</span> <span class="n">instVecℝ.proof_2</span> <span class="n">instVecℝ.proof_3</span> <span class="n">instVecℝ.proof_4</span>
+</code></pre></div>
+<p>Therefore there must be some special transparency setting when running <code>simp</code> so that <code>whnf</code> does not reduce these instances. Is that intended behavior? Unfortunately, I was unable simplify this problem to a small example.</p>
+
+
+
+<a name="261119521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261119521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261119521">(Nov 11 2021 at 11:08)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mwe.html">#mwe</a> please.  In general, type class search uses reducible transparency, so it won't reduce <code>def</code>s but only <code>abbrev</code>s.</p>
+
+
+
+<a name="261119620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261119620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261119620">(Nov 11 2021 at 11:09)</a>:</h4>
+<p>Yes I will try to produce MWE, but I was unable to do so without copy pasting few hundreds of lines of code.</p>
+
+
+
+<a name="261132501"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261132501" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261132501">(Nov 11 2021 at 13:20)</a>:</h4>
+<p>I have managed to nail down the problem, here is the mwe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Vec</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Add</span> <span class="n">X</span><span class="o">,</span> <span class="n">Sub</span> <span class="n">X</span><span class="o">,</span> <span class="n">Inhabited</span> <span class="n">X</span>
+
+<span class="kd">class</span> <span class="n">Vec'</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Vec</span> <span class="n">X</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">X</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">:</span> <span class="n">Vec'</span> <span class="n">X</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="kd">constant</span> <span class="n">differential</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">Y</span>
+
+<span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">differential_of_linear</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span>
+<span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="bp">@</span><span class="n">differential</span> <span class="n">_</span> <span class="n">_</span> <span class="n">Vec'.toVec</span> <span class="n">_</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">done</span> <span class="c1">-- failed to assign instance</span>
+</code></pre></div>
+
+
+
+<a name="261132507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261132507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261132507">(Nov 11 2021 at 13:20)</a>:</h4>
+
+
+
+
+<a name="261132512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261132512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261132512">(Nov 11 2021 at 13:20)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="261136368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261136368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261136368">(Nov 11 2021 at 13:53)</a>:</h4>
+<p>In your example, the two instances are indeed different.  <code>inst : Vec X</code> and <code>Vec'.toVec instVec'</code> are not defeq.</p>
+
+
+
+<a name="261137830"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261137830" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261137830">(Nov 11 2021 at 14:06)</a>:</h4>
+<p>Note that in practice this normally won't be a problem because the <code>Vec'</code> instance will be built from the <code>Vec</code> instance in a sensible way, and the definition of <code>differential_of_linear</code> won't be <code>sorry</code></p>
+
+
+
+<a name="261137893"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261137893" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261137893">(Nov 11 2021 at 14:07)</a>:</h4>
+<p>but it could well be that the simplifier runs with a reducibility setting that doesn't expand the definition of <code>differential_of_linear</code>, yeah</p>
+
+
+
+<a name="261138043"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138043" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138043">(Nov 11 2021 at 14:09)</a>:</h4>
+<blockquote>
+<p>the Vec' instance will be built from the Vec instance in a sensible way</p>
+</blockquote>
+<p>What do you mean by that? Using <code>extends</code> is not a sensible way of doing it?</p>
+
+
+
+<a name="261138200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138200">(Nov 11 2021 at 14:10)</a>:</h4>
+<p>How can I change the above code such that the second example is solved by <code>simp</code>?</p>
+
+
+
+<a name="261138406"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138406" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138406">(Nov 11 2021 at 14:12)</a>:</h4>
+<p>I'm talking about instances of <code>Vec'</code>. Your MWE is too trivial to have interesting examples but in general, if you have instances of both <code>Vec X</code> and <code>Vec' X</code> then you would want to arrange that the fields of the <code>Vec' X</code> instance that came from <code>Vec X</code> are defeq to the corresponding fields of the <code>Vec X</code> instance.</p>
+
+
+
+<a name="261138421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138421">(Nov 11 2021 at 14:12)</a>:</h4>
+<p>Sorry, it's not <code>differential_of_linear</code> that's the problem, it's <code>differential</code>.</p>
+
+
+
+<a name="261138499"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138499" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138499">(Nov 11 2021 at 14:13)</a>:</h4>
+<p>I guess it should work for instance if you make <code>differential</code> a <code>def</code> like <code>def differential {X Y : Type} [Vec X] [Vec Y] (f : X → Y) (x dx : X) : Y := f x</code></p>
+
+
+
+<a name="261138628"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138628" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138628">(Nov 11 2021 at 14:14)</a>:</h4>
+<p>Maybe <code>simp</code> won't do the rewrite for you, but you could do it by hand at least.</p>
+
+
+
+<a name="261138635"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138635" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138635">(Nov 11 2021 at 14:14)</a>:</h4>
+<blockquote>
+<p>I guess it should work for instance if you make differential a def like def differential {X Y : Type} [Vec X] [Vec Y] (f : X → Y) (x dx : X) : Y := f x</p>
+</blockquote>
+<p>It does not work for me.</p>
+
+
+
+<a name="261138655"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138655" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138655">(Nov 11 2021 at 14:14)</a>:</h4>
+<p>In your current version, the last <code>example</code> is just not provable at all</p>
+
+
+
+<a name="261138812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261138812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261138812">(Nov 11 2021 at 14:16)</a>:</h4>
+<p>oh maybe it is provable... sorry, this example is very confusing <span aria-label="face palm" class="emoji emoji-1f926" role="img" title="face palm">:face_palm:</span></p>
+
+
+
+<a name="261139088"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261139088" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261139088">(Nov 11 2021 at 14:18)</a>:</h4>
+<p>OK, let me try again.</p>
+
+
+
+<a name="261139094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261139094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261139094">(Nov 11 2021 at 14:18)</a>:</h4>
+<p><code>simp</code> doesn't do this.</p>
+
+
+
+<a name="261139098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261139098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261139098">(Nov 11 2021 at 14:18)</a>:</h4>
+<p>Think about <code>Vec</code> as a vector space and <code>Vec'</code> for example as a finite dimensional vector space. I didn't put full definitions here for brevity.</p>
+
+
+
+<a name="261139370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261139370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261139370">(Nov 11 2021 at 14:20)</a>:</h4>
+<p>However, it's usually not a problem because we don't have instances like <code>
+instance {X} [Vec X] : Vec' X := ⟨⟩</code> in the real world, and when we want to apply <code>simp</code> to something like <code>add_zero</code> at a specific type <code>T</code> where we might have a funny "non-standard" instance for <code>add_zero_class T</code>, that funny instance will be defeq to the standard one because both of them will reduce to constructor applications with defeq fields.</p>
+
+
+
+<a name="261139431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261139431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261139431">(Nov 11 2021 at 14:21)</a>:</h4>
+<p>Not every vector space is finite dimensional, so this is still not a real example</p>
+
+
+
+<a name="261140062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140062">(Nov 11 2021 at 14:26)</a>:</h4>
+<p>Ohh, the culprit was  <code>instance {X} [Vec X] : Vec' X := ⟨⟩</code> ok then I made incorrect mwe :)</p>
+
+
+
+<a name="261140073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140073">(Nov 11 2021 at 14:26)</a>:</h4>
+<p>I think for your real situation the question comes down to what reducibility level <code>simp</code> uses to compare instance arguments of lemmas to the synthesized ones. Note that (at least in Lean 3) this is all a bit silly because if you stated your <code>simp</code> lemma using <code>{}</code> binders for the <code>Vec</code> arguments, then <code>simp</code> would just infer their values from the ones that appear in the expression to be simplified, which is generally what you want anyways. I think some of this stuff works differently in Lean 4.</p>
+
+
+
+<a name="261140314"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140314" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140314">(Nov 11 2021 at 14:28)</a>:</h4>
+<p>Ok consider this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Vec</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Add</span> <span class="n">X</span><span class="o">,</span> <span class="n">Inhabited</span> <span class="n">X</span>
+
+<span class="kd">class</span> <span class="n">Vec'</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Vec</span> <span class="n">X</span>
+
+<span class="kd">def</span> <span class="n">differential</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">Y</span> <span class="o">:=</span> <span class="n">f</span> <span class="n">dx</span>
+
+<span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">differential_of_linear</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">[</span><span class="n">differential</span><span class="o">]</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Vec</span> <span class="n">Float</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Vec'</span> <span class="n">Float</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span>
+<span class="kd">example</span> <span class="o">{</span><span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Float</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">Float</span><span class="o">)</span>
+        <span class="o">:</span> <span class="bp">@</span><span class="n">differential</span> <span class="n">_</span> <span class="n">_</span> <span class="n">Vec'.toVec</span> <span class="n">_</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span>
+  <span class="kd">by</span>
+    <span class="n">simp</span> <span class="n">done</span>
+</code></pre></div>
+
+
+
+<a name="261140363"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140363" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140363">(Nov 11 2021 at 14:28)</a>:</h4>
+<p>We have some versions of lemmas in mathlib that are formulated to take instance arguments in <code>{}</code> binders rather than <code>[]</code> ones, but usually the reason is that we want to handle cases where the instance that appears in an expression is genuinely different from the synthesized one, or where there is no synthesized one... not where the two instances are actually defeq, but at the wrong reducibility level</p>
+
+
+
+<a name="261140378"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140378" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140378">(Nov 11 2021 at 14:28)</a>:</h4>
+<p>It still fails and I do not have a general instance <code>instance {X} [Vec X] : Vec' X := ⟨⟩</code> but only a specialized one for <code>Float</code>.</p>
+
+
+
+<a name="261140441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140441">(Nov 11 2021 at 14:29)</a>:</h4>
+<p>Sorry, I think I got some of the stuff wrong here.</p>
+<ol>
+<li>The instances are defeq after all.  The <code>instance [inst : Vec X] : Vec' X := ⟨⟩</code> is <code>@Vec' X inst</code> under the hood.  I mistook it for <code>⟨⟨⟩⟩</code>.</li>
+<li>It is weird that simp tries to synthesize this instance in the first place.  The instance should have already been assigned via unification.  There is an explicit check for this in the simp code.</li>
+</ol>
+
+
+
+<a name="261140645"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140645" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140645">(Nov 11 2021 at 14:31)</a>:</h4>
+<p>I don't know, but it works in Lean 3 now:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Vec</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="c1">-- extends Add X, Inhabited X</span>
+
+<span class="kd">class</span> <span class="n">Vec'</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Vec</span> <span class="n">X</span>
+
+<span class="kd">def</span> <span class="n">differential</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">Y</span> <span class="o">:=</span> <span class="n">f</span> <span class="n">dx</span>
+
+<span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">differential_of_linear</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">[</span><span class="n">differential</span><span class="o">]</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span>
+        <span class="o">:</span> <span class="n">differential</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Vec</span> <span class="n">nat</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Vec'</span> <span class="n">nat</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="kd">set_option</span> <span class="n">trace.simplify.rewrite</span> <span class="n">true</span>
+<span class="kd">example</span> <span class="o">{</span><span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Vec</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">nat</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">dx</span> <span class="o">:</span> <span class="n">nat</span><span class="o">)</span>
+        <span class="o">:</span> <span class="bp">@</span><span class="n">differential</span> <span class="n">_</span> <span class="n">_</span> <span class="n">Vec'.to_Vec</span> <span class="n">_</span> <span class="n">f</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">dx</span> <span class="o">:=</span>
+  <span class="kd">by</span>
+    <span class="n">simp</span>
+</code></pre></div>
+
+
+
+<a name="261140770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140770">(Nov 11 2021 at 14:32)</a>:</h4>
+<p>Yeah does not work with Lean 4, I'm on <code>nightly-2021-11-10</code></p>
+
+
+
+<a name="261140812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261140812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261140812">(Nov 11 2021 at 14:33)</a>:</h4>
+<p>The simplifier trace:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="n">differential_of_linear</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">assign</span> <span class="kd">instance</span>
+  <span class="n">Vec</span> <span class="n">Nat</span>
+</code></pre></div>
+
+
+
+<a name="261141323"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261141323" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261141323">(Nov 11 2021 at 14:38)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance/near/261140441">said</a>:</p>
+<blockquote>
+<p>Sorry, I think I got some of the stuff wrong here.</p>
+<ol>
+<li>The instances are defeq after all.  The <code>instance [inst : Vec X] : Vec' X := ⟨⟩</code> is <code>@Vec' X inst</code> under the hood.  I mistook it for <code>⟨⟨⟩⟩</code>.</li>
+<li>It is weird that simp tries to synthesize this instance in the first place.  The instance should have already been assigned via unification.  There is an explicit check for this in the simp code.</li>
+</ol>
+</blockquote>
+<p>The <code>(← isDefEq x val)</code> in  the function <code>Lean.Meta.Simp.synthesizeArgs</code> does not seem to produce correct value in this case.</p>
+
+
+
+<a name="261141817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261141817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261141817">(Nov 11 2021 at 14:42)</a>:</h4>
+<blockquote>
+<p>There is an explicit check for this in the simp code.</p>
+</blockquote>
+<p>Oh I take it back.  There is a check for "is this mvar already assigned" there.  But right above it is: if the argument is instance-implicit, synthesize the instance anyhow...</p>
+
+
+
+<a name="261152371"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261152371" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261152371">(Nov 11 2021 at 16:07)</a>:</h4>
+<p>So is this a bug or a feature? :)</p>
+
+
+
+<a name="261230744"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Trouble%20with%20simp%20-%20%20failed%20to%20assign%20instance/near/261230744" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Trouble.20with.20simp.20-.20.20failed.20to.20assign.20instance.html#261230744">(Nov 12 2021 at 09:46)</a>:</h4>
+<p>Simply <a href="https://github.com/lecopivo/lean4/commit/dd1f50a19b4121c1c3eacc9beef7b9943c53f13d">fixing</a> the transparency settings solves the problem.</p>
+<p>I do not fully understand the definition of "definitional equality" but should the result of <code>isDefEq</code> depend on transparency settings? If not then the transparency fix should be applied on the level of <code>isDefEq</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

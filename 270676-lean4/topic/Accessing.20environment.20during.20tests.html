@@ -1,0 +1,78 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html">Accessing environment during tests</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="307421424"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307421424" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307421424">(Nov 01 2022 at 23:26)</a>:</h4>
+<p>Many functions take an environment as an argument. Is there a nice way to test them using the current environment? For example, in the following example I need both the type annotation and the <code>do</code> block:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+<span class="n">makeFoo</span> <span class="o">::</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+
+<span class="k">#eval</span> <span class="o">((</span><span class="k">do</span> <span class="n">return</span> <span class="o">((</span><span class="n">getStructureCtor</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span> <span class="bp">``</span><span class="n">Foo</span><span class="o">)</span><span class="bp">.</span><span class="n">name</span><span class="o">))</span> <span class="o">:</span> <span class="n">CoreM</span> <span class="n">Name</span><span class="o">)</span>
+<span class="c1">-- &lt;namespace&gt;.Foo.makeFoo</span>
+</code></pre></div>
+<p>It would be nicer to use something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">#</span><span class="n">evalWithEnv</span> <span class="o">(</span><span class="n">getStructureCtor</span> <span class="bp">#</span><span class="n">env</span> <span class="bp">``</span><span class="n">Foo</span><span class="o">)</span><span class="bp">.</span><span class="n">name</span>
+</code></pre></div>
+<p>Does something like this already exist? (If not, I might want to make it!)</p>
+
+
+
+<a name="307422172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307422172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307422172">(Nov 01 2022 at 23:33)</a>:</h4>
+<p>Is this only for non-monadic code?</p>
+
+
+
+<a name="307430684"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307430684" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307430684">(Nov 02 2022 at 00:28)</a>:</h4>
+<p>What do you mean by that? (Like, am I just trying to get rid of the monadic code, or, am I only trying to address the case where the return type is non-monadic, or something else? Yes and yes if either of the first two! Maybe I'm overestimating the number of functions that depend on the environment but don't wind up in a monad? I do have a very small sample after all... Also, remember that it's possible that there's a very basic way to play with the current environment and I just don't know about it...!)</p>
+
+
+
+<a name="307430943"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307430943" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307430943">(Nov 02 2022 at 00:30)</a>:</h4>
+<p>One simple option would be to give a <code>MetaEval</code> instance for <code>Env -&gt; A</code> functions</p>
+
+
+
+<a name="307431197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307431197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307431197">(Nov 02 2022 at 00:34)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+<span class="n">makeFoo</span> <span class="o">::</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Eval</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">MetaEval</span> <span class="o">(</span><span class="n">Environment</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">eval</span> <span class="n">env</span> <span class="n">_</span> <span class="n">f</span> <span class="n">hideUnit</span> <span class="o">:=</span> <span class="k">do</span> <span class="n">Eval.eval</span> <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">env</span><span class="o">)</span> <span class="n">hideUnit</span><span class="bp">;</span> <span class="n">pure</span> <span class="n">env</span>
+
+<span class="k">#eval</span> <span class="k">fun</span> <span class="n">env</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">getStructureCtor</span> <span class="n">env</span> <span class="bp">``</span><span class="n">Foo</span><span class="o">)</span><span class="bp">.</span><span class="n">name</span>
+</code></pre></div>
+
+
+
+<a name="307432936"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Accessing%20environment%20during%20tests/near/307432936" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Accessing.20environment.20during.20tests.html#307432936">(Nov 02 2022 at 00:56)</a>:</h4>
+<p>Wow, nice! That's really neat! :D That's pretty close to perfect. I'll need to learn more about how <code>eval</code> works before I understand how it works, though :) In the meantime it'll still be extremely useful! Thanks!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

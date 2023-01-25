@@ -1,0 +1,57 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/coercion.2Finference.20pitfall.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/coercion.2Finference.20pitfall.html">coercion/inference pitfall</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="233396663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/coercion/inference%20pitfall/near/233396663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/coercion.2Finference.20pitfall.html#233396663">(Apr 06 2021 at 21:52)</a>:</h4>
+<p>What is going on with coercion and type inference that makes the below fail? Is this a bug? If not, why?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span>
+<span class="kd">structure</span> <span class="n">Bar</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Sort</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Foo</span> <span class="n">A</span> <span class="o">:=</span> <span class="o">(</span><span class="n">bar</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span>
+<span class="kd">instance</span> <span class="o">{</span><span class="n">A</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Bar</span> <span class="n">A</span><span class="o">)</span> <span class="o">(</span><span class="n">Foo</span> <span class="n">A</span><span class="o">)</span> <span class="o">:=</span> <span class="o">{</span><span class="n">coe</span> <span class="o">:=</span> <span class="n">Bar.toFoo</span><span class="o">}</span>
+<span class="kd">def</span> <span class="n">getFoo</span> <span class="o">{</span><span class="n">A</span><span class="o">}</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">Foo</span> <span class="n">A</span><span class="o">)</span> <span class="o">:=</span> <span class="n">F.foo</span>
+<span class="kd">def</span> <span class="n">bar</span> <span class="o">:</span> <span class="n">Bar</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="o">{</span><span class="n">foo</span> <span class="o">:=</span> <span class="mi">0</span><span class="o">,</span> <span class="n">bar</span> <span class="o">:=</span> <span class="mi">1</span><span class="o">}</span>
+<span class="k">#check</span> <span class="n">getFoo</span> <span class="o">(</span><span class="n">A</span> <span class="o">:=</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">bar</span> <span class="c1">-- okay</span>
+<span class="k">#check</span> <span class="n">getFoo</span> <span class="n">bar</span> <span class="c1">-- fails, see below</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">application type mismatch</span>
+<span class="cm">  getFoo bar</span>
+<span class="cm">argument</span>
+<span class="cm">  bar</span>
+<span class="cm">has type</span>
+<span class="cm">  Bar Nat</span>
+<span class="cm">but is expected to have type</span>
+<span class="cm">  Foo (Bar Nat)</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>P.S. I am using <code>Lean 4.0.0-m2</code>.</p>
+
+
+
+<a name="233409107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/coercion/inference%20pitfall/near/233409107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/coercion.2Finference.20pitfall.html#233409107">(Apr 06 2021 at 23:55)</a>:</h4>
+<p>I wouldn't have expected this to work, since the expected type is not known, and a TC query <code>Coe (Bar Nat) (Foo ?m)</code> would not be allowed to assign the <code>?m</code> metavariable. However, I wouldn't have expected it to try to synthesize <code>CoeT (Bar Nat) bar (Foo (Bar Nat))</code>, and I do not immediately see why it unifies the argument to <code>Foo</code> with <code>Bar Nat</code> in the first place. I don't understand what is happening well enough to assess if it is a bug or not though. The current tracing system is pretty good but debugging this kind of thing can still be tricky. Pragmatic note: you don't need to pass <code>A := Nat</code> if the expected type is known, i.e. the following works:  <code>#check (getFoo bar : Nat)</code></p>
+
+
+
+<a name="233534798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/coercion/inference%20pitfall/near/233534798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/coercion.2Finference.20pitfall.html#233534798">(Apr 07 2021 at 18:00)</a>:</h4>
+<p>Is there any way to inform lean that it should fill in the metavariable? (i.e. that <code>Bar A</code> only coerces to <code>Foo A</code> and not to some other <code>Foo B</code>?)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

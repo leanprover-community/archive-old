@@ -1,0 +1,95 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/index.html">PR reviews</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html">mathlib4#856 refactor of solve_by_elim</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="319689893"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319689893" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319689893">(Jan 05 2023 at 23:09)</a>:</h4>
+<p>I would like to get <a href="https://github.com/leanprover-community/mathlib4/pull/856">mathlib4#856</a> merged (both because it keeps rotting, and because I think we can build several other useful tactics on top of it).</p>
+<p>However I'm encountering a weird problem, explained <a href="https://github.com/leanprover-community/mathlib4/pull/856#discussion_r1059815646">here</a>.</p>
+<p>In particular, the line</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">solve_by_elim</span> <span class="o">[</span><span class="n">le_trans</span> <span class="n">_</span> <span class="n">hy'</span><span class="o">]</span>
+</code></pre></div>
+<p>is showing the error <code>unknown identifier 'hy''</code>. However <code>solve_by_elim</code> is working perfectly, successfully closing the goal using <code>hy'</code>. (See the #print statement below.)</p>
+<p>I can't work out who is generating this error, and why? Perhaps I'm just doing something dumb, or perhaps something relating to the user interface (showing tooltips, etc) is having trouble?</p>
+<p>Note that <code>solve_by_elim</code> has to do some fancy delayed elaboration of its arguments (because it may need to apply them multiple times, so has to have fresh metavariables each time). I'm guessing that this is something to do with the problem, but given that <code>solve_by_elim</code> is correctly closing the goal, I'm not really sure what this could be about.</p>
+
+
+
+<a name="319690008"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319690008" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319690008">(Jan 05 2023 at 23:10)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>, if you had a chance to look at this that would be wonderful. :-)</p>
+
+
+
+<a name="319691879"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319691879" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319691879">(Jan 05 2023 at 23:25)</a>:</h4>
+<p>I just debugged a very similar error in linarith reported by <span class="user-mention" data-user-id="260507">@Heather Macbeth</span> , and the issue was a missing <code>withMainContext</code> /  <code>g.withContext</code></p>
+
+
+
+<a name="319695114"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319695114" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319695114">(Jan 05 2023 at 23:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="110087">@Scott Morrison</span> I took a look, and there seems to be a call to <code>elabTerm</code> inside <code>partitionLocalHyps</code> which is not wrapped in any <code>withContext</code> even though the documentation says it expects to be called in the context of one</p>
+
+
+
+<a name="319695176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319695176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319695176">(Jan 05 2023 at 23:55)</a>:</h4>
+<p>The tactic seems to be working on multiple goals though so I'm not sure what the intended behavior is</p>
+
+
+
+<a name="319699014"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319699014" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319699014">(Jan 06 2023 at 00:33)</a>:</h4>
+<p>Thanks, I'll investigate that, and document behavior for <code>solve_by_elim*</code>, that operates on multiple user facing goals.</p>
+
+
+
+<a name="319707678"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319707678" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319707678">(Jan 06 2023 at 02:07)</a>:</h4>
+<p>Okay, I've simply removed <code>partitionLocalHyps</code>. It was an over-optimisation that wasn't necessary in the first place.</p>
+<p>Now we only run <code>elabTerm</code> when we need to, rather than trying once at the beginning to partition arguments into expressions and local hypotheses. If you specify many <code>-h</code> arguments to <code>solve_by_elim</code>, these will now be elaborated more times as <code>solve_by_elim</code> runs, but it seems rather unlikely this could ever be a performance problem.</p>
+
+
+
+<a name="319898517"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319898517" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319898517">(Jan 07 2023 at 03:16)</a>:</h4>
+<p>Does this mean that solve_by_elim will now not elaborate some terms at all?</p>
+
+
+
+<a name="319898564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/319898564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#319898564">(Jan 07 2023 at 03:17)</a>:</h4>
+<p>I.e, does this introduce the <code>norm_num [this is nonsense]</code> bug that we have in lean 3, for solve_by_elim?</p>
+
+
+
+<a name="320159874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/320159874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#320159874">(Jan 09 2023 at 07:09)</a>:</h4>
+<p>No, <code>solve_by_elim</code> will always elaborate the terms you pass it (in fact, it will re-elaborate them every time they could be used, to avoid stuck metavariables on seperate applications).</p>
+<p>The fix described in this thread means that we don't elaborate terms one <em>extra</em> time, to see if we can avoid re-elaborating them repeatedly later (on the basis that if they are local hyps we can just store the FVarId)</p>
+
+
+
+<a name="320159929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/mathlib4%23856%20refactor%20of%20solve_by_elim/near/320159929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/mathlib4.23856.20refactor.20of.20solve_by_elim.html#320159929">(Jan 09 2023 at 07:10)</a>:</h4>
+<p>I've just merged master again on this PR.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

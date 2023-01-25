@@ -1,0 +1,209 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html">A tactic for expanding matrices into coefficients</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="289583229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289583229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289583229">(Jul 14 2022 at 12:06)</a>:</h4>
+<p>Inspired by <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.reassoc_of">docs#category_theory.reassoc_of</a>, I wrote:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.fin.vec_notation</span>
+<span class="kn">import</span> <span class="n">tactic.fin_cases</span>
+<span class="kn">import</span> <span class="n">data.matrix.basic</span>
+
+<span class="kn">namespace</span> <span class="n">matrix</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">m</span> <span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+
+<span class="kn">section</span>
+<span class="c1">-- Note that here we are disabling the "safety" of reflected, to allow us to reuse `nat.mk_numeral`.</span>
+<span class="c1">-- The usual way to provide the required `reflected` instance would be via rewriting to prove that</span>
+<span class="c1">-- the expression we use here is equivalent.</span>
+<span class="kn">local</span> <span class="kn">attribute</span> <span class="o">[</span><span class="n">semireducible</span><span class="o">]</span> <span class="n">reflected</span>
+<span class="kd">meta</span> <span class="kd">instance</span> <span class="n">reflect</span> <span class="o">:</span> <span class="bp">Π</span> <span class="n">n</span><span class="o">,</span> <span class="n">has_reflect</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">fin_zero_elim</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">nat.mk_numeral</span> <span class="bp">`</span><span class="o">(</span><span class="n">fin</span> <span class="n">n.succ</span><span class="o">)</span>
+              <span class="bp">`</span><span class="o">(</span><span class="kd">by</span> <span class="n">apply_instance</span> <span class="o">:</span> <span class="n">has_zero</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n.succ</span><span class="o">))</span>
+              <span class="bp">`</span><span class="o">(</span><span class="kd">by</span> <span class="n">apply_instance</span> <span class="o">:</span> <span class="n">has_one</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n.succ</span><span class="o">))</span>
+              <span class="bp">`</span><span class="o">(</span><span class="kd">by</span> <span class="n">apply_instance</span> <span class="o">:</span> <span class="n">has_add</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n.succ</span><span class="o">))</span> <span class="bp">∘</span> <span class="n">subtype.val</span>
+<span class="kd">end</span>
+
+<span class="sd">/-- Expand `v` to `![v 0, v 1, ...]` -/</span>
+<span class="kd">def</span> <span class="n">fin_vec.eta_expand</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">{</span><span class="n">m</span><span class="o">},</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">fin</span> <span class="n">m</span> <span class="bp">→</span> <span class="n">α</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="n">v</span> <span class="o">:=</span> <span class="bp">!</span><span class="o">[]</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="n">v</span> <span class="o">:=</span> <span class="n">matrix.vec_cons</span> <span class="o">(</span><span class="n">v</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">fin_vec.eta_expand</span> <span class="o">(</span><span class="n">vec_tail</span> <span class="n">v</span><span class="o">))</span>
+
+<span class="kd">lemma</span> <span class="n">fin_vec.eta_expand_eq</span> <span class="o">:</span> <span class="bp">Π</span> <span class="o">{</span><span class="n">m</span><span class="o">}</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">fin</span> <span class="n">m</span> <span class="bp">→</span> <span class="n">α</span><span class="o">),</span> <span class="n">fin_vec.eta_expand</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">v</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">v</span><span class="o">,</span> <span class="n">subsingleton.elim</span> <span class="n">_</span> <span class="n">_</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">begin</span>
+  <span class="n">simp_rw</span> <span class="o">[</span><span class="n">fin_vec.eta_expand</span><span class="o">,</span><span class="n">fin_vec.eta_expand_eq</span><span class="o">],</span>
+  <span class="n">exact</span> <span class="n">fin.cons_self_tail</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="sd">/-- Expand `A` to `!![A 0 0, ...; ..., A m n]` -/</span>
+<span class="kd">def</span> <span class="n">eta_expand</span> <span class="o">{</span><span class="n">m</span> <span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="n">matrix.of</span> <span class="o">(</span><span class="n">fin_vec.eta_expand</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="n">fin_vec.eta_expand</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">j</span><span class="o">,</span> <span class="n">A</span> <span class="n">i</span> <span class="n">j</span><span class="o">)))</span>
+
+<span class="kd">def</span> <span class="n">eta_expand_eq</span> <span class="o">{</span><span class="n">m</span> <span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">eta_expand</span> <span class="n">A</span> <span class="bp">=</span> <span class="n">A</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp_rw</span> <span class="o">[</span><span class="n">eta_expand</span><span class="o">,</span> <span class="n">fin_vec.eta_expand_eq</span><span class="o">,</span> <span class="n">matrix.of</span><span class="o">,</span> <span class="n">equiv.refl_apply</span><span class="o">]</span>
+
+<span class="sd">/-- Prove a statement of the form `∀ A : matrix m n α, A = !![A 0 0, ...]`.</span>
+<span class="sd">Returns the type of this statement and its proof. -/</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">prove_eta</span> <span class="o">(</span><span class="n">m</span> <span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">expr</span> <span class="bp">×</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="n">u</span> <span class="bp">←</span> <span class="n">tactic.mk_meta_univ</span><span class="o">,</span>
+  <span class="n">α</span> <span class="bp">←</span> <span class="n">tactic.mk_local'</span> <span class="bp">`</span><span class="n">α</span> <span class="n">binder_info.implicit</span> <span class="o">(</span><span class="n">expr.sort</span> <span class="n">u.succ</span><span class="o">),</span>
+  <span class="n">A</span> <span class="bp">←</span> <span class="n">tactic.mk_local'</span> <span class="bp">`</span><span class="n">A</span> <span class="n">binder_info.default</span>
+    <span class="o">(</span><span class="n">expr.const</span> <span class="bp">`</span><span class="n">matrix</span> <span class="o">[</span><span class="n">level.zero</span><span class="o">,</span> <span class="n">level.zero</span><span class="o">,</span> <span class="n">u</span><span class="o">]</span> <span class="bp">`</span><span class="o">(</span><span class="n">fin</span> <span class="bp">%%`</span><span class="o">(</span><span class="n">m</span><span class="o">))</span> <span class="bp">`</span><span class="o">(</span><span class="n">fin</span> <span class="bp">%%`</span><span class="o">(</span><span class="n">n</span><span class="o">))</span> <span class="n">α</span><span class="o">),</span>
+  <span class="k">let</span> <span class="n">entries</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">j</span> <span class="o">:</span> <span class="n">fin</span> <span class="n">n</span><span class="o">),</span> <span class="n">A</span> <span class="bp">`</span><span class="o">(</span><span class="n">i</span><span class="o">)</span> <span class="bp">`</span><span class="o">(</span><span class="n">j</span><span class="o">),</span>
+  <span class="k">let</span> <span class="n">entry_vals</span> <span class="o">:=</span> <span class="n">pi_fin.to_pexpr</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="n">pi_fin.to_pexpr</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">j</span><span class="o">,</span> <span class="n">to_pexpr</span> <span class="bp">$</span> <span class="n">entries</span> <span class="n">i</span> <span class="n">j</span><span class="o">)),</span>
+  <span class="k">let</span> <span class="n">A_eta</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">``</span><span class="o">(</span><span class="bp">@</span><span class="n">matrix.of</span> <span class="o">(</span><span class="n">fin</span> <span class="bp">%%`</span><span class="o">(</span><span class="n">m</span><span class="o">))</span> <span class="o">(</span><span class="n">fin</span> <span class="bp">%%`</span><span class="o">(</span><span class="n">n</span><span class="o">))</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">app</span> <span class="n">entry_vals</span><span class="o">),</span>
+  <span class="n">A_eq</span> <span class="bp">←</span> <span class="n">tactic.to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">A</span> <span class="bp">=</span> <span class="bp">%%</span><span class="n">A_eta</span><span class="o">),</span>
+  <span class="n">t</span> <span class="bp">←</span> <span class="n">tactic.pis</span> <span class="o">[</span><span class="n">α</span><span class="o">,</span> <span class="n">A</span><span class="o">]</span> <span class="n">A_eq</span><span class="o">,</span>
+  <span class="o">((),</span> <span class="n">pr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">tactic.solve_aux</span> <span class="n">t</span> <span class="bp">`</span><span class="o">[</span><span class="n">intros</span> <span class="n">α</span> <span class="n">A</span><span class="o">,</span> <span class="n">exact</span> <span class="o">(</span><span class="n">matrix.eta_expand_eq</span> <span class="n">A</span><span class="o">)</span><span class="bp">.</span><span class="n">symm</span><span class="o">],</span>
+  <span class="n">pure</span> <span class="o">(</span><span class="n">t</span><span class="o">,</span> <span class="n">pr</span><span class="o">)</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">derive_eta_proof</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="n">target</span><span class="bp">@`</span><span class="o">(</span><span class="bp">%%</span><span class="n">A'</span> <span class="bp">=</span> <span class="bp">%%</span><span class="n">A_eta</span><span class="o">)</span> <span class="bp">←</span> <span class="n">tactic.target</span><span class="o">,</span>
+  <span class="o">(</span><span class="n">expr.const</span> <span class="bp">`</span><span class="n">matrix</span> <span class="n">ls</span><span class="o">,</span> <span class="o">[</span><span class="bp">`</span><span class="o">(</span><span class="n">fin</span> <span class="bp">%%</span><span class="n">m</span><span class="o">),</span> <span class="bp">`</span><span class="o">(</span><span class="n">fin</span> <span class="bp">%%</span><span class="n">n</span><span class="o">),</span> <span class="n">α</span><span class="o">])</span> <span class="bp">←</span> <span class="n">expr.get_app_fn_args</span> <span class="bp">&lt;$&gt;</span> <span class="n">tactic.infer_type</span> <span class="n">A'</span><span class="o">,</span>
+  <span class="n">some</span> <span class="o">(</span><span class="n">m</span><span class="o">,</span> <span class="n">n</span><span class="o">)</span> <span class="bp">←</span> <span class="n">pure</span> <span class="o">(</span><span class="n">prod.mk</span> <span class="bp">&lt;$&gt;</span> <span class="n">m.to_nat</span> <span class="bp">&lt;*&gt;</span> <span class="n">n.to_nat</span><span class="o">)</span> <span class="bp">|</span>
+    <span class="n">fail</span><span class="bp">!</span><span class="s2">"Dimensions {m} {n} are not numerals"</span><span class="o">,</span>
+  <span class="o">(</span><span class="n">t</span><span class="o">,</span><span class="n">pr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">prove_eta</span> <span class="n">m</span> <span class="n">n</span><span class="o">,</span>
+
+  <span class="n">tactic.unify</span> <span class="n">target</span> <span class="o">(</span><span class="n">t.instantiate_pis</span> <span class="o">[</span><span class="n">α</span><span class="o">,</span> <span class="n">A'</span><span class="o">]),</span>
+  <span class="n">tactic.exact</span> <span class="o">(</span><span class="n">pr</span> <span class="n">α</span> <span class="n">A'</span><span class="o">)</span>
+
+<span class="kd">theorem</span> <span class="n">fin_eta</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="bp">«!</span><span class="o">[</span><span class="n">A</span> <span class="mi">0</span> <span class="mi">0</span><span class="o">,</span> <span class="bp">...</span><span class="o">]</span><span class="bp">»</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="n">m</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="n">n</span><span class="o">)</span> <span class="n">α</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">=</span> <span class="bp">«!</span><span class="o">[</span><span class="n">A</span> <span class="mi">0</span> <span class="mi">0</span><span class="o">,</span> <span class="bp">...</span><span class="o">]</span><span class="bp">»</span> <span class="bp">.</span> <span class="n">derive_eta_proof</span><span class="o">)</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">=</span> <span class="bp">«!</span><span class="o">[</span><span class="n">A</span> <span class="mi">0</span> <span class="mi">0</span><span class="o">,</span> <span class="bp">...</span><span class="o">]</span><span class="bp">»</span> <span class="o">:=</span> <span class="n">h</span>
+
+<span class="kd">def</span> <span class="n">B</span> <span class="o">:</span> <span class="n">matrix</span> <span class="o">(</span><span class="n">fin</span> <span class="mi">20</span><span class="o">)</span> <span class="o">(</span><span class="n">fin</span> <span class="mi">20</span><span class="o">)</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="mi">0</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">B</span> <span class="bp">=</span> <span class="n">B</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="k">have</span> <span class="o">:=</span> <span class="n">matrix.fin_eta</span> <span class="n">B</span><span class="o">,</span>  <span class="c1">-- 400 coefficients, but very fast</span>
+  <span class="n">rw</span> <span class="n">this</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">matrix</span>
+</code></pre></div>
+<p>Are there some tricks I'm missing here to write this more briefly?</p>
+
+
+
+<a name="289584687"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289584687" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289584687">(Jul 14 2022 at 12:22)</a>:</h4>
+<p>this is really neat; does this work for vectors too?</p>
+
+
+
+<a name="289586147"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289586147" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289586147">(Jul 14 2022 at 12:36)</a>:</h4>
+<p>The same approach would work</p>
+
+
+
+<a name="289586423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289586423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289586423">(Jul 14 2022 at 12:39)</a>:</h4>
+<p>Really the pattern I'm not sure how to write neatly is:</p>
+<ul>
+<li>Write a function (like <code>matrix.eta_expand</code> above) that computes the eta expansion (or would do after unfolding), and prove it's equal to the identity</li>
+<li>Make a tactic that produces the nicely unfolded eta expansion </li>
+<li>Do a whole bunch of boilerplate to rewrite the not-unfolded spelling into the nicely unfolded one, and get that into the goal state</li>
+</ul>
+
+
+
+<a name="289586510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289586510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289586510">(Jul 14 2022 at 12:40)</a>:</h4>
+<p>(I originally tried skipping step 1 and having the tactic just prove it via <code>intros</code> + <code>fin_cases</code> + <code>refl</code> but that was way slower)</p>
+
+
+
+<a name="289601858"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289601858" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289601858">(Jul 14 2022 at 14:49)</a>:</h4>
+<p>Here's some pretty slow proofs I have that are <code>intros; fin_cases; refl</code>, can you try in on them?</p>
+
+
+
+<a name="289601915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289601915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289601915">(Jul 14 2022 at 14:49)</a>:</h4>
+<p><a href="https://github.com/pechersky/e222/blob/master/src/problems01.lean#L66-L113">https://github.com/pechersky/e222/blob/master/src/problems01.lean#L66-L113</a></p>
+
+
+
+<a name="289601932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289601932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289601932">(Jul 14 2022 at 14:49)</a>:</h4>
+<p><a href="https://github.com/pechersky/e222/blob/master/src/problems02.lean#L40-L89">https://github.com/pechersky/e222/blob/master/src/problems02.lean#L40-L89</a></p>
+
+
+
+<a name="289602097"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289602097" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289602097">(Jul 14 2022 at 14:50)</a>:</h4>
+<p>I think a nice first target would be to have the proof of this lemma be more "natural":<br>
+<a href="https://github.com/pechersky/e222/blob/master/src/problems02.lean#L49-L58">https://github.com/pechersky/e222/blob/master/src/problems02.lean#L49-L58</a></p>
+
+
+
+<a name="289606220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606220">(Jul 14 2022 at 15:19)</a>:</h4>
+<p>I would guess that for those lemmas you really just want to rewrite by <a href="https://leanprover-community.github.io/mathlib_docs/find/matrix.mul_fin_two">docs#matrix.mul_fin_two</a></p>
+
+
+
+<a name="289606311"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606311" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606311">(Jul 14 2022 at 15:20)</a>:</h4>
+<p>But Ideally we'd have a <code>matrix.mul_fin</code> lemma that works for arbitrary dimensions in the same way as the <code>fin_eta</code> lemma I have above</p>
+
+
+
+<a name="289606354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606354">(Jul 14 2022 at 15:20)</a>:</h4>
+<p>Ideally, one would not have to know the name of that lemma.</p>
+
+
+
+<a name="289606362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606362">(Jul 14 2022 at 15:20)</a>:</h4>
+<p>Yeah, exactly.</p>
+
+
+
+<a name="289606643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606643">(Jul 14 2022 at 15:22)</a>:</h4>
+<p>I'm not quite sure how the multiply version would look; I guess you'd have to do <code>rw matrix.mul_fin 2 2</code> as I can't see how lean would infer the dimensions otherwise</p>
+
+
+
+<a name="289606715"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/289606715" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#289606715">(Jul 14 2022 at 15:23)</a>:</h4>
+<p>I assume we want the lemma with <code>!![...]</code> on both  sides rather than <code>A * B</code> on the left and <code>![A 0 0 * B 0 0 + ...]</code> on the right?</p>
+
+
+
+<a name="291167266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/291167266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#291167266">(Jul 28 2022 at 11:03)</a>:</h4>
+<p>I've expanded on this a bit in <a href="https://github.com/leanprover-community/mathlib/tree/eric-wieser/fin-reflection">branch#eric-wieser/fin-reflection</a></p>
+
+
+
+<a name="291211554"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/A%20tactic%20for%20expanding%20matrices%20into%20coefficients/near/291211554" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/A.20tactic.20for.20expanding.20matrices.20into.20coefficients.html#291211554">(Jul 28 2022 at 15:44)</a>:</h4>
+<p>Discussion continues in <a href="#narrow/stream/217875-Is-there-code-for-X.3F/topic/concrete.20matrix.20multiplication/near/291208624">this thread</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

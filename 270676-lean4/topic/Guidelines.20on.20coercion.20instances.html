@@ -1,0 +1,116 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html">Guidelines on coercion instances</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="232777581"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232777581" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232777581">(Apr 01 2021 at 15:34)</a>:</h4>
+<p>In Lean 3, we had pretty strict restrictions on possible coercion instances.  For example, <code>has_coe α t</code> was always forbidden.  Otherwise you easily ran into nontermination.<br>
+I thought that the new type-class synthesis algorithm in Lean 4 solved these nontermination issues in a more principled way, but I've just ran into this at first glance unrelated error with a seemingly innocent coercion:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Cached</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">b</span> <span class="bp">//</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="o">}</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Cached</span> <span class="n">a</span><span class="o">)</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">x.1</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">++</span> <span class="n">b</span> <span class="c1">-- times out</span>
+</code></pre></div>
+
+
+
+<a name="232777751"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232777751" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232777751">(Apr 01 2021 at 15:35)</a>:</h4>
+<p>Replacing <code>Coe</code> by either <code>CoeHead</code> or <code>CoeTail</code> fixes the issue, but of course restricts the coercion.</p>
+
+
+
+<a name="232781329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232781329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232781329">(Apr 01 2021 at 15:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> Tabling only prevents cycles under the bounded-term-size hypothesis, which means that the terms do not grow arbitrarily big. In your example, the instance effectively says "whenever you are trying to prove any goal <code>α</code>, try to prove the bigger goal <code>@Cached α a</code>". The trace shows this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.synthInstance.newSubgoal</span><span class="o">]</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span>
+<span class="bp">...</span>
+<span class="o">[</span><span class="n">Meta.synthInstance.newSubgoal</span><span class="o">]</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">_tc.0</span><span class="o">)</span>
+<span class="bp">...</span>
+<span class="o">[</span><span class="n">Meta.synthInstance.newSubgoal</span><span class="o">]</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">_tc.0</span><span class="o">)</span> <span class="n">_tc.1</span><span class="o">)</span>
+<span class="bp">...</span>
+<span class="o">[</span><span class="n">Meta.synthInstance.newSubgoal</span><span class="o">]</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="bp">@</span><span class="n">Cached</span> <span class="o">(</span><span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="n">_tc.0</span><span class="o">)</span> <span class="n">_tc.1</span><span class="o">)</span> <span class="n">_tc.2</span><span class="o">)</span>
+<span class="bp">...</span>
+</code></pre></div>
+<p>We don't have a great solution to this problem in general, though this instance seems like an ideal candidate for a head/tail restriction. I know Leo has thought about this problem a lot recently, and played with many heuristics for detecting "bad traces", but I don't know what his current thoughts are. There are many other options (e.g. iterative deepening) but no silver bullet yet AFAIK.</p>
+
+
+
+<a name="232782470"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232782470" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232782470">(Apr 01 2021 at 16:04)</a>:</h4>
+<p>There are a few other funny things about this example. The identity coercion should probably have maximum priority:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Cached</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">b</span> <span class="bp">//</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="o">}</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">Coe</span> <span class="o">(</span><span class="n">Cached</span> <span class="n">α</span> <span class="n">a</span><span class="o">)</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">x.1</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Coe</span> <span class="n">α</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">coe</span> <span class="n">x</span> <span class="o">:=</span> <span class="n">x</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">++</span> <span class="n">b</span> <span class="c1">-- works now, since the coercion becomes id</span>
+</code></pre></div>
+
+
+
+<a name="232785379"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232785379" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232785379">(Apr 01 2021 at 16:25)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="232790178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232790178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232790178">(Apr 01 2021 at 16:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span>  I just realized that I've had an implicitly operational interpretation of coercions as trying to convert a value to match an argument type (e.g., starting from the type of the value and trying to find an coercion to the argument type).</p>
+<p>Are coercisions  searches fully bidirectional?  Would it be useful/feasible to have oriented coercisions (or perhaps more generally triggered instances) that require a specific <code>Coe</code> form to apply?  There may be similarities with SMT heuristics for instantiating universally quantified variables.</p>
+
+
+
+<a name="232792057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232792057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232792057">(Apr 01 2021 at 17:11)</a>:</h4>
+<p><span class="user-mention" data-user-id="110994">@Joe Hendrix</span> Currently, coercions are handled by the typeclass mechanism, so the search is effectively defined by the typeclass instances, most of which are defined in <a href="https://github.com/leanprover/lean4/blob/master/src/Init/Coe.lean">https://github.com/leanprover/lean4/blob/master/src/Init/Coe.lean</a></p>
+
+
+
+<a name="232793297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232793297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232793297">(Apr 01 2021 at 17:21)</a>:</h4>
+<p>Thanks.  It looks like it could be pretty programmable, maybe the Cached coercision above could use <code>CoeHead</code> or one of the more restricted type classes.</p>
+
+
+
+<a name="232795393"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232795393" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232795393">(Apr 01 2021 at 17:36)</a>:</h4>
+<blockquote>
+<p>In your example, the instance effectively says "whenever you are trying to prove any goal α, try to prove the bigger goal @Cached α a</p>
+</blockquote>
+<p>This is not a property of type-class inference itself, but of the way that the <code>*Coe*</code> instances are set up.  (The type class instance itself says "whenever you prove <code>Coe (Cached a) α</code>, you need to prove nothing else".)  This particular instance also seems to have changed since Lean 3.  <code>Coe (Foo α) α</code> used to be okay while <code>Coe α (Foo α)</code> was forbidden.  Now it seems to be the other way around.<br>
+It's good to know that the Lean 3 issues with transitive coercions are still there, and need similar workarounds.  I won't push the issue if the coercion design is still subject to change anyhow.  I don't think this pathological type class encoding (i.e., encoding a transitive predicate as a typeclass) is used for anything else either.</p>
+
+
+
+<a name="232796031"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Guidelines%20on%20coercion%20instances/near/232796031" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Guidelines.20on.20coercion.20instances.html#232796031">(Apr 01 2021 at 17:41)</a>:</h4>
+<blockquote>
+<p>This is not a property of type-class inference itself, but of the way that the <em>Coe</em> instances are set up. </p>
+</blockquote>
+<p>Yes, my response was poorly worded. FYI here is the Lean4 instance in question: <a href="https://github.com/leanprover/lean4/blob/master/src/Init/Coe.lean#L70">https://github.com/leanprover/lean4/blob/master/src/Init/Coe.lean#L70</a> as you said, the corresponding Lean3 one goes in the other direction: <a href="https://github.com/leanprover-community/lean/blob/master/library/init/coe.lean#L95">https://github.com/leanprover-community/lean/blob/master/library/init/coe.lean#L95</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

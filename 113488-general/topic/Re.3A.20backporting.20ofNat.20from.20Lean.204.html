@@ -1,0 +1,527 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html">Re: backporting ofNat from Lean 4</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="269573859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269573859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269573859">(Jan 27 2022 at 13:49)</a>:</h4>
+<p>As many of you will have heard by now, numerals in Lean 4 look quite a bit different than in Lean 3.  In Lean 3, numerals were constructed from 0, 1, and addition.  In Lean 4 there is now a function <code>ofNat : Nat → α</code> which embeds the natural numbers into the desired type.  (Actually it's a tad more complicated than that: the type class is <code>OfNat α n</code>, which means that a type may only have some but not all numerals...)</p>
+<p>Effectively this means that in mathlib4 we now have these type classes:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Zero</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span> <span class="n">zero</span> <span class="o">:</span> <span class="n">α</span>
+<span class="kd">class</span> <span class="n">One</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span> <span class="n">one</span> <span class="o">:</span> <span class="n">α</span>
+<span class="kd">class</span> <span class="n">Numeric</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span> <span class="n">ofNat</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">Monoid</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">One</span> <span class="n">α</span><span class="o">,</span> <span class="bp">...</span>
+<span class="kd">class</span> <span class="n">Semiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Numeric</span> <span class="n">α</span><span class="o">,</span> <span class="bp">...</span> <span class="c1">-- but not `One α` or `Zero α`</span>
+</code></pre></div>
+<p>This works mostly well and doesn't result in any weird diamonds.  The only downside is that Semiring no longer extends Monoid, so you have to type all properties by hand (i.e. Semiring only extends Semigroup and AddSemigroup directly, because they don't reference 0/1).  In mathlib4 that's perfectly workable because the algebraic hierarchy is still very coarse, and we have few theorems.</p>
+<p>After some prodding by <span class="user-mention" data-user-id="127136">@Alex J. Best</span> I've tried to backport this change (i.e. the numeric type class) to mathlib.  Mathlib has a dozen ring-link structures each inheriting from various different subsets of additive/multiplicative structures.  Then there's a corresponding cornucopia of <code>function.injective</code> and <code>function.surjective</code> functions.  Typing the properties by hand is not really scalable.  Some potential solutions I have thought of:</p>
+<p>1) Make a separate hierarchy for the numeric-based classes.  This is what I've tried so far.  It is ugly but potentially automatable in Lean 4.  Doing this by hand in Lean 4 is annoying though (because you have to define monoid, add_monoid, monoid', and add_monoid').  Concretely, create classes like this (where has_zero and has_one are replaced by numeric):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[ancestor numeric has_mul, protect_proj]</span>
+<span class="kd">class</span> <span class="n">mul_one_class'</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">numeric</span> <span class="n">M</span><span class="o">,</span> <span class="n">has_mul</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">one_mul</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">),</span> <span class="mi">1</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span><span class="o">)</span>
+<span class="o">(</span><span class="n">mul_one</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">),</span> <span class="n">a</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">a</span><span class="o">)</span>
+</code></pre></div>
+<p>Then semiring &amp; co. can extend <code>monoid_with_zero'</code> instead of <code>monoid_with_zero</code>.</p>
+<p>2) Patch Lean 3 and Lean 4 so that <code>class Foo (α) extends Numeric α, Zero α</code> works magically, i.e., Foo only contains ofNat, but not zero.  Bikesheddable syntax (the semantics is similar to default fields, but of course completely different):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Numeric</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">α</span>
+  <span class="k">let</span> <span class="n">zero</span> <span class="o">:=</span> <span class="n">ofNat</span> <span class="mi">0</span>
+  <span class="k">let</span> <span class="n">one</span> <span class="o">:=</span> <span class="n">ofNat</span> <span class="mi">1</span>
+</code></pre></div>
+<p>3) Define the algebraic hierarchy in terms of unbundled <code>is_group</code> classes.  Something like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">is_add_comm_monoid</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">has_add</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">has_nsmul</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="kd">extends</span> <span class="n">is_add_monoid</span> <span class="n">α</span><span class="o">,</span> <span class="n">is_add_zero_class</span> <span class="n">α</span> <span class="o">:=</span>  <span class="bp">...</span>
+<span class="kd">class</span> <span class="n">add_comm_monoid</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">has_zero</span> <span class="n">α</span><span class="o">,</span> <span class="n">has_add</span> <span class="n">α</span><span class="o">,</span> <span class="n">has_nsmul</span> <span class="n">α</span><span class="o">,</span> <span class="n">is_add_comm_monoid</span> <span class="n">α</span>
+<span class="kd">class</span> <span class="n">semiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">numeric</span> <span class="n">α</span><span class="o">,</span> <span class="bp">...</span><span class="o">,</span> <span class="n">is_add_comm_monoid</span> <span class="n">α</span><span class="o">,</span> <span class="bp">...</span>
+</code></pre></div>
+<p>This allows some degree of reuse because <code>is_add_comm_monoid R</code> is defeq no matter whether you're talking about the underlying additive monoid, or the semiring itself.</p>
+<p>I'm happy for any comments or ideas.  There's probably unclear parts here, I'll gladly elaborate.</p>
+<p>Frequently asked questions:</p>
+<ul>
+<li>Why don't we just make semiring extend both numeric and has_zero and a proof that <code>0 = 0</code>?  Because that's a type class diamond which we want to avoid.</li>
+<li>Why don't we just leave numeric out of semiring? Because then you can't state <a href="https://leanprover-community.github.io/mathlib_docs/find/char_two.two_eq_zero">docs#char_two.two_eq_zero</a></li>
+</ul>
+
+
+
+<a name="269574563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269574563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269574563">(Jan 27 2022 at 13:54)</a>:</h4>
+<p>If we have <code>OfNat α 1</code> then why do we also need a separate <code>One α</code>?</p>
+
+
+
+<a name="269574945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269574945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269574945">(Jan 27 2022 at 13:57)</a>:</h4>
+<p>That's just a technical subtlety.  <code>class MonoidWithZero (α) extends OfNat α 0, OfNat α 1</code> doesn't work by itself (you get two <code>ofNat</code> fields with different types), so we need to add aliases.  Lean 4 can infer <code>OfNat α 0</code> from <code>Zero α</code> and vice versa though.</p>
+
+
+
+<a name="269576288"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269576288" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269576288">(Jan 27 2022 at 14:06)</a>:</h4>
+<p>Does (3) lead to the exponential blowup in term sizes that is explained in a famous blogpost that I cannot find right now?</p>
+
+
+
+<a name="269576586"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269576586" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269576586">(Jan 27 2022 at 14:08)</a>:</h4>
+<p>Oh, here it is: <a href="https://www.ralfj.de/blog/2019/05/15/typeclasses-exponential-blowup.html">https://www.ralfj.de/blog/2019/05/15/typeclasses-exponential-blowup.html</a></p>
+
+
+
+<a name="269576675"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269576675" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269576675">(Jan 27 2022 at 14:09)</a>:</h4>
+<p>To my naive eye, (2) seems the most promising.</p>
+
+
+
+<a name="269576869"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269576869" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269576869">(Jan 27 2022 at 14:10)</a>:</h4>
+<p>We can also move only numeric/has_one/has_zero from fields to args</p>
+
+
+
+<a name="269577301"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269577301" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269577301">(Jan 27 2022 at 14:13)</a>:</h4>
+<p>I don't really understand what is going on here but my gut reaction is that it is all very confusing.</p>
+
+
+
+<a name="269577563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269577563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269577563">(Jan 27 2022 at 14:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204/near/269574945">said</a>:</p>
+<blockquote>
+<p>That's just a technical subtlety.  <code>class MonoidWithZero (α) extends OfNat α 0, OfNat α 1</code> doesn't work by itself (you get two <code>ofNat</code> fields with different types), so we need to add aliases.  Lean 4 can infer <code>OfNat α 0</code> from <code>Zero α</code> and vice versa though.</p>
+</blockquote>
+<p>It seems like this is the natural place to fix things</p>
+
+
+
+<a name="269578431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269578431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269578431">(Jan 27 2022 at 14:21)</a>:</h4>
+<p>Even if you fix this, extending <code>Monoid</code>, <code>AddMonoid</code>, and <code>Numeric</code> without some very special support from the language (see solution 2) will create conflicting projections</p>
+
+
+
+<a name="269578656"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269578656" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269578656">(Jan 27 2022 at 14:22)</a>:</h4>
+<p>One will say "we have any numeral", another will say that we have numeral zero</p>
+
+
+
+<a name="269578660"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269578660" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269578660">(Jan 27 2022 at 14:22)</a>:</h4>
+<p>Maybe we should also include option 0: Semiring does not extend Numeric</p>
+
+
+
+<a name="269578954"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269578954" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269578954">(Jan 27 2022 at 14:24)</a>:</h4>
+<p>How numerals in semirings should work then?</p>
+
+
+
+<a name="269578994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269578994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269578994">(Jan 27 2022 at 14:24)</a>:</h4>
+<p>Related to Reid's option 0: Is there an <code>OfInt α (-2)</code>? And will <code>Ring</code> need to extend some int-version of <code>Numeric</code>?<br>
+If <code>Ring</code> doesn't extend <code>IntNumeric</code>, why should <code>Semiring</code> extend <code>Numeric</code>?</p>
+
+
+
+<a name="269579169"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269579169" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269579169">(Jan 27 2022 at 14:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="214703">Yury G. Kudryashov</span> <a href="#narrow/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204/near/269578954">said</a>:</p>
+<blockquote>
+<p>How numerals in semirings should work then?</p>
+</blockquote>
+<p>A general instance recreating the old behavior? It's not great, but sounds better than SemiRing not extending Monoid at least</p>
+
+
+
+<a name="269579358"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269579358" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269579358">(Jan 27 2022 at 14:27)</a>:</h4>
+<p>The reason that <code>Semiring</code> has to extend <code>Numeric</code> is that we want <code>ofNat : ℕ → ℕ</code> to be defeq to the identity function, right?</p>
+
+
+
+<a name="269580752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269580752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269580752">(Jan 27 2022 at 14:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="110032">@Reid Barton</span> Why is it a problem if Semiring doesn't extend Monoid? There will always be an instance, right?</p>
+
+
+
+<a name="269581153"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269581153" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269581153">(Jan 27 2022 at 14:38)</a>:</h4>
+<p>I guess, <code>-2</code> works as <code>-(ofNat 2)</code>. Am I right?</p>
+
+
+
+<a name="269582191"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269582191" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269582191">(Jan 27 2022 at 14:45)</a>:</h4>
+<blockquote>
+<blockquote>
+<p>That's just a technical subtlety.  <code>class MonoidWithZero (α) extends OfNat α 0, OfNat α 1</code> doesn't work by itself (you get two <code>ofNat</code> fields with different types), so we need to add aliases.  Lean 4 can infer <code>OfNat α 0</code> from <code>Zero α</code> and vice versa though.</p>
+</blockquote>
+<p>It seems like this is the natural place to fix things</p>
+</blockquote>
+<p>Please ignore this part of the issue.  This is just a distraction.  There's absolutely no problem here.</p>
+
+
+
+<a name="269582712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269582712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269582712">(Jan 27 2022 at 14:48)</a>:</h4>
+<p>why can't we just have <code>OfNat α 0</code> instead of <code>Zero α</code>?</p>
+
+
+
+<a name="269582871"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269582871" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269582871">(Jan 27 2022 at 14:49)</a>:</h4>
+<blockquote>
+<p>Does (3) lead to the exponential blowup in term sizes that is explained in a famous blogpost that I cannot find right now?</p>
+</blockquote>
+<p>Jung describes a different encoding, namely one where we'd have <code>group [div_inv_monoid α] : Prop</code>.  Option 3 should not lead to exponential blowup.</p>
+
+
+
+<a name="269583054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583054">(Jan 27 2022 at 14:50)</a>:</h4>
+<blockquote>
+<p>why can't we just have OfNat α 0 instead of Zero α?</p>
+</blockquote>
+<p>Again, this is absolutely not the issue here.  Please replace <code>Zero α</code> by <code>OfNat α 0</code> in the examples if it helps you.</p>
+
+
+
+<a name="269583175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583175">(Jan 27 2022 at 14:51)</a>:</h4>
+<p>Ok, cool. But we would still need to write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variables</span> <span class="o">{</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">has_add</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">scalar</span> <span class="n">ℕ</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">add_group</span> <span class="n">A</span><span class="o">]</span>
+</code></pre></div>
+<p>just to say "<code>A</code> is an additive group".<br>
+If some syntax can make that easier/shorter, than (3) seems like a good option to me.</p>
+
+
+
+<a name="269583417"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583417" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583417">(Jan 27 2022 at 14:53)</a>:</h4>
+<p>Option 3 (in my original post) would have two hierarchies, the <code>is_add_group</code> hierarchy and the <code>add_group</code> hierarchy.  And we'd have:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">add_group</span> <span class="o">(</span><span class="n">A</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">has_zero</span> <span class="n">A</span><span class="o">,</span> <span class="n">has_add</span> <span class="n">A</span><span class="o">,</span> <span class="bp">...</span><span class="o">,</span> <span class="n">is_add_group</span> <span class="n">A</span>
+</code></pre></div>
+
+
+
+<a name="269583600"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583600" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583600">(Jan 27 2022 at 14:54)</a>:</h4>
+<p>Ah, and because Lean 4 doesn't care about cycles in the TC graph, this just works like a charm?</p>
+
+
+
+<a name="269583644"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583644" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583644">(Jan 27 2022 at 14:54)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="269583724"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583724" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583724">(Jan 27 2022 at 14:55)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204/near/269583175">said</a>:</p>
+<blockquote>
+<p>Ok, cool. But we would still need to write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variables</span> <span class="o">{</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">has_add</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">scalar</span> <span class="n">ℕ</span> <span class="n">A</span><span class="o">]</span> <span class="o">[</span><span class="n">add_group</span> <span class="n">A</span><span class="o">]</span>
+</code></pre></div>
+<p>just to say "<code>A</code> is an additive group".<br>
+If some syntax can make that easier/shorter, than (3) seems like a good option to me.</p>
+</blockquote>
+<p>I mean, I think something to help alleviate this would still be nice; I remember Anne proposed a <code>[[my_class A B C]]</code>that expands this out into all the required TC arguments</p>
+
+
+
+<a name="269583734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583734">(Jan 27 2022 at 14:55)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="269583933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269583933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269583933">(Jan 27 2022 at 14:56)</a>:</h4>
+<blockquote>
+<p>Ah, and because Lean 4 doesn't care about cycles in the TC graph, this just works like a charm?</p>
+</blockquote>
+<p>The only instance this declares is <code>add_group A → is_add_group A</code> so there's no cycle.</p>
+
+
+
+<a name="269584205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269584205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269584205">(Jan 27 2022 at 14:58)</a>:</h4>
+<p>I think why your comments are confusing me is that I would just put <code>OfNat 0</code> in <code>AddGroup</code>, <code>OfNat 1</code> in <code>Monoid</code> and extend both in <code>Ring</code> and call it a day.</p>
+
+
+
+<a name="269584274"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269584274" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269584274">(Jan 27 2022 at 14:59)</a>:</h4>
+<p>Then you don't have numeric instances for rings, i.e. <code>(42 : R)</code> doesn't work.</p>
+
+
+
+<a name="269584364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269584364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269584364">(Jan 27 2022 at 14:59)</a>:</h4>
+<p>I wonder if that is a real problem?</p>
+
+
+
+<a name="269584407"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269584407" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269584407">(Jan 27 2022 at 14:59)</a>:</h4>
+<p>We have enough lemmas that contain numerals &gt; 1.</p>
+
+
+
+<a name="269586022"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269586022" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269586022">(Jan 27 2022 at 15:09)</a>:</h4>
+<p>So is it possible to only have <code>OfNat 0</code> and <code>OfNat 1</code> inside <code>Ring</code> and then manually define the instance <code>OfNat n</code>? </p>
+<p>One problem is that <code>ofNat : ℕ → ℕ</code> using this instance is not defeq to the identity function (mentioned by <span class="user-mention" data-user-id="238446">@Anne Baanen</span>). Is that a big issue? A simple simp lemma will mostly fix this.</p>
+<p>Are there other problems?</p>
+
+
+
+<a name="269586230"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269586230" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269586230">(Jan 27 2022 at 15:10)</a>:</h4>
+<p>maybe the correct way to do this is to make them arguments, e.g. <code>class Monoid (α) [ofNat α 1] extends ...</code>, <code>class Ring (α) [∀ n, ofNat α n] extends Monoid α, ...</code>, or does this not work for subtle reasons?</p>
+
+
+
+<a name="269586384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269586384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269586384">(Jan 27 2022 at 15:11)</a>:</h4>
+<p>currently, I guess this means you'd need to type <code>[ofNat α 1] [Monoid α]</code>, but with Anne's proposal that should be pretty painless</p>
+
+
+
+<a name="269586731"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269586731" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269586731">(Jan 27 2022 at 15:13)</a>:</h4>
+<p>(I don't want to take too much credit for that, it's just Coq's <code>`{}</code>.)</p>
+
+
+
+<a name="269586952"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269586952" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269586952">(Jan 27 2022 at 15:15)</a>:</h4>
+<p>(I'm just excited for it instead of the pages-long <code>variables</code> we have to write sometimes now!)</p>
+
+
+
+<a name="269587065"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587065" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587065">(Jan 27 2022 at 15:15)</a>:</h4>
+<p>Could you remind me why we didn't go for accepting a <code>Zero α → OfNat α 0</code> and <code>Semiring α → OfNat α 0</code> diamond?</p>
+
+
+
+<a name="269587320"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587320" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587320">(Jan 27 2022 at 15:17)</a>:</h4>
+<p>If <code>Semiring</code> implies <code>AddMonoid</code> which implies <code>Zero</code>, then there are two definitely not defeq ways to write <code>0</code> in a generic semiring</p>
+
+
+
+<a name="269587350"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587350" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587350">(Jan 27 2022 at 15:17)</a>:</h4>
+<p>we would at least need an equality theorem</p>
+
+
+
+<a name="269587547"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587547" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587547">(Jan 27 2022 at 15:18)</a>:</h4>
+<p>Wouldn't that go away if we replace <code>extends</code> with a custom instance <code>Semiring.ToAddMonoid</code> which sets <code>zero := ofNat 0</code>?</p>
+
+
+
+<a name="269587896"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587896" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587896">(Jan 27 2022 at 15:21)</a>:</h4>
+<p>Or would disinheriting <code>Semiring → Monoid</code> mess up diamond inheritance so we can't say <code>Ring extends Semiring, Group</code>?</p>
+
+
+
+<a name="269587961"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269587961" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269587961">(Jan 27 2022 at 15:21)</a>:</h4>
+<p>It would, but I'm not sure how important that is</p>
+
+
+
+<a name="269588735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269588735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269588735">(Jan 27 2022 at 15:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="111080">Floris van Doorn</span> <a href="#narrow/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204/near/269586022">said</a>:</p>
+<blockquote>
+<p>One problem is that <code>ofNat : ℕ → ℕ</code> using this instance is not defeq to the identity function (mentioned by <span class="user-mention silent" data-user-id="238446">Anne Baanen</span>). Is that a big issue? A simple simp lemma will mostly fix this.</p>
+</blockquote>
+<p>And applied to any specific <code>Nat</code> they should hopefully be defeq after all. Is that not the (only) important use case?</p>
+
+
+
+<a name="269589538"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269589538" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269589538">(Jan 27 2022 at 15:32)</a>:</h4>
+<p>I think that will not be good, we don't want <code>27 : Nat</code> to have to build it up in binary if we can just inject the literal 27. This could potentially affect LLVM optimizations if it can't work out the value of the constant</p>
+
+
+
+<a name="269590082"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269590082" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269590082">(Jan 27 2022 at 15:36)</a>:</h4>
+<p>The generic instance should probably have lower priority than the specific one. I would be surprised if you instantiated generic literals to <code>Nat</code> often enough to create noticeable overhead in compile or run time.</p>
+
+
+
+<a name="269598743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269598743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269598743">(Jan 27 2022 at 16:33)</a>:</h4>
+<p>What are we going to use for coercion from nat?</p>
+
+
+
+<a name="269599155"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269599155" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269599155">(Jan 27 2022 at 16:36)</a>:</h4>
+<p>What do you use in Lean 3? If it is not the identity function for Nat there either, I don't see a reason to change it, so it should be distinct from <code>OfNat</code>.</p>
+
+
+
+<a name="269599171"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269599171" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yury G. Kudryashov <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269599171">(Jan 27 2022 at 16:36)</a>:</h4>
+<p>I can imagine that some algorithm is written for any semiring (possibly, with extra requirements) and involves coercion from nat. When it is applied to nat, we probably want this coercion to go away</p>
+
+
+
+<a name="269599497"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269599497" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269599497">(Jan 27 2022 at 16:38)</a>:</h4>
+<p>It's <a href="https://leanprover-community.github.io/mathlib_docs/find/nat.cast">docs#nat.cast</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/nat.bin_cast">docs#nat.bin_cast</a></p>
+
+
+
+<a name="269599537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269599537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269599537">(Jan 27 2022 at 16:38)</a>:</h4>
+<p><code>nat.cast</code> is pretty dumb indeed</p>
+
+
+
+<a name="269600096"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269600096" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269600096">(Jan 27 2022 at 16:42)</a>:</h4>
+<p>For the run time use case, this should eventually be covered by compiler rewrite rules. Which are not implemented yet, but their lack should probably not influence how you want to model your algebraic hierarchies too much.</p>
+
+
+
+<a name="269600788"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269600788" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269600788">(Jan 27 2022 at 16:46)</a>:</h4>
+<p>Regarding the subtopic of the additive/multiplicative split, I opened a new thread in <a class="stream" data-stream-id="270676" href="/#narrow/stream/270676-lean4">#lean4</a> with a perhaps naive alternative approach making use of new Lean 4 features <a href="#narrow/stream/270676-lean4/topic/Additive.2Fmultiplicative.20split.20in.20Lean.204/near/269595572">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Additive.2Fmultiplicative.20split.20in.20Lean.204/near/269595572</a></p>
+
+
+
+<a name="269603980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269603980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269603980">(Jan 27 2022 at 17:06)</a>:</h4>
+<blockquote>
+<p>The generic instance should probably have lower priority than the specific one. I would be surprised if you instantiated generic literals to Nat often enough to create noticeable overhead in compile or run time.</p>
+</blockquote>
+<p>From what I remember, Joe Hendrix stopped using mathlib because of this computationally problematic <code>nat.cast</code> instance.  So I'd really like to avoid it.</p>
+
+
+
+<a name="269604641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269604641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269604641">(Jan 27 2022 at 17:11)</a>:</h4>
+<blockquote>
+<p>A simple simp lemma will mostly fix this.</p>
+</blockquote>
+<p>Then some simp lemmas will no longer apply to natural numbers.  For example, <code>2 | a ↔ even a</code> will work for every type, except the natural numbers (and other types that have a custom ofNat function).</p>
+
+
+
+<a name="269606055"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269606055" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269606055">(Jan 27 2022 at 17:20)</a>:</h4>
+<blockquote>
+<p>And applied to any specific Nat they should hopefully be defeq after all. Is that not the (only) important use case?</p>
+</blockquote>
+<p>I had hoped we could eventually use the same function for coercions as well to get rid of nat.cast.  For actual numerals alone, a low-priority <code>OfNat</code> instance doing nat.cast could work.</p>
+
+
+
+<a name="269606522"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269606522" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269606522">(Jan 27 2022 at 17:23)</a>:</h4>
+<blockquote>
+<p>If it is not the identity function for Nat there either, I don't see a reason to change it, so it should be distinct from OfNat.</p>
+</blockquote>
+<p>The coercion <code>Nat → α</code> is an ongoing minor issue (with associated VM performance issues and diamonds), so there's certainly a good reason to change it.</p>
+
+
+
+<a name="269607714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269607714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269607714">(Jan 27 2022 at 17:31)</a>:</h4>
+<blockquote>
+<p>so it should be distinct from OfNat.</p>
+</blockquote>
+<p>Okay let's call this option 4).  We have all three of 0, 1, and ofNat.  Numerals are built from 0, 1, +.  And ofNat is only used for coercions.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Semiring</span> <span class="o">(</span><span class="n">α</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddCommMonoid</span> <span class="n">α</span><span class="o">,</span> <span class="n">Monoid</span> <span class="n">α</span><span class="o">,</span> <span class="n">Numeric</span> <span class="n">α</span><span class="o">,</span> <span class="bp">...</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">low</span><span class="o">)</span> <span class="o">[</span><span class="n">Semiring</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">α</span> <span class="n">n</span> <span class="o">:=</span> <span class="c1">-- constructed from 0, 1, +</span>
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Numeric</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">CoeTail</span> <span class="n">Nat</span> <span class="n">α</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">ofNat</span><span class="o">⟩</span>
+</code></pre></div>
+<p>It's somewhat disappointing that <code>Numeric.ofNat n</code> and <code>OfNat.ofNat n</code> are not defeq, but it's a much smaller issue than 1 or 3.</p>
+
+
+
+<a name="269608283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/269608283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#269608283">(Jan 27 2022 at 17:35)</a>:</h4>
+<p>It's not perfect, but a separate class also feels more appropriate because there is no need for the <code>n</code> type parameter for this use case</p>
+
+
+
+<a name="270216274"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270216274" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270216274">(Feb 01 2022 at 14:11)</a>:</h4>
+<p>Okay, I've implemented option 4) in mathlib4. <a href="https://github.com/leanprover-community/mathlib4/pull/177">https://github.com/leanprover-community/mathlib4/pull/177</a>  The performance issues are real, avoid <code>(123456 : R)</code> for now.</p>
+
+
+
+<a name="270216995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270216995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270216995">(Feb 01 2022 at 14:16)</a>:</h4>
+<p>I've also removed the coercion <code>ℕ → R</code> for semirings <code>R</code> for performance reasons.  How about adding the following type class to mathlib3, and replacing <code>nat.cast</code>?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">cast_nat</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">has_zero</span> <span class="n">α</span><span class="o">,</span> <span class="n">has_one</span> <span class="n">α</span><span class="o">,</span> <span class="n">has_add</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">cast_nat</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span>
+<span class="o">(</span><span class="n">cast_nat_zero</span> <span class="o">:</span> <span class="n">cast_nat</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span>
+<span class="o">(</span><span class="n">cast_nat_succ</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">n</span><span class="o">,</span> <span class="n">cast_nat</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">=</span> <span class="n">cast_nat</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span>
+</code></pre></div>
+<p>I'm also happy about other values of <code>cast_nat 1</code>.</p>
+
+
+
+<a name="270218968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270218968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270218968">(Feb 01 2022 at 14:27)</a>:</h4>
+<p>And a low prio default instance that uses nat.bin_cast?</p>
+
+
+
+<a name="270219583"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270219583" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270219583">(Feb 01 2022 at 14:31)</a>:</h4>
+<p>No, we'd bundle it in semiring and co. so <code>cast_nat</code> would be available anywhere we'd need it.  Having a second non-defeq instance only introduces a diamond.</p>
+
+
+
+<a name="270221564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270221564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270221564">(Feb 01 2022 at 14:44)</a>:</h4>
+<p>if we're allowing other values of <code>cast_nat 1</code>, should we have <code>cast_nat (n + 1) = cast_nat n + cast_nat 1</code>?</p>
+
+
+
+<a name="270228121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270228121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270228121">(Feb 01 2022 at 15:21)</a>:</h4>
+<p>I meant that there are two reasonable values we could specify for <code>cast_nat 1</code>, either <code>0 + 1</code> or <code>1</code>.  These are of course not equal in general.</p>
+
+
+
+<a name="270228175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Re%3A%20backporting%20ofNat%20from%20Lean%204/near/270228175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Re.3A.20backporting.20ofNat.20from.20Lean.204.html#270228175">(Feb 01 2022 at 15:21)</a>:</h4>
+<p>And yes, <code>cast_nat (n + 1) = cast n + 1</code> would not be true with <code>cast_nat 1 =  1</code>.  (But it would be true for semirings, and in general we'd have <code>cast_nat (n+2) = cast_nat (n+1) 1</code>.)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

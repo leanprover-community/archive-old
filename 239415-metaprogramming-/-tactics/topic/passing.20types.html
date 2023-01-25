@@ -1,0 +1,257 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/passing.20types.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html">passing types</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="281806591"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281806591" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281806591">(May 10 2022 at 10:51)</a>:</h4>
+<p>Dear All,</p>
+<p>I would like to use <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.interactive.nontriviality">docs#tactic.interactive.nontriviality</a> inside a <code> `[ tac ]</code>-block.  In my case, I have to specify an argument to <code>nontriviality</code>.  In tactic mode, I would like to do <code>nontriviality R</code>, where <code>R</code> is a type.  I can get my hands on the <code>expr</code> representing <code>R</code>, but I do not know how to pass this <code>expr</code> as a <code>parse texpr?</code> to <code>nontriviality</code>.</p>
+<p>Can anyone help me?</p>
+
+
+
+<a name="281807544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281807544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281807544">(May 10 2022 at 11:01)</a>:</h4>
+<p>here is a somewhat minimized example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.degree</span>
+
+<span class="kn">open</span> <span class="n">expr</span> <span class="n">tactic</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">single_term_proof</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">polynomial.X</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span> <span class="n">val</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.nat_degree</span><span class="o">)</span> <span class="n">tt</span> <span class="n">ff</span><span class="o">,</span>
+                      <span class="k">let</span> <span class="n">degX</span> <span class="o">:=</span> <span class="n">expr.mk_app</span> <span class="n">val</span> <span class="o">[</span><span class="n">e</span><span class="o">],</span>
+                      <span class="n">e_eq</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">eq</span> <span class="o">[</span><span class="n">degX</span><span class="o">,</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="o">)],</span>
+                      <span class="n">n</span> <span class="bp">←</span> <span class="n">get_unused_name</span><span class="o">,</span>
+                      <span class="n">assert</span> <span class="n">n</span> <span class="n">e_eq</span><span class="o">,</span>
+<span class="c1">-- up to here, I should have produced a goal `(X : R[X]).nat_degree = 1`,</span>
+<span class="c1">-- except I do not have access to `R` yet</span>
+                      <span class="n">rx</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">e</span><span class="o">,</span>
+<span class="c1">-- the 0-th arg of `rx` is `R`</span>
+                      <span class="k">let</span> <span class="n">ris</span> <span class="o">:=</span> <span class="o">(</span><span class="n">rx.get_app_args.nth</span> <span class="mi">0</span><span class="o">)</span><span class="bp">.</span><span class="n">get_or_else</span> <span class="bp">`</span><span class="o">(</span><span class="mi">0</span><span class="o">),</span>
+                      <span class="k">let</span> <span class="n">pris</span> <span class="o">:=</span> <span class="n">pexpr.of_expr</span> <span class="n">ris</span><span class="o">,</span>
+                      <span class="k">let</span> <span class="n">ar</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">texpr</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">pris</span><span class="o">,</span>
+                    <span class="bp">`</span><span class="o">[</span> <span class="c1">--nontriviality ar,  &lt;--- what should I place here?</span>
+                       <span class="n">exact</span> <span class="n">polynomial.nat_degree_X</span> <span class="o">]</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">skip</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="281810223"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281810223" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281810223">(May 10 2022 at 11:33)</a>:</h4>
+<p>Can you use <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.nontriviality_by_assumption">docs#tactic.nontriviality_by_assumption</a> to avoid needing the interactive version?</p>
+
+
+
+<a name="281810250"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281810250" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281810250">(May 10 2022 at 11:33)</a>:</h4>
+<p>(as <code>nontriviality_by_assumption ris</code>)</p>
+
+
+
+<a name="281813187"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281813187" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281813187">(May 10 2022 at 12:03)</a>:</h4>
+<p>Yes, it works!  Thanks a lot!</p>
+
+
+
+<a name="281813280"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281813280" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281813280">(May 10 2022 at 12:04)</a>:</h4>
+<p>I am still curious as to whether it is possible to pass on arguments as I had in mind, but this does solve this instance of my problem.</p>
+
+
+
+<a name="281814717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281814717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281814717">(May 10 2022 at 12:17)</a>:</h4>
+<p>I would guess you need a %% antiquotation of some kind, but I've not tried</p>
+
+
+
+<a name="281814735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281814735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281814735">(May 10 2022 at 12:17)</a>:</h4>
+<p>At any rate, it's probably better to stay out of interactive mode rather than go back and forth and fight the parser</p>
+
+
+
+<a name="281817259"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281817259" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281817259">(May 10 2022 at 12:38)</a>:</h4>
+<p>I agree with the going back and forth.  I have a follow-up question.  In what is below, why do I need two <code>assumption</code>?  Can I change something and get Lean to not need them?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.degree</span>
+
+<span class="kn">open</span> <span class="n">expr</span> <span class="n">tactic</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">single_term_proof</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">polynomial.X</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span> <span class="n">val</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.nat_degree</span><span class="o">)</span> <span class="n">tt</span> <span class="n">ff</span><span class="o">,</span>
+                      <span class="k">let</span> <span class="n">degX</span> <span class="o">:=</span> <span class="n">expr.mk_app</span> <span class="n">val</span> <span class="o">[</span><span class="n">e</span><span class="o">],</span>
+                      <span class="n">e_eq</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">eq</span> <span class="o">[</span><span class="n">degX</span><span class="o">,</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="o">)],</span>
+                      <span class="n">n</span> <span class="bp">←</span> <span class="n">get_unused_name</span> <span class="s2">"pX1"</span><span class="o">,</span>
+                      <span class="n">rx</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">e</span><span class="o">,</span>
+                      <span class="k">let</span> <span class="n">ris</span> <span class="o">:=</span> <span class="o">(</span><span class="n">rx.get_app_args.nth</span> <span class="mi">0</span><span class="o">)</span><span class="bp">.</span><span class="n">get_or_else</span> <span class="bp">`</span><span class="o">(</span><span class="mi">0</span><span class="o">),</span>
+                      <span class="n">assert</span> <span class="n">n</span> <span class="n">e_eq</span><span class="o">,</span>
+                      <span class="n">nontriviality_by_assumption</span> <span class="n">ris</span><span class="o">,</span>
+                      <span class="n">proof</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.nat_degree_X</span><span class="o">),</span>
+                      <span class="n">tactic.exact</span> <span class="n">proof</span><span class="o">,</span>
+                      <span class="n">assumption</span><span class="o">,</span>  <span class="c1">-- one of these assumptions is proving `e_eq`,</span>
+                      <span class="n">assumption</span>   <span class="c1">-- the other is closing a `non-trivial` goal?</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">skip</span>
+<span class="kd">end</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">quick</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="bp">`</span><span class="o">(</span><span class="n">polynomial.nat_degree</span> <span class="bp">%%</span><span class="n">x</span> <span class="bp">=</span> <span class="bp">%%</span><span class="n">one</span><span class="o">)</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+                      <span class="n">single_term_proof</span> <span class="n">x</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">hh</span> <span class="o">:</span> <span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="bp">≠</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">polynomial.X</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">R</span><span class="o">)</span><span class="bp">.</span><span class="n">nat_degree</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">quick</span>
+</code></pre></div>
+
+
+
+<a name="281817451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281817451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281817451">(May 10 2022 at 12:40)</a>:</h4>
+<p>As I commented, I think that one of the two I actually need, since I want to use the recently proved <code>e_eq</code> to close the goal.  But the other seems to be a weird <code>nontrivial R</code> goal, when <code>nontrivial R</code> is in context.  I tried changing the <code>to_expr [...]</code> to <code>to_expr [...] tt ff</code> as per a suggestion of Kyle's, but this time it did not seem to help.</p>
+
+
+
+<a name="281818316"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281818316" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281818316">(May 10 2022 at 12:46)</a>:</h4>
+<p>Here is what the goal state if I remove the two <code>assumption</code>s:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">hh</span> <span class="o">:</span> <span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="bp">≠</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">polynomial.X</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">R</span><span class="o">)</span><span class="bp">.</span><span class="n">nat_degree</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="o">{</span><span class="n">quick</span><span class="o">,</span>  <span class="o">}</span>
+
+<span class="mi">2</span> <span class="n">goals</span>
+<span class="n">R</span><span class="o">:</span> <span class="kt">Type</span> <span class="bp">?</span>
+<span class="n">hh</span><span class="o">:</span> <span class="n">semiring</span> <span class="n">R</span>
+<span class="n">h</span><span class="o">:</span> <span class="mi">0</span> <span class="bp">≠</span> <span class="mi">1</span>
+<span class="n">_inst</span><span class="o">:</span> <span class="n">nontrivial</span> <span class="n">R</span>
+<span class="bp">⊢</span> <span class="n">nontrivial</span> <span class="n">R</span>
+
+<span class="n">R</span><span class="o">:</span> <span class="kt">Type</span> <span class="bp">?</span>
+<span class="n">hh</span><span class="o">:</span> <span class="n">semiring</span> <span class="n">R</span>
+<span class="n">h</span><span class="o">:</span> <span class="mi">0</span> <span class="bp">≠</span> <span class="mi">1</span>
+<span class="n">pX1</span><span class="o">:</span> <span class="n">polynomial.X.nat_degree</span> <span class="bp">=</span> <span class="mi">1</span>
+<span class="bp">⊢</span> <span class="n">polynomial.X.nat_degree</span> <span class="bp">=</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+
+<a name="281818406"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281818406" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281818406">(May 10 2022 at 12:47)</a>:</h4>
+<p>I feel like the first one should have been closed by the <code>nontriviality</code> step, but I think that I did not pass on the correct metavariable information.</p>
+
+
+
+<a name="281820844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281820844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281820844">(May 10 2022 at 13:05)</a>:</h4>
+<p>Note you can match against <code> `(@polynomial.X %%R %%inst) </code> to get <code>R</code> directly</p>
+
+
+
+<a name="281821417"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281821417" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281821417">(May 10 2022 at 13:10)</a>:</h4>
+<p>That is to say, this works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.degree</span>
+
+<span class="kn">open</span> <span class="n">expr</span> <span class="n">tactic</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">single_term_proof</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">@</span><span class="n">polynomial.X</span> <span class="bp">%%</span><span class="n">R</span> <span class="bp">%%</span><span class="n">inst</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="n">nontriviality_by_assumption</span> <span class="n">R</span><span class="o">,</span>
+    <span class="n">tactic.interactive.exact</span> <span class="bp">``</span><span class="o">(</span><span class="n">polynomial.nat_degree_X</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">tactic.trace</span> <span class="s2">"oops"</span>
+<span class="kd">end</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">quick</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="bp">`</span><span class="o">(</span><span class="n">polynomial.nat_degree</span> <span class="bp">%%</span><span class="n">x</span> <span class="bp">=</span> <span class="bp">%%</span><span class="n">one</span><span class="o">)</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+                      <span class="n">single_term_proof</span> <span class="n">x</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">hh</span> <span class="o">:</span> <span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="bp">≠</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">polynomial.X</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">R</span><span class="o">)</span><span class="bp">.</span><span class="n">nat_degree</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">quick</span>
+</code></pre></div>
+
+
+
+<a name="281821455"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281821455" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281821455">(May 10 2022 at 13:11)</a>:</h4>
+<p>Confusingly, you do want to use <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.interactive.exact">docs#tactic.interactive.exact</a> here; you just don't want to use it from within interactive mode</p>
+
+
+
+<a name="281821490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281821490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281821490">(May 10 2022 at 13:11)</a>:</h4>
+<p>(<code>parse texpr</code> is just <code>pexpr</code> with some extra instructions for the interactive parser)</p>
+
+
+
+<a name="281824682"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281824682" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281824682">(May 10 2022 at 13:36)</a>:</h4>
+<p>Eric, thank you so much!  I had gotten to my twisty code by trying to get Lean to understand what I was saying and really the issue is that I do not know the language!</p>
+<p>I'll try to add more matches to <code>single_term_proof</code> and make it work in more situations!</p>
+<p>Thanks again!</p>
+
+
+
+<a name="281825023"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281825023" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281825023">(May 10 2022 at 13:39)</a>:</h4>
+<p>Also, even though I had seen these annotations a few times and I also know about Mario's cheatsheet, I still find it hard to navigate among <code> `, %%, `(), ``(),...</code>.</p>
+
+
+
+<a name="281829291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281829291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281829291">(May 10 2022 at 14:11)</a>:</h4>
+<p>I probably couldn't have written that from scratch, I'm also not familiar with the difference between those symbols.<br>
+Deleting and modifying code you don't understand is much easier than writing it from scratch!</p>
+
+
+
+<a name="281956802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281956802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281956802">(May 11 2022 at 12:24)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">`</span><span class="n">name</span><span class="o">,</span> <span class="bp">`</span><span class="o">(</span><span class="n">expr</span><span class="o">),</span> <span class="bp">``</span><span class="o">(</span><span class="n">pexpr</span><span class="o">),</span> <span class="bp">%%</span><span class="n">inline</span><span class="bp">-</span><span class="n">an</span><span class="bp">-</span><span class="n">expr</span>
+</code></pre></div>
+<p>In this case, you're matching on an expr, so you use \`(). In it, you match exactly in the terms you want. You store the expr for the term that is the ring type under the variable R via the match. The exact tactic expects a pexpr, which is like an expr but not yet fully elaborated. This makes sense because we want to rely on the exact tactic to figure out which ring our lemma is about and the instances. You could form the explicit expr by saying `(@polynomial.nat_degree_X %%R ... ) but you'd have to supply all the instances. In norm_num, this is usually done by carrying an instance_cache around and using it to form exprs instead of writing them out manually.</p>
+
+
+
+<a name="281964334"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/281964334" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#281964334">(May 11 2022 at 13:23)</a>:</h4>
+<p>Yakov, thanks a lot for the explanation!  Even though I know about the <code>@&lt;lemma&gt;</code> to supply all the arguments, it had not dawned on me until the answers that I got here, how useful this is in <code>meta</code> mode!  Even if I could get Eric's suggestion to work (and I think that it is better in the current situation), I am really grateful for your comments!</p>
+
+
+
+<a name="282051132"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/282051132" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#282051132">(May 12 2022 at 02:13)</a>:</h4>
+<p>Going back to the original question, Lean 3 does not have antiquotations for <code>`[...]</code> blocks, and so you have to rely on there being a non-interactive version of the tactic available.</p>
+
+
+
+<a name="282054190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/passing%20types/near/282054190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/passing.20types.html#282054190">(May 12 2022 at 03:16)</a>:</h4>
+<p>Scott, thank you for the information! It's good to know when you should stop looking for something that just isn't there!  <span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

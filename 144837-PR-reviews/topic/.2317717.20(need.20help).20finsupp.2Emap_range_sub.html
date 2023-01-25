@@ -1,0 +1,244 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/index.html">PR reviews</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html">#17717 (need help) finsupp.map_range_sub</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="312341978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312341978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312341978">(Nov 26 2022 at 13:12)</a>:</h4>
+<p>I opened the PR <a href="https://github.com/leanprover-community/mathlib/pull/17717">#17717</a> defining <code>finsupp.map_range_sub</code> (and <code>finsupp.map_range_neg</code>), but I quickly noticed several things. First of all it doesn't type-check in my use case, where I want to do e.g. <code>finsupp.map_range_sub (map_sub polynomial.derivative)</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.finsupp.defs</span>
+
+<span class="k">#check</span> <span class="n">finsupp.map_range_add</span> <span class="o">(</span><span class="n">map_add</span> <span class="gr">sorry</span><span class="o">)</span> <span class="c1">-- this works</span>
+<span class="k">#check</span> <span class="n">finsupp.map_range_sub</span> <span class="o">(</span><span class="n">map_sub</span> <span class="gr">sorry</span><span class="o">)</span> <span class="c1">-- this doesn't type-check</span>
+</code></pre></div>
+<p>I thought the issue was that <code>finsupp.map_range_add</code> and <code>map_add</code> both require <code>has_add</code> for domain and codomain types so they unify nicely, whereas <code>map_sub</code> requires <code>add_group</code> for the domain type and <code>subtraction_monoid</code> for  the codomain type. Initially I defined <code>finsupp.map_range_sub</code> requiring <code>add_group</code> for the domain and the codomain types but it returned an error, but I realised that the <code>has_sub</code> instance for <code>finsupp</code> can be generalised for domain and codomain types that are just <code>sub_neg_zero_monoid</code>, so I did the same for <code>finsupp.map_range_sub</code>. This also does not type-check, because <code>map_sub</code> requires typeclasses that are stronger than this and I can't supply a proof inside <code>finsupp.map_range_sub</code> just using <code>map_sub</code>. This suggests to me that <code>finsupp.map_range_sub</code> should be defined with <code>add_group</code>, then having to define a <code>map_sub''</code> whose codomain type is <code>add_group</code> manually, but I always had the impression that proofs should be defined in the greatest generality whenever possible. Is this not the right approach?</p>
+<p>There is also the possibly-unrelated issue that <code>map_sub</code> is defined for functions that are <code>add_monoid_hom_class</code> rather than just a plain function <code>G -&gt; H</code>, so I have to "cast" the proof manually? For <code>polynomial derivative</code> I also noticed something weird:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.derivative</span>
+
+<span class="k">#check</span> <span class="n">polynomial.derivative.map_add</span> <span class="c1">-- ok</span>
+<span class="k">#check</span> <span class="n">polynomial.derivative.map_sub</span> <span class="c1">-- !?</span>
+<span class="k">#check</span> <span class="n">map_sub</span> <span class="n">polynomial.derivative</span> <span class="c1">-- ok</span>
+</code></pre></div>
+<p>It seems to complain that <code>linear_map.map_sub</code> takes in a linear map but <code>polynomial.derivative</code> is semilinear, but <code>linear_map.map_add</code> works just fine? If I put <code>polynomial.derivative.map_sub</code> into <code>finsupp.map_range_sub</code> it does not return an error but instead just thinks really hard before timing out in my machine. Perhaps this is just a Lean 3 unification bug that is completely unrelated to the above but I thought it wouldn't hurt to ask.</p>
+
+
+
+<a name="312346544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312346544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312346544">(Nov 26 2022 at 13:46)</a>:</h4>
+<p>I don't think <code>finsupp.map_range_add (map_add sorry)</code> is a meaningful thing to want to do. Usually Lean would do typeclass inference to help elaborate, but lean can't do that if you pass in <code>sorry</code>. Can you give a <a href="https://leanprover-community.github.io/mwe.html">#mwe</a> with no <code>sorry</code>s and no metavariables (like your <code>#check</code> has)?</p>
+
+
+
+<a name="312354027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312354027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312354027">(Nov 26 2022 at 14:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/144837-PR-reviews/topic/.2317717.20.28need.20help.29.20finsupp.2Emap_range_sub/near/312346544">said</a>:</p>
+<blockquote>
+<p>I don't think <code>finsupp.map_range_add (map_add sorry)</code> is a meaningful thing to want to do. Usually Lean would do typeclass inference to help elaborate, but lean can't do that if you pass in <code>sorry</code>. Can you give a <a href="https://leanprover-community.github.io/mwe.html">#mwe</a> with no <code>sorry</code>s and no metavariables (like your <code>#check</code> has)?</p>
+</blockquote>
+<p>Sure:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.derivative</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">sub_neg_zero_monoid</span> <span class="n">G</span><span class="o">]</span> <span class="o">[</span><span class="n">sub_neg_zero_monoid</span> <span class="n">H</span><span class="o">]</span>
+
+<span class="kd">noncomputable</span> <span class="kd">instance</span> <span class="n">has_sub'</span> <span class="o">:</span> <span class="n">has_sub</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→₀</span> <span class="n">G</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">finsupp.zip_with</span> <span class="n">has_sub.sub</span> <span class="o">(</span><span class="n">sub_zero</span> <span class="n">_</span><span class="o">)⟩</span>
+<span class="kd">lemma</span> <span class="n">sub_apply</span> <span class="o">(</span><span class="n">g₁</span> <span class="n">g₂</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→₀</span> <span class="n">G</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">g₁</span> <span class="bp">-</span> <span class="n">g₂</span><span class="o">)</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">g₁</span> <span class="n">a</span> <span class="bp">-</span> <span class="n">g₂</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">rfl</span>
+<span class="kd">lemma</span> <span class="n">finsupp.map_range_sub</span> <span class="o">[</span><span class="n">add_monoid_hom_class</span> <span class="n">F</span> <span class="n">G</span> <span class="n">H</span><span class="o">]</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">}</span> <span class="o">{</span><span class="n">hf</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">}</span> <span class="o">(</span><span class="n">hf'</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span> <span class="n">f</span> <span class="o">(</span><span class="n">x</span> <span class="bp">-</span> <span class="n">y</span><span class="o">)</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">-</span> <span class="n">f</span> <span class="n">y</span><span class="o">)</span> <span class="o">(</span><span class="n">v₁</span> <span class="n">v₂</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→₀</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">finsupp.map_range</span> <span class="n">f</span> <span class="n">hf</span> <span class="o">(</span><span class="n">v₁</span> <span class="bp">-</span> <span class="n">v₂</span><span class="o">)</span> <span class="bp">=</span> <span class="n">finsupp.map_range</span> <span class="n">f</span> <span class="n">hf</span> <span class="n">v₁</span> <span class="bp">-</span> <span class="n">finsupp.map_range</span> <span class="n">f</span> <span class="n">hf</span> <span class="n">v₂</span> <span class="o">:=</span>
+<span class="n">finsupp.ext</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">hf'</span><span class="o">,</span> <span class="n">sub_apply</span><span class="o">,</span> <span class="n">finsupp.map_range_apply</span><span class="o">]</span>
+
+<span class="kn">open</span> <span class="n">polynomial</span>
+<span class="n">open_locale</span> <span class="n">polynomial</span>
+<span class="kd">variable</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">inner_derivative</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">])</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">]</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">finsupp.map_range.linear_map</span> <span class="n">derivative</span> <span class="n">f.to_finsupp</span><span class="o">⟩</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">inner_derivative</span> <span class="o">(</span><span class="n">C</span> <span class="n">X</span> <span class="bp">-</span> <span class="n">C</span> <span class="n">X</span> <span class="bp">+</span> <span class="n">C</span> <span class="n">X</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">])</span> <span class="bp">=</span> <span class="n">C</span> <span class="mi">1</span> <span class="bp">-</span> <span class="n">C</span> <span class="mi">1</span> <span class="bp">+</span> <span class="n">C</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">inner_derivative</span><span class="o">,</span> <span class="n">finsupp.map_range.linear_map_apply</span><span class="o">,</span> <span class="n">to_finsupp_add</span><span class="o">,</span> <span class="n">to_finsupp_sub</span><span class="o">],</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">finsupp.map_range_add</span> <span class="n">derivative.map_add</span><span class="o">],</span> <span class="c1">-- works</span>
+  <span class="c1">-- rw [finsupp.map_range_add derivative.map_sub], -- does not work</span>
+  <span class="c1">-- rw [finsupp.map_range_add $ map_sub derivative], -- does not work</span>
+  <span class="gr">sorry</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="312354094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312354094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312354094">(Nov 26 2022 at 14:22)</a>:</h4>
+<p>The <code>has_sub'</code>, <code>sub_apply</code>, and <code>finsupp.map_range_sub</code> are already in the PR, I just copied them over for convenience</p>
+
+
+
+<a name="312375560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312375560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312375560">(Nov 26 2022 at 17:12)</a>:</h4>
+<p><code>rw [finsupp.map_range_sub _ (C X : F[X][X]).to_finsupp]</code> makes progress</p>
+
+
+
+<a name="312375740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312375740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312375740">(Nov 26 2022 at 17:13)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="312376978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312376978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312376978">(Nov 26 2022 at 17:25)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="n">rw</span> <span class="o">[</span><span class="n">finsupp.map_range_sub</span> <span class="o">(</span><span class="n">map_sub</span> <span class="o">(</span><span class="n">derivative</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">→ₗ</span><span class="o">[</span><span class="n">F</span><span class="o">]</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]))],</span>
+</code></pre></div>
+<p>works too</p>
+
+
+
+<a name="312378652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312378652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312378652">(Nov 26 2022 at 17:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/144837-PR-reviews/topic/.2317717.20.28need.20help.29.20finsupp.2Emap_range_sub/near/312376978">said</a>:</p>
+<blockquote>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="n">rw</span> <span class="o">[</span><span class="n">finsupp.map_range_sub</span> <span class="o">(</span><span class="n">map_sub</span> <span class="o">(</span><span class="n">derivative</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">→ₗ</span><span class="o">[</span><span class="n">F</span><span class="o">]</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]))],</span>
+</code></pre></div>
+<p>works too</p>
+</blockquote>
+<p>Sure thanks, but what should I do with the PR? Keep it as it is or revert it back to <code>add_group</code>? And do we want<code>add_monoid_hom_class</code> rather than just a plain function?</p>
+
+
+
+<a name="312379141"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312379141" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312379141">(Nov 26 2022 at 17:46)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="312390302"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312390302" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312390302">(Nov 26 2022 at 19:48)</a>:</h4>
+<p><span class="user-mention" data-user-id="464700">@David Ang</span> I think we should probably add versions that use <code>add_monoid_hom_class</code> (assuming <code>add_group</code>), which can be deduced from the current, more general versions, or we could remove the general versions and prove the <code>add_monoid_hom_class</code> versions directly.</p>
+<p>If your purpose is to define <code>inner_derivative</code> as a <code>linear_map</code>, however, this is how I would do it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.derivative</span>
+<span class="kn">import</span> <span class="n">data.polynomial.algebra_map</span>
+
+<span class="kn">namespace</span> <span class="n">polynomial</span>
+<span class="n">open_locale</span> <span class="n">polynomial</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">R</span> <span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span>
+<span class="kd">def</span> <span class="n">to_finsupp_linear_equiv</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">[</span><span class="n">module</span> <span class="n">R</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span>
+  <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">≃ₗ</span><span class="o">[</span><span class="n">R</span><span class="o">]</span> <span class="n">add_monoid_algebra</span> <span class="n">F</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">map_smul'</span> <span class="o">:=</span> <span class="n">to_finsupp_smul</span><span class="o">,</span> <span class="bp">..</span> <span class="n">to_finsupp_iso</span> <span class="n">F</span> <span class="o">}</span>
+<span class="c">/-</span><span class="cm"> a bit strange that it becomes computable if you write out all fields -/</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span> <span class="c">/-</span><span class="cm"> not necessary for inner_derivative but nice to have -/</span>
+<span class="kd">def</span> <span class="n">to_finsupp_alg_equiv</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">[</span><span class="n">algebra</span> <span class="n">R</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span>
+  <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">≃ₐ</span><span class="o">[</span><span class="n">R</span><span class="o">]</span> <span class="n">add_monoid_algebra</span> <span class="n">F</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">commutes'</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">r</span><span class="o">,</span> <span class="n">rfl</span><span class="o">,</span> <span class="bp">..</span> <span class="n">to_finsupp_iso</span> <span class="n">F</span> <span class="o">}</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span>
+<span class="kd">def</span> <span class="n">inner_derivative</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">]</span> <span class="bp">→ₗ</span><span class="o">[</span><span class="n">F</span><span class="o">]</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">]</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">to_finsupp_linear_equiv</span> <span class="n">F</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">])</span><span class="bp">.</span><span class="n">symm.to_linear_map.comp</span> <span class="bp">$</span>
+  <span class="o">(</span><span class="n">finsupp.map_range.linear_map</span> <span class="n">derivative</span><span class="o">)</span><span class="bp">.</span><span class="n">comp</span> <span class="o">(</span><span class="n">to_finsupp_linear_equiv</span> <span class="n">F</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">])</span><span class="bp">.</span><span class="n">to_linear_map</span>
+
+<span class="kd">end</span> <span class="n">polynomial</span>
+</code></pre></div>
+
+
+
+<a name="312402005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312402005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312402005">(Nov 26 2022 at 22:30)</a>:</h4>
+<p>The current PR looks fine as is to me</p>
+
+
+
+<a name="312402163"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312402163" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312402163">(Nov 26 2022 at 22:31)</a>:</h4>
+<p>I think your intended application just has too many implicit types, and it's reasonable to require you to clarify what you're talking about. This type of thing comes up a lot, and is the reason behind many seemingly obvious <code>(_ : T)</code> annotations in mathlib.</p>
+
+
+
+<a name="312476326"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312476326" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Ang <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312476326">(Nov 27 2022 at 14:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="224323">Junyan Xu</span> <a href="#narrow/stream/144837-PR-reviews/topic/.2317717.20.28need.20help.29.20finsupp.2Emap_range_sub/near/312390302">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="464700">David Ang</span> I think we should probably add versions that use <code>add_monoid_hom_class</code> (assuming <code>add_group</code>), which can be deduced from the current, more general versions, or we could remove the general versions and prove the <code>add_monoid_hom_class</code> versions directly.</p>
+<p>If your purpose is to define <code>inner_derivative</code> as a <code>linear_map</code>, however, this is how I would do it:</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.polynomial.derivative</span>
+<span class="kn">import</span> <span class="n">data.polynomial.algebra_map</span>
+
+<span class="kn">namespace</span> <span class="n">polynomial</span>
+<span class="n">open_locale</span> <span class="n">polynomial</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">R</span> <span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span>
+<span class="kd">def</span> <span class="n">to_finsupp_linear_equiv</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">[</span><span class="n">module</span> <span class="n">R</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span>
+  <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">≃ₗ</span><span class="o">[</span><span class="n">R</span><span class="o">]</span> <span class="n">add_monoid_algebra</span> <span class="n">F</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">map_smul'</span> <span class="o">:=</span> <span class="n">to_finsupp_smul</span><span class="o">,</span> <span class="bp">..</span> <span class="n">to_finsupp_iso</span> <span class="n">F</span> <span class="o">}</span>
+<span class="c">/-</span><span class="cm"> a bit strange that it becomes computable if you write out all fields -/</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span> <span class="c">/-</span><span class="cm"> not necessary for inner_derivative but nice to have -/</span>
+<span class="kd">def</span> <span class="n">to_finsupp_alg_equiv</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">[</span><span class="n">algebra</span> <span class="n">R</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span>
+  <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="bp">≃ₐ</span><span class="o">[</span><span class="n">R</span><span class="o">]</span> <span class="n">add_monoid_algebra</span> <span class="n">F</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">commutes'</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">r</span><span class="o">,</span> <span class="n">rfl</span><span class="o">,</span> <span class="bp">..</span> <span class="n">to_finsupp_iso</span> <span class="n">F</span> <span class="o">}</span>
+
+<span class="kd">@[simps]</span> <span class="kd">noncomputable</span>
+<span class="kd">def</span> <span class="n">inner_derivative</span> <span class="o">[</span><span class="n">semiring</span> <span class="n">F</span><span class="o">]</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">]</span> <span class="bp">→ₗ</span><span class="o">[</span><span class="n">F</span><span class="o">]</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">][</span><span class="n">X</span><span class="o">]</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">to_finsupp_linear_equiv</span> <span class="n">F</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">])</span><span class="bp">.</span><span class="n">symm.to_linear_map.comp</span> <span class="bp">$</span>
+  <span class="o">(</span><span class="n">finsupp.map_range.linear_map</span> <span class="n">derivative</span><span class="o">)</span><span class="bp">.</span><span class="n">comp</span> <span class="o">(</span><span class="n">to_finsupp_linear_equiv</span> <span class="n">F</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">])</span><span class="bp">.</span><span class="n">to_linear_map</span>
+
+<span class="kd">end</span> <span class="n">polynomial</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>I added the <code>add_monoid_hom_class</code> lemmas assuming <code>sub_neg_zero_monoid</code>. Do we actually want <code>inner_derivative</code> in <code>polynomial.derivative</code>? I thought it's a niche definition so defining it ad-hoc in my file should work</p>
+
+
+
+<a name="312478933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312478933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312478933">(Nov 27 2022 at 14:43)</a>:</h4>
+<p>I don't think we want <code>inner_derivative</code>, but I do think we want a version of <code>finsupp.map_domain.linear_map</code> that works on <code>polynomial</code></p>
+
+
+
+<a name="312479087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312479087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312479087">(Nov 27 2022 at 14:44)</a>:</h4>
+<p><span class="user-mention" data-user-id="224323">@Junyan Xu</span>, to_finsupp_alg_equiv already exists, it's <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.to_finsupp_iso_alg">docs#polynomial.to_finsupp_iso_alg</a></p>
+
+
+
+<a name="312479105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312479105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312479105">(Nov 27 2022 at 14:44)</a>:</h4>
+<p>Probably we should remove those <code>iso</code> names in favor of more standard naming</p>
+
+
+
+<a name="312509225"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312509225" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312509225">(Nov 27 2022 at 19:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="310045">@Eric Wieser</span> There doesn't exist a version <code>F[X] ≃ₐ[R] add_monoid_algebra F ℕ</code> with <code>R ≠ F</code>, or does there? This is used to define inner_derivative because we don't have <code>F[X][X] ≃ₐ[F[X]] ...</code>, only <code>F[X][X] ≃ₐ[F]  ...</code>.</p>
+<p>I think for polynomials in two variables, working with F[X][X] is probably most convenient. For example it's easy to evaluate a polynomial <code>f(X,Y)</code> at <code>Y := p(X)</code>, and if you use <code>mv_polynomial</code> you have to use an indexing type <code>fin 2</code> or <code>bool</code>, and to evaluate you need to provide a function indexed by the type. </p>
+<p>In our use case we're considering S := K[X][X]/(f) with <code>f</code> a monic polynomial in the second variable, so S has a power_basis as a module over the PID K[X], so K[X][X] is the more natural way to set things up compared to mv_polynomial. We need to translate between the two to apply <a href="http://mv_polynomial.vanishing_ideal_zero_locus_eq_radical">nullstellensatz</a> though. <code>inner_derivative</code> is used to state the <a href="#narrow/stream/217875-Is-there-code-for-X.3F/topic/multivariate.20chain.20rule.20for.20polynomials/near/311515747">chain rule</a>, though maybe we don't need linearity and could get away with the direct definition <code>p.sum (λ n r, C r.derivative * X ^ n)</code>. It's surely OK to confine <code>inner_derivative</code> to EllipticCurve-specific files, but I anticipate it will be useful in other circumstances.</p>
+
+
+
+<a name="312509405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312509405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312509405">(Nov 27 2022 at 19:18)</a>:</h4>
+<p>We should probably generalize <code>to_finsupp_alg_iso</code> to have that form</p>
+
+
+
+<a name="312509422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2317717%20%28need%20help%29%20finsupp.map_range_sub/near/312509422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2317717.20(need.20help).20finsupp.2Emap_range_sub.html#312509422">(Nov 27 2022 at 19:19)</a>:</h4>
+<p>But you can get there today with <a href="https://leanprover-community.github.io/mathlib_docs/find/alg_equiv.restrict_scalars">docs#alg_equiv.restrict_scalars</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

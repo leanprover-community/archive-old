@@ -1,0 +1,257 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Compile-time.20large.20data.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html">Compile-time large data</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="272497297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272497297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272497297">(Feb 19 2022 at 06:18)</a>:</h4>
+<p>Lean gives me a <code>Stack overflow detected. Aborting.</code> error when I try to load the unicode data file into a <code>HashMap</code> at compile time.</p>
+<p>The data file has following semicolon separated syntax, with 34626 lines in all.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="mi">001</span><span class="n">F</span><span class="bp">;&lt;</span><span class="n">control</span><span class="bp">&gt;;</span><span class="n">Cc</span><span class="bp">;</span><span class="mi">0</span><span class="bp">;</span><span class="n">S</span><span class="bp">;;;;;</span><span class="n">N</span><span class="bp">;</span><span class="n">INFORMATION</span> <span class="n">SEPARATOR</span> <span class="n">ONE</span><span class="bp">;;;;</span>
+<span class="mi">0020</span><span class="bp">;</span><span class="n">SPACE</span><span class="bp">;</span><span class="n">Zs</span><span class="bp">;</span><span class="mi">0</span><span class="bp">;</span><span class="n">WS</span><span class="bp">;;;;;</span><span class="n">N</span><span class="bp">;;;;;</span>
+<span class="mi">0021</span><span class="bp">;</span><span class="n">EXCLAMATION</span> <span class="n">MARK</span><span class="bp">;</span><span class="n">Po</span><span class="bp">;</span><span class="mi">0</span><span class="bp">;</span><span class="n">ON</span><span class="bp">;;;;;</span><span class="n">N</span><span class="bp">;;;;;</span>
+</code></pre></div>
+<p>I use the following code to parse it.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">includeDataFile</span><span class="o">)</span> <span class="s2">"include_data_file"</span> <span class="n">str</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kd">@[termElab includeDataFile]</span> <span class="kd">def</span> <span class="n">includeDataFileImp</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">stx</span> <span class="n">expectedType</span><span class="bp">?</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">str</span> <span class="o">:=</span> <span class="n">stx</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="bp">.</span><span class="n">isStrLit</span><span class="bp">?.</span><span class="n">get</span><span class="bp">!</span>
+    <span class="k">let</span> <span class="n">path</span> <span class="o">:=</span> <span class="n">FilePath.mk</span> <span class="n">str</span>
+    <span class="k">if</span> <span class="bp">←</span><span class="n">path.pathExists</span> <span class="k">then</span>
+      <span class="k">if</span> <span class="bp">←</span><span class="n">path.isDir</span> <span class="k">then</span>
+        <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{str} is a directory"</span>
+      <span class="k">else</span>
+        <span class="k">let</span> <span class="n">mut</span> <span class="n">s</span> <span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">Std.HashMap.empty</span><span class="o">)</span>
+        <span class="n">for</span> <span class="n">line</span> <span class="k">in</span> <span class="o">(</span><span class="bp">←</span> <span class="n">FS.lines</span> <span class="n">path</span><span class="o">)</span><span class="bp">.</span><span class="n">filter</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">≠</span> <span class="s2">""</span><span class="o">)</span> <span class="k">do</span>
+          <span class="k">let</span> <span class="n">splits</span> <span class="o">:=</span> <span class="n">line.splitOn</span> <span class="s2">";"</span> <span class="bp">|&gt;.</span><span class="n">map</span> <span class="n">String.trim</span>
+          <span class="n">s</span> <span class="bp">←</span> <span class="bp">`</span><span class="o">((</span><span class="bp">$</span><span class="n">s</span><span class="o">)</span><span class="bp">.</span><span class="n">insert</span> <span class="bp">$</span><span class="o">(</span><span class="n">Syntax.mkStrLit</span> <span class="o">(</span><span class="n">splits.get</span><span class="bp">!</span> <span class="mi">0</span><span class="o">))</span> <span class="bp">$</span><span class="o">((</span><span class="n">Syntax.mkStrLit</span> <span class="o">(</span><span class="n">splits.get</span><span class="bp">!</span> <span class="mi">2</span><span class="o">))))</span>
+        <span class="n">elabTerm</span> <span class="n">s</span> <span class="n">none</span>
+    <span class="k">else</span>
+      <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"</span><span class="se">\"</span><span class="s2">{str}</span><span class="se">\"</span><span class="s2"> does not exist as a file"</span>
+
+<span class="kd">set_option</span> <span class="n">maxRecDepth</span> <span class="mi">50000</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">generalCategoryMap</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">include_data_file</span> <span class="s2">"./UCD/UnicodeData.txt"</span>
+</code></pre></div>
+
+
+
+<a name="272497427"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272497427" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272497427">(Feb 19 2022 at 06:21)</a>:</h4>
+<p>The code builds successfully when I provide a smaller file, and the error comes from <code>elabTerm</code>. Are there any hacks that can work round the stack overflow?</p>
+
+
+
+<a name="272498936"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272498936" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272498936">(Feb 19 2022 at 06:54)</a>:</h4>
+<p>I assume you already recognize that the term you are constructing is linear depth, since it has the form <code>empty |&gt;.insert k v |&gt;.insert k v |&gt;.insert k v ...</code></p>
+
+
+
+<a name="272499026"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272499026" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272499026">(Feb 19 2022 at 06:56)</a>:</h4>
+<p>Instead, you should use <code>[(k, v), ..., (k', v')].foldl (fun m (k, v) =&gt; m.insert k v) empty</code>, since the <code>[a, ..., z]</code> syntax already elaborates into a nice balanced tree for logarithmic depth</p>
+
+
+
+<a name="272502387"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272502387" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272502387">(Feb 19 2022 at 08:11)</a>:</h4>
+<p>It partially works, but now it produces another error.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">PANIC</span> <span class="n">at</span> <span class="n">Lean.Expr.mkData</span> <span class="n">Lean.Expr</span><span class="o">:</span><span class="mi">136</span><span class="o">:</span><span class="mi">44</span><span class="o">:</span> <span class="n">bound</span> <span class="kd">variable</span> <span class="n">index</span> <span class="n">is</span> <span class="n">too</span> <span class="n">big</span>
+<span class="n">PANIC</span> <span class="n">at</span> <span class="n">Lean.Expr.mkData</span> <span class="n">Lean.Expr</span><span class="o">:</span><span class="mi">136</span><span class="o">:</span><span class="mi">44</span><span class="o">:</span> <span class="n">bound</span> <span class="kd">variable</span> <span class="n">index</span> <span class="n">is</span> <span class="n">too</span> <span class="n">big</span>
+
+<span class="n">Stack</span> <span class="n">overflow</span> <span class="n">detected.</span> <span class="n">Aborting.</span>
+</code></pre></div>
+
+
+
+<a name="272502490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272502490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272502490">(Feb 19 2022 at 08:12)</a>:</h4>
+<p>Postponing parsing to run time may be a good workaround for me now.</p>
+
+
+
+<a name="272502863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272502863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272502863">(Feb 19 2022 at 08:20)</a>:</h4>
+<p>Oh, now I'm curious what the bound variable index limit is (apparently <code>2^16-1</code> = 65535)</p>
+
+
+
+<a name="272502901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272502901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272502901">(Feb 19 2022 at 08:21)</a>:</h4>
+<p>You can also make your own balanced tree of operators (I think the one for lists uses <code>let</code> which introduces bound variables)</p>
+
+
+
+<a name="272504203"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272504203" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272504203">(Feb 19 2022 at 08:46)</a>:</h4>
+<p><a href="https://github.com/xubaiw/Unicode.lean/tree/compile-time">https://github.com/xubaiw/Unicode.lean/tree/compile-time</a></p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Compile-time.20large.20data/near/272502901">said</a>:</p>
+<blockquote>
+<p>You can also make your own balanced tree of operators (I think the one for lists uses <code>let</code> which introduces bound variables)</p>
+</blockquote>
+<p>I'll try that when I learn more about lean metaprogramming.</p>
+
+
+
+<a name="272505136"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272505136" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272505136">(Feb 19 2022 at 09:05)</a>:</h4>
+<p>This seems to work okay, but it's now hitting a timeout in <code>isDefEq</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Std</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Term</span> <span class="n">System</span> <span class="n">IO</span>
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">includeDataFile</span><span class="o">)</span> <span class="s2">"include_data_file"</span> <span class="n">str</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">abbrev</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span>
+<span class="kd">def</span> <span class="n">map₁</span> <span class="o">(</span><span class="n">k</span> <span class="n">v</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m.insert</span> <span class="n">k</span> <span class="n">v</span>
+<span class="kd">def</span> <span class="n">append</span> <span class="o">(</span><span class="n">m₁</span> <span class="n">m₂</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m₂</span> <span class="o">(</span><span class="n">m₁</span> <span class="n">m</span><span class="o">)</span>
+<span class="kd">def</span> <span class="n">mk</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">d</span> <span class="n">Std.HashMap.empty</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">mkTree</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">String</span> <span class="bp">×</span> <span class="n">String</span><span class="o">)</span> <span class="o">(</span><span class="n">i</span> <span class="n">j</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">TermElabM</span> <span class="n">Syntax</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">if</span> <span class="n">j</span> <span class="bp">-</span> <span class="n">i</span> <span class="bp">&gt;</span> <span class="mi">1</span> <span class="k">then</span>
+    <span class="k">let</span> <span class="n">mid</span> <span class="o">:=</span> <span class="n">i</span> <span class="bp">+</span> <span class="o">(</span><span class="n">j</span><span class="bp">-</span><span class="n">i</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span>
+    <span class="k">let</span> <span class="n">lhs</span> <span class="bp">←</span> <span class="n">mkTree</span> <span class="n">f</span> <span class="n">i</span> <span class="n">mid</span>
+    <span class="k">let</span> <span class="n">rhs</span> <span class="bp">←</span> <span class="n">mkTree</span> <span class="n">f</span> <span class="n">mid</span> <span class="n">j</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">append</span> <span class="bp">$</span><span class="n">lhs</span> <span class="bp">$</span><span class="n">rhs</span><span class="o">)</span>
+  <span class="k">else</span>
+    <span class="k">let</span> <span class="o">(</span><span class="n">k</span><span class="o">,</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span> <span class="n">i</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">map₁</span> <span class="bp">$</span><span class="o">(</span><span class="n">Syntax.mkStrLit</span> <span class="n">k</span><span class="o">)</span> <span class="bp">$</span><span class="o">(</span><span class="n">Syntax.mkStrLit</span> <span class="n">v</span><span class="o">))</span>
+
+<span class="kd">@[termElab includeDataFile]</span> <span class="kd">def</span> <span class="n">includeDataFileImp</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">stx</span> <span class="n">expectedType</span><span class="bp">?</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">str</span> <span class="o">:=</span> <span class="n">stx</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="bp">.</span><span class="n">isStrLit</span><span class="bp">?.</span><span class="n">get</span><span class="bp">!</span>
+    <span class="k">let</span> <span class="n">path</span> <span class="o">:=</span> <span class="n">FilePath.mk</span> <span class="n">str</span>
+    <span class="k">if</span> <span class="bp">←</span><span class="n">path.pathExists</span> <span class="k">then</span>
+      <span class="k">if</span> <span class="bp">←</span><span class="n">path.isDir</span> <span class="k">then</span>
+        <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{str} is a directory"</span>
+      <span class="k">else</span>
+        <span class="k">let</span> <span class="n">arr</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="n">FS.lines</span> <span class="n">path</span><span class="o">)</span><span class="bp">.</span><span class="n">filter</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">≠</span> <span class="s2">""</span><span class="o">)</span>
+        <span class="k">let</span> <span class="n">s</span> <span class="bp">←</span> <span class="n">mkTree</span> <span class="o">(</span><span class="k">fun</span> <span class="n">i</span> <span class="bp">=&gt;</span>
+          <span class="k">let</span> <span class="n">line</span> <span class="o">:=</span> <span class="n">arr</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+          <span class="k">let</span> <span class="n">splits</span> <span class="o">:=</span> <span class="n">line.splitOn</span> <span class="s2">";"</span> <span class="bp">|&gt;.</span><span class="n">map</span> <span class="n">String.trim</span>
+          <span class="o">(</span><span class="n">splits.get</span><span class="bp">!</span> <span class="mi">0</span><span class="o">,</span> <span class="n">splits.get</span><span class="bp">!</span> <span class="mi">2</span><span class="o">))</span>
+          <span class="mi">0</span> <span class="n">arr.size</span>
+        <span class="n">elabTerm</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">mk</span> <span class="bp">$</span><span class="n">s</span><span class="o">))</span> <span class="n">none</span>
+    <span class="k">else</span>
+      <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"</span><span class="se">\"</span><span class="s2">{str}</span><span class="se">\"</span><span class="s2"> does not exist as a file"</span>
+
+<span class="kd">def</span> <span class="n">generalCategoryMap</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">include_data_file</span> <span class="s2">"./UCD/UnicodeData.txt"</span>
+</code></pre></div>
+
+
+
+<a name="272505333"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272505333" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272505333">(Feb 19 2022 at 09:09)</a>:</h4>
+<p>making it a structure works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Diff</span> <span class="n">where</span>
+  <span class="n">f</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span>
+<span class="kd">def</span> <span class="n">map₁</span> <span class="o">(</span><span class="n">k</span> <span class="n">v</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="o">⟨</span><span class="bp">λ</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m.insert</span> <span class="n">k</span> <span class="n">v</span><span class="o">⟩</span>
+<span class="kd">def</span> <span class="n">append</span> <span class="o">(</span><span class="n">m₁</span> <span class="n">m₂</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="o">⟨</span><span class="k">fun</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m₂.1</span> <span class="o">(</span><span class="n">m₁.1</span> <span class="n">m</span><span class="o">)⟩</span>
+<span class="kd">def</span> <span class="n">mk</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">d.1</span> <span class="n">Std.HashMap.empty</span>
+
+<span class="bp">...</span>
+
+<span class="kd">set_option</span> <span class="n">maxHeartbeats</span> <span class="mi">100000</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">generalCategoryMap</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">include_data_file</span> <span class="s2">"./UCD/UnicodeData.txt"</span>
+</code></pre></div>
+
+
+
+<a name="272505721"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272505721" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272505721">(Feb 19 2022 at 09:17)</a>:</h4>
+<p>Actually, this can be sped up significantly by generating an <code>Expr</code> directly instead of building a syntax to pass to <code>ElabTerm</code>. Note the <code>maxHeartbeats</code> is gone now and it is visibly much faster</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Std</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Term</span> <span class="n">System</span> <span class="n">IO</span>
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">includeDataFile</span><span class="o">)</span> <span class="s2">"include_data_file"</span> <span class="n">str</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="kd">structure</span> <span class="n">Diff</span> <span class="n">where</span>
+  <span class="n">f</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span>
+<span class="kd">def</span> <span class="n">map₁</span> <span class="o">(</span><span class="n">k</span> <span class="n">v</span> <span class="o">:</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="o">⟨</span><span class="bp">λ</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m.insert</span> <span class="n">k</span> <span class="n">v</span><span class="o">⟩</span>
+<span class="kd">def</span> <span class="n">append</span> <span class="o">(</span><span class="n">m₁</span> <span class="n">m₂</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">Diff</span> <span class="o">:=</span> <span class="o">⟨</span><span class="k">fun</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m₂.1</span> <span class="o">(</span><span class="n">m₁.1</span> <span class="n">m</span><span class="o">)⟩</span>
+<span class="kd">def</span> <span class="n">mk</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">Diff</span><span class="o">)</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">d.1</span> <span class="n">Std.HashMap.empty</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">mkTree</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">String</span> <span class="bp">×</span> <span class="n">String</span><span class="o">)</span> <span class="o">(</span><span class="n">i</span> <span class="n">j</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Expr</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">j</span> <span class="bp">-</span> <span class="n">i</span> <span class="bp">&gt;</span> <span class="mi">1</span> <span class="k">then</span>
+    <span class="k">let</span> <span class="n">mid</span> <span class="o">:=</span> <span class="n">i</span> <span class="bp">+</span> <span class="o">(</span><span class="n">j</span><span class="bp">-</span><span class="n">i</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span>
+    <span class="k">let</span> <span class="n">lhs</span> <span class="o">:=</span> <span class="n">mkTree</span> <span class="n">f</span> <span class="n">i</span> <span class="n">mid</span>
+    <span class="k">let</span> <span class="n">rhs</span> <span class="o">:=</span> <span class="n">mkTree</span> <span class="n">f</span> <span class="n">mid</span> <span class="n">j</span>
+    <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">append</span><span class="o">)</span> <span class="n">lhs</span> <span class="n">rhs</span>
+  <span class="k">else</span>
+    <span class="k">let</span> <span class="o">(</span><span class="n">k</span><span class="o">,</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span> <span class="n">f</span> <span class="n">i</span>
+    <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">map₁</span><span class="o">)</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">k</span><span class="o">)</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">v</span><span class="o">)</span>
+
+<span class="kd">@[termElab includeDataFile]</span> <span class="kd">def</span> <span class="n">includeDataFileImp</span> <span class="o">:</span> <span class="n">TermElab</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">stx</span> <span class="n">expectedType</span><span class="bp">?</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">str</span> <span class="o">:=</span> <span class="n">stx</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="bp">.</span><span class="n">isStrLit</span><span class="bp">?.</span><span class="n">get</span><span class="bp">!</span>
+    <span class="k">let</span> <span class="n">path</span> <span class="o">:=</span> <span class="n">FilePath.mk</span> <span class="n">str</span>
+    <span class="k">if</span> <span class="bp">←</span><span class="n">path.pathExists</span> <span class="k">then</span>
+      <span class="k">if</span> <span class="bp">←</span><span class="n">path.isDir</span> <span class="k">then</span>
+        <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{str} is a directory"</span>
+      <span class="k">else</span>
+        <span class="k">let</span> <span class="n">arr</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="n">FS.lines</span> <span class="n">path</span><span class="o">)</span><span class="bp">.</span><span class="n">filter</span> <span class="o">(</span><span class="bp">·</span> <span class="bp">≠</span> <span class="s2">""</span><span class="o">)</span>
+        <span class="n">pure</span> <span class="bp">$</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mk</span><span class="o">)</span> <span class="bp">&lt;|</span> <span class="n">mkTree</span> <span class="o">(</span><span class="k">fun</span> <span class="n">i</span> <span class="bp">=&gt;</span>
+          <span class="k">let</span> <span class="n">line</span> <span class="o">:=</span> <span class="n">arr</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+          <span class="k">let</span> <span class="n">splits</span> <span class="o">:=</span> <span class="n">line.splitOn</span> <span class="s2">";"</span> <span class="bp">|&gt;.</span><span class="n">map</span> <span class="n">String.trim</span>
+          <span class="o">(</span><span class="n">splits.get</span><span class="bp">!</span> <span class="mi">0</span><span class="o">,</span> <span class="n">splits.get</span><span class="bp">!</span> <span class="mi">2</span><span class="o">))</span>
+          <span class="mi">0</span> <span class="n">arr.size</span>
+    <span class="k">else</span>
+      <span class="n">throwError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"</span><span class="se">\"</span><span class="s2">{str}</span><span class="se">\"</span><span class="s2"> does not exist as a file"</span>
+
+<span class="kd">def</span> <span class="n">generalCategoryMap</span> <span class="o">:</span> <span class="n">HashMap</span> <span class="n">String</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">include_data_file</span> <span class="s2">"./UCD/UnicodeData.txt"</span>
+</code></pre></div>
+
+
+
+<a name="272506828"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272506828" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272506828">(Feb 19 2022 at 09:38)</a>:</h4>
+<p>Thanks very much!! although it's still stack overflow on my machine. I'll try to optimize it later.</p>
+
+
+
+<a name="272509079"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272509079" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272509079">(Feb 19 2022 at 10:22)</a>:</h4>
+<p>where is the stack overflow occurring? Does it produce C code?</p>
+
+
+
+<a name="272509519"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272509519" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272509519">(Feb 19 2022 at 10:31)</a>:</h4>
+<p>No. Both <code>build/ir</code> and <code>build/lib</code> are empty, and it produces error very quickly (about 3 seconds).</p>
+
+
+
+<a name="272509610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272509610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272509610">(Feb 19 2022 at 10:33)</a>:</h4>
+<p>Oh, it looks like my synthetic benchmark had too much duplication in it, leading to fewer distinct subexpressions than expected. When I use the real data it times out</p>
+
+
+
+<a name="272509692"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272509692" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272509692">(Feb 19 2022 at 10:34)</a>:</h4>
+<p>or at least it's taking a while, it hasn't crashed yet on my machine</p>
+
+
+
+<a name="272509812"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272509812" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272509812">(Feb 19 2022 at 10:37)</a>:</h4>
+<p>I do hope we can find a better story for big compile time data. I think it should at least be possible to use an extern function</p>
+
+
+
+<a name="272510102"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Compile-time%20large%20data/near/272510102" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Xubai Wang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Compile-time.20large.20data.html#272510102">(Feb 19 2022 at 10:42)</a>:</h4>
+<p>Yes. Also I think runtime parsing and <code>Thunk</code> may be a better solution now as lean builds the whole package. Compiling all the data file will lead to unacceptably long build time.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

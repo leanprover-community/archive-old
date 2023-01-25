@@ -1,0 +1,102 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Attribute.20casing.20convention.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html">Attribute casing convention</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="265908900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265908900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265908900">(Dec 23 2021 at 11:39)</a>:</h4>
+<p>The discussion at <a href="#narrow/stream/270676-lean4/topic/tactic.20naming.20convention">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/tactic.20naming.20convention</a> ended with a decision to use snake case for tactics, along with commands (which were already snake case). The suggested heuristic is that anything that acts like a keyword should be camel cased.</p>
+<p>But what about attributes? The keyword litmus test is inconclusive, because attributes can either use the catchall parser</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[builtinAttrParser]</span> <span class="kd">def</span> <span class="n">simple</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="n">ident</span> <span class="bp">&gt;&gt;</span> <span class="n">optional</span> <span class="o">(</span><span class="n">priorityParser</span> <span class="bp">&lt;|&gt;</span> <span class="n">ident</span><span class="o">)</span>
+</code></pre></div>
+<p>which will parse arbitrary identifiers (not keywords), or they can be provided as keywords by adding productions to the <code>attr</code> grammar:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">mkIff</span><span class="o">)</span> <span class="s2">"mk_iff"</span> <span class="o">(</span><span class="n">ppSpace</span> <span class="n">ident</span><span class="o">)</span><span class="bp">?</span> <span class="o">:</span> <span class="n">attr</span>
+</code></pre></div>
+<p>This latter method is required for any attribute that takes arguments. I don't like the idea of having different casing conventions for these two, because the user ideally should not have to care about the implementation detail of whether <code>@[foo]</code> is parsed using <code>Attr.simple</code> or <code>Attr.foo</code>.</p>
+<p>Currently, attributes in lean 4 core are camel cased (like <code>builtinInit</code>, <code>macroInline</code>, <code>implementedBy</code>), while the attributes in <code>Mathport.Syntax</code> were switched to use snake case along with tactics following <a href="https://github.com/leanprover-community/mathlib4/pull/141">mathlib4#141</a>. I have no strong feelings about which way to go here, but it would be good to have a decision about this on record.</p>
+<p><span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> <span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> <span class="user-mention" data-user-id="315577">@Mac</span></p>
+
+
+
+<a name="265909287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265909287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265909287">(Dec 23 2021 at 11:45)</a>:</h4>
+<p>Another observation that might be relevant: Attribute names are in a flat namespace, in the sense that the name you pass to <code>registerBuiltinAttribute</code> has to be atomic, and it is derived from the last name component of the corresponding <code>syntax</code>. So for example the syntax for <code>mk_iff</code> above is registered under the name <code>"mkIff"</code> even though the user writes <code>@[mk_iff]</code> (even if that syntax declaration is in a namespace, in this case <code>Lean.Parser.Attr.mkIff</code>), and it would clash with any simple attribute like <code>@[mkIff]</code>. If you try to add <code>@[mk_iff]</code> to a declaration without a registered handler, you get the somewhat surprising error that there is no attribute declared for <code>[mkIff]</code>, while if you do the same for an undeclared identifier <code>@[foo_bar]</code> the error says there is no attribute declared for <code>[foo_bar]</code>.</p>
+<p>This suggests that we should try to keep the initial token the same as the name of the syntax, rather than using different naming conventions as in the example.</p>
+
+
+
+<a name="265909505"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265909505" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265909505">(Dec 23 2021 at 11:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> one other thing to note is that if you use the same casing style for attribute names as for keywords, you can end up with a lot of naming clashes for attributes using the <code>attr.simple</code> parser (i.e., an <code>ident</code> name). For example, if the  <code>mk_iff</code> attribute is a simple attribute and has a helper <code>mk_iff</code> syntax to define it then the attribute will now need french quotes when used manually (this is a problem I already experience in Lake with the <code>package</code> and <code>script</code> attributes and syntaxes).</p>
+
+
+
+<a name="265909831"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265909831" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265909831">(Dec 23 2021 at 11:55)</a>:</h4>
+<p>One way to get around this would be if <code>attr.simple</code> used some kind of <code>rawIdent</code> parser (that capture any ident, regardless of keyword status) and the <code>attr</code> category used a leading behavior of symbol (or mixed).  I believe that would prevent such clashes from occurring and would not creating parsing ambiguities.</p>
+
+
+
+<a name="265909928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265909928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265909928">(Dec 23 2021 at 11:56)</a>:</h4>
+<p>If feel like attributes should not keywordify their first token, similar to tactics. They are context-sensitive keywords so this shouldn't cause any problems</p>
+
+
+
+<a name="265910514"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265910514" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265910514">(Dec 23 2021 at 12:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> The problem is the other way around. The command / term level syntax keywordifies the token which then prevents it from being used as an identifier for <code>attr.simple</code> (without french quotes).</p>
+
+
+
+<a name="265910665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265910665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265910665">(Dec 23 2021 at 12:08)</a>:</h4>
+<p>I see. Why not use a keyword attr parser in that case?</p>
+
+
+
+<a name="265910706"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265910706" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265910706">(Dec 23 2021 at 12:08)</a>:</h4>
+<p>Because the term keyword might have been declared afterwards or somewhere else.</p>
+
+
+
+<a name="265910845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265910845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265910845">(Dec 23 2021 at 12:10)</a>:</h4>
+<p>keywordification is a global thing, so you should try to avoid "after the fact" stuff. This is why the <code>precedence</code> command exists in lean 3, to make sure that things don't become keywords post hoc causing order dependent import and other messy things</p>
+
+
+
+<a name="265910848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265910848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265910848">(Dec 23 2021 at 12:10)</a>:</h4>
+<p>As far as I'm concerned, we could remove the simple parser and always require syntax definition + <del>elaborator</del> attribute registration, like we do with everything else.  But I feel like we're straying off-topic.</p>
+
+
+
+<a name="265911263"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265911263" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265911263">(Dec 23 2021 at 12:17)</a>:</h4>
+<p>IIRC the <code>simple</code> parser was mostly for bootstrapping</p>
+
+
+
+<a name="265926014"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Attribute%20casing%20convention/near/265926014" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Attribute.20casing.20convention.html#265926014">(Dec 23 2021 at 15:23)</a>:</h4>
+<p>If we agree that at least morally each attribute comes with its own syntax, then I agree that they should follow the same casing convention as tactics</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

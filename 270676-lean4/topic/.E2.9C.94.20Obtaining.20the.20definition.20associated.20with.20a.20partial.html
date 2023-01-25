@@ -1,0 +1,89 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html">✔ Obtaining the definition associated with a partial</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="270895086"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20Obtaining%20the%20definition%20associated%20with%20a%20partial/near/270895086" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html#270895086">(Feb 06 2022 at 15:22)</a>:</h4>
+<p>My understanding of partial so far has been that the compiler will turn it into a constant + an implemented by pointing to an auto generated  unsafe function. Now it does seem that both the constant and the auto generated function are correct but it is not done via implementedBy as evident by:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="k">show</span> <span class="n">MetaM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="c1">-- partial definition</span>
+  <span class="k">let</span> <span class="n">target</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Lean.Syntax.structEq</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">getEnv</span>
+  <span class="k">let</span> <span class="n">some</span> <span class="o">(</span><span class="n">ConstantInfo.opaqueInfo</span> <span class="n">i</span><span class="o">)</span>  <span class="bp">←</span> <span class="n">env.find</span><span class="bp">?</span> <span class="n">target</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="o">(</span><span class="n">Compiler.getImplementedBy</span> <span class="n">env</span> <span class="n">target</span><span class="o">,</span> <span class="n">i.name</span><span class="o">)</span>
+</code></pre></div>
+<p>So how is this actually done internally? I'm guessing that the part of the compiler which is responsible for resolving the connection from constant to partial def is already doing this but my grep-foo is failing me</p>
+
+
+
+<a name="270896641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20Obtaining%20the%20definition%20associated%20with%20a%20partial/near/270896641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html#270896641">(Feb 06 2022 at 15:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span> Try this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="k">show</span> <span class="n">MetaM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="c1">-- partial definition</span>
+  <span class="k">let</span> <span class="n">target</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Lean.Syntax.structEq</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">getEnv</span>
+  <span class="k">let</span> <span class="n">some</span> <span class="o">(</span><span class="n">ConstantInfo.opaqueInfo</span> <span class="n">i</span><span class="o">)</span> <span class="o">:=</span> <span class="n">env.find</span><span class="bp">?</span> <span class="n">target</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="c1">-- Check whether there is an unsafe auxiliary definition associated with the opaque constant.</span>
+  <span class="k">let</span> <span class="n">some</span> <span class="o">(</span><span class="n">ConstantInfo.defnInfo</span> <span class="n">i</span><span class="o">)</span> <span class="o">:=</span> <span class="n">env.find</span><span class="bp">?</span> <span class="o">(</span><span class="n">Compiler.mkUnsafeRecName</span> <span class="n">target</span><span class="o">)</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="c1">-- Replace auxiliary unsafe auxiliary definitions in the value with their original names.</span>
+  <span class="k">let</span> <span class="n">value</span> <span class="o">:=</span> <span class="n">i.value.replace</span> <span class="k">fun</span>
+    <span class="bp">|</span> <span class="n">e</span><span class="bp">@</span><span class="o">(</span><span class="n">Expr.const</span> <span class="n">constName</span> <span class="n">us</span> <span class="bp">..</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="k">if</span> <span class="k">let</span> <span class="n">some</span> <span class="n">originalConstName</span> <span class="o">:=</span> <span class="n">Compiler.isUnsafeRecName</span><span class="bp">?</span> <span class="n">constName</span> <span class="k">then</span> <span class="n">mkConst</span> <span class="n">originalConstName</span> <span class="n">us</span> <span class="k">else</span> <span class="n">e</span>
+    <span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">none</span>
+  <span class="n">IO.println</span> <span class="o">(</span><span class="bp">←</span> <span class="n">Meta.ppExpr</span> <span class="n">value</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="270896758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20Obtaining%20the%20definition%20associated%20with%20a%20partial/near/270896758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html#270896758">(Feb 06 2022 at 16:00)</a>:</h4>
+<p>Ahhh so it finds it by this unique name add on instead of implemented by, got it, thanks!</p>
+
+
+
+<a name="270896767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20Obtaining%20the%20definition%20associated%20with%20a%20partial/near/270896767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html#270896767">(Feb 06 2022 at 16:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> has marked this topic as resolved.</p>
+
+
+
+<a name="270897106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20Obtaining%20the%20definition%20associated%20with%20a%20partial/near/270897106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20Obtaining.20the.20definition.20associated.20with.20a.20partial.html#270897106">(Feb 06 2022 at 16:07)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span> Not sure whether this feature is relevant for you or not, but Lean 4 can also generate a "unfold" theorem for non-partial recursive definitions. Example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="k">show</span> <span class="n">MetaM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="c1">-- partial definition</span>
+  <span class="k">let</span> <span class="n">target</span> <span class="o">:=</span> <span class="bp">``</span><span class="n">List.erase</span>
+  <span class="k">let</span> <span class="n">some</span> <span class="n">unfoldEqn</span> <span class="bp">←</span> <span class="n">getUnfoldEqnFor</span><span class="bp">?</span> <span class="n">target</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">some</span> <span class="n">info</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="n">find</span><span class="bp">?</span> <span class="n">unfoldEqn</span> <span class="bp">|</span> <span class="n">unreachable</span><span class="bp">!</span>
+  <span class="n">IO.println</span> <span class="o">(</span><span class="bp">←</span> <span class="n">Meta.ppExpr</span> <span class="n">info.type</span><span class="o">)</span>
+</code></pre></div>
+<p>produces</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">∀</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u_1</span><span class="o">}</span> <span class="o">[</span><span class="n">inst</span> <span class="o">:</span> <span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span>
+  <span class="n">List.erase</span> <span class="n">x</span> <span class="n">x_1</span> <span class="bp">=</span>
+    <span class="k">match</span> <span class="n">x</span><span class="o">,</span> <span class="n">x_1</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="o">[],</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+    <span class="bp">|</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as</span><span class="o">,</span> <span class="n">b</span> <span class="bp">=&gt;</span>
+      <span class="k">match</span> <span class="n">a</span> <span class="bp">==</span> <span class="n">b</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">true</span> <span class="bp">=&gt;</span> <span class="n">as</span>
+      <span class="bp">|</span> <span class="n">false</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="o">::</span> <span class="n">List.erase</span> <span class="n">as</span> <span class="n">b</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,446 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Interface.20for.20containers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html">Interface for containers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="263605104"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263605104" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263605104">(Dec 03 2021 at 16:41)</a>:</h4>
+<p>The recent talk of mathlib4/standard library and my interest in multi-dimensional arrays prompted me to write a general interface for containers. See my <a href="https://github.com/lecopivo/mathlib4">fork of mathlib4</a></p>
+<p>I have defined three core classes:</p>
+<ol>
+<li><code>Iterable (ι : Type)</code> - anything that can be iterated on. i.e. has start and successor   (can be empty! I want Fin 0 to be iterable)</li>
+<li><code>Enumtype (ι : Type)</code> -  something with an explicit bijection with <code>Fin n</code></li>
+<li><code>Cont (C ι α : Type)</code> - a container <code>c : C</code> that is indexed by <code>ι</code> and has  elements of type <code>α</code></li>
+</ol>
+<p>What have I done:</p>
+<ol>
+<li>
+<p>Common interface with notation like <code>A[i,j,k]</code>. See <a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Container/Basic.lean#L380">example</a></p>
+</li>
+<li>
+<p>ForIn loops like: </p>
+</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="k">let</span> <span class="n">mut</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Matrix</span> <span class="mi">4</span> <span class="mi">4</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">j.1.toFloat</span>
+    <span class="n">for</span> <span class="o">((</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">),</span> <span class="n">li</span><span class="o">)</span> <span class="k">in</span> <span class="n">allIdx</span> <span class="n">m</span> <span class="k">do</span>
+      <span class="n">m</span> <span class="o">:=</span> <span class="n">set</span> <span class="n">m</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">)</span> <span class="n">li.toFloat</span>
+</code></pre></div>
+<p><a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Container/Basic.lean#L369">example 1</a><br>
+<a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Enumtype.lean#L156">example 2</a></p>
+<ol start="3">
+<li>
+<p>Lazy containers: Any function <code>f : (ι → α)</code> can be interpreted as a container, with notation <code>f : ι ↦ α</code> and "lambda" abstraction <code>cont i =&gt; f i</code></p>
+</li>
+<li>
+<p><a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Container/Basic.lean#L430">Lazy operations</a> like matrix multiplication and broadcasting.  Writing <code>a*x + y</code> does not actually execute any code, but builds and expression that is evaluated only when needed. This way we can get fast <a href="https://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms">BLAS like operations</a>. This effectively creates <a href="https://en.wikipedia.org/wiki/Expression_templates">expression templates</a>, I would be really interested in writing a tactic that optimizes these expressions.</p>
+</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="k">let</span> <span class="n">mut</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Matrix</span> <span class="mi">4</span> <span class="mi">4</span> <span class="o">:=</span> <span class="n">intro</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">j.1.toFloat</span>
+    <span class="k">let</span> <span class="n">mut</span> <span class="n">v</span> <span class="o">:</span> <span class="n">Vector</span> <span class="mi">4</span> <span class="o">:=</span> <span class="n">intro</span> <span class="bp">λ</span> <span class="n">i</span> <span class="o">:</span> <span class="n">Fin</span> <span class="mi">4</span> <span class="bp">=&gt;</span> <span class="n">i.1.toFloat</span>
+    <span class="k">let</span> <span class="n">u</span> <span class="o">:</span> <span class="n">Fin</span> <span class="mi">4</span> <span class="bp">↦</span> <span class="n">Float</span> <span class="o">:=</span> <span class="n">m</span><span class="bp">*</span><span class="n">v</span>     <span class="c1">--- `u` is not `Vector 4`</span>
+</code></pre></div>
+<p>What I need help with:</p>
+<ol>
+<li>
+<p>Notation for slices, I want to be able to write <code>A[2, :]</code>. That should be expanded to <code>fun i =&gt; A[2,i]</code>.<br>
+        The <code>·</code> notation does not work, it consumes to much.  <code>f A[2,·]</code>  get expanded to <code>fun i =&gt; f A[2,i]</code> but I want <code>f (fun i =&gt; A[2,i])</code><br>
+<a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Container/Basic.lean#L41">I wrote bunch of ideas how this should work.</a></p>
+</li>
+<li>
+<p>Nicer notation for mutation in for loops<br>
+        Absolute must is:</p>
+</li>
+</ol>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="k">let</span> <span class="n">mut</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Matrix</span> <span class="mi">4</span> <span class="mi">4</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">j.1.toFloat</span>
+    <span class="n">for</span> <span class="o">((</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">),</span> <span class="n">li</span><span class="o">)</span> <span class="k">in</span> <span class="n">allIdx</span> <span class="n">m</span> <span class="k">do</span>
+      <span class="n">m</span><span class="o">[</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">]</span> <span class="o">:=</span> <span class="n">li.toFloat</span>
+      <span class="n">m</span><span class="o">[</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">]</span> <span class="bp">+=</span> <span class="mi">1</span><span class="bp">.</span><span class="mi">0</span>
+</code></pre></div>
+<p>I would love to have also this i.e. the binder in for loop has mutable reference. Accessing element of <code>m</code> in the loop through <code>m[i,j]</code> would force a copy of <code>m</code> before the loop and <code>m[i,j]</code> would always refer to this copy. <br>
+Now I think about it,  it should just be a syntactic sugar for <code>mapIdx</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="k">let</span> <span class="n">mut</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Matrix</span> <span class="mi">4</span> <span class="mi">4</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">j.1.toFloat</span>
+    <span class="n">for</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span><span class="n">j</span><span class="o">),</span> <span class="n">li</span><span class="o">)</span> <span class="k">in</span> <span class="n">m</span> <span class="k">do</span>
+       <span class="n">a</span> <span class="o">:=</span> <span class="n">li.toFloat</span>
+</code></pre></div>
+<ol start="3">
+<li>Binder notation for products: I want to write <code>cont (i,j) =&gt; f i j</code> and <code>∑ (i,j), A[i,j]</code>. This kind of notation only works for <code>fun (i,j) =&gt; f i j</code>.</li>
+<li>Proofs! I have omitted every proof I have encountered, except rfl or simp. Right now, I want to get the interface right only then I start proving something. Also, I'm not very experienced with proving in Lean.</li>
+</ol>
+<p>Things to change:</p>
+<ol>
+<li>Rename <code>Cont</code> to <code>Container</code> because "cont" can be interpreted as "continuous"</li>
+<li>The  definition of <code>Cont</code> should be changed to <code>Cont {C : Sort} (c : C) (ι α : Type)</code>, this way we can consider stuff like <code>l : List α</code> as a container with iterators of<code>l</code> as index type<br>
+             See my <a href="https://github.com/lecopivo/mathlib4/blob/471a8139a1219f4cab1aae80ce8fbaabd592e08e/Mathlib/Data/Container/Common.lean#L44">attempt</a></li>
+</ol>
+
+
+
+<a name="263606448"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263606448" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263606448">(Dec 03 2021 at 16:51)</a>:</h4>
+<p>Another little thing regarding naming, it would be nice if your <code>Enumtype</code> would be called <code>Fintype</code> instead since this is what is used in Lean 3 as well and I don't think there is a reason to change it?</p>
+<p>But your stuff sounds awesome! Sadly I'm not knowledgeable enough to help with any notation magic though.</p>
+
+
+
+<a name="263606560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263606560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263606560">(Dec 03 2021 at 16:52)</a>:</h4>
+<p>Ohh there is also <code>ContainerView</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="kd">def</span> <span class="n">ContView</span> <span class="o">{</span><span class="n">κ</span><span class="o">}</span> <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">ContData</span> <span class="n">C</span><span class="o">]</span> <span class="o">(</span><span class="n">tr</span> <span class="o">:</span> <span class="n">κ</span> <span class="bp">→</span> <span class="o">(</span><span class="n">indexOf</span> <span class="n">C</span><span class="o">))</span> <span class="o">:=</span> <span class="n">C</span>
+</code></pre></div>
+<p>This should allow reindexing of <code>C</code> with index type <code>κ</code> but you are still able to mutate it. You can always turn <code>C</code> into <code>κ ↦ α</code> by <code>cont j =&gt; C[tr j]</code>, but then you can't mutate it.</p>
+<p>I didn't test it yet, but the use case in my head was setting up a matrix by initializing its sub-matrices.</p>
+
+
+
+<a name="263606898"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263606898" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263606898">(Dec 03 2021 at 16:54)</a>:</h4>
+<blockquote>
+<p>Another little thing regarding naming, it would be nice if your Enumtype would be called Fintype instead since this is what is used in Lean 3 as well and I don't think there is a reason to change it?</p>
+</blockquote>
+<p>If I'm not mistaken, there is a big difference. <code>Fintype</code> just have a proof of existence of such bijection. <code>Enumtype</code> is actually holding it.</p>
+<p>If I'm mistaken, then I will of course rename it to <code>Fintype</code></p>
+
+
+
+<a name="263607235"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263607235" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263607235">(Dec 03 2021 at 16:56)</a>:</h4>
+<p>Ah that's true yes, <code>fintype</code> contains a <code>finset</code> along with a proof that all elements of the type in question are in it.</p>
+
+
+
+<a name="263608284"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263608284" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263608284">(Dec 03 2021 at 17:04)</a>:</h4>
+<p>I would say that <code>Enumtype</code> should extend <code>Fintype</code>.</p>
+
+
+
+<a name="263609315"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263609315" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263609315">(Dec 03 2021 at 17:11)</a>:</h4>
+<p><span class="user-mention" data-user-id="126734">@Thomas Eckl</span> <code>Cont</code> is also a problematic name because it is usually used in functional languages for the continuation monad (e.g., <a href="https://hoogle.haskell.org/?hoogle=Cont">Haskell</a>).</p>
+
+
+
+<a name="263609499"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263609499" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263609499">(Dec 03 2021 at 17:13)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> what do you see as the overlap/difference between your <code>Iterable</code> and <code>ForIn</code>?</p>
+
+
+
+<a name="263609624"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263609624" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263609624">(Dec 03 2021 at 17:14)</a>:</h4>
+<p>Also, not that the Lean core already has a <code>Range</code> type.</p>
+
+
+
+<a name="263610434"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263610434" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263610434">(Dec 03 2021 at 17:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263609499">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="346070">Tomas Skrivan</span> what do you see as the overlap/difference between your <code>Iterable</code> and <code>ForIn</code>?</p>
+</blockquote>
+<p>You are right that you can probably get one from the other, but as API user, it is much easier to provide instance of <code>Iterable</code> then instance of <code>ForIn</code>. I was looking at definition of <code>ForIn</code> for quite some time and it took me couple of trials and errors to get it working.</p>
+
+
+
+<a name="263610905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263610905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263610905">(Dec 03 2021 at 17:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263609624">said</a>:</p>
+<blockquote>
+<p>Also, not that the Lean core already has a <code>Range</code> type.</p>
+</blockquote>
+<p>Yes, I know, but Lean's Range is defined with <code>start : Nat | step : Nat | stop : Nat</code> but my <code>Range</code> is defined with two elements of the index set. You do not need to know the distance between them or their global indices(that are meaning full only for <code>Enumtype</code>).</p>
+
+
+
+<a name="263611900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263611900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263611900">(Dec 03 2021 at 17:32)</a>:</h4>
+<p>Also, <code>Iterable</code> can be infinite, so you can iterate over lines of file etc. Over something you do not the size beforehand.<br>
+I provide default <code>ForIn</code>, in order to prove termination I just run for  maximum of<code>USize.size</code> steps(effectively infinite loop). The user is encouraged to provide an instance of <code>Iterable.UpperBound</code>, if they want to prove that they traversed the whole type.</p>
+
+
+
+<a name="263615664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263615664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263615664">(Dec 03 2021 at 18:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="346070">Tomas Skrivan</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263606898">said</a>:</p>
+<blockquote>
+<p><code>Fintype</code> just have a proof of existence of such bijection. <code>Enumtype</code> is actually holding it.</p>
+</blockquote>
+<p><span class="user-mention silent" data-user-id="395550">Henrik Böving</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263607235">said</a>:</p>
+<blockquote>
+<p><code>fintype</code> contains a <code>finset</code> along with a proof that all elements of the type in question are in it.</p>
+</blockquote>
+<p>A <code>fintype</code> is like an <code>enumtype</code> that's forgotten the exact order of the elements of the type -- deep within there's a <code>list</code> with all the elements enumerated (but you're prevented from accessing it unless you can prove you're doing it in a way that order doesn't matter).  <code>enumtype</code> is in mathlib is usually written directly as an equivalence <code>α ≃ fin (fintype.card α)</code>.</p>
+<p>You can computably enumerate the elements of a <code>fintype</code> by a <code>fin</code> equivalence, but the equivalence is wrapped up in <code>trunc</code>, which forces you to prove that your computation doesn't depend on the enumeration order. <a href="https://leanprover-community.github.io/mathlib_docs/find/fintype.trunc_equiv_fin">docs#fintype.trunc_equiv_fin</a></p>
+
+
+
+<a name="263615860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263615860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263615860">(Dec 03 2021 at 18:02)</a>:</h4>
+<p>(One consequence to <code>fintype</code> not being just a proof of the existence of a bijection is that different <code>fintype</code> instances for the same type might not be definitionally equal.  They're all provably equal, though.)</p>
+
+
+
+<a name="263616088"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616088" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616088">(Dec 03 2021 at 18:04)</a>:</h4>
+<p>Oh, found the mathlib name for <code>Enumtype</code>: <a href="https://leanprover-community.github.io/mathlib_docs/find/fin_enum">docs#fin_enum</a></p>
+
+
+
+<a name="263616246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616246">(Dec 03 2021 at 18:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263616088">said</a>:</p>
+<blockquote>
+<p>Oh, found the mathlib name for <code>Enumtype</code>: <a href="https://leanprover-community.github.io/mathlib_docs/find/fin_enum">docs#fin_enum</a> (I like <code>Enumtype</code> more though)</p>
+</blockquote>
+<p>So for the sake of consistency with mathlib, should I rename <code>Enumtype</code> to <code>FinEnum</code>? (I don't like the name though ...)</p>
+
+
+
+<a name="263616415"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616415" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616415">(Dec 03 2021 at 18:07)</a>:</h4>
+<p>Yeah, probably. I actually retract liking <code>Enumtype</code> more because "enumerable type" can suggest countably infinite cardinality.</p>
+
+
+
+<a name="263616565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616565">(Dec 03 2021 at 18:08)</a>:</h4>
+<p>fair point</p>
+
+
+
+<a name="263616584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616584">(Dec 03 2021 at 18:08)</a>:</h4>
+<p>I'm not sure <code>fin_enum</code> is used very much, and its name could probably be changed.</p>
+
+
+
+<a name="263616614"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616614" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616614">(Dec 03 2021 at 18:08)</a>:</h4>
+<p>Another option is <code>EFintype</code> for enumerable fintype</p>
+
+
+
+<a name="263616661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616661">(Dec 03 2021 at 18:09)</a>:</h4>
+<p>What about <code>Index</code> ?</p>
+
+
+
+<a name="263616858"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616858" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616858">(Dec 03 2021 at 18:10)</a>:</h4>
+<p>That actually holds the meaning how <strong>I</strong> want to use it(might not be everyone)</p>
+
+
+
+<a name="263616859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263616859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263616859">(Dec 03 2021 at 18:10)</a>:</h4>
+<p>That sounds like a typeclass for the index operator</p>
+
+
+
+<a name="263617250"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263617250" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263617250">(Dec 03 2021 at 18:13)</a>:</h4>
+<p>It's unclear to me why you need FinEnum though. I would think a finite collection can more easily support an iterator like interface rather than something based on indexes</p>
+
+
+
+<a name="263617399"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263617399" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263617399">(Dec 03 2021 at 18:14)</a>:</h4>
+<p>i.e. something like rust's <code>ExactSizeIterator</code></p>
+
+
+
+<a name="263617622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263617622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263617622">(Dec 03 2021 at 18:16)</a>:</h4>
+<p>Also, this architecture is fairly heavyweight. I'm dubious of putting it too deep in the dependency hierarchy</p>
+
+
+
+<a name="263617810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263617810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263617810">(Dec 03 2021 at 18:17)</a>:</h4>
+<p>(I don't think this is a problem for inclusion in mathlib4 since it can be a leaf file if it turns out not to be used)</p>
+
+
+
+<a name="263617833"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263617833" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263617833">(Dec 03 2021 at 18:17)</a>:</h4>
+<p>When working with matrices/tensors, you really want indices. Even more, you want the strucured index <code>(i,j,k)</code>, to convey meaning, and the linear index <code>i + n * (j + m * k)</code>, to address memory. When writing high-performance code, you do not want to reconstruct one type of index from another at every iteration, but you want to build both indices iterativelly as you are traversing the tensor.</p>
+
+
+
+<a name="263618125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618125">(Dec 03 2021 at 18:19)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> It can also be used to go back and forth between an array indexed by a cartesian product and an array of arrays, for example, since it lets you use arbitrary enumerable types as indexes into the array.</p>
+
+
+
+<a name="263618216"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618216" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618216">(Dec 03 2021 at 18:20)</a>:</h4>
+<p>But like Thomas is saying, you can also then operate directly on the underlying <code>fin</code> indices for performance.</p>
+
+
+
+<a name="263618359"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618359" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618359">(Dec 03 2021 at 18:21)</a>:</h4>
+<p><span class="user-mention" data-user-id="346070">@Tomas Skrivan</span> <code>FinEnum</code> only supports the linear index, and it has nothing to do with memory layout (since it's a typeclass), so I'm not sure your typeclass expresses your constraints</p>
+
+
+
+<a name="263618575"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618575" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618575">(Dec 03 2021 at 18:23)</a>:</h4>
+<p>Look at my <a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/Enumtype.lean#L156">example</a> using <code>FinEnum/Enumtype</code> to convey row/colum major ordering for matrix index type.</p>
+
+
+
+<a name="263618765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618765">(Dec 03 2021 at 18:24)</a>:</h4>
+<p>And  the <a href="https://github.com/lecopivo/mathlib4/blob/e25053b0640464bf24a63455aea290f815fab5c2/Mathlib/Data/NDArray/Basic.lean#L97">definition</a> of row/colum major matrices.</p>
+
+
+
+<a name="263618971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263618971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263618971">(Dec 03 2021 at 18:26)</a>:</h4>
+<p>Also, talk of high performance code seems inappropriate here since this code is not optimized for speed by your own claim. Can lean actually see through these abstractions the way you want? I would be looking at compiler output to make sure I don't go astray, because lean's abstractions are not zero cost</p>
+
+
+
+<a name="263619180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619180">(Dec 03 2021 at 18:27)</a>:</h4>
+<p>With a Sufficiently Smart Compiler, Google's language Dex is able to optimize these things, and as I understand it its array abstraction works in a similar way.</p>
+
+
+
+<a name="263619200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619200">(Dec 03 2021 at 18:28)</a>:</h4>
+<p>My idea is to write the code in the correct form and then write a compiler to properly unfold these definitions and inline code as necessary.</p>
+
+
+
+<a name="263619376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619376">(Dec 03 2021 at 18:29)</a>:</h4>
+<p>Maybe rather than an interface for containers, you mean an interface for matrices?</p>
+
+
+
+<a name="263619455"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619455" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619455">(Dec 03 2021 at 18:30)</a>:</h4>
+<p>that was not initially clear to me</p>
+
+
+
+<a name="263619465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619465">(Dec 03 2021 at 18:30)</a>:</h4>
+<p>The <code>×ₗ</code> product is defined <a href="https://github.com/lecopivo/mathlib4/blob/1c2ad368f3d144d9114e0c5783d2e7595c427bf8/Mathlib/Data/ColProd.lean#L4">here</a>.</p>
+
+
+
+<a name="263619730"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619730" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619730">(Dec 03 2021 at 18:31)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263619376">said</a>:</p>
+<blockquote>
+<p>Maybe rather than an interface for containers, you mean an interface for matrices?</p>
+</blockquote>
+<p>Yes matrices is my primary concern, but look at my <a href="https://github.com/lecopivo/mathlib4/blob/1c2ad368f3d144d9114e0c5783d2e7595c427bf8/Mathlib/Data/Container/Common.lean#L44">attempt</a> for List. But that requires me to change the definition of <code>Cont</code> to <code>Cont {C : Sort} (c : C) (ι α : Type)</code></p>
+
+
+
+<a name="263619952"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619952" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619952">(Dec 03 2021 at 18:33)</a>:</h4>
+<p>What I mean is that by trying to broaden the applicability to arbitrary containers you will make a suboptimal solution for both matrices and containers</p>
+
+
+
+<a name="263619992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263619992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263619992">(Dec 03 2021 at 18:33)</a>:</h4>
+<p>matrices have a very particular structure and you should exploit that</p>
+
+
+
+<a name="263620067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620067">(Dec 03 2021 at 18:34)</a>:</h4>
+<p>hashmaps and lists don't have that structure</p>
+
+
+
+<a name="263620141"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620141" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620141">(Dec 03 2021 at 18:34)</a>:</h4>
+<p>Maybe instead of "containers" it would be clearer to say "finitely indexable objects".</p>
+<p>Multidimensional arrays (which this is mainly addressing) also tend to be called "tensors" (and which mathlib calls <a href="https://leanprover-community.github.io/mathlib_docs/data/holor.html">holors</a>, which I've never heard anywhere else).</p>
+
+
+
+<a name="263620242"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620242" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620242">(Dec 03 2021 at 18:35)</a>:</h4>
+<p>folks objected to "tensor" because that has a meaning in physics, to do with coordinate transformations</p>
+
+
+
+<a name="263620480"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620480" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620480">(Dec 03 2021 at 18:37)</a>:</h4>
+<p>Yes, I also object to tensor as it clashes with tensors with physics and in general with tensor product.</p>
+
+
+
+<a name="263620512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620512">(Dec 03 2021 at 18:37)</a>:</h4>
+<p>I get that, I've just never seen "holor" before, and there's not much out there about them.</p>
+
+
+
+<a name="263620711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263620711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263620711">(Dec 03 2021 at 18:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263619952">said</a>:</p>
+<blockquote>
+<p>What I mean is that by trying to broaden the applicability to arbitrary containers you will make a suboptimal solution for both matrices and containers</p>
+</blockquote>
+<p>I will drop support for arbitrary containers once it means a sacrifice for matrices, but I have not encounter that yet.</p>
+
+
+
+<a name="263621477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263621477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263621477">(Dec 03 2021 at 18:46)</a>:</h4>
+<p>I'm pretty dubious about the use of a dependent type for list iterators. You should just keep the data for the list in the iterator. (For reverse iteration, see <a href="https://en.wikipedia.org/wiki/Zipper_(data_structure)">https://en.wikipedia.org/wiki/Zipper_(data_structure)</a> .)</p>
+
+
+
+<a name="263637062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263637062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263637062">(Dec 03 2021 at 20:54)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263620242">said</a>:</p>
+<blockquote>
+<p>folks objected to "tensor" because that has a meaning in physics, to do with coordinate transformations</p>
+</blockquote>
+<p>It is standard CS terminology though, and most physics tensors are in bijection with multidimensional arrays over R</p>
+
+
+
+<a name="263656677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263656677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263656677">(Dec 03 2021 at 21:40)</a>:</h4>
+<p>What about calling it <code>Table</code>?</p>
+
+
+
+<a name="263699480"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Interface%20for%20containers/near/263699480" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Interface.20for.20containers.html#263699480">(Dec 04 2021 at 11:10)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Interface.20for.20containers/near/263621477">said</a>:</p>
+<blockquote>
+<p>I'm pretty dubious about the use of a dependent type for list iterators. You should just keep the data for the list in the iterator. (For reverse iteration, see <a href="https://en.wikipedia.org/wiki/Zipper_(data_structure)">https://en.wikipedia.org/wiki/Zipper_(data_structure)</a> .)</p>
+</blockquote>
+<p>After some more thinking, I agree that it is a bad idea. I will stick with matrix like objects and rename <code>Cont</code> to <code>Table</code>. As I do not like the word tensor, I feel table is quite appropriate name but I'm open to other suggestions.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

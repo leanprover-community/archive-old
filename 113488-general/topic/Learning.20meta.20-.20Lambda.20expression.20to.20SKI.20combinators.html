@@ -1,0 +1,149 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html">Learning meta - Lambda expression to SKI combinators</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="212756516"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212756516" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212756516">(Oct 08 2020 at 22:23)</a>:</h4>
+<p>I'm trying to learn how to reflect on expression. So I thought, I will try to implement <a href="https://en.wikipedia.org/wiki/Combinatory_logic#Completeness_of_the_S-K_basis">conversion from lambda expressions to SKI basis</a>. I have managed to convert <code>expr</code> representing a lambda expression to a <code>expr</code> that uses only SKI combinators and does not contain any lambdas. (This assumes that dependent types are not used)</p>
+<p>Thus I have function <code>meta def to_SKI_basis : expr → expr</code>. However, I would like to have a function <code>meta def to_SKI_basis' {X : Type} (x : X) [reflected x] : X</code> which actually takes an expression of type <code>X</code> and produces another expression of type <code>X</code> that does not contain any lambdas or fail when dependent types are used.</p>
+<p>How do I achieve this? I should probably somehow use <code>tactic.infer_type</code>, but I'm unable to figure out how. I don't even understand what <code>tactic expr</code> really is. What is <code>interaction_monad</code> and <code>tactic_state</code>? Is there a tutorial how all this meta stuff works?</p>
+<p>Here is my current progress:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">open</span> <span class="n">expr</span>
+
+<span class="kd">def</span> <span class="n">I</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">X</span> <span class="o">:=</span> <span class="n">x</span>
+<span class="kd">def</span> <span class="n">K</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:</span> <span class="n">X</span> <span class="o">:=</span> <span class="n">x</span>
+<span class="kd">def</span> <span class="n">S</span> <span class="o">{</span><span class="n">A</span> <span class="n">X</span> <span class="n">Y</span><span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">A</span><span class="bp">→</span><span class="n">X</span><span class="bp">→</span><span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span><span class="bp">→</span><span class="n">X</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">Y</span> <span class="o">:=</span> <span class="o">(</span><span class="n">f</span> <span class="n">a</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">a</span><span class="o">)</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">II</span> <span class="o">{</span><span class="n">elab</span> <span class="o">:</span> <span class="n">bool</span><span class="o">}</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.const</span> <span class="n">elab</span> <span class="o">(</span><span class="n">mk_simple_name</span> <span class="s2">"I"</span><span class="o">)</span> <span class="n">list.nil</span><span class="o">)</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">KK</span> <span class="o">{</span><span class="n">elab</span> <span class="o">:</span> <span class="n">bool</span><span class="o">}</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.const</span> <span class="n">elab</span> <span class="o">(</span><span class="n">mk_simple_name</span> <span class="s2">"K"</span><span class="o">)</span> <span class="n">list.nil</span><span class="o">)</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">SS</span> <span class="o">{</span><span class="n">elab</span> <span class="o">:</span> <span class="n">bool</span><span class="o">}</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">@</span><span class="n">expr.const</span> <span class="n">elab</span> <span class="o">(</span><span class="n">mk_simple_name</span> <span class="s2">"S"</span><span class="o">)</span> <span class="n">list.nil</span><span class="o">)</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">to_SKI_basis</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">expr</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">app</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="n">app</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="n">f</span><span class="o">)</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="n">x</span><span class="o">))</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">body</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="bp">¬</span><span class="o">(</span><span class="n">body.has_var_idx</span> <span class="mi">0</span><span class="o">)</span> <span class="k">then</span>
+     <span class="o">(</span><span class="n">app</span> <span class="n">KK</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="n">body</span><span class="o">))</span>
+  <span class="k">else</span>
+    <span class="k">match</span> <span class="n">body</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">var</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="n">II</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">app</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="n">app</span> <span class="o">(</span><span class="n">app</span> <span class="n">SS</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">f</span><span class="o">)))</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">x</span><span class="o">)))</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name'</span> <span class="n">bi'</span> <span class="n">var_type'</span> <span class="n">body'</span><span class="o">)</span> <span class="o">:=</span> <span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="o">((</span><span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name'</span> <span class="n">bi'</span> <span class="n">var_type'</span> <span class="n">body'</span><span class="o">))</span><span class="bp">.</span><span class="n">lower_vars</span> <span class="mi">0</span> <span class="mi">1</span><span class="o">))</span>
+      <span class="bp">|</span> <span class="n">e'</span> <span class="o">:=</span> <span class="n">e'</span>
+    <span class="kd">end</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">e</span>
+
+<span class="c1">--- Test</span>
+<span class="kd">constants</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="bp">`</span><span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">X</span><span class="bp">→</span><span class="n">Y</span><span class="o">),</span> <span class="n">y</span> <span class="n">x</span><span class="o">))</span><span class="bp">.</span><span class="n">to_string</span>
+<span class="bp">|</span> <span class="s2">"S (K (S I)) (S (K K) I)"</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">to_SKI_basis'</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">[</span><span class="n">reflected</span> <span class="n">x</span><span class="o">]</span> <span class="o">:</span> <span class="n">X</span> <span class="o">:=</span> <span class="n">sorry</span>
+</code></pre></div>
+
+
+
+<a name="212756889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212756889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212756889">(Oct 08 2020 at 22:27)</a>:</h4>
+<p>It's not possible to make a function with that type <code>meta def to_SKI_basis' {X : Type} (x : X) [reflected x] : X</code> (unless you do the silly thing and return <code>x</code>). What you really want is a program that produces an expression that when handed to lean would typecheck at type <code>X</code></p>
+
+
+
+<a name="212756895"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212756895" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212756895">(Oct 08 2020 at 22:27)</a>:</h4>
+<p>And this is what <code>by</code> does</p>
+
+
+
+<a name="212757014"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212757014" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212757014">(Oct 08 2020 at 22:28)</a>:</h4>
+<p><code>by</code> is how you "escape" the tactic mode: if <code>tac : tactic unit</code> then <code>by tac : X</code>, where <code>tac</code> is responsible for producing an <code>expr</code> that would typecheck as an <code>X</code></p>
+
+
+
+<a name="212758131"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212758131" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212758131">(Oct 08 2020 at 22:42)</a>:</h4>
+<p>Here's how you could make and use a simple tactic wrapper around your function:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">to_SKI_basis'</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="n">tactic.exact</span> <span class="o">(</span><span class="n">to_SKI_basis</span> <span class="n">e</span><span class="o">)</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="o">(</span><span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="bp">→</span> <span class="n">Y</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">to_SKI_basis'</span> <span class="bp">`</span><span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">X</span><span class="bp">→</span><span class="n">Y</span><span class="o">),</span> <span class="n">y</span> <span class="n">x</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="212758156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212758156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212758156">(Oct 08 2020 at 22:43)</a>:</h4>
+<p>It doesn't work though, because you have some bugs in the implementation</p>
+
+
+
+<a name="212759903"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212759903" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212759903">(Oct 08 2020 at 23:01)</a>:</h4>
+<p>Thanks a lot! It makes sense that it is not possible to write the function as I have originally thought. <br>
+Now, I should be able to fix <code>to_SKI_basis</code> so it works as intended when using <code>by</code>.</p>
+
+
+
+<a name="212760554"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212760554" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212760554">(Oct 08 2020 at 23:10)</a>:</h4>
+<p>Note that since now everything is in a tactic, you can consider putting the whole code inside the tactic monad. This has the advantage that you can use functions like <code>tactic.infer_type</code> to infer the types of subterms, or <code>tactic.mk_app</code> for e.g. applying <code>S</code> to two arguments and automatically figuring out the substitutions for <code>A X Y</code></p>
+
+
+
+<a name="212762243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212762243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212762243">(Oct 08 2020 at 23:32)</a>:</h4>
+<p>And the best place to learn the basics of tactic monad is <a href="https://leanprover-community.github.io/extras/tactic_writing.html">the tutorial on tactic writing</a>? Currently I don't really understand what you are suggesting.</p>
+
+
+
+<a name="212763950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Learning%20meta%20-%20Lambda%20expression%20to%20SKI%20combinators/near/212763950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Learning.20meta.20-.20Lambda.20expression.20to.20SKI.20combinators.html#212763950">(Oct 08 2020 at 23:58)</a>:</h4>
+<p>Here's your function converted into monadic style:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">to_SKI_basis</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">expr</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">app</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">f'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="n">f</span><span class="o">,</span>
+  <span class="n">x'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="n">x</span><span class="o">,</span>
+  <span class="n">pure</span> <span class="o">(</span><span class="n">app</span> <span class="n">f'</span> <span class="n">x'</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">body</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="bp">¬</span><span class="o">(</span><span class="n">body.has_var_idx</span> <span class="mi">0</span><span class="o">)</span> <span class="k">then</span> <span class="k">do</span>
+    <span class="n">body'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="n">body</span><span class="o">,</span>
+    <span class="n">pure</span> <span class="o">(</span><span class="n">app</span> <span class="n">KK</span> <span class="n">body'</span><span class="o">)</span>
+  <span class="k">else</span>
+    <span class="k">match</span> <span class="n">body</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">var</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="n">pure</span> <span class="n">II</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">app</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+        <span class="n">f'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">f</span><span class="o">),</span>
+        <span class="n">x'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="n">x</span><span class="o">),</span>
+        <span class="n">pure</span> <span class="o">(</span><span class="n">app</span> <span class="o">(</span><span class="n">app</span> <span class="n">SS</span> <span class="n">f'</span><span class="o">)</span> <span class="n">x'</span><span class="o">)</span>
+      <span class="bp">|</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name'</span> <span class="n">bi'</span> <span class="n">var_type'</span> <span class="n">body'</span><span class="o">)</span> <span class="o">:=</span> <span class="k">do</span>
+        <span class="n">a</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name'</span> <span class="n">bi'</span> <span class="n">var_type'</span> <span class="n">body'</span><span class="o">),</span>
+        <span class="n">to_SKI_basis</span> <span class="o">(</span><span class="n">lam</span> <span class="n">var_name</span> <span class="n">bi</span> <span class="n">var_type</span> <span class="o">(</span><span class="n">a.lower_vars</span> <span class="mi">0</span> <span class="mi">1</span><span class="o">))</span>
+      <span class="bp">|</span> <span class="n">e'</span> <span class="o">:=</span> <span class="n">pure</span> <span class="n">e'</span>
+    <span class="kd">end</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">pure</span> <span class="n">e</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">to_SKI_basis'</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">e'</span> <span class="bp">←</span> <span class="n">to_SKI_basis</span> <span class="n">e</span><span class="o">,</span>
+  <span class="n">tactic.exact</span> <span class="n">e'</span>
+</code></pre></div>
+
+<p>Because tactic computations are stateful, you have to use bind or <code>do</code> notation here to call them in a well defined order, so you can't use pure function composition anymore. Other than that it is a mere syntactic transformation that doesn't change the behavior of the code at all.</p>
+<p>But now you can insert a call to <code>tactic.mk_app</code> in one of those sequences of instructions to create expressions using information from the typing context, query the types of terms and so on.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

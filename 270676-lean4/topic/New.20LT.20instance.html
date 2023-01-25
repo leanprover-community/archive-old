@@ -1,0 +1,1160 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/New.20LT.20instance.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html">New LT instance</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="240762397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240762397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240762397">(May 30 2021 at 16:10)</a>:</h4>
+<p>Lean 4 just got <a href="https://github.com/leanprover/lean4/commit/37dcbf34210d164b2bba657f18c7dd9762717e86">a second instance for <code>LT Nat</code></a>  that is not definitionally equal to the first one.  I was just starting to jot down some notes for a pre-RFC, but I wasn't sure if there's a nice way to refactor this.</p>
+<p>Clearly you want to avoid writing both Ord and LT instances.  For programming, it's obviously a really bad idea to derive Ord from LT.  And you can't define LT in terms of Ord either (it's not possible with partial orders in general; and using it as a default results in diamonds with e.g. pi instances).</p>
+<p>The typical one-size-fits-all mathlib answer would be the following, right?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Ord</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">LT</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">BEq</span> <span class="n">α</span><span class="o">]</span> <span class="n">where</span>
+  <span class="n">compare</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Ordering</span>
+  <span class="n">compare_correct</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="c1">-- not sure how helpful this is w/o laws on &lt; and ==</span>
+    <span class="kn">open</span> <span class="n">Ordering</span> <span class="k">in</span> <span class="k">match</span> <span class="n">compare</span> <span class="n">a</span> <span class="n">b</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">lt</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">&lt;</span> <span class="n">b</span>
+      <span class="bp">|</span> <span class="n">eq</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">==</span> <span class="n">b</span>
+      <span class="bp">|</span> <span class="n">gt</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">&gt;</span> <span class="n">b</span>
+</code></pre></div>
+<p>But that doesn't look helpful for Ord/LT.  Is there a reasonable alternative to just removing the <code>Ord α → LT α</code> instance?  Ideally one that addresses the motivation for this instance, i.e., not having to write a separate LT instance?  Making it a def instead (but then you still need to write both instances)?</p>
+
+
+
+<a name="240763570"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240763570" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240763570">(May 30 2021 at 16:33)</a>:</h4>
+<p>I was thinking about the one you just described with <code>BEq</code>, when I was adding <code>Ord</code>, but I wasn't happy with it. I was also considering to do it using <code>DecidableEq</code>. But that wasn't truly satisfying either.</p>
+<p>In the end, I just made explicit <code>Ord</code> instances and added the helper <code>compareOfLessAndEq</code> this latter one is definitely safe, since you control when it's applied. And for basic data types like number or chars, it certainly is reasonable to derive <code>Ord</code> from that. But for other more complex types, you'd want to derive it explicitly, avoiding to redo work.</p>
+<p>Furthermore, <code>Ord</code> seems to imply a total order, but that's not quite right. In particular <code>Eq a b</code> doesn't imply <code>a = b</code>.</p>
+
+
+
+<a name="240763757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240763757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240763757">(May 30 2021 at 16:37)</a>:</h4>
+<p>on the other hand, if we had a total order, deriving an <code>Ord</code> instance for that seems perfectly reasonable, what do you think?</p>
+
+
+
+<a name="240763924"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240763924" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240763924">(May 30 2021 at 16:40)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="235513">Daniel Fabian</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240763757">said</a>:</p>
+<blockquote>
+<p>on the other hand, if we had a total order, deriving an <code>Ord</code> instance for that seems perfectly reasonable, what do you think?</p>
+</blockquote>
+<p>We want to avoid that for programming; an Ord instance defined in terms of &lt; is never going to be fast (with the few exceptions that you've listed).</p>
+
+
+
+<a name="240763949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240763949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240763949">(May 30 2021 at 16:41)</a>:</h4>
+<p>(The lexicographic order on strings is a decidable linear order.  But you don't want to define an Ord instance from it.)</p>
+
+
+
+<a name="240764278"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240764278" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240764278">(May 30 2021 at 16:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240763924">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="235513">Daniel Fabian</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240763757">said</a>:</p>
+<blockquote>
+<p>on the other hand, if we had a total order, deriving an <code>Ord</code> instance for that seems perfectly reasonable, what do you think?</p>
+</blockquote>
+<p>We want to avoid that for programming; an Ord instance defined in terms of &lt; is never going to be fast (with the few exceptions that you've listed).</p>
+</blockquote>
+<p>which is precisely, why I added a helper function to construct it for the 20 or so cases, but haven't added a typeclass instance.</p>
+
+
+
+<a name="240766927"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240766927" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240766927">(May 30 2021 at 17:58)</a>:</h4>
+<p>How do the two instances for <code>Nat</code> compare? Does the old one have important defeqs the new one does not, e.g. <code>n &lt; m === n.succ &lt;= m</code>? (Is this one important?)</p>
+
+
+
+<a name="240767002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240767002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240767002">(May 30 2021 at 18:00)</a>:</h4>
+<p>The problem is that there's <em>two</em> of them now, i.e. <code>n &lt; m =!= n &lt; m</code></p>
+
+
+
+<a name="240767646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240767646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240767646">(May 30 2021 at 18:17)</a>:</h4>
+<p>Sure, but I'm asking whether we need the former one <span aria-label="big smile" class="emoji emoji-1f604" role="img" title="big smile">:big_smile:</span></p>
+
+
+
+<a name="240768522"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240768522" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240768522">(May 30 2021 at 18:40)</a>:</h4>
+<p>IIRC <span class="user-mention" data-user-id="111080">@Floris van Doorn</span> had some strong opinions on this.  But I don't think there's any technical requirement for nice definitional reduction of &lt;.</p>
+
+
+
+<a name="240768888"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240768888" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240768888">(May 30 2021 at 18:51)</a>:</h4>
+<p>Removing the other <code>LT Nat</code> does not fix the issue though (I've just picked the most prominent instance for the thread title).  The <code>Ord α → LT α</code> instance causes diamonds  even if all the duplicate LT instances for types in the core library are fixed, and we adopt the policy that every concrete type only has <code>Ord</code> defined and not <code>LT</code> (where possible).</p>
+<p>Blanket instances constructing data like <code>Ord α → LT α</code> always cause diamonds.  Say you make a type <code>LexPair α</code> for lexicographically ordered pairs.  You add an instance for <code>Ord α → Ord (LexPair α)</code> because you want your code to be fast.  Then you add <code>LT α → LT (LexPair α)</code> because the lexicographic ordering also makes sense for types that do not have an Ord instance (e.g. if they're not totally ordered).  And bam: you've got two instances <code>LT (LexPair α)</code> that are not definitionally equal.</p>
+
+
+
+<a name="240769130"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769130" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769130">(May 30 2021 at 18:58)</a>:</h4>
+<p>do you have a suggestion? That was something that was always annoying me about type classes. You don't even need a diamond, actually. Say, you have string comparison and case insensitive string comparison. Both are perfectly reasonable things to do. But the type class mechanism is based just on types, so there is really no sensible way to tell which instance you want applied, is there?</p>
+
+
+
+<a name="240769209"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769209" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769209">(May 30 2021 at 19:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240766927">said</a>:</p>
+<blockquote>
+<p>How do the two instances for <code>Nat</code> compare? Does the old one have important defeqs the new one does not, e.g. <code>n &lt; m === n.succ &lt;= m</code>? (Is this one important?)</p>
+</blockquote>
+<p>Yes, this defeq is used a lot in mathlib.</p>
+
+
+
+<a name="240769214"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769214" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769214">(May 30 2021 at 19:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240768888">said</a>:</p>
+<blockquote>
+<p>Then you add <code>LT α → LT (LexPair α)</code> because the lexicographic ordering also makes sense for types that do not have an Ord instance (e.g. if they're not totally ordered). </p>
+</blockquote>
+<p>Unless I'm mistaken though, <code>Ord</code> is not a total order. You can define and Ord instance for any type that has an decidable LT. For example,</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">compareOfLess</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">LT</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">DecidableRel</span> <span class="o">(</span><span class="bp">@</span><span class="n">LT.lt</span> <span class="n">α</span> <span class="n">_</span><span class="o">)]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Ordering</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">x</span> <span class="bp">&lt;</span> <span class="n">y</span> <span class="k">then</span> <span class="n">Ordering.lt</span>
+  <span class="k">else</span> <span class="k">if</span> <span class="n">x</span> <span class="bp">&gt;</span> <span class="n">y</span> <span class="k">then</span> <span class="n">Ordering.gt</span>
+  <span class="k">else</span> <span class="n">Ordering.eq</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">LT</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">DecidableRel</span> <span class="o">(</span><span class="bp">@</span><span class="n">LT.lt</span> <span class="n">α</span> <span class="n">_</span><span class="o">)]</span> <span class="o">:</span> <span class="n">Ord</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="o">⟨</span> <span class="n">compareOfLess</span> <span class="o">⟩</span>
+</code></pre></div>
+<p>In order to promote <code>Ord</code> to a true total order, a <code>((x &lt;=&gt; y) = Ordering.Eq) -&gt; (x = y)</code> law would need to be added.</p>
+
+
+
+<a name="240769285"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769285" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769285">(May 30 2021 at 19:03)</a>:</h4>
+<p>Yes, these are all lawless.  For illustrative purposes, I only picked examples where the instances are lawful though.  Because the underlying point is the same no matter whether there are laws or not: blanket instances that construct data cause diamonds.</p>
+
+
+
+<a name="240769287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769287">(May 30 2021 at 19:03)</a>:</h4>
+<p>My 2 cents: I think that the Ord -&gt; LT instance should be a def, and instantiated explicitly for any types where the simplest way to prove LT is via Ord.</p>
+
+
+
+<a name="240769356"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769356" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769356">(May 30 2021 at 19:05)</a>:</h4>
+<p>I think it might be worth it to demote the current <code>Ord</code> to <code>POrd</code> (i.e. a partial order) with <code>Ordering := LT | GT | NA</code> and then introduce a new <code>Ord</code> that has the <code>((x &lt;=&gt; y) = Ordering.NA) -&gt; (x = y)</code> law. That way any all <code>LT</code>/<code>GT</code> simply leverage <code>POrd</code> (if they have a decidable LT/GT ordering relation).</p>
+
+
+
+<a name="240769359"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769359" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769359">(May 30 2021 at 19:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="235513">Daniel Fabian</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240769130">said</a>:</p>
+<blockquote>
+<p>string comparison and case insensitive string comparison [...] But the type class mechanism is based just on types, so there is really no sensible way to tell which instance you want applied, is there?</p>
+</blockquote>
+<p>I think the cleanest way is to make type aliases, i.e., <code>def LocaleSpecificSortingAccordingToUnicode (locale : String) : Type := String</code>.</p>
+
+
+
+<a name="240769585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769585">(May 30 2021 at 19:11)</a>:</h4>
+<p>Note that the idea of a function returning LT | GT | EQ already bakes in the concept of a "total preorder" for things like <code>lt</code> and <code>cmp</code> to cohere and be useful in data structures</p>
+
+
+
+<a name="240769591"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769591" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769591">(May 30 2021 at 19:11)</a>:</h4>
+<p>hence why I suggested the rename to something more general</p>
+
+
+
+<a name="240769632"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769632" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769632">(May 30 2021 at 19:12)</a>:</h4>
+<p>It's not a partial order though</p>
+
+
+
+<a name="240769638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769638">(May 30 2021 at 19:12)</a>:</h4>
+<p><code>Ord</code> has signature <code>A -&gt; A -&gt; Ordering</code> where <code>Ordering := LT | GT | EQ</code></p>
+
+
+
+<a name="240769653"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769653" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769653">(May 30 2021 at 19:13)</a>:</h4>
+<p><code>EQ</code> doesn't necessarily mean equal, but it does mean comparable. A partial order would need a <code>none</code> option</p>
+
+
+
+<a name="240769778"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769778" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769778">(May 30 2021 at 19:16)</a>:</h4>
+<p>Sorry for my imprecision. The point is pick a name that neither implies incomparability or comparability (i.e. <code>Ordering := Less | Greater | Neutral</code> and <code>DecidableOrd</code> for example) and use this more general Ord to always define decidable <code>LT</code>/<code>GT</code>.</p>
+
+
+
+<a name="240769787"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769787" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769787">(May 30 2021 at 19:17)</a>:</h4>
+<p>See Rust's <code>PartialOrd</code>: it needs to be a fourth option</p>
+
+
+
+<a name="240769792"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769792" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769792">(May 30 2021 at 19:17)</a>:</h4>
+<p>I believe partial orders are a red herring when it comes to Ord instances.  We only want Ord instances where the order needs to be total (sorting a list, keys in a tree map, etc.).  What is a difficulty though is that <code>Ordering.eq</code> does not mean <code>=</code>, it rather means <code>==</code> (there's of course no law requiring it).  For example <code>Ord Expr</code> would return <code>eq</code> for alpha-equivalent expresisons.</p>
+
+
+
+<a name="240769803"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769803" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769803">(May 30 2021 at 19:17)</a>:</h4>
+<p>I think it would be best to introduce a <code>Cmp</code> typeclass that just supplies the <code>cmp : A -&gt; A -&gt; Ordering</code> function, and then <code>Ord</code> can be reserved for the trifecta, possibly with laws relating them</p>
+
+
+
+<a name="240769851"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769851" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769851">(May 30 2021 at 19:19)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240769803">said</a>:</p>
+<blockquote>
+<p>I think it would be best to introduce a <code>Cmp</code> typeclass that just supplies the <code>cmp : A -&gt; A -&gt; Ordering</code> function, and then <code>Ord</code> can be reserved for the trifecta, possibly with laws relating them</p>
+</blockquote>
+<p>This is more-or-less what I was trying to suggest.</p>
+
+
+
+<a name="240769862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769862">(May 30 2021 at 19:19)</a>:</h4>
+<p>in particular I'm not suggesting "and use this more general Ord to always define decidable LT/GT."</p>
+
+
+
+<a name="240769904"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769904" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769904">(May 30 2021 at 19:20)</a>:</h4>
+<p>There is no a priori relation between the basic typeclasses</p>
+
+
+
+<a name="240769947"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769947" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769947">(May 30 2021 at 19:21)</a>:</h4>
+<p><code>Ord</code> would combine several ordering operators for convenience: <code>BEq</code>, <code>LT</code>, <code>LE</code>, <code>Cmp</code>, <code>Decidable LE</code>, <code>Decidable LT</code></p>
+
+
+
+<a name="240769998"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240769998" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240769998">(May 30 2021 at 19:22)</a>:</h4>
+<p><code>POrd</code> would have a <code>partial_cmp : A -&gt; A -&gt; Option Ordering</code> instead</p>
+
+
+
+<a name="240770024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770024">(May 30 2021 at 19:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240769904">said</a>:</p>
+<blockquote>
+<p>There is no a priori relation between the basic typeclasses</p>
+</blockquote>
+<p>Why Not Though? From <code>Cmp</code> I can always  get <code>Lt</code>/<code>Le</code>/<code>Ge</code>/<code>Gt</code>.</p>
+
+
+
+<a name="240770074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770074">(May 30 2021 at 19:24)</a>:</h4>
+<p>Building data from data leads to the diamond problems that gabriel mentioned</p>
+
+
+
+<a name="240770086"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770086" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770086">(May 30 2021 at 19:24)</a>:</h4>
+<p>you don't want to use a generic construction to get Lt from Cmp when the base type is <code>Nat</code>, because nat already has a <code>Lt</code></p>
+
+
+
+<a name="240770108"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770108" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770108">(May 30 2021 at 19:25)</a>:</h4>
+<p>But why can't we remove those and just use <code>Cmp</code> for <code>Cmp</code> types?</p>
+
+
+
+<a name="240770110"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770110" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770110">(May 30 2021 at 19:25)</a>:</h4>
+<p>So the generic construction is just a def, available as the default field value in the <code>Ord</code> typeclass</p>
+
+
+
+<a name="240770161"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770161" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770161">(May 30 2021 at 19:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770108">said</a>:</p>
+<blockquote>
+<p>But why can't we remove those and just use <code>Cmp</code> for <code>Cmp</code> types?</p>
+</blockquote>
+<p>because that's less efficient? Also it's less convenient when you don't want cmp to get involved in proofs</p>
+
+
+
+<a name="240770231"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770231" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770231">(May 30 2021 at 19:29)</a>:</h4>
+<p>Some types have <code>lt</code> as the basic notion and use it to define <code>le</code> and <code>cmp</code>; some have <code>cmp</code> as basic and define <code>lt</code> and <code>le</code>; others (like <code>Nat</code>!) have <code>lt</code> and <code>le</code> as basic and <code>cmp</code> is derived. When you have this kind of variety, you just need a class that supplies all of them as separate fields and you can pick which to define yourself and which to get automatically filled in</p>
+
+
+
+<a name="240770374"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770374" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770374">(May 30 2021 at 19:33)</a>:</h4>
+<p>Actually, it's even more complicated than that because there is both <code>le</code> and <code>ble</code> and they have separate definitions. (In mathlib <code>le</code> is an inductive predicate and <code>ble</code> is a recursive function.) Again, to please everyone you need them to be separate fields, with a coherence lemma</p>
+
+
+
+<a name="240770386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770386">(May 30 2021 at 19:33)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770231">said</a>:</p>
+<blockquote>
+<p>When you have this kind of variety, you just need a class that supplies all of them as separate fields and you can pick which to define yourself and which to get automatically filled in</p>
+</blockquote>
+<p>That is what I am going for. For example, something like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">BOrd.</span><span class="o">{</span><span class="n">u</span><span class="o">}</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Cmp</span> <span class="n">α</span><span class="o">,</span> <span class="n">LT</span> <span class="n">α</span><span class="o">,</span> <span class="n">LE</span> <span class="n">α</span><span class="o">,</span> <span class="n">GT</span> <span class="n">α</span><span class="o">,</span> <span class="n">GE</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">lt</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">cmp</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">==</span> <span class="n">Ordering.lt</span>
+  <span class="n">le</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">cmp</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">!=</span> <span class="n">Ordering.gt</span>
+  <span class="n">gt</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">cmp</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">==</span> <span class="n">Ordering.gt</span>
+  <span class="n">ge</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">cmp</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">!=</span> <span class="n">Ordering.lt</span>
+  <span class="n">eq</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">cmp</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">==</span> <span class="n">Ordering.eq</span>
+</code></pre></div>
+
+
+
+<a name="240770452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770452">(May 30 2021 at 19:34)</a>:</h4>
+<p>oof, I really hope I don't have to worry about <code>GT</code> too</p>
+
+
+
+<a name="240770515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770515">(May 30 2021 at 19:36)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770452">said</a>:</p>
+<blockquote>
+<p>oof, I really hope I don't have to worry about <code>GT</code> too</p>
+</blockquote>
+<p>But the current definition of GT creates the same inefficiencies that are currently being railed against (<code>flip</code> is less efficient then a type that directly supports <code>GT</code>).</p>
+
+
+
+<a name="240770534"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770534" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770534">(May 30 2021 at 19:37)</a>:</h4>
+<p><code>GT</code> doesn't create diamonds because we actually have a decent chance of actually ensuring that no alternate definitions are made</p>
+
+
+
+<a name="240770545"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770545" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770545">(May 30 2021 at 19:38)</a>:</h4>
+<p>also if you inline <code>flip</code> it shouldn't be any slower</p>
+
+
+
+<a name="240770582"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770582" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770582">(May 30 2021 at 19:38)</a>:</h4>
+<p>It may not create diamonds but it does produce inefficient code (which is the reason why diamonds are bad).</p>
+
+
+
+<a name="240770588"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770588" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770588">(May 30 2021 at 19:38)</a>:</h4>
+<p>or better yet, just don't use <code>GT</code></p>
+
+
+
+<a name="240770607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770607">(May 30 2021 at 19:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770545">said</a>:</p>
+<blockquote>
+<p>also if you inline <code>flip</code> it shouldn't be any slower</p>
+</blockquote>
+<p>Not if the source arguments are already in the opposite order.</p>
+
+
+
+<a name="240770668"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770668" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770668">(May 30 2021 at 19:40)</a>:</h4>
+<p>If a  I have <code>foo a b := lt b a</code> this will sometimes necessitate spending cycles to swap the argument order; <code>foo := gt</code> will never.</p>
+
+
+
+<a name="240770682"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770682" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770682">(May 30 2021 at 19:41)</a>:</h4>
+<p>Working with closures is a lot slower than either one</p>
+
+
+
+<a name="240770690"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770690" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770690">(May 30 2021 at 19:41)</a>:</h4>
+<p>always fully apply your functions if possible</p>
+
+
+
+<a name="240770742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770742">(May 30 2021 at 19:42)</a>:</h4>
+<p>I am pretty sure <code>foo := gt</code> is just as efficient as <code>foo a b := gt a b</code> (if not more so)</p>
+
+
+
+<a name="240770768"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770768" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770768">(May 30 2021 at 19:43)</a>:</h4>
+<p>they are compiled to the same thing, it looks like <code>foo(a, b) { return gt(a, b) }</code> when it gets translated to C</p>
+
+
+
+<a name="240770814"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770814" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770814">(May 30 2021 at 19:44)</a>:</h4>
+<p>and argument swapping is free at that point</p>
+
+
+
+<a name="240770819"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770819" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770819">(May 30 2021 at 19:44)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770690">said</a>:</p>
+<blockquote>
+<p>always fully apply your functions if possible</p>
+</blockquote>
+<p>Are you sure about this? This is consider bad in most functional languages. I know this is definite no no in Haskell. I don't know enough about Lean's compiler to know if this is true in Lean though.</p>
+
+
+
+<a name="240770828"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770828" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770828">(May 30 2021 at 19:45)</a>:</h4>
+<p>Haskell has to do crazy things to put the variables back in. Pointfree style is just a design aesthetic</p>
+
+
+
+<a name="240770832"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770832" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770832">(May 30 2021 at 19:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770814">said</a>:</p>
+<blockquote>
+<p>and argument swapping is free at that point</p>
+</blockquote>
+<p>no its not?</p>
+<p><code>foo(a, b) { return gt(a, b) }</code> is faster than <code>foo(a, b) { return lt(b, a) }</code> in C.</p>
+<p>In fact, it is much faster in the standard C calling conventions as the latter requires swapping things on the stack.</p>
+
+
+
+<a name="240770834"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770834" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770834">(May 30 2021 at 19:45)</a>:</h4>
+<p>if haskell didn't inline so heavily it wouldn't be a reasonable option at all</p>
+
+
+
+<a name="240770884"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770884" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770884">(May 30 2021 at 19:46)</a>:</h4>
+<p>That function would not ever be called, it would be inlined</p>
+
+
+
+<a name="240770892"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770892" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770892">(May 30 2021 at 19:47)</a>:</h4>
+<p>swapping is free here because it's just changing the way the inlining goes</p>
+
+
+
+<a name="240770972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240770972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240770972">(May 30 2021 at 19:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770828">said</a>:</p>
+<blockquote>
+<p>Haskell has to do crazy things to put the variables back in. Pointfree style is just a design aesthetic</p>
+</blockquote>
+<p>This is not true. I clearer remember a number of situations in a Haskell where pointfree explicitly provides performance benefits. Its been a while since I've used Haskell, so I don't remember the specifics. But, for thing, I think Haskell as to evaluate the function's thunk in to in order to apply it so I think applications hurt laziness.</p>
+
+
+
+<a name="240771042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771042">(May 30 2021 at 19:51)</a>:</h4>
+<p>It's possible that haskell's evaluation semantics can cause a complication here, but you can still write in fully applied form if you evaluate the functions outside the lambda</p>
+
+
+
+<a name="240771048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771048">(May 30 2021 at 19:51)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240770884">said</a>:</p>
+<blockquote>
+<p>That function would not ever be called, it would be inlined</p>
+</blockquote>
+<p>You are trusting inliners way to much. Second, it is completely possible that <code>lt</code> could be function pointer or a closure or something that is non-inlinable. <code>foo</code> could also be complex enough that it could not be inlined (or it could be being linked to in a manner that prevents inlining).</p>
+
+
+
+<a name="240771168"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771168" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771168">(May 30 2021 at 19:54)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240771042">said</a>:</p>
+<blockquote>
+<p>It's possible that haskell's evaluation semantics can cause a complication here, but you can still write in fully applied form if you evaluate the functions outside the lambda</p>
+</blockquote>
+<p>I am not arguing you can write in fully-applied form (and that there are probably cases where it is a good idea), but simply that (1) writing fully applied functions in Haskell is very bad style (in particular, linters will complain heavily about it) and (2) there are many cases where it is a performance problem and (3) it can also damage laziness</p>
+
+
+
+<a name="240771183"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771183" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771183">(May 30 2021 at 19:54)</a>:</h4>
+<blockquote>
+<p>You are trusting inliners way too much.</p>
+</blockquote>
+<p>Functional programming languages depend on copious optimizations to work. The performance characteristics of a program change completely if you turn off the optimizer. Inlining in particular is really really important, and if it doesn't work then that's one of the first places to look for a performance issue.</p>
+<p>Anyway, like I said the easiest solution is to just never use <code>gt</code>. It never comes up outside contrived situations like <code>foo</code> (which is literally just <code>gt</code>) which <em>would</em> be optimized.</p>
+
+
+
+<a name="240771245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771245">(May 30 2021 at 19:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240771183">said</a>:</p>
+<blockquote>
+<p>Anyway, like I said the easiest solution is to just never use <code>gt</code>. It never comes up outside contrived situations like <code>foo</code> (which is literally just <code>gt</code>) which <em>would</em> be optimized.</p>
+</blockquote>
+<p>I disagree greatly with this. Having played around with compilers a lot, I can tell you there are many cases where argument reordering incurs performance penalties. Optimizers can only do so much.</p>
+
+
+
+<a name="240771254"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771254" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771254">(May 30 2021 at 19:56)</a>:</h4>
+<p>Furthemore, at a notational level I may wish to define <code>&gt;</code> for type without wanting to define <code>&lt;</code>.</p>
+
+
+
+<a name="240771324"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771324" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771324">(May 30 2021 at 19:58)</a>:</h4>
+<p>It's very difficult to discuss this in the abstract, because there are so many confounding factors. It would need a full code example to say something more specific. Regarding notation, you can do that with macro magic, as ever.</p>
+
+
+
+<a name="240771347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771347">(May 30 2021 at 19:59)</a>:</h4>
+<p>I fully intend to keep up the mathlib 3 ban on <code>gt</code> in mathlib 4</p>
+
+
+
+<a name="240771392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771392">(May 30 2021 at 20:00)</a>:</h4>
+<p>also I fail to see what the overhead in <code>GT</code> type class would be anyway</p>
+
+
+
+<a name="240771408"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771408" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771408">(May 30 2021 at 20:00)</a>:</h4>
+<p>the overhead of <code>GT</code> is the fact that the typeclass exists, and you have to relate the functions and duplicate all lemmas</p>
+
+
+
+<a name="240771423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771423">(May 30 2021 at 20:01)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240771347">said</a>:</p>
+<blockquote>
+<p>I fully intend to keep up the mathlib 3 ban on <code>gt</code> in mathlib 4</p>
+</blockquote>
+<p>I think this is another good example of why alternative to mathlib will definitely pop up if/when Lean matures. It is far to opinionated to not  acquire competition.</p>
+
+
+
+<a name="240771478"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771478" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771478">(May 30 2021 at 20:02)</a>:</h4>
+<p>perhaps. I have yet to see an actual reason to lift the ban though</p>
+
+
+
+<a name="240771485"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771485" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771485">(May 30 2021 at 20:02)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240771408">said</a>:</p>
+<blockquote>
+<p>the overhead of <code>GT</code> is the fact that the typeclass exists, and you have to relate the functions and duplicate all lemmas</p>
+</blockquote>
+<p>Can't you just elide the duplication with a <code>a &gt; b = b &lt; a</code> <code>simp</code> lemma?</p>
+
+
+
+<a name="240771488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771488">(May 30 2021 at 20:02)</a>:</h4>
+<p>presumably some alternately-opinionated mathlib alternative would be able to supply such a reason</p>
+
+
+
+<a name="240771506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771506">(May 30 2021 at 20:03)</a>:</h4>
+<p>Sure, but it still means the overhead of using simp more, supplying that lemma, larger proofs as a result, interaction between defeq and simp, etc etc</p>
+
+
+
+<a name="240771512"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771512" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771512">(May 30 2021 at 20:03)</a>:</h4>
+<p>The best code is the code you don't have to write</p>
+
+
+
+<a name="240771577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771577">(May 30 2021 at 20:05)</a>:</h4>
+<p>I just think you and I are just not going to agree on design standards anytime soon. <span aria-label="rolling on the floor laughing" class="emoji emoji-1f923" role="img" title="rolling on the floor laughing">:rolling_on_the_floor_laughing:</span></p>
+
+
+
+<a name="240771595"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771595" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771595">(May 30 2021 at 20:05)</a>:</h4>
+<p>Except, oddly, I guess, for <code>leanpkg</code>.</p>
+
+
+
+<a name="240771599"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240771599" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240771599">(May 30 2021 at 20:05)</a>:</h4>
+<p>feel free to make a mathlib alternative and make it public</p>
+
+
+
+<a name="240798977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240798977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240798977">(May 31 2021 at 07:08)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240771408">said</a>:</p>
+<blockquote>
+<p>the overhead of <code>GT</code> is the fact that the typeclass exists, and you have to relate the functions and duplicate all lemmas</p>
+</blockquote>
+<p>Note that <code>GT</code> is not a typeclass, and wasn't in Lean 3 either.  (Only God knows why it's nevertheless called <code>GT.gt</code>...)  IIRC the only complications w.r.t. <code>gt</code> was that it broke simp and rw (due to head-symbol indexing), but could we write <code>ε &gt; 0</code> again if that's fixed?</p>
+
+
+
+<a name="240802648"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240802648" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240802648">(May 31 2021 at 07:50)</a>:</h4>
+<p>I wasn't quite sure myself, but it does currently work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">ε</span><span class="o">)</span> <span class="o">:</span> <span class="n">ε</span> <span class="bp">&gt;</span> <span class="mi">0</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">h</span><span class="o">]</span>
+<span class="kd">example</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">ε</span> <span class="bp">&gt;</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">ε</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">h</span><span class="o">]</span>
+</code></pre></div>
+<p>This is because both patterns and queries are recursively brought into (reducible) whnf, <em>before</em> inserting/comparing them against each other in the discrimination tree (so you don't pay for all potential matches for each subexpression like in Lean 3)</p>
+
+
+
+<a name="240809802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240809802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240809802">(May 31 2021 at 09:12)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240769792">said</a>:</p>
+<blockquote>
+<p>I believe partial orders are a red herring when it comes to Ord instances.  We only want Ord instances where the order needs to be total (sorting a list, keys in a tree map, etc.).  What is a difficulty though is that <code>Ordering.eq</code> does not mean <code>=</code>, it rather means <code>==</code> (there's of course no law requiring it).  For example <code>Ord Expr</code> would return <code>eq</code> for alpha-equivalent expresisons.</p>
+</blockquote>
+<p>It doesn't even mean <code>==</code>, it just means <code>not &lt;</code> and <code>not &gt;</code>. I was struggling with this when I tried to relate <code>Ord</code>, <code>LT</code> and <code>BEq</code> or <code>DecidableEq</code>. </p>
+<p>Or, more precisely, that's how it's used in the data structures.</p>
+
+
+
+<a name="240810182"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810182" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810182">(May 31 2021 at 09:16)</a>:</h4>
+<p>Right it could be something different, so you shouldn't accidentally use <code>==</code> instead.  What I wanted to say is that <code>Ordering.eq</code> is usually an equivalence relation and in general not the same as <code>=</code> (and in this way it is similar to <code>==</code>).</p>
+
+
+
+<a name="240810202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810202">(May 31 2021 at 09:16)</a>:</h4>
+<p>That comes back to the "total preorder" business mentioned earlier: you need <code>x &lt; y \/ x == y \/ x &gt; y</code> for the data structure to work</p>
+
+
+
+<a name="240810261"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810261" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810261">(May 31 2021 at 09:17)</a>:</h4>
+<p>that's what justifies using <code>not &lt; and not &gt;</code> as synonymous for <code>==</code></p>
+
+
+
+<a name="240810369"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810369" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810369">(May 31 2021 at 09:18)</a>:</h4>
+<p>and I was saying, that we don't rely <code>x == y</code>. It's a bit of an academic discussion, but it may be relevant in some of the more complicated types like <code>Expr</code>.</p>
+
+
+
+<a name="240810441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810441">(May 31 2021 at 09:19)</a>:</h4>
+<p>You can use just <code>&lt;</code> if you know that the ordering is induced by it, although using <code>cmp</code> is usually faster for the data structure</p>
+
+
+
+<a name="240810508"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810508" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810508">(May 31 2021 at 09:20)</a>:</h4>
+<p>it means you only need a <code>[LT A]</code> typeclass in the data structure instead of the whole zoo implied by <code>Ord</code></p>
+
+
+
+<a name="240810516"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810516" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810516">(May 31 2021 at 09:20)</a>:</h4>
+<p>yeah, that's the refactoring we did.</p>
+
+
+
+<a name="240810533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810533">(May 31 2021 at 09:20)</a>:</h4>
+<p>I took the <code>LT</code> implementation, and replaced it with <code>Ord</code>.</p>
+
+
+
+<a name="240810545"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810545" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810545">(May 31 2021 at 09:21)</a>:</h4>
+<p>But <code>Eq</code> is just the fallback case, essentially.</p>
+
+
+
+<a name="240810678"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810678" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810678">(May 31 2021 at 09:22)</a>:</h4>
+<p><code>Ord</code> is a cheap way of getting <code>&lt; a</code> and <code>&gt; a</code> in one operation.</p>
+
+
+
+<a name="240810687"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810687" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810687">(May 31 2021 at 09:22)</a>:</h4>
+<p>I think the fact that these are lawless structures is confusing matters. The laws required for the data structure to work include transitivity, stuff like <code>x &lt; y -&gt; !(x == y)</code>, and <code>!(x &lt; y) -&gt; !(y &lt; x) -&gt; x == y</code></p>
+
+
+
+<a name="240810722"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810722" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810722">(May 31 2021 at 09:22)</a>:</h4>
+<p>just because they aren't literally used in the programming version doesn't mean they don't conceptually exist anyway</p>
+
+
+
+<a name="240810770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810770">(May 31 2021 at 09:23)</a>:</h4>
+<p>it's mostly just simpler to leave the laws out since it means you don't have to prove anything while writing programs</p>
+
+
+
+<a name="240810785"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810785" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810785">(May 31 2021 at 09:24)</a>:</h4>
+<p>Yeah, I get it. And in principle it would be nice to have some kind of lemma carried around with <code>Ord</code> instances. But, alas, that's not the case currently.</p>
+
+
+
+<a name="240810866"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810866" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810866">(May 31 2021 at 09:24)</a>:</h4>
+<p>but the flip side of that is that it is safe to assume that when the laws don't hold, it is "undefined behavior", i.e. the data structure does something but we don't really care what</p>
+
+
+
+<a name="240810935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240810935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240810935">(May 31 2021 at 09:25)</a>:</h4>
+<p>(Personally, I would like to see more access to actual C undefined behavior, but that's a whole separate discussion.)</p>
+
+
+
+<a name="240811006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240811006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240811006">(May 31 2021 at 09:26)</a>:</h4>
+<p>It'd be nice to have a conditional proof, though. Something like "if the instance is lawful, then the RBSet behaves like a set" or something like that.</p>
+
+
+
+<a name="240811042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240811042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240811042">(May 31 2021 at 09:26)</a>:</h4>
+<p>Sure, that's something that mathlib could prove even if the lawless data structure itself is in lean core</p>
+
+
+
+<a name="240811096"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240811096" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240811096">(May 31 2021 at 09:27)</a>:</h4>
+<p>Nice</p>
+
+
+
+<a name="240811451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240811451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240811451">(May 31 2021 at 09:31)</a>:</h4>
+<p>Speaking of which, I've thought of a simple way to avoid the issue with having the wrong invariants in things like <code>RBNode.WellFormed</code> (they are too strict, they should talk about the black height): Add another constructor to <code>WellFormed</code> using the full red-black invariant. It doesn't ever have to be used in lean core, the only requirement is that the predicate itself is defined. Then mathlib et al can prove that the inductive type "generated by insert and erase and empty and the red-black invariant" is equivalent to "the red-black invariant" by proving that insert, erase, and empty preserve the red-black invariant. The upside is that it then becomes possible to define operations directly on red-black trees that don't go via insert/erase and satisfy the red-black invariant for a different reason</p>
+
+
+
+<a name="240815074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240815074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240815074">(May 31 2021 at 10:08)</a>:</h4>
+<p>Here's what the PR would look like:</p>
+<div class="codehilite" data-code-language="Diff"><pre><span></span><code><span class="gi">+def blackHeight : RBNode α β → OptionM Nat</span>
+<span class="gi">+  | leaf =&gt; pure 0</span>
+<span class="gi">+  | node red l k v r =&gt; do</span>
+<span class="gi">+    let n ← blackHeight l</span>
+<span class="gi">+    guard (!isRed l &amp;&amp; !isRed r &amp;&amp; (← blackHeight r) == n)</span>
+<span class="gi">+    pure n</span>
+<span class="gi">+  | node black l k v r =&gt; do</span>
+<span class="gi">+    let n ← blackHeight l</span>
+<span class="gi">+    guard (!isRed l &amp;&amp; (← blackHeight r) == n)</span>
+<span class="gi">+    pure (n + 1)</span>
+<span class="gi">+</span>
+<span class="gi">+def ordered (cmp : α → α → Ordering) : RBNode α β → Bool</span>
+<span class="gi">+  | leaf =&gt; true</span>
+<span class="gi">+  | node _ l k _ r =&gt;</span>
+<span class="gi">+    all (fun x _ =&gt; cmp x k == Ordering.lt) l &amp;&amp;</span>
+<span class="gi">+    all (fun y _ =&gt; cmp k y == Ordering.lt) r &amp;&amp;</span>
+<span class="gi">+    ordered cmp l &amp;&amp; ordered cmp r</span>
+
+ inductive WellFormed (cmp : α → α → Ordering) : RBNode α β → Prop where
+   | leafWff : WellFormed cmp leaf
+   | insertWff {n n' : RBNode α β} {k : α} {v : β k} : WellFormed cmp n → n' = insert cmp n k v → WellFormed cmp n'
+   | eraseWff {n n' : RBNode α β} {k : α} : WellFormed cmp n → n' = erase cmp k n → WellFormed cmp n'
+<span class="gi">+  | balancedWff {n : RBNode α β} : (blackHeight n).isSome → ordered cmp n → WellFormed cmp n</span>
+</code></pre></div>
+
+
+
+<a name="240816009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240816009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240816009">(May 31 2021 at 10:19)</a>:</h4>
+<p>That doesn't feel like a good idea. The current predicate simply asserts that insertion is well-formed. Almost like an axiom. We should instead formulate the 5 invariants and show that the algorithm preserves them. Then the current predicate would simply assert that an rb tree was constructed by insertions. And your theorem would thus prove the invariants.</p>
+<p>And you could define union or intersection etc.</p>
+
+
+
+<a name="240816151"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240816151" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240816151">(May 31 2021 at 10:21)</a>:</h4>
+<p>I would of course prefer to just prove the correctness of the operations. The advantage of this version is that the lean devs don't have to, it can be offloaded to a library like mathlib. As it currently is written it's not possible to prove this because the actual invariant as stated does not match the real red black invariant</p>
+
+
+
+<a name="240816575"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240816575" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240816575">(May 31 2021 at 10:25)</a>:</h4>
+<p>What if lean you take the predicate and show that it implies the invariants? As is, you know a tree came into existence as a sequence of applications of those 3 functions</p>
+
+
+
+<a name="240816641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240816641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240816641">(May 31 2021 at 10:26)</a>:</h4>
+<p>The "minimal" well formedness predicate is the inductive type generated by the operations you want to do on the data structure. The "maximal" well formedness predicate is the list of properties you expect (ordering, balance). The hard proof work that can be shifted around but not eliminated is showing that the minimum is less than the maximum. The predicate defined here is basically the larger of these two predicates, so it's obviously greater than the minimal one (so the operations are easy to define) and it's equivalent to the maximal predicate once you do the hard proof work</p>
+
+
+
+<a name="240816849"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240816849" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240816849">(May 31 2021 at 10:28)</a>:</h4>
+<p>As it is currently, it is possible to prove that <code>WellFormed</code> implies ordering and balance, but not vice versa (I'm not positive but I think the converse is false)</p>
+
+
+
+<a name="240817021"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240817021" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240817021">(May 31 2021 at 10:30)</a>:</h4>
+<p>Adding the <code>balancedWff</code> variant makes this true by fiat, and the hard proof work becomes showing that everything else in the <code>WellFormed</code> inductive type is superfluous</p>
+
+
+
+<a name="240818462"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240818462" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240818462">(May 31 2021 at 10:50)</a>:</h4>
+<p>There are 5 rb invariants. I'm pretty sure you need all of them in the induction. Also, it's an rb tree with all 5.</p>
+<p>The predicate as is will create a provably well formed tree without proving it. If you formulate the 5 invariants, the current predicate should imply the 5 invariants.</p>
+<p>The converse won't hold, because you clearly can create a tree however you like.</p>
+<p>And only asserting a subset of the 5 invariants would be an rb tree anymore.</p>
+
+
+
+<a name="240823540"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240823540" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240823540">(May 31 2021 at 11:50)</a>:</h4>
+<p>what 5 invariants? I think ordering and balance, defined above, cover it</p>
+
+
+
+<a name="240823634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240823634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240823634">(May 31 2021 at 11:51)</a>:</h4>
+<p>If there are more invariants, yes they should show up (conjoined in that last <code>balanceWff</code> variant, not as separate constructors)</p>
+
+
+
+<a name="240823730"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240823730" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240823730">(May 31 2021 at 11:52)</a>:</h4>
+<p>The main point I'm making is that this can be done with little impact on the code besides the need to write down what the invariant is; no proofs are required in lean core</p>
+
+
+
+<a name="240824206"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240824206" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240824206">(May 31 2021 at 11:57)</a>:</h4>
+<blockquote>
+<p>The converse won't hold, because you clearly can create a tree however you like.</p>
+</blockquote>
+<p>It's a nontrivial theorem to show that there are trees that satisfy the invariants without being created by some sequence of insertions and deletions (or that there aren't). It's certainly not obvious to me whether it holds or not - you can get quite a lot of trees by carefully ordering the insertions and maybe getting unusual color layouts by adding and removing other values.</p>
+
+
+
+<a name="240824416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240824416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240824416">(May 31 2021 at 11:58)</a>:</h4>
+<p>still, even if the given predicate is correct, because all well formed trees are accessible by some sequence of inserts and deletes, it seems like an unnecessarily hard theorem to deal with when simply stating the real predicate would solve the problem</p>
+
+
+
+<a name="240824997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240824997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240824997">(May 31 2021 at 12:04)</a>:</h4>
+<p>oh, I think the red black trees as implemented also have a black root node, so you need that too</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">|</span> <span class="n">balancedWff</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">RBNode</span> <span class="n">α</span> <span class="n">β</span><span class="o">}</span> <span class="o">:</span> <span class="bp">!</span><span class="n">isRed</span> <span class="n">n</span> <span class="bp">→</span> <span class="o">(</span><span class="n">blackHeight</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="n">isSome</span> <span class="bp">→</span> <span class="n">ordered</span> <span class="n">cmp</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">WellFormed</span> <span class="n">cmp</span> <span class="n">n</span>
+</code></pre></div>
+
+
+
+<a name="240825056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825056">(May 31 2021 at 12:05)</a>:</h4>
+<p>Oh yes, I totally get where you're coming from. On the other hand, I don't see what's hard to prove? Just make a copy of <code>insert</code> call it <code>insert'</code> and you've just given a counterexample? I.e. a different way to build a valid tree.</p>
+<p>Or did you mean to prove that any valid tree is somehow accessible as a construction of the aforementioned operations. Which I agree is non-obvious to say the least. Although, I don't see why you would care? Generally once a tree is valid, you get all the good properties like fast lookups, etc.</p>
+<p>The are the coloring invariants, the root color invariant, the height invariant, sortedness invariant  and the leaf color invariant. All 5 have to hold.</p>
+
+
+
+<a name="240825154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825154">(May 31 2021 at 12:06)</a>:</h4>
+<blockquote>
+<p>Oh yes, I totally get where you're coming from. On the other hand, I don't see what's hard to prove? Just make a copy of insert call it insert' and you've just given a counterexample? I.e. a different way to build a valid tree.</p>
+</blockquote>
+<p>No, because if <code>insert' t x y = insert t x y</code> then it still satisfies <code>insertWff</code></p>
+
+
+
+<a name="240825207"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825207" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825207">(May 31 2021 at 12:07)</a>:</h4>
+<p>similarly, even if the function isn't defined using insert and erase, as long as it is provably equal to some sequence of insert and erase it is still well formed by the current predicate</p>
+
+
+
+<a name="240825370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825370">(May 31 2021 at 12:08)</a>:</h4>
+<blockquote>
+<p>Although, I don't see why you would care? Generally once a tree is valid, you get all the good properties like fast lookups, etc.</p>
+</blockquote>
+<p>The issue is that all operations on <code>RBTree</code> are gated behind this <code>WellFormed</code> predicate that is defined in terms of being accessible by insert and erase. If <code>WellFormed</code> contained the <code>balancedWff</code> variant then you could easily get around the need to prove some complicated accessibility thing by proving well formedness the normal way</p>
+
+
+
+<a name="240825401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825401">(May 31 2021 at 12:09)</a>:</h4>
+<p>Ok, so consider an insertion algorithm that, say always replaces <code>x</code> with <code>y</code> and one that keeps it in the <code>Ordering.Eq</code> case. Now you have two different trees that are both valid, but distinct. And one is never constructable from one algorithm and the other is.</p>
+<p>(We are talking about a case where <code>x = y</code> is not true, but <code>Ordering.Eq x y</code> is.</p>
+
+
+
+<a name="240825435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825435">(May 31 2021 at 12:09)</a>:</h4>
+<p>(note that I'm talking about additions to the <code>RBTree</code> data structure <em>outside</em> the core, where changing the definition of <code>WellFormed</code> isn't an option)</p>
+
+
+
+<a name="240825437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825437">(May 31 2021 at 12:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240825370">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>Although, I don't see why you would care? Generally once a tree is valid, you get all the good properties like fast lookups, etc.</p>
+</blockquote>
+<p>The issue is that all operations on <code>RBTree</code> are gated behind this <code>WellFormed</code> predicate that is defined in terms of being accessible by insert and erase. If <code>WellFormed</code> contained the <code>balancedWff</code> variant then you could easily get around the need to prove some complicated accessibility thing by proving well formedness the normal way</p>
+</blockquote>
+<p>ok, that one, makes a lot of sense.</p>
+
+
+
+<a name="240825643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825643">(May 31 2021 at 12:11)</a>:</h4>
+<p>but then you really want the full set of properties, imo</p>
+
+
+
+<a name="240825657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825657">(May 31 2021 at 12:12)</a>:</h4>
+<p>and I'd drop the empty case, then.</p>
+
+
+
+<a name="240825713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825713">(May 31 2021 at 12:12)</a>:</h4>
+<p>since that one trivially fulfills the complicated invariants.</p>
+
+
+
+<a name="240825718"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825718" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825718">(May 31 2021 at 12:12)</a>:</h4>
+<p>Yeah the empty case is easy to prove</p>
+
+
+
+<a name="240825775"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825775" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825775">(May 31 2021 at 12:13)</a>:</h4>
+<p>I checked wikipedia and it has a list of 5 properties but some are things like "every node is red or black" that don't need a mention</p>
+
+
+
+<a name="240825826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825826">(May 31 2021 at 12:13)</a>:</h4>
+<p>I think <a href="#narrow/stream/270676-lean4/topic/New.20LT.20instance/near/240824997">this</a> is the complete list of invariants</p>
+
+
+
+<a name="240825874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825874">(May 31 2021 at 12:14)</a>:</h4>
+<p>that one not, but the color invariant definitely is needed</p>
+
+
+
+<a name="240825886"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825886" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825886">(May 31 2021 at 12:14)</a>:</h4>
+<p>i.e. red parents have black children.</p>
+
+
+
+<a name="240825907"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825907" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825907">(May 31 2021 at 12:14)</a>:</h4>
+<p>The <code>blackHeight</code> function bakes that in with internal <code>!isRed</code> checks</p>
+
+
+
+<a name="240825995"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240825995" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240825995">(May 31 2021 at 12:15)</a>:</h4>
+<p>It's also possible to write it as an inductive predicate, that might be a bit shorter/cleaner but this one is actually executable which might be useful</p>
+
+
+
+<a name="240826370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240826370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240826370">(May 31 2021 at 12:19)</a>:</h4>
+<p>like so</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Balanced</span> <span class="o">:</span> <span class="n">RBNode</span> <span class="n">α</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">Rbcolor</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">leaf</span> <span class="o">:</span> <span class="n">Balanced</span> <span class="n">leaf</span> <span class="n">black</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="n">red</span> <span class="o">:</span> <span class="n">Balanced</span> <span class="n">l</span> <span class="n">black</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Balanced</span> <span class="n">r</span> <span class="n">black</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Balanced</span> <span class="o">(</span><span class="n">node</span> <span class="n">red</span> <span class="n">l</span> <span class="n">k</span> <span class="n">v</span> <span class="n">r</span><span class="o">)</span> <span class="n">red</span> <span class="n">n</span>
+<span class="bp">|</span> <span class="n">black</span> <span class="o">:</span> <span class="n">Balanced</span> <span class="n">l</span> <span class="n">black</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Balanced</span> <span class="n">r</span> <span class="n">c</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Balanced</span> <span class="o">(</span><span class="n">node</span> <span class="n">black</span> <span class="n">l</span> <span class="n">k</span> <span class="n">v</span> <span class="n">r</span><span class="o">)</span> <span class="n">black</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span>
+
+<span class="bp">...</span>
+  <span class="bp">|</span> <span class="n">balancedWff</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">RBNode</span> <span class="n">α</span> <span class="n">β</span><span class="o">}</span> <span class="o">{</span><span class="n">k</span><span class="o">}</span> <span class="o">:</span> <span class="n">Balanced</span> <span class="n">n</span> <span class="n">black</span> <span class="n">k</span> <span class="bp">→</span> <span class="n">ordered</span> <span class="n">cmp</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">WellFormed</span> <span class="n">cmp</span> <span class="n">n</span>
+</code></pre></div>
+
+
+
+<a name="240826707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240826707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240826707">(May 31 2021 at 12:22)</a>:</h4>
+<p>yeah, that's more or less the option I used when doing the RBTree with types. You can encode those type families too. Makes writing the algorithm a huge pain, though. Doing it as a predicate on the side might be fine option.</p>
+
+
+
+<a name="240826756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240826756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240826756">(May 31 2021 at 12:22)</a>:</h4>
+<p>And if we had a <code>Decidable</code> instance, we can make it executable that way, no?</p>
+
+
+
+<a name="240826928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240826928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240826928">(May 31 2021 at 12:24)</a>:</h4>
+<p>Yes, you can get the best of both worlds by adding decidability instances</p>
+
+
+
+<a name="240827032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827032">(May 31 2021 at 12:25)</a>:</h4>
+<p>although <code>blackHeight</code> is able to decide <code>\exists k c, Balanced t c k</code> which is a bit less obvious with the inductive version</p>
+
+
+
+<a name="240827242"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827242" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827242">(May 31 2021 at 12:27)</a>:</h4>
+<p>For implementing the programming stuff, you wouldn't need to interact with these inductive types at all. It's only when you need to prove something is well formed that it comes up</p>
+
+
+
+<a name="240827286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827286">(May 31 2021 at 12:27)</a>:</h4>
+<p>and for functions defined in core, they can cheat by using the other constructors and punt on the well formedness problem</p>
+
+
+
+<a name="240827348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827348">(May 31 2021 at 12:28)</a>:</h4>
+<p>yes, if it's a predicate aside from the data structure. In my case, I had them weaved in. As in I had height index and a color index.</p>
+
+
+
+<a name="240827365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827365">(May 31 2021 at 12:28)</a>:</h4>
+<p>now by construction you are balanced.</p>
+
+
+
+<a name="240827394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827394">(May 31 2021 at 12:28)</a>:</h4>
+<p>but that means when you want to temporarily violate the invariants you need these intermediate types.</p>
+
+
+
+<a name="240827396"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827396" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827396">(May 31 2021 at 12:28)</a>:</h4>
+<p>it's not pretty.</p>
+
+
+
+<a name="240827437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827437">(May 31 2021 at 12:29)</a>:</h4>
+<p>I've got an implementation of this stuff in a side project, complete with all the proofs</p>
+
+
+
+<a name="240827464"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827464" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827464">(May 31 2021 at 12:29)</a>:</h4>
+<p>you need some "broken invariant" invariants to deal with insert and erase</p>
+
+
+
+<a name="240827491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827491">(May 31 2021 at 12:29)</a>:</h4>
+<p>yeah, pretty messy :-)</p>
+
+
+
+<a name="240827579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827579">(May 31 2021 at 12:30)</a>:</h4>
+<p>but I like that the proposed approach means that core doesn't have to deal with any of that, it can be in mathlib where the supporting infrastructure for the proofs is more easily available</p>
+
+
+
+<a name="240827666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240827666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240827666">(May 31 2021 at 12:31)</a>:</h4>
+<p>sooo... how about we define the inductive pred, then and replace the empty ctor with one, where you give a proof of the predicate?</p>
+
+
+
+<a name="240828803"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240828803" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240828803">(May 31 2021 at 12:41)</a>:</h4>
+<p>Ditto for the <code>WellFounded</code> predicates in <code>HashMap</code>, <code>HashSet</code>, <code>BinomialHeap</code>, and <code>PrefixTree</code>, which use a similar technique. LMK if you want me to send the invariants for these structures</p>
+
+
+
+<a name="240830173"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830173" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830173">(May 31 2021 at 12:54)</a>:</h4>
+<p>please make a bug for now and I'll bring up the context next time I have chat with leo in the next few days. After that, I think you can just make the pr, if that works for you.</p>
+
+
+
+<a name="240830548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830548">(May 31 2021 at 12:58)</a>:</h4>
+<p>Just to be clear, with these additional cases in the <code>WellFounded</code> predicates, we should be able to prove that lazy versions imply the invariant-based ones, correct?</p>
+
+
+
+<a name="240830638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830638">(May 31 2021 at 12:59)</a>:</h4>
+<p>Yes, although those proofs will often require additional assumptions, for example that the <code>cmp</code> operation is "lawful" (reflexive, transitive, symmetric)</p>
+
+
+
+<a name="240830666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830666">(May 31 2021 at 12:59)</a>:</h4>
+<p>that's another good reason to keep it out of core</p>
+
+
+
+<a name="240830810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830810">(May 31 2021 at 13:01)</a>:</h4>
+<p>then, that's actually quite nice... Because we show that the internal operations build up something that may or may not be a valid tree using applications of those algorithms. And if for a particular<code>\alpha</code> and <code>Ord \alpha</code> you know lawfulness, you can lift the statement into a proper well-formedness proof.</p>
+
+
+
+<a name="240830815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830815">(May 31 2021 at 13:01)</a>:</h4>
+<p>I like it.</p>
+
+
+
+<a name="240830850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830850">(May 31 2021 at 13:01)</a>:</h4>
+<p>I'll write up the issue</p>
+
+
+
+<a name="240830867"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/New%20LT%20instance/near/240830867" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/New.20LT.20instance.html#240830867">(May 31 2021 at 13:01)</a>:</h4>
+<p>thx</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,64 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/partial.20recursive.20def.3A.20failed.20to.20show.20inhabited.20non.20empty.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/partial.20recursive.20def.3A.20failed.20to.20show.20inhabited.20non.20empty.html">partial recursive def: failed to show inhabited non empty</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="291307506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/partial%20recursive%20def%3A%20failed%20to%20show%20inhabited%20non%20empty/near/291307506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/partial.20recursive.20def.3A.20failed.20to.20show.20inhabited.20non.20empty.html#291307506">(Jul 29 2022 at 10:56)</a>:</h4>
+<p>We're getting an issue with <span class="user-mention" data-user-id="515324">@An Qi Zhang</span> where we have a definition that's marked as <code>partial</code> (because it is pretty complex to show termination) and recursive, but works by translating from one recursive type into a different recursive type. Lean won't compile it stating <code>failed to compile partial definition 'someFunction', failed to show that type is inhabited and non empty</code>.  Here's an MWE:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+  <span class="bp">|</span> <span class="n">foo1</span> <span class="o">:</span> <span class="n">Foo</span>
+  <span class="bp">|</span> <span class="n">foo2</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="n">bar1</span> <span class="o">:</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="n">bar2</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">footobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">foo1</span> <span class="bp">=&gt;</span> <span class="n">Bar.bar1</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">foo2</span> <span class="n">f</span> <span class="bp">=&gt;</span> <span class="n">footobar</span> <span class="n">f</span>
+</code></pre></div>
+<p>In this MWE, if we remove <code>partial</code> Lean can figure out the WF recursion and is happy to accept it, but in our real case it's not that simple. I imagine then marking <code>footobar</code> as partial here shouldn't produce that error though, right?</p>
+
+
+
+<a name="291308090"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/partial%20recursive%20def%3A%20failed%20to%20show%20inhabited%20non%20empty/near/291308090" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/partial.20recursive.20def.3A.20failed.20to.20show.20inhabited.20non.20empty.html#291308090">(Jul 29 2022 at 11:04)</a>:</h4>
+<p>This is due to the implementation of partial, what Lean will do internally is translate this into an <code>opaque footobar : Foo -&gt; Bar</code> with an <code>implementedBy</code> attribute pointing to an <code>unsafe def</code> that contains your actual code. in order for <code>opaque footobar</code> to be valid you have to provide proof that the type is inhabited, otherwise you are basically writing an axiom. So what you have to do here is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Foo</span>
+  <span class="bp">|</span> <span class="n">foo1</span> <span class="o">:</span> <span class="n">Foo</span>
+  <span class="bp">|</span> <span class="n">foo2</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="n">bar1</span> <span class="o">:</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="n">bar2</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+  <span class="n">deriving</span> <span class="n">Inhabited</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">footobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">foo1</span> <span class="bp">=&gt;</span> <span class="n">Bar.bar1</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">foo2</span> <span class="n">f</span> <span class="bp">=&gt;</span> <span class="n">footobar</span> <span class="n">f</span>
+</code></pre></div>
+
+
+
+<a name="291309621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/partial%20recursive%20def%3A%20failed%20to%20show%20inhabited%20non%20empty/near/291309621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/partial.20recursive.20def.3A.20failed.20to.20show.20inhabited.20non.20empty.html#291309621">(Jul 29 2022 at 11:27)</a>:</h4>
+<p>The argument for why this is a correct error to do is that basically your <code>unsafe def</code> can do whatever it wants and magically produce terms of arbitrary type out of thin air with unsafe cast operations which could corrupt consistency of the system if the resulting type wasn't shown to be inhabited in a safe way.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

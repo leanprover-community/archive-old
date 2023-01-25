@@ -1,0 +1,73 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Checking.20proper.20TC.20failure.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Checking.20proper.20TC.20failure.html">Checking proper TC failure</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="265508528"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Checking%20proper%20TC%20failure/near/265508528" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Checking.20proper.20TC.20failure.html#265508528">(Dec 20 2021 at 00:16)</a>:</h4>
+<p>Is there a way to check for proper TC failure? There is <code>#check_failure</code> but that succeeds even on a timeout error. I'm working and debugging rather complicated set of classes and I often accidentally write an instance that causes an infinite loop and I no longer have a proper TC failure. I would love to have unit test that checks for proper failures in some basic cases.</p>
+
+
+
+<a name="295724490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Checking%20proper%20TC%20failure/near/295724490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Checking.20proper.20TC.20failure.html#295724490">(Aug 28 2022 at 15:44)</a>:</h4>
+<p>After a long time I got back to this. Here is my attempt: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span> <span class="n">Term</span> <span class="n">Meta</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">check_tc_failure</span><span class="o">)</span> <span class="s2">"#check_tc_failure"</span> <span class="n">term</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="kd">@[commandElab check_tc_failure]</span>
+<span class="kd">def</span> <span class="n">checkTCFailureImpl</span> <span class="o">:</span> <span class="n">CommandElab</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">stx</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="n">try</span>
+    <span class="k">let</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">liftTermElabM</span> <span class="o">(</span><span class="n">withoutErrToSorry</span> <span class="o">(</span><span class="n">elabTerm</span> <span class="n">stx</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span> <span class="n">none</span><span class="o">))</span>
+    <span class="n">logError</span> <span class="s2">"Unexpected success!"</span>
+  <span class="n">catch</span> <span class="n">e</span> <span class="bp">=&gt;</span>
+    <span class="n">logInfo</span> <span class="s2">"FAILURE"</span>
+    <span class="n">logInfo</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{← e.toMessageData.toString}"</span>
+
+<span class="kd">class</span> <span class="n">C</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">C</span> <span class="mi">0</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+<span class="kd">def</span> <span class="n">funC</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">[</span><span class="n">C</span> <span class="n">n</span><span class="o">]</span> <span class="o">:=</span> <span class="n">n</span>
+
+<span class="c1">-- This behaves as expected</span>
+<span class="bp">#</span><span class="n">check_tc_failure</span> <span class="n">funC</span> <span class="mi">0</span>
+<span class="bp">#</span><span class="n">check_tc_failure</span> <span class="n">funC</span> <span class="mi">1</span>
+
+<span class="kd">class</span> <span class="n">D</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+<span class="kd">instance</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">[</span><span class="n">D</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)]</span> <span class="o">:</span> <span class="n">D</span> <span class="n">n</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+<span class="kd">def</span> <span class="n">funD</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">[</span><span class="n">D</span> <span class="n">n</span><span class="o">]</span> <span class="o">:=</span> <span class="n">n</span>
+
+<span class="c1">-- I want this to fail as it reaches max heartbeats</span>
+<span class="bp">#</span><span class="n">check_tc_failure</span> <span class="o">(</span><span class="n">funD</span> <span class="mi">0</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">E</span> <span class="o">(</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+<span class="kd">instance</span> <span class="o">[</span><span class="n">E</span> <span class="n">n</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">E</span> <span class="n">n</span> <span class="o">(</span><span class="n">m</span><span class="bp">+</span><span class="mi">1</span><span class="o">)]</span> <span class="o">:</span> <span class="n">E</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="n">m</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+<span class="kd">def</span> <span class="n">funE</span> <span class="o">(</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">[</span><span class="n">E</span> <span class="n">n</span> <span class="n">m</span><span class="o">]</span> <span class="o">:=</span> <span class="n">n</span><span class="bp">+</span><span class="n">m</span>
+
+<span class="c1">-- This should fail because we are hitting maxSize</span>
+<span class="bp">#</span><span class="n">check_tc_failure</span> <span class="n">funE</span> <span class="mi">7</span> <span class="mi">0</span>
+
+<span class="c1">-- This should succeed as we have searched through everything</span>
+<span class="kd">set_option</span> <span class="n">synthInstance.maxSize</span> <span class="mi">300</span> <span class="k">in</span>
+<span class="bp">#</span><span class="n">check_tc_failure</span> <span class="n">funE</span> <span class="mi">7</span> <span class="mi">0</span>
+</code></pre></div>
+<p>However, I still do not know how to figure out if there was a proper failure/reaching max heartbeat/reaching max size. I could check the string of the error but I do not like that.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

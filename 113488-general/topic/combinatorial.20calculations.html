@@ -1,0 +1,377 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/combinatorial.20calculations.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html">combinatorial calculations</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="303182839"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303182839" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303182839">(Oct 10 2022 at 00:39)</a>:</h4>
+<p>This week, I want to show my students how to do "easy" combinatorial calculations with fintypes and finsets, so I gave this one a try:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.big_operators.fin</span>
+<span class="kn">import</span> <span class="n">tactic</span>
+
+<span class="kn">open</span> <span class="n">finset</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">card</span> <span class="o">(</span><span class="n">univ.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="o">:</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">×</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">))</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span> <span class="o">:=</span>
+<span class="bp">...</span>
+</code></pre></div>
+<p>To my dismay, it took me 30 lines. Can anyone show me the canonical way to do this?</p>
+
+
+
+<a name="303184979"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303184979" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303184979">(Oct 10 2022 at 01:19)</a>:</h4>
+<div class="spoiler-block"><div class="spoiler-header">
+<p>17 lines</p>
+</div><div class="spoiler-content" aria-hidden="true">
+<div class="codehilite"><pre><span></span><code>import data.sym.card
+
+namespace nat
+variables {a b c : ℕ}
+
+protected lemma eq_div_of_mul_eq_left (hb : 0 &lt; b) (h : a * b = c) : a = c / b :=
+(nat.div_eq_of_eq_mul_left hb h.symm).symm
+
+protected lemma eq_div_of_mul_eq_right (hb : 0 &lt; b) (h : b * a = c) : a = c / b :=
+(nat.div_eq_of_eq_mul_right hb h.symm).symm
+
+end nat
+
+open finset
+
+example (n : ℕ) :
+  card (univ.filter (λ p : fin (n + 1) × fin (n + 1), p.1 &lt; p.2)) = n * (n + 1) / 2 :=
+begin
+  refine nat.eq_div_of_mul_eq_left zero_lt_two _,
+  have : (univ.filter (λ p : fin (n + 1) × fin (n + 1), p.1 &lt; p.2)).card =
+    (univ.filter (λ p : fin (n + 1) × fin (n + 1), p.2 &lt; p.1)).card,
+  { rw ←finset.card_map ⟨prod.swap, prod.swap_injective⟩,
+    congr&#39; 1,
+    convert map_filter.symm,
+    { refl },
+    { simp },
+    { apply_instance } },
+  rw mul_two,
+  nth_rewrite 1 this,
+  rw [←card_union_eq, ←filter_or],
+  have : (λ (a : fin (n + 1) × fin (n + 1)), a.fst &lt; a.snd ∨ a.snd &lt; a.fst) = λ a, a.1 ≠ a.2 :=
+    funext (λ _, propext lt_or_lt_iff_ne),
+  simp_rw [this, ←univ_product_univ],
+  exact (off_diag_card _).trans (by simp [add_mul]),
+  { exact disjoint_filter.2 (λ x _, lt_asymm) }
+end
+</code></pre></div>
+</div></div>
+
+
+
+<a name="303185120"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303185120" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303185120">(Oct 10 2022 at 01:23)</a>:</h4>
+<p>The pain points here are</p>
+<ul>
+<li><code>simp_rw</code> isn't smart enough to rewrite <code>p</code> in the <code>decidable_pred p</code> of <code>finset.filter</code>, so you need to explicit it more</li>
+<li><a href="https://leanprover-community.github.io/mathlib_docs/find/finset.map_filter">docs#finset.map_filter</a> doesn't seem to have a convenient variant for <code>equiv</code></li>
+</ul>
+
+
+
+<a name="303185205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303185205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303185205">(Oct 10 2022 at 01:24)</a>:</h4>
+<p>Without those pain points I would be at 7 lines.</p>
+
+
+
+<a name="303185386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303185386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303185386">(Oct 10 2022 at 01:28)</a>:</h4>
+<p>That solution is still surprisingly difficult, and it requires knowing about <code>off_diag</code>. My lower-tech solution is here:</p>
+<div class="spoiler-block"><div class="spoiler-header">
+<p>longer proof</p>
+</div><div class="spoiler-content" aria-hidden="true">
+<p>import algebra.big_operators.fin<br>
+import tactic</p>
+<p>open finset</p>
+<p>example (n : ℕ) :<br>
+  card (univ.filter (λ p : fin (n + 1) × fin (n + 1), p.1 &lt; p.2)) = n * (n + 1) / 2 :=<br>
+begin<br>
+  have : univ.filter (λ p : fin (n + 1) × fin (n + 1), p.1 &lt; p.2) =<br>
+    finset.bUnion univ<br>
+      (λ j : fin (n + 1), finset.image (λ i : fin j, (⟨i.val, i.property.trans j.property⟩, j)) univ),<br>
+    begin<br>
+      ext x, simp [prod.ext_iff], split,<br>
+      { intro h, use ⟨x.fst, h⟩, simp },<br>
+      rintros ⟨x', h⟩,<br>
+      rw ←h,<br>
+      apply x'.property<br>
+    end,<br>
+  rw [this, finset.card_bUnion],<br>
+  clear this, swap,<br>
+  { intros x _ y _ xney z,<br>
+    simp only [inf_eq_inter, mem_inter, mem_image, mem_univ, prod.ext_iff],<br>
+    rintros ⟨⟨_, _, _, rfl⟩, ⟨_, _, _, rfl⟩⟩,<br>
+    contradiction },<br>
+  transitivity ((univ : finset (fin (n + 1))).sum (λ u, ↑u)),<br>
+  { congr,<br>
+    ext x,<br>
+    rw [finset.card_image_of_injective],<br>
+    { rw finset.card_fin },<br>
+    intros i1 i2, simp [fin.ext_iff] },<br>
+  symmetry,<br>
+  apply nat.div_eq_of_eq_mul_left (show 0 &lt; 2, by norm_num),<br>
+  induction n with n ih,<br>
+  { simp },<br>
+  rw [fin.sum_univ_cast_succ, add_mul],<br>
+  simp only [fin.coe_cast_succ, fin.coe_last],<br>
+  rw [←ih, nat.succ_eq_add_one],<br>
+  ring<br>
+end</p>
+</div></div>
+
+
+
+<a name="303185493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303185493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303185493">(Oct 10 2022 at 01:30)</a>:</h4>
+<p>Have you tried induction directly? I doubt it will be shorter, but who knows. The advantage is that the equivalences you need to prove should be easier.</p>
+
+
+
+<a name="303186295"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303186295" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303186295">(Oct 10 2022 at 01:47)</a>:</h4>
+<p>I started, and got tired... but maybe I'll try again tomorrow.</p>
+
+
+
+<a name="303206406"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303206406" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303206406">(Oct 10 2022 at 07:02)</a>:</h4>
+<p>Jeremy I think we have different opinions on this but I'll say again that I would never be showing nat.div to undergraduates simply on the basis that it's not the function they think it is. I always coerce to rat first, where clearing denominators doesn't require nat-specific tricks.</p>
+
+
+
+<a name="303206489"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303206489" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303206489">(Oct 10 2022 at 07:03)</a>:</h4>
+<p>(btw you can write code in spoilers using four backticks)</p>
+
+
+
+<a name="303206595"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303206595" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303206595">(Oct 10 2022 at 07:04)</a>:</h4>
+<p>I would expect this to be hard because the obvious proof is by picture :-(</p>
+
+
+
+<a name="303206604"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303206604" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303206604">(Oct 10 2022 at 07:04)</a>:</h4>
+<p>(and you can syntax highlight that code if you use <code>lean</code> after the four backticks)</p>
+
+
+
+<a name="303207152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303207152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303207152">(Oct 10 2022 at 07:10)</a>:</h4>
+<p>Is the proof easier with <code>rat.div</code>? Can <code>qify</code> easily move from the <code>nat.div</code> to the <code>rat.div</code> version?</p>
+
+
+
+<a name="303226223"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303226223" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303226223">(Oct 10 2022 at 09:33)</a>:</h4>
+<p>The proof is not easier with <code>rat.div</code> (it is slightly harder), there is no pain in the proof from using <code>nat.div</code> (but I understand that you might want to avoid it for pedagogical reasons).</p>
+
+
+
+<a name="303226618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303226618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303226618">(Oct 10 2022 at 09:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="110865">@Jeremy Avigad</span> your first <code>have</code> can be proven by <code>simp</code> with a little more information, by</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">{</span> <span class="n">ext</span> <span class="n">x</span><span class="o">,</span> <span class="n">simp</span> <span class="o">[</span><span class="n">prod.ext_iff</span><span class="o">],</span> <span class="n">simp</span> <span class="o">[</span><span class="n">fin.exists_iff</span><span class="o">,</span> <span class="n">fin.ext_iff</span><span class="o">]</span> <span class="o">},</span>
+</code></pre></div>
+<p>or as a single simp call, by</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">{</span> <span class="n">simp</span> <span class="o">[</span><span class="n">finset.ext_iff</span><span class="o">,</span> <span class="n">prod.ext_iff</span><span class="o">,</span> <span class="n">fin.exists_iff</span><span class="o">,</span> <span class="n">fin.ext_iff</span><span class="o">,</span> <span class="bp">@</span><span class="n">and.left_comm</span> <span class="n">_</span> <span class="o">(</span><span class="n">_</span> <span class="bp">=</span> <span class="n">_</span><span class="o">)]</span> <span class="o">},</span>
+</code></pre></div>
+<p>Moreover, if you prefer a version with fewer casts, you can prove "the same" lemma using <a href="https://leanprover-community.github.io/mathlib_docs/find/finset.range">docs#finset.range</a>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">card</span> <span class="o">((</span><span class="n">range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">×ˢ</span> <span class="n">range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">))</span><span class="bp">.</span><span class="n">filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span><span class="o">,</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">))</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="o">(</span><span class="n">range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="bp">×ˢ</span> <span class="n">range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">))</span><span class="bp">.</span><span class="n">filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span><span class="o">,</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">)</span> <span class="bp">=</span>
+    <span class="o">(</span><span class="n">finset.range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">))</span><span class="bp">.</span><span class="n">bUnion</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">j</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">,</span> <span class="o">(</span><span class="n">range</span> <span class="n">j</span><span class="o">)</span><span class="bp">.</span><span class="n">image</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="o">(</span><span class="n">i</span><span class="o">,</span> <span class="n">j</span><span class="o">)),</span>
+  <span class="o">{</span> <span class="n">simp</span> <span class="o">[</span><span class="n">finset.ext_iff</span><span class="o">,</span> <span class="n">prod.ext_iff</span><span class="o">,</span> <span class="bp">@</span><span class="n">and.left_comm</span> <span class="n">_</span> <span class="o">(</span><span class="n">_</span> <span class="bp">=</span> <span class="n">_</span><span class="o">),</span> <span class="n">iff_true_intro</span> <span class="n">lt_trans</span><span class="o">]</span> <span class="o">},</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">this</span><span class="o">,</span> <span class="n">finset.card_bUnion</span><span class="o">]</span><span class="bp">;</span> <span class="n">clear</span> <span class="n">this</span><span class="o">,</span>
+  <span class="n">swap</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">intros</span> <span class="n">x</span> <span class="n">_</span> <span class="n">y</span> <span class="n">_</span> <span class="n">xney</span> <span class="n">z</span><span class="o">,</span>
+    <span class="n">simp_rw</span> <span class="o">[</span><span class="n">inf_eq_inter</span><span class="o">,</span> <span class="n">mem_inter</span><span class="o">,</span> <span class="n">mem_image</span><span class="o">,</span> <span class="n">mem_range</span><span class="o">,</span> <span class="n">prod.ext_iff</span><span class="o">],</span>
+    <span class="n">rintros</span> <span class="o">⟨⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩⟩,</span>
+    <span class="n">contradiction</span> <span class="o">},</span>
+  <span class="n">transitivity</span> <span class="o">(</span><span class="bp">∑</span> <span class="n">i</span> <span class="k">in</span> <span class="n">range</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">),</span> <span class="n">i</span><span class="o">),</span>
+  <span class="o">{</span> <span class="n">congr</span><span class="o">,</span>
+    <span class="n">ext</span> <span class="n">x</span><span class="o">,</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">finset.card_image_of_injective</span><span class="o">,</span> <span class="n">card_range</span><span class="o">],</span>
+    <span class="n">intros</span> <span class="n">i1</span> <span class="n">i2</span><span class="o">,</span> <span class="n">simp</span> <span class="o">},</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">finset.sum_range_id</span><span class="o">,</span> <span class="n">add_tsub_cancel_right</span><span class="o">,</span> <span class="n">mul_comm</span><span class="o">],</span>
+  <span class="c1">-- if you want to do the induction proof:</span>
+  <span class="c1">-- symmetry,</span>
+  <span class="c1">-- apply nat.div_eq_of_eq_mul_left (show 0 &lt; 2, by norm_num),</span>
+  <span class="c1">-- induction n with n ih,</span>
+  <span class="c1">-- { simp },</span>
+  <span class="c1">-- rw [sum_range_succ, add_mul, ← ih, nat.succ_eq_add_one],</span>
+  <span class="c1">-- ring</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="303237667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303237667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303237667">(Oct 10 2022 at 10:58)</a>:</h4>
+<p>This is a great example of something which should be easy <span class="user-mention" data-user-id="240862">@Oliver Nash</span></p>
+
+
+
+<a name="303289344"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303289344" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303289344">(Oct 10 2022 at 16:19)</a>:</h4>
+<p>Thanks! I take Floris' proof to be the canonical formalization of "it's just adding up the numbers from 1 to n." Over time, I'd like to see MIL grow with chapters that show people the idiomatic ways to carry out proofs in different areas, and this is perfect for a chapter on discrete math and combinatorics. Yaël's formalization is a pretty good formalization of the picture proof, and it is worth knowing the best way to formalize that too.</p>
+<p><span class="user-mention" data-user-id="110038">@Kevin Buzzard</span>, I have no trouble telling students about division on nat and int. The class is about evenly split between math students and computer science students, and the computer science students are perfectly comfortable with div and mod on integers. Actually, mathematics students are generally familiar with it too, but in any case it only takes a minute to tell them what it is. We don't have to worry about the computer science corrupting the math students. They are adults. They can handle it. I <em>do</em> tell them that, for practical reasons, it is generally best to avoid subtraction on nat and division on nat and int, and you are right that in a library it might be better to state the version without division.</p>
+<p>This is a teaching moment in another sense: I often tell students that Zulip is a good place to talk about things they are working on. I'll show them my original proof and then the ones by Yaël and Floris to underscore that point.</p>
+
+
+
+<a name="303296751"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303296751" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joanna Choules <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303296751">(Oct 10 2022 at 17:09)</a>:</h4>
+<p>This is a proof – also summation-based – that I found; a little messy* but fairly short:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.big_operators.fin</span>
+<span class="kn">import</span> <span class="n">algebra.big_operators.intervals</span>
+<span class="kn">import</span> <span class="n">tactic</span>
+
+<span class="kn">open</span> <span class="n">finset</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">card</span> <span class="o">(</span><span class="n">univ.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="o">:</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">×</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">))</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">card_eq_sum_ones</span><span class="o">,</span> <span class="n">sum_filter</span><span class="o">,</span>
+      <span class="n">sum_finset_product_right</span> <span class="n">_</span> <span class="o">(</span><span class="bp">@</span><span class="n">univ</span> <span class="n">_</span> <span class="o">(</span><span class="n">fin.fintype</span> <span class="n">_</span><span class="o">))</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="bp">@</span><span class="n">univ</span> <span class="n">_</span> <span class="o">(</span><span class="n">fin.fintype</span> <span class="n">_</span><span class="o">))],</span>
+  <span class="n">swap</span><span class="o">,</span> <span class="o">{</span> <span class="n">simp</span><span class="o">,</span> <span class="o">},</span>
+  <span class="n">simp_rw</span> <span class="o">[</span><span class="n">sum_boole</span><span class="o">,</span> <span class="n">nat.cast_id</span><span class="o">],</span>
+  <span class="n">conv</span> <span class="o">{</span> <span class="n">to_lhs</span><span class="o">,</span>
+         <span class="n">congr</span><span class="o">,</span>
+         <span class="n">skip</span><span class="o">,</span>
+         <span class="n">funext</span><span class="o">,</span>
+         <span class="n">rw</span> <span class="o">[</span><span class="n">filter_gt_eq_Iio</span><span class="o">,</span> <span class="n">Iio_eq_Ico</span><span class="o">,</span> <span class="n">fin.card_Ico</span><span class="o">,</span> <span class="n">fin.bot_eq_zero</span><span class="o">,</span> <span class="n">fin.coe_zero</span><span class="o">,</span> <span class="n">tsub_zero</span><span class="o">,</span>
+             <span class="bp">←</span><span class="n">id.def</span> <span class="bp">↑</span><span class="n">x</span><span class="o">],</span> <span class="o">},</span>
+  <span class="n">rw</span> <span class="n">fin.sum_univ_eq_sum_range</span><span class="o">,</span>
+  <span class="n">simp_rw</span> <span class="n">id.def</span><span class="o">,</span>
+  <span class="n">rw</span> <span class="n">finset.sum_range_id</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">mul_comm</span><span class="o">],</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>* I would especially have liked to trim down the <code>conv</code> block a bit by using <code>conv in (card _)</code>, but for some reason this caused the rewrites not to stick.</p>
+
+
+
+<a name="303301050"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303301050" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303301050">(Oct 10 2022 at 17:35)</a>:</h4>
+<p>I couldn't reproduce the issue yo mentioned about the conv block, the following golf works for me:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.big_operators.fin</span>
+<span class="kn">import</span> <span class="n">algebra.big_operators.intervals</span>
+<span class="kn">import</span> <span class="n">tactic</span>
+
+<span class="kn">open</span> <span class="n">finset</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">card</span> <span class="o">(</span><span class="n">univ.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="o">:</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">×</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">))</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">card_eq_sum_ones</span><span class="o">,</span> <span class="n">sum_filter</span><span class="o">,</span>
+      <span class="n">sum_finset_product_right</span> <span class="n">_</span> <span class="o">(</span><span class="bp">@</span><span class="n">univ</span> <span class="n">_</span> <span class="o">(</span><span class="n">fin.fintype</span> <span class="n">_</span><span class="o">))</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="bp">@</span><span class="n">univ</span> <span class="n">_</span> <span class="o">(</span><span class="n">fin.fintype</span> <span class="n">_</span><span class="o">))],</span>
+  <span class="n">swap</span><span class="o">,</span> <span class="o">{</span> <span class="n">simp</span><span class="o">,</span> <span class="o">},</span>
+  <span class="n">simp_rw</span> <span class="o">[</span><span class="n">sum_boole</span><span class="o">,</span> <span class="n">nat.cast_id</span><span class="o">],</span>
+  <span class="n">conv</span> <span class="k">in</span> <span class="o">(</span><span class="n">card</span> <span class="n">_</span><span class="o">)</span> <span class="o">{</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">filter_gt_eq_Iio</span><span class="o">,</span> <span class="n">Iio_eq_Ico</span><span class="o">,</span> <span class="n">fin.card_Ico</span><span class="o">,</span> <span class="n">fin.bot_eq_zero</span><span class="o">,</span> <span class="n">fin.coe_zero</span><span class="o">],</span> <span class="o">},</span>
+  <span class="n">erw</span> <span class="n">fin.sum_univ_eq_sum_range</span> <span class="n">id</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">finset.sum_range_id</span><span class="o">,</span> <span class="n">mul_comm</span><span class="o">],</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="303305029"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303305029" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joanna Choules <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303305029">(Oct 10 2022 at 18:06)</a>:</h4>
+<p>Huh, and now I can't reproduce it either. I guess it must've only been when I was focusing <code>filter _ _</code>.</p>
+
+
+
+<a name="303308544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303308544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303308544">(Oct 10 2022 at 18:33)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">card</span> <span class="o">(</span><span class="n">univ.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span> <span class="o">:</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">×</span> <span class="n">fin</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">p.1</span> <span class="bp">&lt;</span> <span class="n">p.2</span><span class="o">))</span> <span class="bp">=</span> <span class="n">n</span> <span class="bp">*</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">/</span> <span class="mi">2</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span><span class="n">univ_product_univ</span><span class="o">,</span> <span class="n">card_eq_sum_ones</span><span class="o">,</span> <span class="n">sum_filter</span><span class="o">,</span> <span class="n">sum_product_right</span><span class="o">],</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">sum_boole</span><span class="o">,</span> <span class="n">nat.cast_id</span><span class="o">,</span> <span class="n">filter_gt_eq_Iio</span><span class="o">,</span> <span class="n">fin.card_Iio</span><span class="o">],</span>
+  <span class="n">erw</span> <span class="n">fin.sum_univ_eq_sum_range</span> <span class="n">id</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">finset.sum_range_id</span><span class="o">,</span> <span class="n">mul_comm</span><span class="o">],</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="303308560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303308560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303308560">(Oct 10 2022 at 18:33)</a>:</h4>
+<p>I think the most annoying thing here is that I need to do this <code>erw</code> step</p>
+
+
+
+<a name="303309991"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303309991" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303309991">(Oct 10 2022 at 18:44)</a>:</h4>
+<p>I guess "how few lines can an expert get it down to" is different to "do we expect an undergraduate to be able to knock this off easily" though. It would be lovely if this were easy even if you weren't an expert.</p>
+
+
+
+<a name="303310287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303310287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303310287">(Oct 10 2022 at 18:46)</a>:</h4>
+<p>Agreed - I've done many calculations like this, especially for the unit fractions project</p>
+
+
+
+<a name="303310479"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303310479" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303310479">(Oct 10 2022 at 18:48)</a>:</h4>
+<p>It also depends on whether this expertise is teachable. Bhavik, do you think you could write a MiL chapter about combinatorics that could allow people to learn how to do such proofs efficiently?</p>
+
+
+
+<a name="303310686"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303310686" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303310686">(Oct 10 2022 at 18:50)</a>:</h4>
+<p>I could try, but I'm not confident yet that it'd be very helpful - I'd need to think seriously first about if there are techniques useful to teach or if it's just familiarity with what's in the library and experience, which might be harder to put into words</p>
+
+
+
+<a name="303310760"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303310760" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303310760">(Oct 10 2022 at 18:50)</a>:</h4>
+<p>That's exactly the question indeed.</p>
+
+
+
+<a name="303312244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303312244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303312244">(Oct 10 2022 at 19:03)</a>:</h4>
+<p><span class="user-mention" data-user-id="458865">@Thomas Bloom</span> I think you had a cheat sheet for some tricks we used a lot, though I don't remember how many of them apply here?</p>
+
+
+
+<a name="303333217"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303333217" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303333217">(Oct 10 2022 at 22:27)</a>:</h4>
+<p>I could certainly put together such a tutorial. I just had to teach this at Kevin's workshop.</p>
+
+
+
+<a name="303343500"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/combinatorial%20calculations/near/303343500" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bhavik Mehta <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/combinatorial.20calculations.html#303343500">(Oct 11 2022 at 00:32)</a>:</h4>
+<p>Yeah I had to teach similar stuff, but I think it's hard to condense this into a useful tutorial</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,153 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/HashMap.20moved.20to.20std.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html">HashMap moved to std</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="302504534"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302504534" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302504534">(Oct 05 2022 at 17:11)</a>:</h4>
+<p>I see <code>std</code> now has its own implementation of <code>HashMap</code>, <code>Std.HashMap</code>, distinct from <code>Lean.HashMap</code>. What's the advantage of this, compared to changing the implementation in core (and adding functions/lemmas in <code>std</code> as necessary)? I feel like having two types which fulfil the same purposes and have almost the same implementation is not ideal.</p>
+
+
+
+<a name="302515757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302515757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302515757">(Oct 05 2022 at 18:10)</a>:</h4>
+<p>I think the reasoning is that Std.HashMap is intended to be more stable than Lean.HashMap. Having people rely on the Lean one makes it more difficult if the compiler devs need to make changes.  Also there's some issues in the bootstrap that affect its API, which Std.HashMap can avoid since it's not in the bootstrap</p>
+
+
+
+<a name="302616270"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302616270" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302616270">(Oct 06 2022 at 09:45)</a>:</h4>
+<p>I'm sure you all have given this issue more consideration than I have, but I already see myself wanting to use some library (which uses <code>Std.HashMap</code>) for metaprogramming (which uses <code>Lean.HashMap</code>). At that point, my options are</p>
+<ul>
+<li>conversions back and forth, probably linear-time;</li>
+<li>really unsafe casts if the representations are sufficiently similar;</li>
+<li>duplicating the relevant part of the library's API for <code>Lean.HashMap</code>.</li>
+</ul>
+<p>I would take occasional breakage over this.</p>
+<p>Out of curiosity, what are the bootstrapping concerns?</p>
+
+
+
+<a name="302676970"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302676970" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302676970">(Oct 06 2022 at 15:19)</a>:</h4>
+<p>I'm not super familiar with the metaprogramming API, does it explicitly expose hashmaps somewhere?</p>
+
+
+
+<a name="302689104"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302689104" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302689104">(Oct 06 2022 at 16:11)</a>:</h4>
+<p>Yes. For example, <code>simp</code> now collects used simp lemmas and these are stored in a <code>HashMap</code>. More importantly, <code>PersistentHashMap</code>s, which I guess should also move to <code>std</code> by the same reasoning, are used to implement all the core data structures.</p>
+<p>In general, the metaprogramming API is now the entire non-<code>private</code> compiler API. So whatever appears in a type signature there is exposed. (Technically, defeq also makes all implementations part of the API, but let's not go there.)</p>
+
+
+
+<a name="302702881"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302702881" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302702881">(Oct 06 2022 at 17:19)</a>:</h4>
+<p>I was planning to add a conversion between the two types to Std. I think it has to be the linear time conversion because the invariants aren't the same. I think it is an acceptable cost for conversion (the zero-cost conversion is a little sketchy and will again tie the representations together, so I don't want to promise its continued availability), but in applications I would generally want to <a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a> why you actually need the conversion: it's rare to be literally giving a whole hashmap from one module to another. In most cases you should just use the data structure required by the API you are interacting with, or default to Std.HashMap if you have a free choice.</p>
+
+
+
+<a name="302703491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302703491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302703491">(Oct 06 2022 at 17:23)</a>:</h4>
+<blockquote>
+<p>Out of curiosity, what are the bootstrapping concerns?</p>
+</blockquote>
+<p>Std wants to put invariants on all the data structures such that they can be verified to have the correct behavior under reasonable assumptions, and this sometimes front-loads the proving effort. Lean core is not currently in a position to be able to do those proofs however unless we move a decent chunk of Std to core.</p>
+
+
+
+<a name="302814686"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302814686" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302814686">(Oct 07 2022 at 09:52)</a>:</h4>
+<p>The potential issue I'm describing hasn't occurred yet, so I can't xy. I agree that the issue won't be terribly common in practice, but at the same time, passing around a map doesn't sound like an outlandish thing either.</p>
+<p>One concrete issue I already have is that I have some utility methods for <code>Lean.HashMap</code>, <code>Lean.PersistentHashMap</code>, etc. lying around. I was planning to move them to std, but will now have to duplicate them for the <code>Std</code> versions as well. These are things like <code>insertWith</code>, <code>update</code>, <code>merge</code>, <code>ForIn</code>, <code>BEq</code>. In the long run, I think we will want much larger APIs for these data structures along the lines of Haskell's <a href="https://hackage.haskell.org/package/containers-0.6.6/docs/Data-Map-Strict.html"><code>Data.Map</code></a>. Duplicating these APIs will be annoying.</p>
+<p>Could the bootstrapping issue be addressed by having the unverified data structure in core and verifying it post-hoc (and perhaps packaging up the verified version as a subtype, as usual)?</p>
+
+
+
+<a name="302815443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302815443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302815443">(Oct 07 2022 at 09:57)</a>:</h4>
+<p>I would eagerly add those APIs to std, and backport them to lean core as they become necessary</p>
+
+
+
+<a name="302815589"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302815589" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302815589">(Oct 07 2022 at 09:58)</a>:</h4>
+<p>I think it is feasible to have the unverified version in core, but leo doesn't want to deal with the maintenance overhead of that at the moment. I don't think this is a permanent state of affairs (but it could be a while before this is changed)</p>
+
+
+
+<a name="302818243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302818243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302818243">(Oct 07 2022 at 10:15)</a>:</h4>
+<p>All right, I'll deal with it for now and we'll see whether the duplication becomes an issue in practice.</p>
+
+
+
+<a name="302824093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302824093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302824093">(Oct 07 2022 at 10:57)</a>:</h4>
+<p>Just in case it was not noticed, in the master of mathlib3port there is exactly this collision in <code>Mathlib.Tactic.Sat.FromLRAT</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">error</span><span class="o">:</span> <span class="n">stdout</span><span class="o">:</span>
+<span class="bp">./</span><span class="n">lean_packages</span><span class="bp">/</span><span class="n">mathlib</span><span class="bp">/././</span><span class="n">Mathlib</span><span class="bp">/</span><span class="n">Tactic</span><span class="bp">/</span><span class="n">Sat</span><span class="bp">/</span><span class="n">FromLRAT.lean</span><span class="o">:</span><span class="mi">251</span><span class="o">:</span><span class="mi">30</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">Std.HashMap</span> <span class="n">ℕ</span> <span class="n">Clause</span> <span class="o">:</span> <span class="kt">Type</span>
+</code></pre></div>
+
+
+
+<a name="302826776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302826776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302826776">(Oct 07 2022 at 11:14)</a>:</h4>
+<p>that's only a name collision, it can be fixed by using <code>open Lean hiding HashMap</code> or the other way around</p>
+
+
+
+<a name="302827329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302827329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302827329">(Oct 07 2022 at 11:17)</a>:</h4>
+<p>you shouldn't be getting that error if the version of std4 and mathlib4 match. Note that this was fixed in the <a href="https://github.com/leanprover-community/mathlib4/commit/a4369ab32fb20b9bd33f5064032ff2b2e2f67abe">std4 bump for 10-03</a></p>
+
+
+
+<a name="302832848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302832848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302832848">(Oct 07 2022 at 11:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/HashMap.20moved.20to.20std/near/302827329">said</a>:</p>
+<blockquote>
+<p>you shouldn't be getting that error if the version of std4 and mathlib4 match. Note that this was fixed in the <a href="https://github.com/leanprover-community/mathlib4/commit/a4369ab32fb20b9bd33f5064032ff2b2e2f67abe">std4 bump for 10-03</a></p>
+</blockquote>
+<p>That commit is for <code>mathlib4</code>. I am getting the error for <code>mathlib3port</code>.</p>
+
+
+
+<a name="302833761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302833761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302833761">(Oct 07 2022 at 11:58)</a>:</h4>
+<p>you probably have the wrong <code>lean-toolchain</code></p>
+
+
+
+<a name="302833807"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302833807" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302833807">(Oct 07 2022 at 11:58)</a>:</h4>
+<p>it needs to match whatever version of std4 / mathlib4 is being used</p>
+
+
+
+<a name="302859380"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/HashMap%20moved%20to%20std/near/302859380" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/HashMap.20moved.20to.20std.html#302859380">(Oct 07 2022 at 14:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/HashMap.20moved.20to.20std/near/302833761">said</a>:</p>
+<blockquote>
+<p>you probably have the wrong <code>lean-toolchain</code></p>
+</blockquote>
+<p>Thanks. I will try to get things in sync.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

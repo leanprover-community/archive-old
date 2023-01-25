@@ -1,0 +1,200 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html">How to better compose/pipeline monads</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="318528473"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318528473" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolas Rouquette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318528473">(Dec 30 2022 at 05:49)</a>:</h4>
+<p>Background:</p>
+<p>I am writing a Lean4 DSL for my modeling language, the Ontological Modeling Language, which I would like to define as a subset of the OWL2-DL description logic: <a href="https://github.com/opencaesar/oml">https://github.com/opencaesar/oml</a></p>
+<p>Unlike a programming language DSL where it would be sensible to embed the DSL as Lean expressions, this is a different kind of DSL problem in that the semantics of the language is a kind of logic, not executable program. So, what matters here is computing logical consistency, entailments, subsumption, ...</p>
+<p>I have made baby steps using a monadic style -- thanks so much for the books/doc in progress; it's been hugely helpful!</p>
+<p>My problem:</p>
+<p>I have several monads that I wrote to resolve OML syntax into an intermediate representations (logical axioms).<br>
+For details, see: <a href="https://github.com/NicolasRouquette/oml.lean4">https://github.com/NicolasRouquette/oml.lean4</a></p>
+<p>I have these definitions of context (input OML syntax) &amp; state (logical axioms)</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">abbrev</span> <span class="n">MCore</span> <span class="o">:=</span> <span class="n">EStateM</span> <span class="n">Exception</span> <span class="n">State</span>
+<span class="n">abbrev</span> <span class="n">M</span>     <span class="o">:=</span> <span class="n">ReaderT</span> <span class="n">Context</span> <span class="n">MCore</span>
+</code></pre></div>
+<p>In <a href="https://github.com/NicolasRouquette/oml.lean4/blob/master/src/Oml/Resolver.lean">https://github.com/NicolasRouquette/oml.lean4/blob/master/src/Oml/Resolver.lean</a>, there are a few toplevel resolvers to analyze the input OML syntax from the context and update the state of logical axioms:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularyDeclarations</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="o">(</span><span class="bp">←</span> <span class="n">read</span><span class="o">)</span><span class="bp">.</span><span class="n">vocabularies.foldlM</span> <span class="n">validateVocabularyDeclaration</span> <span class="o">(</span><span class="bp">←</span> <span class="n">get</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">validateVocabularyStatementDeclarations</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="o">(</span><span class="bp">←</span> <span class="n">read</span><span class="o">)</span><span class="bp">.</span><span class="n">vocabularies.foldlM</span> <span class="n">validateStatementDeclarationsIn</span> <span class="o">(</span><span class="bp">←</span> <span class="n">get</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">validateVocabularySpecializations</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="o">(</span><span class="bp">←</span> <span class="n">read</span><span class="o">)</span><span class="bp">.</span><span class="n">vocabularies.foldlM</span> <span class="n">validateVocabularySpecializationsIn</span> <span class="o">(</span><span class="bp">←</span> <span class="n">get</span><span class="o">)</span>
+</code></pre></div>
+<p>I wrote tests to exercise these resolver monads in <a href="https://github.com/NicolasRouquette/oml.lean4/blob/master/src/Oml/testResolver.lean">https://github.com/NicolasRouquette/oml.lean4/blob/master/src/Oml/testResolver.lean</a></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">c1</span> <span class="o">:</span> <span class="n">Context</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">vocabularies</span> <span class="o">:=</span> <span class="o">[</span><span class="n">testSyntax.rdfs</span><span class="o">,</span> <span class="n">testSyntax.xsd</span><span class="o">,</span> <span class="n">testSyntax.base</span><span class="o">,</span> <span class="n">testSyntax.mission</span> <span class="o">]</span> <span class="o">}</span>
+<span class="kd">def</span> <span class="n">s0</span> <span class="o">:</span> <span class="n">State</span> <span class="o">:=</span> <span class="o">{}</span>
+
+<span class="kd">def</span> <span class="n">r1a</span> <span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">State</span> <span class="o">:=</span> <span class="n">validateVocabularyDeclarations</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s0</span>
+</code></pre></div>
+<p>Next, I need to get the result of the above and run <code>validateVocabularyStatementDeclarations</code>.</p>
+<p>This is where things get a wee bit ugly:</p>
+<p>One way is to extract the result, assuming it is OK and run the next resolver.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">s1</span> <span class="o">:</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">r1a</span> <span class="k">with</span> <span class="bp">|</span> <span class="n">EStateM.Result.ok</span> <span class="n">s</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">s</span> <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">{}</span>
+<span class="kd">def</span> <span class="n">r1b</span> <span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">State</span> <span class="o">:=</span> <span class="n">validateVocabularyStatementDeclarations</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s1</span>
+
+<span class="kd">def</span> <span class="n">s2</span> <span class="o">:</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">r1b</span> <span class="k">with</span> <span class="bp">|</span> <span class="n">EStateM.Result.ok</span> <span class="n">s</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">s</span> <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">{}</span>
+<span class="kd">def</span> <span class="n">r1c</span> <span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">State</span> <span class="o">:=</span> <span class="n">validateVocabularySpecializations</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s2</span>
+</code></pre></div>
+<p>Surely, there must be better way to compose these monads; though it is unclear to me how to do this.</p>
+<p>I managed to two monads successfully, e.g.:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularyStatementDeclarations'</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">c</span><span class="o">:</span> <span class="n">Context</span> <span class="bp">←</span> <span class="n">read</span>
+  <span class="n">validateVocabularyDeclarations</span> <span class="bp">&gt;&gt;=</span> <span class="o">(</span><span class="k">fun</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">c.vocabularies.foldlM</span> <span class="n">validateStatementDeclarationsIn</span> <span class="n">s</span><span class="o">)</span>
+</code></pre></div>
+<p>This allows me to write instead:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">r1b'</span> <span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">State</span> <span class="o">:=</span> <span class="n">validateVocabularyStatementDeclarations'</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s0</span>
+</code></pre></div>
+<p>But this does not to work for composing 3 monads:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularySpecializations'</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">c</span><span class="o">:</span> <span class="n">Context</span> <span class="bp">←</span> <span class="n">read</span>
+  <span class="n">validateVocabularyDeclarations</span>
+  <span class="bp">&gt;&gt;=</span> <span class="o">(</span><span class="k">fun</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">c.vocabularies.foldlM</span> <span class="n">validateStatementDeclarationsIn</span> <span class="n">s</span><span class="o">)</span>
+  <span class="bp">&gt;&gt;=</span> <span class="o">(</span><span class="k">fun</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">c.vocabularies.foldlM</span> <span class="n">validateVocabularySpecializationsIn</span> <span class="n">s</span><span class="o">)</span>
+</code></pre></div>
+<p>It seems that it is running the 1st and 3rd, skipping the 2nd.</p>
+<p>What would be a better way to write this?</p>
+
+
+
+<a name="318529098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318529098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318529098">(Dec 30 2022 at 06:00)</a>:</h4>
+<blockquote>
+<p>Unlike a programming language DSL where it would be sensible to embed the DSL as Lean expressions, this is a different kind of DSL problem in that the semantics of the language is a kind of logic, not executable program. So, what matters here is computing logical consistency, entailments, subsumption, ...</p>
+</blockquote>
+<p>Just regarding this point: it doesn't really matter what your DSL represents, since it's basically going to facilitate turning expressions into syntax that you can do whatever with. There isn't any special attention paid to syntax that represents executable programs when we are talking about a custom DSL - it all just turns into an AST</p>
+
+
+
+<a name="318529261"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318529261" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318529261">(Dec 30 2022 at 06:03)</a>:</h4>
+<p>As a terminological point, you aren't composing monads, you are composing monadic operations (using bind). Composing monads is stuff like <code>ReaderT r (StateT s (Except e m))</code></p>
+
+
+
+<a name="318529379"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318529379" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318529379">(Dec 30 2022 at 06:05)</a>:</h4>
+<p>The usual way to write your example is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularySpecializations'</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">c</span><span class="o">:</span> <span class="n">Context</span> <span class="bp">←</span> <span class="n">read</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">s</span> <span class="bp">&lt;-</span> <span class="n">validateVocabularyDeclarations</span>
+  <span class="n">for</span> <span class="n">x</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">s</span> <span class="bp">&lt;-</span> <span class="n">validateStatementDeclarationsIn</span> <span class="n">s</span> <span class="n">x</span>
+  <span class="n">for</span> <span class="n">x</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">s</span> <span class="bp">&lt;-</span> <span class="n">validateVocabularySpecializationsIn</span> <span class="n">s</span> <span class="n">x</span>
+  <span class="n">pure</span> <span class="n">s</span>
+</code></pre></div>
+<p>(I think - untested since there is no <a href="https://leanprover-community.github.io/mwe.html">#mwe</a>)</p>
+
+
+
+<a name="318529468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318529468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318529468">(Dec 30 2022 at 06:06)</a>:</h4>
+<p>But this is a bit fishy, because you have <code>State</code> appearing twice: it is in the monad <code>M</code> (which wraps <code>MCore</code> which wraps a state monad over <code>State</code>) and it is also the return value of the function. This is most likely where the missing state is going</p>
+
+
+
+<a name="318529510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318529510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318529510">(Dec 30 2022 at 06:07)</a>:</h4>
+<p>If you want the state to be part of the monad, then you shouldn't be returning <code>M State</code>, it should be <code>M Unit</code> and you don't need to get <code>s</code> all the time</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularySpecializations'</span><span class="o">:</span> <span class="n">M</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">validateVocabularyDeclarations</span>
+  <span class="n">for</span> <span class="n">x</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">validateStatementDeclarationsIn</span> <span class="n">x</span>
+  <span class="n">for</span> <span class="n">x</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">validateVocabularySpecializationsIn</span> <span class="n">x</span>
+</code></pre></div>
+
+
+
+<a name="318650966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318650966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolas Rouquette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318650966">(Dec 30 2022 at 20:28)</a>:</h4>
+<p>Thanks for the terminology correction and the suggestions, which worked very well.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularySpecializations'</span><span class="o">:</span> <span class="n">M</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">c</span><span class="o">:</span> <span class="n">Context</span> <span class="bp">←</span> <span class="n">read</span>
+  <span class="n">validateVocabularyDeclarations</span>
+  <span class="n">for</span> <span class="n">v</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">validateStatementDeclarationsIn</span> <span class="n">v</span>
+  <span class="n">for</span> <span class="n">v</span> <span class="k">in</span> <span class="n">c.vocabularies</span> <span class="k">do</span>
+    <span class="n">validateVocabularySpecializationsIn</span> <span class="n">v</span>
+</code></pre></div>
+<p>Applying your suggestion to other functions, e.g.:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularyDeclarations</span><span class="o">:</span> <span class="n">M</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">for</span> <span class="n">x</span> <span class="k">in</span> <span class="o">(</span><span class="bp">←</span> <span class="n">read</span><span class="o">)</span><span class="bp">.</span><span class="n">vocabularies</span> <span class="k">do</span>
+    <span class="n">validateVocabularyDeclaration</span> <span class="n">x</span>
+</code></pre></div>
+<p>I can further simplify it to just:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">validateVocabularySpecializations''</span><span class="o">:</span> <span class="n">M</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">validateVocabularyDeclarations</span>
+  <span class="n">validateVocabularyStatementDeclarations</span>
+  <span class="n">validateVocabularySpecializations</span>
+</code></pre></div>
+<p>This is really nice!</p>
+<p>For testing purposes, I am wondering what is the proper way to extract the monad's state outside of a<code>do</code>?</p>
+<p>With the above, I get nothing: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">r1c''</span><span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">validateVocabularySpecializations''</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s0</span>
+<span class="k">#eval</span> <span class="n">r1c''</span>
+</code></pre></div>
+<p>I know that I can write a simple accessor like this so that I can check the resulting state:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">resolverGet</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">pure</span> <span class="o">(</span><span class="bp">←</span> <span class="n">get</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">validateVocabularySpecializations''Get</span><span class="o">:</span> <span class="n">M</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">validateVocabularySpecializations''</span>
+  <span class="n">resolverGet</span>
+
+<span class="kd">def</span> <span class="n">r1c2</span> <span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">State</span> <span class="o">:=</span> <span class="n">validateVocabularySpecializations''Get</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s0</span>
+<span class="k">#eval</span> <span class="n">r1c2</span>
+</code></pre></div>
+<p>Is there a way to write the equivalent of <code>validateVocabularySpecializations''Get</code>without defining <code>resolverGet</code>?</p>
+
+
+
+<a name="318651149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318651149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318651149">(Dec 30 2022 at 20:30)</a>:</h4>
+<p>I'm not sure what you mean by "I get nothing" there</p>
+
+
+
+<a name="318651186"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318651186" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318651186">(Dec 30 2022 at 20:30)</a>:</h4>
+<p>That result object should contain the final state; you can pattern match on it to get at it</p>
+
+
+
+<a name="318653288"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/How%20to%20better%20compose/pipeline%20monads/near/318653288" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolas Rouquette <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/How.20to.20better.20compose.2Fpipeline.20monads.html#318653288">(Dec 30 2022 at 20:50)</a>:</h4>
+<p>Oh right! I was a bit confused with the output:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">r1c''</span><span class="o">:</span> <span class="n">EStateM.Result</span> <span class="n">Exception</span> <span class="n">State</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="n">validateVocabularySpecializations''</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">c1</span> <span class="bp">|&gt;.</span><span class="n">run</span> <span class="n">s0</span>
+<span class="k">#eval</span> <span class="n">r1c''</span>
+<span class="c1">-- EStateM.Result.ok ()</span>
+</code></pre></div>
+<p>Indeed, with pattern matching I can extract the state from the result:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">s1c''</span> <span class="o">:</span> <span class="n">State</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">r1c''</span> <span class="k">with</span> <span class="bp">|</span> <span class="n">EStateM.Result.ok</span> <span class="n">_</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">s</span> <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">{}</span>
+<span class="k">#eval</span> <span class="n">s1c''</span>
+<span class="c1">-- { .... }</span>
+</code></pre></div>
+<p>Thanks!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

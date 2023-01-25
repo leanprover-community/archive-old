@@ -1,0 +1,67 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html">Creating SyntaxNodeKinds for parsers</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="307639663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307639663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307639663">(Nov 03 2022 at 00:25)</a>:</h4>
+<p>How do you define a term elaborator for a manually-defined parser (via e.g. <code>def myParser : Parser := ...</code>? With <code>syntax</code>, you can use <code>syntax (name := myNodeName) ...</code> and then write <code>@[termElab myNodeName]</code>—but I'm not sure how to attach a <code>SyntaxNodeKind</code> to what's consumed by a manually-defined parser. (I would have expected the <code>SyntaxNodeKind</code> to be <code>myParser</code>, but it doesn't seem to be created automatically.)</p>
+
+
+
+<a name="307640368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307640368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307640368">(Nov 03 2022 at 00:34)</a>:</h4>
+<p>Usually the best approach is to use <code>elab_rules</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="n">syntax</span> <span class="s2">"my_syntax"</span> <span class="n">term</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">elab_rules</span> <span class="bp">&lt;=</span> <span class="n">expectedType</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">my_syntax</span> <span class="bp">$</span><span class="n">t</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">Lean.Elab.Term.elabTerm</span> <span class="n">t</span> <span class="n">expectedType</span>
+</code></pre></div>
+
+
+
+<a name="307641738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307641738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307641738">(Nov 03 2022 at 00:53)</a>:</h4>
+<blockquote>
+<p>I would have expected the SyntaxNodeKind to be myParser, but it doesn't seem to be created automatically.</p>
+</blockquote>
+<p>Right, you need to create the node explicitly.  We usually do this with the <code>leading_parser</code> macro:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">myParser</span> <span class="o">:</span> <span class="n">Parser</span> <span class="o">:=</span> <span class="n">leading_parser</span> <span class="bp">...</span>
+</code></pre></div>
+<p>This will add a node (with the parser declaration name as the syntax kind), and also a <code>$foo:myParser</code> antiquotation.</p>
+
+
+
+<a name="307642908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307642908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307642908">(Nov 03 2022 at 01:10)</a>:</h4>
+<p>Hmmm…I am using <code>leading_parser</code>, but it still doesn’t like <code>@[termElab myParser]</code>. <code>#check</code> shows that I do have access to the parser I defined, so it’s not something silly…I’ll investigate a bit! Should I expect that <code>elab</code> will recognize it as a valid <code>SyntaxNodeKind</code> while <code>@[termElab …]</code> won’t?</p>
+
+
+
+<a name="307643691"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307643691" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307643691">(Nov 03 2022 at 01:24)</a>:</h4>
+<p>Please post an <a href="https://leanprover-community.github.io/mwe.html">#mwe</a>!</p>
+
+
+
+<a name="307645578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Creating%20SyntaxNodeKinds%20for%20parsers/near/307645578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Creating.20SyntaxNodeKinds.20for.20parsers.html#307645578">(Nov 03 2022 at 01:52)</a>:</h4>
+<p>Ah! Thanks for asking me to—I figured it out while trying to make the <a href="https://leanprover-community.github.io/mwe.html">#mwe</a>. I hadn't marked the parser with the attribute <code>@[termParser]</code>, so <code>termElab</code> didn't know that this parser parsed terms! 🙃</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

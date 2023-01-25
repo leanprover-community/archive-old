@@ -1,0 +1,196 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Simp.20extension.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html">Simp extension</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276888895"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276888895" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Florian Würmseer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276888895">(Mar 28 2022 at 15:18)</a>:</h4>
+<p>Hey everyone,</p>
+<p>I'm currently trying to typecheck inputs of a heterogeneous nested list (eventually I want to extend it to more than just Nat and Char). The goal is that the following typechecks:<br>
+[['A', 2, 5, 'T'],<br>
+['B', 100, 7, 'X']]<br>
+and not the following:<br>
+[['A' 2, 5, 'T'],<br>
+[100, 'B', 7]]<br>
+Considering the sequence of the types and the length of the sublists.</p>
+<p>The typechecking works when providing a proof h with Or and simp can solve the goal.:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">NTup</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Type</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="mi">1</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">nil</span> <span class="o">:</span> <span class="n">NTup</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">cons</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">{</span><span class="n">αs</span> <span class="o">:</span> <span class="n">List</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">NTup</span> <span class="n">αs</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">=</span> <span class="n">Char</span> <span class="bp">∨</span> <span class="n">α</span> <span class="bp">=</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">)</span> <span class="o">:</span> <span class="n">NTup</span> <span class="o">(</span><span class="n">α</span> <span class="o">::</span> <span class="n">αs</span><span class="o">)</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span>
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">NTup</span> <span class="o">[</span><span class="n">Char</span><span class="o">]</span> <span class="o">:=</span> <span class="n">NTup.cons</span> <span class="sc">'a'</span> <span class="n">NTup.nil</span>
+</code></pre></div>
+<p>according to the simp trace the theorems "eq_self" and "true_or" are used for the goal.</p>
+<p>In order to match and extract the values of the hypothesis I wanted to use PSum:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">IsValidSqlType</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="n">α</span> <span class="bp">=</span> <span class="n">Char</span><span class="o">)</span> <span class="bp">⊕'</span> <span class="o">(</span><span class="n">α</span> <span class="bp">=</span> <span class="n">Nat</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">myCast</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">IsValidSqlType</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">A</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">h</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">PSum.inl</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">A.char</span> <span class="bp">$</span> <span class="n">cast</span> <span class="n">h</span> <span class="n">x</span>
+  <span class="bp">|</span> <span class="n">PSum.inr</span> <span class="n">h</span> <span class="bp">=&gt;</span> <span class="n">A.nat</span> <span class="bp">$</span> <span class="n">cast</span> <span class="n">h</span> <span class="n">x</span>
+</code></pre></div>
+<p>When changing NTup to use PSum instead of Or, simp is not able to solve it. Even when giving it the theorems: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">true_psum</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">True</span> <span class="bp">⊕'</span> <span class="n">p</span><span class="o">)</span> <span class="o">:=</span> <span class="n">PSum.inl</span> <span class="n">True.intro</span>
+<span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">psum_true</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">p</span> <span class="bp">⊕'</span> <span class="n">True</span><span class="o">)</span> <span class="o">:=</span> <span class="n">PSum.inr</span> <span class="n">True.intro</span>
+</code></pre></div>
+<p>(eq_self remains in scope)<br>
+simp cannot solve it anymore. <br>
+Is simp applying any other theorems in the background that I don't see via "set_option trace.Meta.Tactic.simp true"?<br>
+And also is there a better approach for typechecking a list of unique types?</p>
+
+
+
+<a name="276895646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276895646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Horatiu Cheval <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276895646">(Mar 28 2022 at 16:07)</a>:</h4>
+<p>For a nice implementation of heterogeneous lists, you can look at: <a href="https://github.com/crabbo-rave/Soup">https://github.com/crabbo-rave/Soup</a> made by <span class="user-mention" data-user-id="467926">@Joseph O</span> which seems to be using essentialy the same approach you are going for (except for the <code>Nat</code> or <code>Char</code> restriction)</p>
+
+
+
+<a name="276896822"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276896822" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Horatiu Cheval <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276896822">(Mar 28 2022 at 16:16)</a>:</h4>
+<p>Also, I think it's not clear what <code>A</code> is in your second example, thus people may have a harder time helping you. I guess it's a form of a sum between <code>Nat</code> and <code>Char</code>?</p>
+
+
+
+<a name="276899516"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276899516" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Florian Würmseer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276899516">(Mar 28 2022 at 16:35)</a>:</h4>
+<p>Thank you for your answer Horatiu. <br>
+Yes indeed. A would be something like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">A</span> <span class="n">where</span>
+<span class="bp">|</span> <span class="n">nat</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="n">char</span> <span class="o">:</span> <span class="n">Char</span> <span class="bp">→</span> <span class="n">A</span>
+</code></pre></div>
+<p>and is only included to show my need of getting actual values from NTup. And my question is considering the  Nat or Char restriction that I want to eventually extend to Nat or Char or ...<br>
+So my usecase is different from <a href="https://github.com/crabbo-rave/Soup">https://github.com/crabbo-rave/Soup</a>.</p>
+
+
+
+<a name="276900383"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276900383" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Horatiu Cheval <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276900383">(Mar 28 2022 at 16:40)</a>:</h4>
+<p>If you are only interested in some types, couldn't you simply use <code>List (Nat ⊕ Char)</code>? Maybe with other types the sum, or even your own inductive type for all the possible values if there are many of them (like you did with <code>A</code>)?</p>
+
+
+
+<a name="276900758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276900758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276900758">(Mar 28 2022 at 16:43)</a>:</h4>
+<p>Bit of an <a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a> but whenever you want to consider a specific subset ('universe') of types, I would make a syntactic representation of this subset and work with that (which is also basically what Horatiu suggests):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Univ</span>
+<span class="bp">|</span> <span class="n">nat</span>
+<span class="bp">|</span> <span class="n">char</span>
+
+<span class="kd">def</span> <span class="n">Univ.interp</span> <span class="o">:</span> <span class="n">Univ</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="n">nat</span> <span class="bp">=&gt;</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">char</span> <span class="bp">=&gt;</span> <span class="n">Char</span>
+
+<span class="kd">inductive</span> <span class="n">Tuple</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Univ</span> <span class="bp">→</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">nil</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">[]</span>
+<span class="bp">|</span> <span class="n">cons</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">u.interp</span><span class="o">)</span> <span class="o">(</span><span class="n">xs</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="n">us</span><span class="o">)</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">(</span><span class="n">u</span> <span class="o">::</span> <span class="n">us</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">Tuple.uncons</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">(</span><span class="n">u</span> <span class="o">::</span> <span class="n">us</span><span class="o">)</span> <span class="bp">→</span> <span class="n">u.interp</span> <span class="bp">×</span> <span class="n">Tuple</span> <span class="n">us</span>
+  <span class="bp">|</span> <span class="n">Tuple.cons</span> <span class="n">x</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">x</span><span class="o">,</span> <span class="n">xs</span><span class="o">)</span>
+</code></pre></div>
+<p>Prepare for universe issues, btw, if you ever need to go higher than <code>Type</code>.</p>
+
+
+
+<a name="276900966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276900966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276900966">(Mar 28 2022 at 16:45)</a>:</h4>
+<p>The main issue is that equality between types doesn't behave as you expect. There is no real guarantee that Nat and Char are not the same! In fact, in the cardinal model, two types are equal iff they have the same cardinality.</p>
+
+
+
+<a name="276908185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276908185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276908185">(Mar 28 2022 at 17:41)</a>:</h4>
+<p>In the CPDT book, Adam Chlipala uses heterogeneous lists that are still general and relevant to this discussion. We have recently translated some of his examples to Lean 4. Here is one of the examples.<br>
+<a href="https://leanprover.github.io/lean4/doc/examples/deBruijn.lean.html">https://leanprover.github.io/lean4/doc/examples/deBruijn.lean.html</a></p>
+
+
+
+<a name="276909378"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276909378" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276909378">(Mar 28 2022 at 17:52)</a>:</h4>
+<p>In the standard <code>HList</code> definition, we have the "universe bump" that has been mentioned in many threads.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">HList</span> <span class="o">:</span> <span class="n">List</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="o">(</span><span class="n">u</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="c1">-- &lt;&lt; we need the "+1" here because Lean does not have pseudo parameters</span>
+  <span class="bp">|</span> <span class="n">nil</span>  <span class="o">:</span> <span class="n">HList</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">cons</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">HList</span> <span class="n">αs</span> <span class="bp">→</span> <span class="n">HList</span> <span class="o">(</span><span class="n">α</span><span class="o">::</span><span class="n">αs</span><span class="o">)</span>
+</code></pre></div>
+<p>Chlipala's version does not have this bump.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">HList</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="o">(</span><span class="n">max</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">nil</span>  <span class="o">:</span> <span class="n">HList</span> <span class="n">β</span> <span class="o">[]</span>
+  <span class="bp">|</span> <span class="n">cons</span> <span class="o">:</span> <span class="n">β</span> <span class="n">i</span> <span class="bp">→</span> <span class="n">HList</span> <span class="n">β</span> <span class="n">is</span> <span class="bp">→</span> <span class="n">HList</span> <span class="n">β</span> <span class="o">(</span><span class="n">i</span><span class="o">::</span><span class="n">is</span><span class="o">)</span>
+</code></pre></div>
+<p>The <code>Tuple</code> example above is just <code>HList Univ.interp</code>, and we can write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">abbrev</span> <span class="n">Tuple</span> <span class="o">:=</span> <span class="n">HList</span> <span class="n">Univ.interp</span>
+
+<span class="kd">def</span> <span class="n">Tuple.uncons</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">(</span><span class="n">u</span> <span class="o">::</span> <span class="n">us</span><span class="o">)</span> <span class="bp">→</span> <span class="n">u.interp</span> <span class="bp">×</span> <span class="n">Tuple</span> <span class="n">us</span>
+  <span class="bp">|</span> <span class="n">HList.cons</span> <span class="n">x</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">x</span><span class="o">,</span> <span class="n">xs</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="276910444"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276910444" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276910444">(Mar 28 2022 at 18:02)</a>:</h4>
+<p>Are there advantages of this definition over the other? So of leaving out the universe bump in exchange for this approach?</p>
+
+
+
+<a name="276911405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/276911405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#276911405">(Mar 28 2022 at 18:10)</a>:</h4>
+<p>Yes, it avoids the universe bump. It also has the benefits that <span class="user-mention" data-user-id="256311">@Jannis Limperg</span> suggested above. We can view Chlipala's <code>HList</code> as a generic version of Jannis' <code>Tuple</code>example where he used elements of type <code>Univ</code> to index the <code>Tuple</code> instead of <code>Type</code>. Another plus is that we can pattern match on <code>Univ</code>, but we cannot on <code>Type</code>.</p>
+
+
+
+<a name="278359555"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Simp%20extension/near/278359555" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Florian Würmseer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Simp.20extension.html#278359555">(Apr 08 2022 at 20:41)</a>:</h4>
+<p>Thank you for your answers! This was indeed what I was looking for and helped me a lot to understand more about HLists. When experimenting I found that in this instance Lean cannot infer types here and thus they have to be specified:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">[</span><span class="n">Univ.char</span><span class="o">]</span> <span class="o">:=</span> <span class="n">Tuple.cons</span> <span class="sc">'c'</span> <span class="n">Tuple.nil</span>
+</code></pre></div>
+<p>I tried to work around that by creating a macro (very similar to the one List uses) and can provide the types with pattern matching.</p>
+<p>For testing I hardcoded the base case:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">declare_syntax_cat</span> <span class="n">sqlType</span>
+<span class="n">syntax</span> <span class="n">char</span> <span class="o">:</span> <span class="n">sqlType</span>
+<span class="n">syntax</span> <span class="n">num</span> <span class="o">:</span> <span class="n">sqlType</span>
+
+<span class="n">syntax</span> <span class="s2">"tuple("</span> <span class="n">sqlType</span><span class="o">,</span><span class="bp">*</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tuple</span><span class="o">(</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="o">))</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">rec</span> <span class="n">expandListLit</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">skip</span> <span class="o">:</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">(</span><span class="n">result</span> <span class="o">:</span> <span class="n">Lean.Syntax</span><span class="o">)</span> <span class="o">:</span> <span class="n">Lean.MacroM</span> <span class="n">Lean.Syntax</span> <span class="o">:=</span> <span class="k">do</span>
+      <span class="k">match</span> <span class="n">i</span><span class="o">,</span> <span class="n">skip</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="mi">0</span><span class="o">,</span>   <span class="n">_</span>     <span class="bp">=&gt;</span> <span class="n">pure</span> <span class="n">result</span>
+      <span class="bp">|</span> <span class="n">i</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">true</span>  <span class="bp">=&gt;</span> <span class="n">expandListLit</span> <span class="n">i</span> <span class="n">false</span> <span class="n">result</span>
+      <span class="bp">|</span> <span class="n">i</span><span class="bp">+</span><span class="mi">1</span><span class="o">,</span> <span class="n">false</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="n">elems.elemsAndSeps</span><span class="o">[</span><span class="n">i</span><span class="o">]</span> <span class="k">with</span>
+        <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">sqlType</span><span class="bp">|$</span><span class="n">c</span><span class="o">:</span><span class="n">charLit</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">expandListLit</span> <span class="n">i</span> <span class="n">true</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">``</span><span class="o">((</span><span class="n">Tuple.cons</span> <span class="bp">$</span><span class="n">c</span> <span class="bp">$</span><span class="n">result</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">[</span><span class="n">Univ.char</span><span class="o">])))</span> <span class="c1">-- Hardcoded for char</span>
+        <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">sqlType</span><span class="bp">|$</span><span class="n">n</span><span class="o">:</span><span class="n">numLit</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">expandListLit</span> <span class="n">i</span> <span class="n">true</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">``</span><span class="o">((</span><span class="n">Tuple.cons</span> <span class="o">(</span><span class="bp">$</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="bp">$</span><span class="n">result</span> <span class="o">:</span> <span class="n">Tuple</span> <span class="o">[</span><span class="n">Univ.nat</span><span class="o">])))</span> <span class="c1">-- Hardcoded for nat</span>
+        <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">expandListLit</span> <span class="n">i</span> <span class="n">true</span>  <span class="o">(</span><span class="bp">←</span> <span class="bp">``</span><span class="o">(</span><span class="n">Tuple.cons</span> <span class="bp">$</span><span class="o">(</span><span class="n">elems.elemsAndSeps</span><span class="o">[</span><span class="n">i</span><span class="o">])</span> <span class="bp">$</span><span class="n">result</span><span class="o">))</span>
+    <span class="k">if</span> <span class="n">elems.elemsAndSeps.size</span> <span class="bp">&lt;</span> <span class="mi">64</span> <span class="k">then</span>
+      <span class="n">expandListLit</span> <span class="n">elems.elemsAndSeps.size</span> <span class="n">false</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">``</span><span class="o">(</span><span class="n">Tuple.nil</span><span class="o">))</span>
+    <span class="k">else</span>
+      <span class="bp">`</span><span class="o">(</span><span class="bp">%</span><span class="o">[</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="bp">|</span> <span class="n">Tuple.nil</span> <span class="o">])</span>
+
+
+<span class="k">#check</span> <span class="n">tuple</span><span class="o">(</span><span class="mi">3</span><span class="o">)</span> <span class="c1">-- Has correct type</span>
+<span class="k">#check</span> <span class="n">tuple</span><span class="o">(</span><span class="sc">'c'</span><span class="o">)</span> <span class="c1">-- Has correct type</span>
+<span class="k">#check</span> <span class="n">tuple</span><span class="o">(</span><span class="sc">'c'</span><span class="o">,</span> <span class="mi">1</span><span class="o">)</span> <span class="c1">-- Not case provided yet</span>
+</code></pre></div>
+<p>However for the n+1 case I'm struggling to read and extend the the type of the "$results" macro.</p>
+<p>Now I'm wondering if there's a way for Lean to infer the type in the first place (whether or not this is reasonable for HLists) and/or if the macro can be extended to determine the type for n+1 elements.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

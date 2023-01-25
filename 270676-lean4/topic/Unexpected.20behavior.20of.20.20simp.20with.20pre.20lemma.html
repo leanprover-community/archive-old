@@ -1,0 +1,66 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Unexpected.20behavior.20of.20.20simp.20with.20pre.20lemma.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unexpected.20behavior.20of.20.20simp.20with.20pre.20lemma.html">Unexpected behavior of  simp with pre lemma</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="283131736"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unexpected%20behavior%20of%20%20simp%20with%20pre%20lemma/near/283131736" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unexpected.20behavior.20of.20.20simp.20with.20pre.20lemma.html#283131736">(May 20 2022 at 22:01)</a>:</h4>
+<p>Pre and post simp theorems are applied only until first match. By that I mean if simp rewrites an expression E to E' at pre/post step, simp does not try to apply pre/post theorems to E' but instead jumps into sub-expressions.</p>
+<p>This lead to this surprising behavior: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">b</span>
+
+<span class="kd">theorem</span> <span class="n">foo_simp</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">f</span> <span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span><span class="o">[</span><span class="n">foo</span><span class="o">]</span>
+
+<span class="c1">-- works</span>
+<span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span> <span class="bp">=</span> <span class="n">f</span> <span class="o">(</span><span class="n">f</span> <span class="n">c</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">(</span><span class="n">config</span> <span class="o">:=</span> <span class="o">{</span><span class="n">singlePass</span> <span class="o">:=</span> <span class="n">true</span><span class="o">})</span> <span class="n">only</span> <span class="o">[</span><span class="bp">↓</span><span class="n">foo_simp</span><span class="o">]</span>
+
+<span class="c1">-- does not work</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">foo</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span> <span class="bp">=</span> <span class="n">c</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">(</span><span class="n">config</span> <span class="o">:=</span> <span class="o">{</span><span class="n">singlePass</span> <span class="o">:=</span> <span class="n">true</span><span class="o">})</span> <span class="n">only</span> <span class="o">[</span><span class="bp">↓</span><span class="n">foo_simp</span><span class="o">]</span>
+</code></pre></div>
+<p>My application: I know my simp lemmas can eliminate <code>foo</code> in a single pass. I really want to achieve that as I'm working with rather large expressions and case like this tripped me over.</p>
+<p>I have modified tracing a bit to show pre and post stages and the trace for:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">foo</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span> <span class="bp">=</span> <span class="n">c</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">(</span><span class="n">config</span> <span class="o">:=</span> <span class="o">{</span><span class="n">singlePass</span> <span class="o">:=</span> <span class="n">true</span><span class="o">})</span> <span class="n">only</span> <span class="o">[</span><span class="bp">↓</span><span class="n">foo_simp</span><span class="o">]</span>
+</code></pre></div>
+<p>is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">...</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">foo</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="n">foo_simp</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">foo</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span> <span class="bp">==&gt;</span> <span class="n">foo</span> <span class="o">(</span><span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span><span class="o">)</span> <span class="n">b</span> <span class="n">c</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">foo</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">post</span> <span class="n">on</span> <span class="n">foo</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="k">fun</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">x</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">post</span> <span class="n">on</span> <span class="n">x</span>
+<span class="bp">...</span>
+</code></pre></div>
+<p>In constrast, in the working example the trace is:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">...</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="n">foo_simp</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">a</span> <span class="o">(</span><span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span> <span class="bp">==&gt;</span> <span class="n">f</span> <span class="o">(</span><span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span><span class="o">)</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">f</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">post</span> <span class="n">on</span> <span class="n">f</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="n">foo_simp</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">foo</span> <span class="n">f</span> <span class="n">b</span> <span class="n">c</span> <span class="bp">==&gt;</span> <span class="n">f</span> <span class="n">c</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">pre</span> <span class="n">on</span> <span class="n">c</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp</span><span class="o">]</span> <span class="n">Running</span> <span class="n">post</span> <span class="n">on</span> <span class="n">c</span>
+<span class="bp">...</span>
+</code></pre></div>
+<hr>
+<p>I can fix this by writing my own variant of <code>Lean.Meta.Tactic.Simp.rewritePre</code> and passing it as a custom pre method. Is the current behavior desirable?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

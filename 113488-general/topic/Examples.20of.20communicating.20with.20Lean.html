@@ -1,0 +1,339 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html">Examples of communicating with Lean</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="199253717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199253717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199253717">(May 30 2020 at 12:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243947">Miguel Raz Guzmán Macedo</span> <a href="#narrow/stream/113488-general/topic/mystery.20mathlib.20errors.20in.20.60data.2Flist.60/near/199238417">said</a>:</p>
+<blockquote>
+<p>Hello <span class="user-mention silent" data-user-id="110031">Patrick Massot</span> ! Don't mean to hijack your thread, but would you know of any examples of C++ or Python wrappers of Lean?<br>
+I am looking to call Lean from Julia, and a Python or C++ wrapper as an example would help. Thanks!</p>
+</blockquote>
+<p>I decided to move the conversation here into it's own thread.  (But like I said in the previous thread, I'd love more information about what you are trying to accomplish.)</p>
+
+
+
+<a name="199253728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199253728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199253728">(May 30 2020 at 12:06)</a>:</h4>
+<p>The simplest way to "talk" to Lean is to use the Lean server.  If you run <code>lean --server</code> it starts a server which is what vs-code and the online editors use to check Lean files and provide information in the hovers and side bar.  It communicates asynchronously via JSON.  The one problem is that it is a language server, so using it for communication with Lean is a bit of a hack and has a few upsides and downsides:</p>
+<ul>
+<li>You write Lean code in a file (or just send via text) and have the server "check" that code.  You can also ask for certain types of information about lines in the code.  This is an upside since you can use any Lean code, but it is also a downside since you have to write Lean code programmatically.</li>
+<li>There is a <a href="https://github.com/leanprover-community/lean/blob/c4c131ee30dc132e4dec003c82a60c8275f8b4ae/src/shell/server.cpp#L255">hard coded 200 ms delay</a> to process any changes to a file.  Depending on your application, this may be prohibitively slow, especially if you want to write Lean code, check it (e.g. look at the goal state), and then write more code based on that.  (This is still much faster however than calling the Lean compiler directly on a file.  Also, the 200 ms delay is just hard coded, so you could remove it if you are willing to hack Lean.) </li>
+<li>You can output information by tracing it, and then using the server to find that traced information.</li>
+<li>The interface isn’t documented.</li>
+<li>The server is asynchronous.  You send it a request, and eventually you will get a response of the type you need.  If you try to handle it synchronously, you may end up getting a cut-off response missing some of the information you want.  (It will still be valid JSON, but missing information.</li>
+</ul>
+<p>Here are a number of projects using the Lean server to call Lean from another programming language:</p>
+<ul>
+<li><a href="https://github.com/leanprover-community/lean-client-python">Here is a semi-official lean-python client which calls the Lean server</a>  It properly handles the async communication.  There are however some bugs that need to be fixed.</li>
+<li><a href="https://github.com/jasonrute/communicating-with-lean">Here is an example of how to use that server for some sort of back and forth exploration of proofs.</a>  It doesn’t properly handle the async communication, but it is a good example of ways to communicate interactively with Lean.</li>
+<li><a href="https://github.com/minchaowu/mm-lean">Here is an app where Mathematica calls Lean via the server</a></li>
+<li><a href="https://github.com/jasonrute/lean_info_scrapper">This tool calls the Lean server on every character of every file to get information about that file</a>  Again, it doesn’t handle the async correctly and that leads to problems with the results.</li>
+<li><a href="https://github.com/leanprover-community/format_lean">This tool use the Lean server to format Lean files</a></li>
+</ul>
+
+
+
+<a name="199254322"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199254322" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199254322">(May 30 2020 at 12:23)</a>:</h4>
+<p>Lean also has a simple IO interface.  You can write a stand alone Lean app (with a <code>main</code> function) which can communicate with stdin and stdout.  This is a reasonable way to communicate with an external process, but does require a fair amount of writing code in Lean's monad style and you have to know how to get to the stuff you want inside Lean.  <a href="https://agentultra.github.io/lean-for-hackers/">Lean 3 for hackers</a> is a very short tutorial on the IO interface.  Moreover, the IO interface can be used to call another process inside Lean (also mentioned in that tutorial).  This is used for the <a href="https://github.com/robertylewis/mathematica">other direction of the Lean-Mathematica interface</a> to call Mathematica from within Lean.</p>
+
+
+
+<a name="199254488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199254488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199254488">(May 30 2020 at 12:27)</a>:</h4>
+<p>I'm using this IO approach to build a tool for machine learning purposes which lets Python (or another language, like Julia) interact with the tactic environment with Lean.  It is very slow going since I have to directly expose everything I want in Lean.  However, when it is built I think it could be very useful for certain purposes.  My purpose is a tool for training machine learning agents to make Lean proofs.  A prototype should be available soon, and a more fully featured version later.</p>
+
+
+
+<a name="199254536"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199254536" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199254536">(May 30 2020 at 12:28)</a>:</h4>
+<p>Last, if you talk with any of the official Lean developers, I think the answer you will get is that Lean 4 will make this sort of interfacing easier.  This might be true, but Lean 4 is a long ways away.</p>
+
+
+
+<a name="199255653"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199255653" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199255653">(May 30 2020 at 12:57)</a>:</h4>
+<p>Do you know that Lean 4 is a long way away? Is it not the case that for all we know, they will release it tomorrow? Or is it somehow completely clear to people that the release date is X years away for some explicit value of X? I thought literally nothing about X was known</p>
+
+
+
+<a name="199256319"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199256319" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199256319">(May 30 2020 at 13:13)</a>:</h4>
+<p>First, I always assume if something is in the future and a developer is making that something, it will be a long time coming, especially if there is no provided deliverable date.  This is both a pessimistic view and a pragmatic one from my time in industry.  I don't want to be stuck waiting months or years for Lean 4, when we have Lean 3 now.</p>
+<p>Another point is that if Lean 4 was released tomorrow that it would take a lot of work to port mathlib over to Lean 4, and get folks using Lean 4, so that is additional time.  Also, I doubt any solid Lean 4-Python communication tools will come with Lean 4, so those will also have to be built. There probably will be a language server and and IO interface however in Lean 4.  If we already build tools that interact with the Lean 3 language server and the Lean 3 IO interface, it will be easier to start working with the Lean 4 language server and IO interface, so I say, let's start building that stuff now.  If there turns out to be a much better way to interact with Lean 4 via Python (or Julia) then we can switch to that when it comes.</p>
+
+
+
+<a name="199258203"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199258203" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199258203">(May 30 2020 at 14:01)</a>:</h4>
+<p>Also, if you watch the rss stream you can see daily commits to lean 4, which can give you a vague idea of what's currently being worked on. It still looks a long way from finished to me</p>
+
+
+
+<a name="199258390"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199258390" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199258390">(May 30 2020 at 14:06)</a>:</h4>
+<p>(I also think that they have been somewhat sidetracked from the goal of shipping lean 4 ASAP. I'm not sure if this is because they want things to write papers about or something but stuff like the tactic framework seems to be taking a back seat to more syntax stuff, which is not critical to getting an MVP. But they have their own priorities and I can only guess at them.)</p>
+
+
+
+<a name="199260267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199260267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199260267">(May 30 2020 at 14:54)</a>:</h4>
+<p>I do watch the rss stream but because I am quite un-CS it all means nothing to me. So there is no progress on the tactic framework? What does that even mean? Do they have <code>begin ... end</code> yet?</p>
+
+
+
+<a name="199262654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262654">(May 30 2020 at 15:44)</a>:</h4>
+<p>I don't know if it's in the grammar yet, but I'm pretty sure there are no instances of <code>begin end</code> use in lean 4 yet</p>
+
+
+
+<a name="199262657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262657">(May 30 2020 at 15:45)</a>:</h4>
+<p>I've never tried to run Lean 4 so I don't know for sure, but there appear to be <a href="https://github.com/leanprover/lean4/search?l=Lean&amp;p=1&amp;q=begin">lots of <code>begin ... end</code> blocks in the tests</a>.  Also, there are various parsers for <code>begin ... end</code> blocks too.  Of course, I'd still like more news on what the tactic framework does and doesn't currently have.</p>
+
+
+
+<a name="199262837"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262837" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262837">(May 30 2020 at 15:48)</a>:</h4>
+<p>Oh you are right. The tactic grammar is defined here: <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Parser/Tactic.lean">https://github.com/leanprover/lean4/blob/master/src/Lean/Parser/Tactic.lean</a> but I don't think these tactic names are hooked up to anything</p>
+
+
+
+<a name="199262875"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262875" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262875">(May 30 2020 at 15:49)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/tree/master/src/Lean/Meta/Tactic">https://github.com/leanprover/lean4/tree/master/src/Lean/Meta/Tactic</a> ?</p>
+
+
+
+<a name="199262930"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262930" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262930">(May 30 2020 at 15:50)</a>:</h4>
+<p>there are also some tactics, but they look like non-interactive tactics to me</p>
+
+
+
+<a name="199262936"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262936" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262936">(May 30 2020 at 15:50)</a>:</h4>
+<p>not sure where the front end is declared</p>
+
+
+
+<a name="199262949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199262949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199262949">(May 30 2020 at 15:51)</a>:</h4>
+<p>but this is indeed more progress than I thought</p>
+
+
+
+<a name="199263081"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199263081" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199263081">(May 30 2020 at 15:54)</a>:</h4>
+<p>Ah, here's the front end: <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Basic.lean">https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Tactic/Basic.lean</a></p>
+
+
+
+<a name="199263176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199263176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199263176">(May 30 2020 at 15:56)</a>:</h4>
+<p>There are definitely tactics in the grammar with no definition, like <code>allGoals</code>, but some of the basic tactics like <code>intros</code> seem to be defined</p>
+
+
+
+<a name="199264312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199264312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199264312">(May 30 2020 at 16:22)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean/near/199258390">said</a>:</p>
+<blockquote>
+<p>(I also think that they have been somewhat sidetracked from the goal of shipping lean 4 ASAP. I'm not sure if this is because they want things to write papers about or something but stuff like the tactic framework seems to be taking a back seat to more syntax stuff, which is not critical to getting an MVP. But they have their own priorities and I can only guess at them.)</p>
+</blockquote>
+<p>I don't think they got sidetracked. I think they never were on that track. The P in MVP means product, right? But Lean is not a product. And also Lean 3 is much more than minimally viable.</p>
+
+
+
+<a name="199264521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199264521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199264521">(May 30 2020 at 16:27)</a>:</h4>
+<p>by minimally viable I mean ready to open up to users to finish the job of making it more full featured</p>
+
+
+
+<a name="199264567"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199264567" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199264567">(May 30 2020 at 16:28)</a>:</h4>
+<p>The whole point has been to make lean more configurable so that Leo &amp; co don't <em>have</em> to implement everything, they give the tools to the users (us, hopefully)</p>
+
+
+
+<a name="199290420"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199290420" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199290420">(May 31 2020 at 04:48)</a>:</h4>
+<p>Thanks a million for this response!<br>
+I just saw this because I didn't get a proper notification from Zulip and am a bit new at this - sorry for the delay.</p>
+<ol>
+<li>
+<p>I will check out those examples that you posted.<br>
+2.It seems that I need to start a lean server and hack that 200ms delay to 0 if possible. As I undestand it, it is best to start up a process with a <code>lean --server</code>, and query it continuously, rather than paying the startup cost of the compiler everytime?</p>
+</li>
+<li>
+<p>I should not have a problem with talking with the lean server asynchronously, in theory <span aria-label="tm" class="emoji emoji-2122" role="img" title="tm">:tm:</span> .</p>
+</li>
+</ol>
+
+
+
+<a name="199290487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199290487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199290487">(May 31 2020 at 04:50)</a>:</h4>
+<p>Update:<br>
+I have the dependency thing worked out, I just need to poke a bit at running processes from Julia and I should get a hello world (Make a Julia package download Lean on Windows/Mac/Linux, build it, and solve the simple <code>m + n = n + m</code> by calling out to Lean via Julia)</p>
+
+
+
+<a name="199290590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199290590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199290590">(May 31 2020 at 04:54)</a>:</h4>
+<p>I wouldn’t say you <em>need</em> to hack the delay.  It depends on your use case.  What is that again?  And yes, by using the lean server continuously you avoid paying the lean startup cost more than once.   (Also it should be able to handle incremental checking of a lean file.)</p>
+
+
+
+<a name="199290732"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199290732" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199290732">(May 31 2020 at 04:58)</a>:</h4>
+<p>I want to open up Julia as a tool for formal verification with Lean. Though a Lean &lt;-&gt; Julia bridge for ML purposes would also be awesome. (I'm a diehard Julia fan, and I think it totally dunks on Python for ML stuff, so you're welcome to join the darkside!)</p>
+
+
+
+<a name="199290740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199290740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199290740">(May 31 2020 at 04:59)</a>:</h4>
+<p>Oh, incremental checking sounds great.</p>
+
+
+
+<a name="199291036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291036">(May 31 2020 at 05:09)</a>:</h4>
+<blockquote>
+<p>I want to open up Julia as a tool for formal verification with Lean</p>
+</blockquote>
+<p><span class="user-mention" data-user-id="243947">@Miguel Raz Guzmán Macedo</span> I'm also curious what you mean by this statement. What role is Julia playing here? Is it an alternative way to write proofs in lean, like a REPL? Is Julia being used as a way to get souped up CAS style tactics for lean proofs? It's not clear how having access to lean helps your Julia workflow, or vice versa.</p>
+
+
+
+<a name="199291091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291091">(May 31 2020 at 05:10)</a>:</h4>
+<p>I want to use Lean to prove properties about code written in Julia.</p>
+
+
+
+<a name="199291098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291098">(May 31 2020 at 05:10)</a>:</h4>
+<p>(for now)</p>
+
+
+
+<a name="199291152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291152">(May 31 2020 at 05:12)</a>:</h4>
+<p>That's pretty tough TBH. Lean normally can only be used to prove properties about functions defined in its logic, i.e. as non-meta lean functions. Is it possible to extract the syntax of a function from Julia so that it can be translated somehow to lean? Is Julia sufficiently well typed that there is a reasonable translation here?</p>
+
+
+
+<a name="199291308"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291308" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291308">(May 31 2020 at 05:16)</a>:</h4>
+<ol>
+<li>I know that extracting syntax from Julia functions is baked into the language - it is homoiconic.</li>
+<li>Translating that to Lean, don't know.</li>
+<li>About sufficient well typed-ness, don't know enough about types, but I know the Julia people who know about types don't lose sleep over what can/can't be expressed in the type system.</li>
+</ol>
+
+
+
+<a name="199291312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Stevens <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291312">(May 31 2020 at 05:16)</a>:</h4>
+<p>Julia is dynamically-typed - I'd be surprised if it were at all easy</p>
+
+
+
+<a name="199291614"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199291614" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199291614">(May 31 2020 at 05:25)</a>:</h4>
+<p>You will probably have to do translations manually in that case. Just copy and paste the source and lean-ize it</p>
+
+
+
+<a name="199297155"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199297155" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199297155">(May 31 2020 at 08:41)</a>:</h4>
+<p>Is mutation not rampant in Julia? I assume you would need a deep embedding of it into Lean and your own formal semantics (with heap) on top of that to say anything about nontrivial programs.</p>
+
+
+
+<a name="199309696"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199309696" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199309696">(May 31 2020 at 15:19)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243947">Miguel Raz Guzmán Macedo</span> <a href="#narrow/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean/near/199290732">said</a>:</p>
+<blockquote>
+<p>(… I think it totally dunks on Python for ML stuff, so you're welcome to join the darkside!)</p>
+</blockquote>
+<p>[citation needed] :P</p>
+
+
+
+<a name="199309747"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199309747" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ryan Lahfa <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199309747">(May 31 2020 at 15:20)</a>:</h4>
+<p>On the subject, I'm curious whether we can use Lean for Rust, notably stuff like this: <a href="https://plv.mpi-sws.org/rustbelt/">https://plv.mpi-sws.org/rustbelt/</a></p>
+
+
+
+<a name="199310189"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199310189" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199310189">(May 31 2020 at 15:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="262143">Ryan Lahfa</span> <a href="#narrow/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean/near/199309747">said</a>:</p>
+<blockquote>
+<p>On the subject, I'm curious whether we can use Lean for Rust, notably stuff like this: <a href="https://plv.mpi-sws.org/rustbelt/">https://plv.mpi-sws.org/rustbelt/</a></p>
+</blockquote>
+<p>Like this?  <a href="https://pp.ipd.kit.edu/uploads/publikationen/ullrich16masterarbeit.pdf">https://pp.ipd.kit.edu/uploads/publikationen/ullrich16masterarbeit.pdf</a></p>
+
+
+
+<a name="199310190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199310190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199310190">(May 31 2020 at 15:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="262143">Ryan Lahfa</span> <a href="#narrow/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean/near/199309747">said</a>:</p>
+<blockquote>
+<p>On the subject, I'm curious whether we can use Lean for Rust, notably stuff like this: <a href="https://plv.mpi-sws.org/rustbelt/">https://plv.mpi-sws.org/rustbelt/</a></p>
+</blockquote>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> probably has something to say here.</p>
+
+
+
+<a name="199310192"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199310192" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199310192">(May 31 2020 at 15:35)</a>:</h4>
+<p>Arg! Jason was faster!</p>
+
+
+
+<a name="199311869"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199311869" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199311869">(May 31 2020 at 16:26)</a>:</h4>
+<p>RustBelt's and my approach are quite complementary - a deep embedding with a separation logic semantics focused on unsafe code vs a shallow embedding focused on a pure-ish subset of safe Rust code. In general, a nice separation logic framework like Iris is something that Lean is sorely lacking to be more attractive to CS people, or at least PL people.</p>
+
+
+
+<a name="199323289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199323289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199323289">(May 31 2020 at 22:15)</a>:</h4>
+<p>I'm working on it but it takes a lot of work</p>
+
+
+
+<a name="199324399"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199324399" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199324399">(May 31 2020 at 22:50)</a>:</h4>
+<p>There has been a lot of discussion here.  What are you working on?  Lean4?</p>
+
+
+
+<a name="199325491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Examples%20of%20communicating%20with%20Lean/near/199325491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Simon Hudon <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Examples.20of.20communicating.20with.20Lean.html#199325491">(May 31 2020 at 23:23)</a>:</h4>
+<p>A separation logic framework</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

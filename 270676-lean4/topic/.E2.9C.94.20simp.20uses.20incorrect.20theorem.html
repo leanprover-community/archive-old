@@ -1,0 +1,139 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html">✔ simp uses incorrect theorem</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="280290397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290397">(Apr 27 2022 at 00:35)</a>:</h4>
+<p>This is minimized from the latest mathlib4 lean bump PR.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Bool</span>
+
+<span class="kd">theorem</span> <span class="n">test</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">sizeOf</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">}</span> <span class="bp">=</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="bp">-</span><span class="n">Foo.mk.sizeOf_spec</span><span class="o">]</span><span class="bp">;</span> <span class="gr">sorry</span>
+<span class="k">#print</span> <span class="n">test</span>
+<span class="c1">-- theorem test : ∀ (x : Bool), sizeOf { x := x } = 1 + 1 :=</span>
+<span class="c1">-- fun x =&gt; sorryAx (sizeOf { x := x } = 1 + 1) false</span>
+
+<span class="kd">theorem</span> <span class="n">test2</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">:</span> <span class="n">sizeOf</span> <span class="o">{</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">}</span> <span class="bp">=</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+  <span class="kd">by</span> <span class="n">simp</span>
+<span class="k">#print</span> <span class="n">test2</span>
+<span class="c1">-- theorem test2 : ∀ (x : Bool), sizeOf { x := x } = 1 + 1 :=</span>
+<span class="c1">-- fun x =&gt;</span>
+<span class="c1">--   of_eq_true</span>
+<span class="c1">--     (Eq.trans (congrFun (congrArg Eq (congrArg (HAdd.hAdd 1) (Bool.sizeOf_eq_one x))) (1 + 1)) (eq_self (1 + 1)))</span>
+</code></pre></div>
+<p>In theorem <code>test</code>, we see that <code>simp [-Foo.mk.sizeOf_spec]</code> does not make progress, which is as expected. <code>sizeOf</code> is not getting reduced en passant as far as I can tell. So you would expect that in the second theorem <code>test2</code> it must be using <code>Foo.mk.sizeOf_spec</code> in an essential way, however the generated proof term has no evidence of this; it references <code>Bool.sizeOf_eq_one</code> instead.</p>
+
+
+
+<a name="280290577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290577">(Apr 27 2022 at 00:38)</a>:</h4>
+<p>The end user effect of this is (spurious?) linter failure:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Tactic.Lint.Frontend</span>
+<span class="kn">import</span> <span class="n">Mathlib.Tactic.Lint.Simp</span>
+
+<span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Bool</span>
+
+<span class="bp">#</span><span class="n">lint</span>
+<span class="c1">-- Found 1 error in 4 declarations (plus 9 automatically generated ones) in the current file with 3 linters</span>
+
+<span class="c">/-</span><span class="cm"> The `simpNF` linter reports:</span>
+<span class="cm">SOME SIMP LEMMAS ARE NOT IN SIMP-NORMAL FORM.</span>
+<span class="cm">see note [simp-normal form] for tips how to debug this.</span>
+<span class="cm">https://leanprover-community.github.io/mathlib_docs/notes.html#simp-normal%20form -/</span>
+<span class="k">#check</span> <span class="n">Foo.mk.sizeOf_spec</span> <span class="c">/-</span><span class="cm"> simp can prove this:</span>
+<span class="cm">  by simp only [Bool.sizeOf_eq_one]</span>
+<span class="cm">One of the lemmas above could be a duplicate.</span>
+<span class="cm">If that's not the case try reordering lemmas or adding @[priority].</span>
+<span class="cm"> -/</span>
+</code></pre></div>
+
+
+
+<a name="280290621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290621">(Apr 27 2022 at 00:39)</a>:</h4>
+<p>note that the suggested proof <code>by simp only [Bool.sizeOf_eq_one]</code> does not actually work</p>
+
+
+
+<a name="280290711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290711">(Apr 27 2022 at 00:40)</a>:</h4>
+<p>I'm pretty sure the cause is that the new <code>dsimp</code> support is allowing <code>simp</code> to make progress with rfl lemmas without adding anything to the proof term</p>
+
+
+
+<a name="280290759"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290759" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290759">(Apr 27 2022 at 00:41)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/simp.20uses.20incorrect.20theorem/near/280290711">said</a>:</p>
+<blockquote>
+<p>I'm pretty sure the cause is that the new <code>dsimp</code> support is allowing <code>simp</code> to make progress with rfl lemmas without adding anything to the proof term</p>
+</blockquote>
+<p>Yes, it is. <code>Foo.mk.sizeOf_spec</code> is tagged as a <code>rfl</code> theorem.</p>
+
+
+
+<a name="280290856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290856">(Apr 27 2022 at 00:42)</a>:</h4>
+<p>The code that is extracting the used lemmas looks heuristic, so perhaps that's a better place to fix the situation - have some kind of side channel to accumulate the actually used simp lemmas rather than looking at the proof term</p>
+
+
+
+<a name="280290897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290897">(Apr 27 2022 at 00:43)</a>:</h4>
+<p>Yes, I agree. BTW, the code that is extracting the used theorems is in Mathlib 4, correct?</p>
+
+
+
+<a name="280290900"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290900" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290900">(Apr 27 2022 at 00:43)</a>:</h4>
+<p>yes</p>
+
+
+
+<a name="280290954"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290954" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290954">(Apr 27 2022 at 00:44)</a>:</h4>
+<p>I believe it is working around a lack of API in simp though, because we would otherwise have to copy and paste most of the implementation</p>
+
+
+
+<a name="280290984"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280290984" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280290984">(Apr 27 2022 at 00:45)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib4/blob/c01494c6ae325d027b347187aacf79a5fe1fa344/Mathlib/Tactic/Lint/Simp.lean#L100-L111">https://github.com/leanprover-community/mathlib4/blob/c01494c6ae325d027b347187aacf79a5fe1fa344/Mathlib/Tactic/Lint/Simp.lean#L100-L111</a></p>
+
+
+
+<a name="280291048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280291048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280291048">(Apr 27 2022 at 00:46)</a>:</h4>
+<p>we also need this functionality for <code>squeeze_simp</code> and <code>simp?</code>, which are two independent implementations of this functionality in lean 3</p>
+
+
+
+<a name="280292059"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280292059" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280292059">(Apr 27 2022 at 01:00)</a>:</h4>
+<p>I'll just stub out the heuristic / do some underapproximation for now, and if this gets upstream support then we can do it better</p>
+
+
+
+<a name="280292165"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%E2%9C%94%20simp%20uses%20incorrect%20theorem/near/280292165" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.E2.9C.94.20simp.20uses.20incorrect.20theorem.html#280292165">(Apr 27 2022 at 01:02)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> has marked this topic as resolved.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

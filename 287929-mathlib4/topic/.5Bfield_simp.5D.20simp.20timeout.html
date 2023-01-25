@@ -1,0 +1,1233 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/index.html">mathlib4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html">[field_simp] simp timeout</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="322750386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322750386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322750386">(Jan 21 2023 at 16:17)</a>:</h4>
+<p>While working on porting <code>field_simp</code>, I noticed the following behavior:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Ring.Units</span>
+
+<span class="c1">-- If you comment out any of the below imports, then the proof below succeeds.</span>
+<span class="kn">import</span> <span class="n">Mathlib.Data.Rat.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Order.Bounds.OrderIso</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Order.Field.Defs</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="c1">-- Proof succeeds only if at least one of the above imports is commented out.</span>
+<span class="c1">-- Otherwise we get the error:</span>
+<span class="c1">-- timeout at 'whnf', maximum number of heartbeats (200000) has been reached</span>
+<span class="c1">--  (use 'set_option maxHeartbeats &lt;num&gt;' to set the limit)</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+<p>Lean 3 has no trouble at all with this example.</p>
+<p>Anyone have any ideas about what's going wrong?</p>
+
+
+
+<a name="322750822"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322750822" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322750822">(Jan 21 2023 at 16:20)</a>:</h4>
+<p>Between this, yesterday's <a href="#narrow/stream/287929-mathlib4/topic/congr.20tactic.20hitting.20max.20recursion.20depth/near/322619083">https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/congr.20tactic.20hitting.20max.20recursion.20depth/near/322619083</a>, and other timeouts I've seen, I'm beginning to suspect that there is some kind of performance bug in Lean 4 definitional equality / normalization.</p>
+
+
+
+<a name="322762422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322762422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322762422">(Jan 21 2023 at 17:57)</a>:</h4>
+<p><code>set_option maxHeartbeats 300000</code> fixes it. Note that there are already 5 occurrences of <code>set_option maxHeartbeats [big number]</code> in mathlib4 (oh, and one more where it sets it to 0, which is apparently 0 as in 1/0)</p>
+
+
+
+<a name="322762848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322762848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322762848">(Jan 21 2023 at 18:01)</a>:</h4>
+<p>yeah, I'll probably up the <code>maxHeartbeats</code> for this example (it'll be in <code>test/FieldSimp.lean</code>), and include a TODO about chasing down the performance problem</p>
+
+
+
+<a name="322763057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322763057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322763057">(Jan 21 2023 at 18:03)</a>:</h4>
+<p>Still, I'm troubled. How is the simplifier possibly needing to do so much work on this goal?</p>
+
+
+
+<a name="322763160"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322763160" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322763160">(Jan 21 2023 at 18:04)</a>:</h4>
+<p>In mathlib3 when the simplifier takes too long we just replace it with the output of <code>simp?</code>. There are several merged mathlib3 PRs of the form "this file got added and now this totally unrelated file has a time-out, which we fix by squeezing simps".</p>
+
+
+
+<a name="322763949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322763949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322763949">(Jan 21 2023 at 18:11)</a>:</h4>
+<p>I wonder whether we need to give <code>iff_self</code> a higher <code>simp</code> priority. <a href="https://github.com/leanprover/lean4/blob/5349a089e5bb6905eaca1a09e2b587488f8e4715/src/Init/SimpLemmas.lean#L92-L92">https://github.com/leanprover/lean4/blob/5349a089e5bb6905eaca1a09e2b587488f8e4715/src/Init/SimpLemmas.lean#L92-L92</a></p>
+
+
+
+<a name="322764089"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322764089" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322764089">(Jan 21 2023 at 18:12)</a>:</h4>
+<p>hm.... I think that might avoid the timeout in this case, but would not directly address the underlying performance problem.</p>
+
+
+
+<a name="322765685"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322765685" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322765685">(Jan 21 2023 at 18:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout/near/322763160">said</a>:</p>
+<blockquote>
+<p>In mathlib3 when the simplifier takes too long we just replace it with the output of <code>simp?</code>. There are several merged mathlib3 PRs of the form "this file got added and now this totally unrelated file has a time-out, which we fix by squeezing simps".</p>
+</blockquote>
+<p>But we don't expect to need this for totally ordinary uses of <code>field_simp</code> for arithmetic.</p>
+
+
+
+<a name="322766529"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322766529" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322766529">(Jan 21 2023 at 18:37)</a>:</h4>
+<p>Yes, the examples we've seen in mathlib3 are typically really hairy proofs where <code>simp</code> is doing a lot of work (the associated <code>simp only</code> can be many lines long)</p>
+
+
+
+<a name="322766596"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322766596" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322766596">(Jan 21 2023 at 18:38)</a>:</h4>
+<p>If someone has time today and is looking for a useful task, I think it would be <em>very</em> useful to reduce <a href="#narrow/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout/near/322750386">David's example</a> to an import-free version.  Mathlib4 is big enough now that this will be painful ... but it's getting bigger every day and the next time this problem comes up it will be worse!</p>
+
+
+
+<a name="322767957"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322767957" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322767957">(Jan 21 2023 at 18:53)</a>:</h4>
+<p>What do you think an import-free version would look like? Do you not think that the issue is simply that the simp set with all of those imports is just very large? Might an import-free version literally just look like the concatenation of all imported files? (so thousands or maybe even tens of thousands of lines long?) It's hard to imagine that one could remove a single definition given that most definitions will have a simp lemma of some form associated with them.</p>
+
+
+
+<a name="322771321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771321">(Jan 21 2023 at 19:28)</a>:</h4>
+<p>If I do</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">maxHeartbeats</span> <span class="mi">300000</span> <span class="k">in</span>
+<span class="kd">set_option</span> <span class="n">profiler</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span> <span class="k">in</span>
+</code></pre></div>
+<p>then I see</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Messages</span> <span class="n">below</span> <span class="o">(</span><span class="mi">1</span><span class="o">)</span>
+<span class="mi">19</span><span class="o">:</span><span class="mi">3</span><span class="o">:</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="bp">@</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">==&gt;</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">=</span> <span class="n">a</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="bp">@</span><span class="n">divp_mul_eq_mul_divp</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">==&gt;</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">/ₚ</span> <span class="n">u₂</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_divp_cancel</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">↑?</span><span class="n">u</span> <span class="bp">/ₚ</span> <span class="bp">?</span><span class="n">u</span>
+    <span class="k">with</span>
+      <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">/ₚ</span> <span class="n">u₂</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">a</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="bp">@</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">==&gt;</span> <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_right</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_left</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_right_eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_left_eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_right_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_left_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_eq_mul_right_iff</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_eq_mul_left_iff</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">Units.mul_left_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">↑?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">*</span> <span class="bp">↑?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_right</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_left</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_right_eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_left_eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_right_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_left_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_eq_mul_right_iff</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_eq_mul_left_iff</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">c</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">Units.mul_left_inj</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">*</span> <span class="bp">↑?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">c</span> <span class="bp">*</span> <span class="bp">↑?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="n">iff_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">==&gt;</span> <span class="n">True</span>
+<span class="n">Messages</span> <span class="n">above</span> <span class="o">(</span><span class="mi">1</span><span class="o">)</span>
+<span class="mi">11</span><span class="o">:</span><span class="mi">0</span><span class="o">:</span>
+<span class="n">simp</span> <span class="n">took</span> <span class="mi">218</span><span class="n">ms</span>
+</code></pre></div>
+
+
+
+<a name="322771524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771524">(Jan 21 2023 at 19:30)</a>:</h4>
+<p>Notable things about that output:</p>
+<ol>
+<li>simp is not trying a huge number of lemmas. Looks like only ~25 or so before it succeeds</li>
+<li>The last line <code>simp took 244ms</code> is weird. It takes way more than 244 ms for this output to be produced. More like 5 or 10 seconds.</li>
+</ol>
+
+
+
+<a name="322771593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771593">(Jan 21 2023 at 19:31)</a>:</h4>
+<p>Is there a way to turn on more profiling?</p>
+
+
+
+<a name="322771622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771622">(Jan 21 2023 at 19:31)</a>:</h4>
+<p>The profiler in lean 3 was far more verbose, explaining the times that various things took. It was rare, but not impossible, to see the profiler not corresponding with wall clock time. My experience with Lean 4 right now is that it's much more common. I think I've asked that question before but nobody answered.</p>
+
+
+
+<a name="322771623"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771623" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771623">(Jan 21 2023 at 19:31)</a>:</h4>
+<p>Like, it would be interesting to have it print out the current timestamp or the current number of heartbeats at each log line.</p>
+
+
+
+<a name="322771743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771743">(Jan 21 2023 at 19:33)</a>:</h4>
+<p>I know that I can opt-in to more profiling by using <code>withTraceNode</code> in a tactic. But <code>simp</code> does not do that, it seems.</p>
+
+
+
+<a name="322771983"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322771983" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322771983">(Jan 21 2023 at 19:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout/near/322767957">said</a>:</p>
+<blockquote>
+<p>What do you think an import-free version would look like? Do you not think that the issue is simply that the simp set with all of those imports is just very large?</p>
+</blockquote>
+<p>No, the scaling behavior of simp is completely different in lean 4. I would expect that simp being slow "because there are a lot of lemmas" will not be an issue at all even after we have all of mathlib together.</p>
+
+
+
+<a name="322772145"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322772145" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322772145">(Jan 21 2023 at 19:37)</a>:</h4>
+<p>Do you have any idea what's going on then?</p>
+
+
+
+<a name="322773186"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773186" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773186">(Jan 21 2023 at 19:49)</a>:</h4>
+<p>Oh interesting -- commenting out <code>import Mathlib.Data.Rat.Basic</code> doesn't change the output of <code>trace.Meta.Tactic.simp</code> at all. So the additional import is changing behaviour in a way which currently I don't know how to trace. Any good trace options I'm missing?</p>
+
+
+
+<a name="322773276"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773276" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773276">(Jan 21 2023 at 19:50)</a>:</h4>
+<p>is there a way to turn on all trace output? like <code>set_option trace.* true</code>?</p>
+
+
+
+<a name="322773698"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773698" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773698">(Jan 21 2023 at 19:55)</a>:</h4>
+<p>Mario is right -- it's not the simp set. Check this out:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Ring.Units</span>
+
+<span class="kn">import</span> <span class="n">Mathlib.Data.Rat.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Order.Bounds.OrderIso</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Defs</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Order.Ring.Defs</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>
+
+<span class="c1">-- comment out this class to make me no longer time out</span>
+<span class="kd">class</span> <span class="n">LinearOrderedField</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedCommRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">Field</span> <span class="n">α</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="322773772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773772">(Jan 21 2023 at 19:56)</a>:</h4>
+<p>I can make it go a little faster by doing this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">simp</span> <span class="o">(</span><span class="n">config</span><span class="o">:=</span> <span class="o">{</span><span class="n">etaStruct</span> <span class="o">:=</span> <span class="bp">.</span><span class="n">none</span><span class="o">})</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="322773808"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773808" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773808">(Jan 21 2023 at 19:56)</a>:</h4>
+<p>David are you sufficiently Lean-savvy to be able to check whether <a href="https://github.com/leanprover/lean4/pull/2003">lean4#2003</a> fixes the issue?</p>
+
+
+
+<a name="322773891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322773891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322773891">(Jan 21 2023 at 19:57)</a>:</h4>
+<p>ah, the infamous 2003</p>
+
+
+
+<a name="322774154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322774154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322774154">(Jan 21 2023 at 20:00)</a>:</h4>
+<p>So let's switch on instance tracing! Should this be happening?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Ring.Units</span>
+
+<span class="kn">import</span> <span class="n">Mathlib.Data.Rat.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Order.Bounds.OrderIso</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Defs</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Order.Ring.Defs</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>
+
+<span class="c1">-- comment out this class and the set_options below to make me no longer time out</span>
+<span class="kd">class</span> <span class="n">LinearOrderedField</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedCommRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">Field</span> <span class="n">α</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span>
+<span class="kd">set_option</span> <span class="n">profiler</span> <span class="n">true</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">[Meta.synthInstance] [0.000223s] ❌ Subsingleton R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.003915s] ✅ Monoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001664s] ✅ CommMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001415s] ✅ CommMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000219s] ❌ Subsingleton R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.003108s] ✅ Monoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000221s] ❌ Subsingleton R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001147s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000951s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000952s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000946s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000972s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001001s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000996s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000969s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000977s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000936s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000962s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000993s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000961s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000952s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000927s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000978s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000967s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000958s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000938s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001003s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000972s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000970s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000959s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000964s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000969s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000945s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000965s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000961s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000930s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000956s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000993s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000943s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001030s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000968s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001049s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000928s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000950s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000950s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000951s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000976s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000935s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000954s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000985s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000927s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000956s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001074s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001012s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000993s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000971s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001006s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001004s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000971s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000952s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000943s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000985s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000956s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000908s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000945s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001011s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000972s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001050s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000997s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001009s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001047s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000982s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000958s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001010s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000964s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001017s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000923s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000964s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000993s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000947s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000974s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001013s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.001031s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000974s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000953s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000929s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000996s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000982s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000973s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000977s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000967s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">[Meta.synthInstance] [0.000950s] ❌ LeftCancelMonoid R ▶</span>
+
+<span class="cm">...</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="322774408"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322774408" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322774408">(Jan 21 2023 at 20:03)</a>:</h4>
+<p>lol</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Algebra.Ring.Units</span>
+
+<span class="kn">import</span> <span class="n">Mathlib.Data.Rat.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Order.Bounds.OrderIso</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Basic</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Field.Defs</span>
+<span class="kn">import</span> <span class="n">Mathlib.Algebra.Order.Ring.Defs</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="c1">-- uncomment this `set_option` to make me not time out ;-)</span>
+<span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+<p>first time I've seen <code>set_option</code> break a proof!</p>
+
+
+
+<a name="322774577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322774577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322774577">(Jan 21 2023 at 20:05)</a>:</h4>
+<p>yeah holy cow <code>synthInstance</code> is trying real hard to do <em>something</em> there</p>
+
+
+
+<a name="322774743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322774743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Renshaw <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322774743">(Jan 21 2023 at 20:07)</a>:</h4>
+<p>Kevin, does this <code>synthInstance</code> information make you think that <a href="https://github.com/leanprover/lean4/pull/2003">lean4#2003</a> is more or less likely to help this problem?</p>
+
+
+
+<a name="322774931"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322774931" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322774931">(Jan 21 2023 at 20:09)</a>:</h4>
+<p>I'm afraid I have no understanding of type class inference in either Lean 3 or Lean 4. It's too CS for me. Full disclosure: I only suggested it because (a) I can't check this myself and (b) "it also has something to do with type class inference".</p>
+<p>Lean tries and fails to infer <code>LeftCancelMonoid R</code> 453 times, and then embarks on a similar wild goose chase with <code>RightCancelMonoid R</code>.</p>
+
+
+
+<a name="322775063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322775063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322775063">(Jan 21 2023 at 20:10)</a>:</h4>
+<p>Each one fails in about 0.001 seconds but that's 0.5 seconds wasted on LeftCancelMonoid alone so this is perhaps an explanation of the large wall clock time.</p>
+
+
+
+<a name="322775644"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322775644" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322775644">(Jan 21 2023 at 20:18)</a>:</h4>
+<p>Oh wow -- most of those 453 failures seem to be doing exactly the same thing?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+  <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CancelMonoid.toLeftCancelMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">CancelCommMonoid.toLeftCancelMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CancelCommMonoid.toLeftCancelMonoid</span> <span class="n">to</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CommGroup.toCancelCommMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">OrderedCancelCommMonoid.toCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCancelCommMonoid.toCancelCommMonoid</span> <span class="n">to</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">OrderedCommGroup.toOrderedCancelCommMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">LinearOrderedCancelCommMonoid.toOrderedCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCancelCommMonoid.toOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">LinearOrderedCommGroup.toLinearOrderedCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCommGroup.toLinearOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">no</span> <span class="n">instances</span> <span class="n">for</span> <span class="n">LinearOrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCommGroup.toOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">LinearOrderedCommGroup.toOrderedCommGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCommGroup.toOrderedCommGroup</span> <span class="n">to</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">no</span> <span class="n">instances</span> <span class="n">for</span> <span class="n">LinearOrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CommGroup.toCancelCommMonoid</span> <span class="n">to</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">OrderedCommGroup.toCommGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCommGroup.toCommGroup</span> <span class="n">to</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CommGroup</span> <span class="n">R</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CancelMonoid.toLeftCancelMonoid</span> <span class="n">to</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="n">CancelCommMonoid.toCancelMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">Group.toCancelMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Group.toCancelMonoid</span> <span class="n">to</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CommGroup.toGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CommGroup.toGroup</span> <span class="n">to</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">Group</span> <span class="n">R</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">CancelCommMonoid.toCancelMonoid</span> <span class="n">to</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelMonoid</span> <span class="n">R</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+  <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CancelMonoid.toLeftCancelMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">CancelCommMonoid.toLeftCancelMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CancelCommMonoid.toLeftCancelMonoid</span> <span class="n">to</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CommGroup.toCancelCommMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">OrderedCancelCommMonoid.toCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCancelCommMonoid.toCancelCommMonoid</span> <span class="n">to</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">OrderedCommGroup.toOrderedCancelCommMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">LinearOrderedCancelCommMonoid.toOrderedCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCancelCommMonoid.toOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">LinearOrderedCommGroup.toLinearOrderedCancelCommMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCommGroup.toLinearOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LinearOrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">no</span> <span class="n">instances</span> <span class="n">for</span> <span class="n">LinearOrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCommGroup.toOrderedCancelCommMonoid</span> <span class="n">to</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">LinearOrderedCommGroup.toOrderedCommGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">LinearOrderedCommGroup.toOrderedCommGroup</span> <span class="n">to</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">OrderedCommGroup</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">no</span> <span class="n">instances</span> <span class="n">for</span> <span class="n">LinearOrderedCommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CommGroup.toCancelCommMonoid</span> <span class="n">to</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelCommMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">OrderedCommGroup.toCommGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">OrderedCommGroup.toCommGroup</span> <span class="n">to</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CommGroup</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CommGroup</span> <span class="n">R</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CancelMonoid.toLeftCancelMonoid</span> <span class="n">to</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="n">CancelCommMonoid.toCancelMonoid</span><span class="o">,</span> <span class="bp">@</span><span class="n">Group.toCancelMonoid</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">Group.toCancelMonoid</span> <span class="n">to</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelMonoid</span> <span class="n">R</span>
+    <span class="o">[]</span> <span class="n">new</span> <span class="n">goal</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">▼</span>
+      <span class="o">[</span><span class="n">instances</span><span class="o">]</span> <span class="bp">#</span><span class="o">[</span><span class="bp">@</span><span class="n">CommGroup.toGroup</span><span class="o">]</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="bp">@</span><span class="n">CommGroup.toGroup</span> <span class="n">to</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">Group</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">Group</span> <span class="n">R</span>
+  <span class="o">[]</span> <span class="bp">✅</span> <span class="n">apply</span> <span class="n">CancelCommMonoid.toCancelMonoid</span> <span class="n">to</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">▼</span>
+    <span class="o">[</span><span class="n">tryResolve</span><span class="o">]</span> <span class="bp">✅</span> <span class="n">CancelMonoid</span> <span class="n">R</span> <span class="bp">≟</span> <span class="n">CancelMonoid</span> <span class="n">R</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▶</span>
+</code></pre></div>
+<p>I unfolded all the triangles and diffed and the two failures are identical.  These were consecutive failures. I also tried a failure much later on in the list and it was also identical even after opening up all of the <code>▶</code>s</p>
+
+
+
+<a name="322775711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322775711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322775711">(Jan 21 2023 at 20:19)</a>:</h4>
+<p>Heather is right -- this could probably be minimised! I'll see if any of the gigantic zoos of classes I have will help.</p>
+
+
+
+<a name="322777618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322777618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322777618">(Jan 21 2023 at 20:44)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243791">David Renshaw</span> <a href="#narrow/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout/near/322773891">said</a>:</p>
+<blockquote>
+<p>ah, the infamous 2003</p>
+</blockquote>
+<p>At this point, I wonder if we should be maintaining a fork of mathlib on top of <a href="https://github.com/leanprover/lean4/pull/2003">lean4#2003</a>, so that whenever problems come up we can test if it solves them.</p>
+
+
+
+<a name="322780940"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322780940" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322780940">(Jan 21 2023 at 21:31)</a>:</h4>
+<p>I minimised it and the issue goes away <span aria-label="cry" class="emoji emoji-1f622" role="img" title="cry">:cry:</span> The proof works fine :-/</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Zero</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">zero</span> <span class="o">:</span> <span class="n">α</span>
+
+<span class="kd">instance</span> <span class="n">Zero.toOfNat0</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Zero</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">0</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:=</span> <span class="o">‹</span><span class="n">Zero</span> <span class="n">α</span><span class="o">›</span><span class="bp">.</span><span class="mi">1</span>
+
+<span class="kd">instance</span> <span class="n">Zero.ofOfNat0</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">0</span><span class="o">)]</span> <span class="o">:</span> <span class="n">Zero</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">zero</span> <span class="o">:=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">One</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">one</span> <span class="o">:</span> <span class="n">α</span>
+
+<span class="kd">instance</span> <span class="n">One.toOfNat1</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">One</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">1</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:=</span> <span class="o">‹</span><span class="n">One</span> <span class="n">α</span><span class="o">›</span><span class="bp">.</span><span class="mi">1</span>
+
+<span class="kd">instance</span> <span class="n">One.ofOfNat1</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">1</span><span class="o">)]</span> <span class="o">:</span> <span class="n">One</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">one</span> <span class="o">:=</span> <span class="mi">1</span>
+
+<span class="kd">class</span> <span class="n">Nontrivial</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+  <span class="n">exists_pair_ne</span> <span class="o">:</span> <span class="bp">∃</span> <span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">x</span> <span class="bp">≠</span> <span class="n">y</span>
+
+<span class="kd">class</span> <span class="n">MulZeroClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">Zero</span> <span class="n">M₀</span> <span class="n">where</span>
+  <span class="n">zero_mul</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M₀</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span>
+  <span class="n">mul_zero</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">AddSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Add</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">add_assoc</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">+</span> <span class="o">(</span><span class="n">b</span> <span class="bp">+</span> <span class="n">c</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">Semigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_assoc</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">*</span> <span class="n">c</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">CommSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_comm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">AddCommSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddSemigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">add_comm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">SemigroupWithZero</span> <span class="o">(</span><span class="n">S₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">S₀</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">S₀</span>
+
+<span class="kd">class</span> <span class="n">MulOneClass</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">One</span> <span class="n">M</span><span class="o">,</span> <span class="n">Mul</span> <span class="n">M</span> <span class="n">where</span>
+  <span class="n">one_mul</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="mi">1</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span>
+  <span class="n">mul_one</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">AddZeroClass</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Zero</span> <span class="n">M</span><span class="o">,</span> <span class="n">Add</span> <span class="n">M</span> <span class="n">where</span>
+  <span class="n">zero_add</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span>
+  <span class="n">add_zero</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">MulZeroOneClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">MulOneClass</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">M₀</span>
+
+<span class="kd">class</span> <span class="n">AddMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddSemigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">AddZeroClass</span> <span class="n">M</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">Monoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">MulOneClass</span> <span class="n">M</span> <span class="n">where</span>
+
+<span class="kd">structure</span> <span class="n">Units</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="n">where</span>
+  <span class="n">val</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="n">inv</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="n">val_inv</span> <span class="o">:</span> <span class="n">val</span> <span class="bp">*</span> <span class="n">inv</span> <span class="bp">=</span> <span class="mi">1</span>
+  <span class="n">inv_val</span> <span class="o">:</span> <span class="n">inv</span> <span class="bp">*</span> <span class="n">val</span> <span class="bp">=</span> <span class="mi">1</span>
+
+<span class="kd">postfix</span><span class="o">:</span><span class="mi">1024</span> <span class="s2">"ˣ"</span> <span class="bp">=&gt;</span> <span class="n">Units</span>
+
+<span class="kd">class</span> <span class="n">Inv</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="kd">postfix</span><span class="o">:</span><span class="n">max</span> <span class="s2">"⁻¹"</span> <span class="bp">=&gt;</span> <span class="n">Inv.inv</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inv</span> <span class="n">α</span><span class="bp">ˣ</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="k">fun</span> <span class="n">u</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">u.2</span><span class="o">,</span> <span class="n">u.1</span><span class="o">,</span> <span class="n">u.4</span><span class="o">,</span> <span class="n">u.3</span><span class="o">⟩⟩</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">CoeHead</span> <span class="n">α</span><span class="bp">ˣ</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="n">Units.val</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">divp</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">Units</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">u</span><span class="bp">⁻¹</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">infixl</span><span class="o">:</span><span class="mi">70</span> <span class="s2">" /ₚ "</span> <span class="bp">=&gt;</span> <span class="n">divp</span>
+
+<span class="kd">class</span> <span class="n">MonoidWithZero</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">MulZeroOneClass</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">SemigroupWithZero</span> <span class="n">M₀</span>
+
+<span class="kd">class</span> <span class="n">AddCommMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">M</span><span class="o">,</span> <span class="n">AddCommSemigroup</span> <span class="n">M</span>
+
+<span class="c1">-- minimisation note: removed int cast</span>
+<span class="kd">class</span> <span class="n">SubNegMonoid</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">G</span><span class="o">,</span> <span class="n">Neg</span> <span class="n">G</span><span class="o">,</span> <span class="n">Sub</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">sub</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">+</span> <span class="bp">-</span><span class="n">b</span>
+  <span class="n">sub_eq_add_neg</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">-</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">+</span> <span class="bp">-</span><span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">intros</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">class</span> <span class="n">AddGroup</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">SubNegMonoid</span> <span class="n">A</span> <span class="n">where</span>
+  <span class="n">add_left_neg</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">A</span><span class="o">,</span> <span class="bp">-</span><span class="n">a</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="c1">-- minimisation note: removed NatCast</span>
+<span class="kd">class</span> <span class="n">AddMonoidWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">R</span><span class="o">,</span> <span class="n">One</span> <span class="n">R</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">CommMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">M</span><span class="o">,</span> <span class="n">CommSemigroup</span> <span class="n">M</span>
+
+<span class="c1">-- minimisation note: removed int cast</span>
+<span class="kd">class</span> <span class="n">AddGroupWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoidWithOne</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddGroup</span> <span class="n">R</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">AddCommGroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddGroup</span> <span class="n">G</span><span class="o">,</span> <span class="n">AddCommMonoid</span> <span class="n">G</span>
+
+<span class="kd">class</span> <span class="n">Distrib</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">R</span><span class="o">,</span> <span class="n">Add</span> <span class="n">R</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">left_distrib</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">R</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">+</span> <span class="n">c</span><span class="o">)</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span>
+  <span class="kn">protected</span> <span class="n">right_distrib</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">R</span><span class="o">,</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span><span class="o">)</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">c</span>
+
+<span class="kd">class</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddCommMonoid</span> <span class="n">α</span><span class="o">,</span> <span class="n">Distrib</span> <span class="n">α</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">AddCommMonoidWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoidWithOne</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddCommMonoid</span> <span class="n">R</span>
+
+<span class="kd">class</span> <span class="n">NonAssocSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">,</span>
+    <span class="n">AddCommMonoidWithOne</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">NonUnitalSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">SemigroupWithZero</span> <span class="n">α</span>
+
+
+<span class="kd">class</span> <span class="n">Semiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">NonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">MonoidWithZero</span> <span class="n">α</span>
+
+
+<span class="kd">class</span> <span class="n">Ring</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semiring</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddCommGroup</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddGroupWithOne</span> <span class="n">R</span>
+
+
+<span class="kd">class</span> <span class="n">CommRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">α</span><span class="o">,</span> <span class="n">CommMonoid</span> <span class="n">α</span>
+
+<span class="c1">-- minimisation note: removed int stuff</span>
+<span class="kd">class</span> <span class="n">DivInvMonoid</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">G</span><span class="o">,</span> <span class="n">Inv</span> <span class="n">G</span><span class="o">,</span> <span class="n">Div</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">div</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="bp">⁻¹</span>
+  <span class="n">div_eq_mul_inv</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">/</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="bp">⁻¹</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">intros</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="c1">-- minimisation note: removed rat cast stuff</span>
+<span class="kd">class</span> <span class="n">DivisionRing</span> <span class="o">(</span><span class="n">K</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">K</span><span class="o">,</span> <span class="n">DivInvMonoid</span> <span class="n">K</span><span class="o">,</span> <span class="n">Nontrivial</span> <span class="n">K</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">mul_inv_cancel</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">K</span><span class="o">),</span> <span class="n">a</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">a</span><span class="bp">⁻¹</span> <span class="bp">=</span> <span class="mi">1</span>
+  <span class="kn">protected</span> <span class="n">inv_zero</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">K</span><span class="o">)</span><span class="bp">⁻¹</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">Field</span> <span class="o">(</span><span class="n">K</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">CommRing</span> <span class="n">K</span><span class="o">,</span> <span class="n">DivisionRing</span> <span class="n">K</span>
+
+<span class="c1">-- order</span>
+
+<span class="kd">class</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LE</span> <span class="n">α</span><span class="o">,</span> <span class="n">LT</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">le_refl</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">a</span>
+  <span class="n">le_trans</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">c</span>
+  <span class="n">lt</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∧</span> <span class="bp">¬</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span>
+  <span class="n">lt_iff_le_not_le</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">↔</span> <span class="o">(</span><span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∧</span> <span class="bp">¬</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">PartialOrder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Preorder</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">le_antisymm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span><span class="o">)</span>
+
+<span class="c1">-- minimisation note: removed decidable stuff and min stuff</span>
+<span class="kd">class</span> <span class="n">LinearOrder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">PartialOrder</span> <span class="n">α</span><span class="o">,</span> <span class="n">Min</span> <span class="n">α</span><span class="o">,</span> <span class="n">Max</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">le_total</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∨</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">OrderedAddCommGroup</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddCommGroup</span> <span class="n">α</span><span class="o">,</span> <span class="n">PartialOrder</span> <span class="n">α</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">StrictOrderedRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">α</span><span class="o">,</span> <span class="n">OrderedAddCommGroup</span> <span class="n">α</span><span class="o">,</span> <span class="n">Nontrivial</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">zero_le_one</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="o">(</span><span class="mi">1</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="kn">protected</span> <span class="n">mul_pos</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">→</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">→</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">StrictOrderedRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">LinearOrder</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedCommRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">CommMonoid</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedField</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedCommRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">Field</span> <span class="n">α</span>
+
+<span class="kd">theorem</span> <span class="n">divp_eq_iff_mul_eq</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">u</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">}</span> <span class="o">{</span><span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">↔</span> <span class="n">y</span> <span class="bp">*</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">theorem</span> <span class="n">divp_mul_eq_mul_divp</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">CommMonoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">x</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="322781061"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322781061" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322781061">(Jan 21 2023 at 21:33)</a>:</h4>
+<p>Aah, I haven't minimised it! I didn't even make <code>LeftCancelMonoid</code>!</p>
+
+
+
+<a name="322782990"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322782990" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322782990">(Jan 21 2023 at 22:00)</a>:</h4>
+<p>OK so unfortunately I have failed to minimise. Here is some code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Std.Tactic.CoeExt</span>
+
+<span class="kd">class</span> <span class="n">Zero</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">zero</span> <span class="o">:</span> <span class="n">α</span>
+
+<span class="kd">instance</span> <span class="n">Zero.toOfNat0</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">Zero</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">0</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:=</span> <span class="o">‹</span><span class="n">Zero</span> <span class="n">α</span><span class="o">›</span><span class="bp">.</span><span class="mi">1</span>
+
+<span class="kd">instance</span> <span class="n">Zero.ofOfNat0</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">0</span><span class="o">)]</span> <span class="o">:</span> <span class="n">Zero</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">zero</span> <span class="o">:=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">One</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">one</span> <span class="o">:</span> <span class="n">α</span>
+
+<span class="kd">instance</span> <span class="n">One.toOfNat1</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">One</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">1</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">ofNat</span> <span class="o">:=</span> <span class="o">‹</span><span class="n">One</span> <span class="n">α</span><span class="o">›</span><span class="bp">.</span><span class="mi">1</span>
+
+<span class="kd">instance</span> <span class="n">One.ofOfNat1</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">[</span><span class="n">OfNat</span> <span class="n">α</span> <span class="o">(</span><span class="n">nat_lit</span> <span class="mi">1</span><span class="o">)]</span> <span class="o">:</span> <span class="n">One</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">one</span> <span class="o">:=</span> <span class="mi">1</span>
+
+<span class="kd">class</span> <span class="n">Nontrivial</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="n">where</span>
+  <span class="n">exists_pair_ne</span> <span class="o">:</span> <span class="bp">∃</span> <span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">x</span> <span class="bp">≠</span> <span class="n">y</span>
+
+<span class="kd">class</span> <span class="n">MulZeroClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">Zero</span> <span class="n">M₀</span> <span class="n">where</span>
+  <span class="n">zero_mul</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M₀</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span>
+  <span class="n">mul_zero</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="mi">0</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">AddSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Add</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">add_assoc</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">+</span> <span class="o">(</span><span class="n">b</span> <span class="bp">+</span> <span class="n">c</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">Semigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_assoc</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">*</span> <span class="n">c</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">CommSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_comm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">AddCommSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddSemigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">add_comm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">SemigroupWithZero</span> <span class="o">(</span><span class="n">S₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">S₀</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">S₀</span>
+
+<span class="kd">class</span> <span class="n">MulOneClass</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">One</span> <span class="n">M</span><span class="o">,</span> <span class="n">Mul</span> <span class="n">M</span> <span class="n">where</span>
+  <span class="n">one_mul</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="mi">1</span> <span class="bp">*</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span>
+  <span class="n">mul_one</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">AddZeroClass</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Zero</span> <span class="n">M</span><span class="o">,</span> <span class="n">Add</span> <span class="n">M</span> <span class="n">where</span>
+  <span class="n">zero_add</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span>
+  <span class="n">add_zero</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">M</span><span class="o">,</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">0</span> <span class="bp">=</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">MulZeroOneClass</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">MulOneClass</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">M₀</span>
+
+<span class="kd">class</span> <span class="n">AddMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddSemigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">AddZeroClass</span> <span class="n">M</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">Monoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">MulOneClass</span> <span class="n">M</span> <span class="n">where</span>
+
+<span class="kd">structure</span> <span class="n">Units</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="n">where</span>
+  <span class="n">val</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="n">inv</span> <span class="o">:</span> <span class="n">α</span>
+  <span class="n">val_inv</span> <span class="o">:</span> <span class="n">val</span> <span class="bp">*</span> <span class="n">inv</span> <span class="bp">=</span> <span class="mi">1</span>
+  <span class="n">inv_val</span> <span class="o">:</span> <span class="n">inv</span> <span class="bp">*</span> <span class="n">val</span> <span class="bp">=</span> <span class="mi">1</span>
+
+<span class="kd">postfix</span><span class="o">:</span><span class="mi">1024</span> <span class="s2">"ˣ"</span> <span class="bp">=&gt;</span> <span class="n">Units</span>
+
+<span class="kd">class</span> <span class="n">Inv</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="kd">postfix</span><span class="o">:</span><span class="n">max</span> <span class="s2">"⁻¹"</span> <span class="bp">=&gt;</span> <span class="n">Inv.inv</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inv</span> <span class="n">α</span><span class="bp">ˣ</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="k">fun</span> <span class="n">u</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">u.2</span><span class="o">,</span> <span class="n">u.1</span><span class="o">,</span> <span class="n">u.4</span><span class="o">,</span> <span class="n">u.3</span><span class="o">⟩⟩</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">coe</span><span class="o">]</span> <span class="n">Units.val</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">CoeHead</span> <span class="n">α</span><span class="bp">ˣ</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="n">Units.val</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">divp</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">Units</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">u</span><span class="bp">⁻¹</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">infixl</span><span class="o">:</span><span class="mi">70</span> <span class="s2">" /ₚ "</span> <span class="bp">=&gt;</span> <span class="n">divp</span>
+
+<span class="kd">class</span> <span class="n">MonoidWithZero</span> <span class="o">(</span><span class="n">M₀</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">MulZeroOneClass</span> <span class="n">M₀</span><span class="o">,</span> <span class="n">SemigroupWithZero</span> <span class="n">M₀</span>
+
+<span class="kd">class</span> <span class="n">LeftCancelSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_left_cancel</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">→</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span>
+
+<span class="kd">class</span> <span class="n">LeftCancelMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LeftCancelSemigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">Monoid</span> <span class="n">M</span>
+
+<span class="kd">class</span> <span class="n">RightCancelSemigroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semigroup</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">mul_right_cancel</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">c</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">c</span>
+
+<span class="kd">class</span> <span class="n">RightCancelMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">RightCancelSemigroup</span> <span class="n">M</span><span class="o">,</span> <span class="n">Monoid</span> <span class="n">M</span>
+
+<span class="kd">class</span> <span class="n">AddCommMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">M</span><span class="o">,</span> <span class="n">AddCommSemigroup</span> <span class="n">M</span>
+
+<span class="c1">-- minimisation note: removed int cast</span>
+<span class="kd">class</span> <span class="n">SubNegMonoid</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">G</span><span class="o">,</span> <span class="n">Neg</span> <span class="n">G</span><span class="o">,</span> <span class="n">Sub</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">sub</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">+</span> <span class="bp">-</span><span class="n">b</span>
+  <span class="n">sub_eq_add_neg</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">-</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">+</span> <span class="bp">-</span><span class="n">b</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">intros</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="kd">class</span> <span class="n">AddGroup</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">SubNegMonoid</span> <span class="n">A</span> <span class="n">where</span>
+  <span class="n">add_left_neg</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">A</span><span class="o">,</span> <span class="bp">-</span><span class="n">a</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="c1">-- minimisation note: removed NatCast</span>
+<span class="kd">class</span> <span class="n">AddMonoidWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoid</span> <span class="n">R</span><span class="o">,</span> <span class="n">One</span> <span class="n">R</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">CommMonoid</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">M</span><span class="o">,</span> <span class="n">CommSemigroup</span> <span class="n">M</span>
+
+<span class="c1">-- minimisation note: removed int cast</span>
+<span class="kd">class</span> <span class="n">AddGroupWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoidWithOne</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddGroup</span> <span class="n">R</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">AddCommGroup</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddGroup</span> <span class="n">G</span><span class="o">,</span> <span class="n">AddCommMonoid</span> <span class="n">G</span>
+
+<span class="kd">class</span> <span class="n">Distrib</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Mul</span> <span class="n">R</span><span class="o">,</span> <span class="n">Add</span> <span class="n">R</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">left_distrib</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">R</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="o">(</span><span class="n">b</span> <span class="bp">+</span> <span class="n">c</span><span class="o">)</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">+</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span>
+  <span class="kn">protected</span> <span class="n">right_distrib</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">R</span><span class="o">,</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span><span class="o">)</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">c</span> <span class="bp">+</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">c</span>
+
+<span class="kd">class</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddCommMonoid</span> <span class="n">α</span><span class="o">,</span> <span class="n">Distrib</span> <span class="n">α</span><span class="o">,</span> <span class="n">MulZeroClass</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">AddCommMonoidWithOne</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddMonoidWithOne</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddCommMonoid</span> <span class="n">R</span>
+
+<span class="kd">class</span> <span class="n">NonAssocSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">MulZeroOneClass</span> <span class="n">α</span><span class="o">,</span>
+    <span class="n">AddCommMonoidWithOne</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">NonUnitalSemiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalNonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">SemigroupWithZero</span> <span class="n">α</span>
+
+
+<span class="kd">class</span> <span class="n">Semiring</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">NonUnitalSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">NonAssocSemiring</span> <span class="n">α</span><span class="o">,</span> <span class="n">MonoidWithZero</span> <span class="n">α</span>
+
+
+<span class="kd">class</span> <span class="n">Ring</span> <span class="o">(</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Semiring</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddCommGroup</span> <span class="n">R</span><span class="o">,</span> <span class="n">AddGroupWithOne</span> <span class="n">R</span>
+
+
+<span class="kd">class</span> <span class="n">CommRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">α</span><span class="o">,</span> <span class="n">CommMonoid</span> <span class="n">α</span>
+
+<span class="c1">-- minimisation note: removed int stuff</span>
+<span class="kd">class</span> <span class="n">DivInvMonoid</span> <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Monoid</span> <span class="n">G</span><span class="o">,</span> <span class="n">Inv</span> <span class="n">G</span><span class="o">,</span> <span class="n">Div</span> <span class="n">G</span> <span class="n">where</span>
+  <span class="n">div</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="bp">⁻¹</span>
+  <span class="n">div_eq_mul_inv</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">a</span> <span class="bp">/</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span><span class="bp">⁻¹</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">intros</span><span class="bp">;</span> <span class="n">rfl</span>
+
+<span class="c1">-- minimisation note: removed rat cast stuff</span>
+<span class="kd">class</span> <span class="n">DivisionRing</span> <span class="o">(</span><span class="n">K</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">K</span><span class="o">,</span> <span class="n">DivInvMonoid</span> <span class="n">K</span><span class="o">,</span> <span class="n">Nontrivial</span> <span class="n">K</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">mul_inv_cancel</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">K</span><span class="o">),</span> <span class="n">a</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">a</span><span class="bp">⁻¹</span> <span class="bp">=</span> <span class="mi">1</span>
+  <span class="kn">protected</span> <span class="n">inv_zero</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span> <span class="o">:</span> <span class="n">K</span><span class="o">)</span><span class="bp">⁻¹</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">Field</span> <span class="o">(</span><span class="n">K</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">CommRing</span> <span class="n">K</span><span class="o">,</span> <span class="n">DivisionRing</span> <span class="n">K</span>
+
+<span class="c1">-- order</span>
+
+<span class="kd">class</span> <span class="n">Preorder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LE</span> <span class="n">α</span><span class="o">,</span> <span class="n">LT</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">le_refl</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">a</span>
+  <span class="n">le_trans</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">c</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">c</span>
+  <span class="n">lt</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∧</span> <span class="bp">¬</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span>
+  <span class="n">lt_iff_le_not_le</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">↔</span> <span class="o">(</span><span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∧</span> <span class="bp">¬</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span><span class="o">)</span>
+
+<span class="kd">class</span> <span class="n">PartialOrder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Preorder</span> <span class="n">α</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">le_antisymm</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">→</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">=</span> <span class="n">b</span><span class="o">)</span>
+
+<span class="c1">-- minimisation note: removed decidable stuff and min stuff</span>
+<span class="kd">class</span> <span class="n">LinearOrder</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">PartialOrder</span> <span class="n">α</span><span class="o">,</span> <span class="n">Min</span> <span class="n">α</span><span class="o">,</span> <span class="n">Max</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="n">le_total</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≤</span> <span class="n">b</span> <span class="bp">∨</span> <span class="n">b</span> <span class="bp">≤</span> <span class="n">a</span>
+
+<span class="kd">class</span> <span class="n">OrderedAddCommGroup</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">AddCommGroup</span> <span class="n">α</span><span class="o">,</span> <span class="n">PartialOrder</span> <span class="n">α</span> <span class="n">where</span>
+
+<span class="kd">class</span> <span class="n">StrictOrderedRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">Ring</span> <span class="n">α</span><span class="o">,</span> <span class="n">OrderedAddCommGroup</span> <span class="n">α</span><span class="o">,</span> <span class="n">Nontrivial</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="kn">protected</span> <span class="n">zero_le_one</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="o">(</span><span class="mi">1</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span>
+  <span class="kn">protected</span> <span class="n">mul_pos</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">α</span><span class="o">,</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">→</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">→</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">StrictOrderedRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">LinearOrder</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedCommRing</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">CommMonoid</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">LinearOrderedField</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">LinearOrderedCommRing</span> <span class="n">α</span><span class="o">,</span> <span class="n">Field</span> <span class="n">α</span>
+
+<span class="kd">theorem</span> <span class="n">divp_eq_iff_mul_eq</span> <span class="o">[</span><span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">u</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">}</span> <span class="o">{</span><span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">↔</span> <span class="n">y</span> <span class="bp">*</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">x</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">theorem</span> <span class="n">divp_mul_eq_mul_divp</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">CommMonoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">x</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">y</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">self_eq_mul_right</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">LeftCancelMonoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">M</span><span class="o">}</span> <span class="o">:</span>
+    <span class="n">a</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">↔</span> <span class="n">b</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">mul_divp_cancel</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">inst</span> <span class="o">:</span> <span class="n">Monoid</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">α</span><span class="bp">ˣ</span><span class="o">)</span> <span class="o">:</span>
+    <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u</span> <span class="bp">/ₚ</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">a</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">self_eq_mul_left</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">RightCancelMonoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">M</span><span class="o">}</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">eq_iff_true_of_subsingleton</span> <span class="o">[</span><span class="n">Subsingleton</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">↔</span> <span class="n">True</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">variable</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">}</span> <span class="o">[</span><span class="n">CommRing</span> <span class="n">R</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">u₁</span> <span class="n">u₂</span> <span class="o">:</span> <span class="n">R</span><span class="bp">ˣ</span><span class="o">)</span>
+
+<span class="kd">set_option</span> <span class="n">trace.Meta.synthInstance</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">set_option</span> <span class="n">trace.Meta.Tactic.simp</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">/ₚ</span> <span class="n">u₁</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">/ₚ</span> <span class="n">u₂</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">u₁</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">divp_eq_iff_mul_eq</span><span class="o">,</span> <span class="n">divp_mul_eq_mul_divp</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="322783744"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322783744" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322783744">(Jan 21 2023 at 22:10)</a>:</h4>
+<p>That code works fine (the Std import was just to see whether the coe attribute had anything to do with it). Unfortunately <code>simp</code> proves the lemma just fine in the minimised example. With <code>set_option trace.Meta.synthInstance true</code> and <code>set_option trace.Meta.Tactic.simp true</code> one can look at the output in the original issue and the minimised non-issue and they are identical up until the point where things go wrong :-( The failing code trace looks like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">lots</span> <span class="n">of</span> <span class="n">lines</span> <span class="n">omitted</span><span class="o">)</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">Subsingleton</span> <span class="n">R</span> <span class="bp">▶</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_right</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_left</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▶</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▶</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">LeftCancelMonoid</span> <span class="n">R</span> <span class="bp">▶</span>
+<span class="bp">...</span>
+</code></pre></div>
+<p>and the minimised succeeding code looks like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">exactly</span> <span class="n">the</span> <span class="n">same</span> <span class="mi">60</span> <span class="n">or</span> <span class="n">so</span> <span class="n">lines</span> <span class="n">omitted</span><span class="o">)</span>
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">Subsingleton</span> <span class="n">R</span> <span class="bp">▶</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_right</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_left</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.synthInstance</span><span class="o">]</span> <span class="bp">❌</span> <span class="n">Subsingleton</span> <span class="n">R</span> <span class="bp">▶</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.discharge</span><span class="o">]</span> <span class="bp">@</span><span class="n">eq_iff_true_of_subsingleton</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">synthesize</span> <span class="kd">instance</span>
+      <span class="n">Subsingleton</span> <span class="n">R</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_right</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">self_eq_mul_left</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+
+<span class="o">[</span><span class="n">Meta.Tactic.simp.rewrite</span><span class="o">]</span> <span class="n">iff_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">↔</span> <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span> <span class="bp">==&gt;</span> <span class="n">True</span>
+
+<span class="o">(</span><span class="kd">end</span> <span class="n">of</span> <span class="n">debugging</span> <span class="n">output</span><span class="bp">;</span> <span class="kd">theorem</span> <span class="n">proved</span><span class="o">)</span>
+</code></pre></div>
+<p>So from the logs alone I cannot see why Lean is taking a different turn in the mathlib example and thus I don't know how to proceed with the minimisation process.</p>
+
+
+
+<a name="322784922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322784922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322784922">(Jan 21 2023 at 22:26)</a>:</h4>
+<p>Aah, progress! I've just understood that it is the line </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">Meta.Tactic.simp.unify</span><span class="o">]</span> <span class="bp">@</span><span class="n">mul_right_eq_self</span><span class="o">:</span><span class="mi">1000</span><span class="o">,</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">unify</span>
+      <span class="bp">?</span><span class="n">a</span> <span class="bp">*</span> <span class="bp">?</span><span class="n">b</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">a</span>
+    <span class="k">with</span>
+      <span class="n">a</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₂</span> <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="bp">↑</span><span class="n">u₁</span>
+</code></pre></div>
+<p><em>after</em> the 453 failures <code>[Meta.synthInstance] ❌ LeftCancelMonoid R ▶</code> which is triggering it! I have managed to trigger it 6 times in the MWE by adding</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp]</span> <span class="kd">theorem</span> <span class="n">mul_right_eq_self</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">inst</span> <span class="o">:</span> <span class="n">LeftCancelMonoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">M</span><span class="o">}</span> <span class="o">:</span>
+    <span class="n">a</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="bp">↔</span> <span class="n">b</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="322784966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322784966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322784966">(Jan 21 2023 at 22:26)</a>:</h4>
+<p>Got it! Posting in <a class="stream" data-stream-id="270676" href="/#narrow/stream/270676-lean4">#lean4</a></p>
+
+
+
+<a name="322786254"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322786254" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322786254">(Jan 21 2023 at 22:42)</a>:</h4>
+<p><a href="#narrow/stream/270676-lean4/topic/type.20class.20inference.20goes.20haywire/near/322785742">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/type.20class.20inference.20goes.20haywire/near/322785742</a></p>
+
+
+
+<a name="322818829"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322818829" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322818829">(Jan 22 2023 at 07:04)</a>:</h4>
+<p>But already the 453 failures of <code>LeftCancelMonoid R</code> are a problem, no? Shouldn't there be an instance cache so that this search is not performed several times?</p>
+
+
+
+<a name="322826944"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322826944" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322826944">(Jan 22 2023 at 08:46)</a>:</h4>
+<p>Coincidentally, today I too encountered an innocuous-looking <code>simp</code> use which is very slow for me.  Can anyone reproduce, or determine if it's the same error as David's?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Mathlib.Data.Int.Basic</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">10</span> <span class="bp">-</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">sub_eq_zero</span><span class="o">]</span> <span class="n">at</span> <span class="n">h</span> <span class="c1">-- fast</span>
+  <span class="n">trivial</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">=</span> <span class="mi">10</span> <span class="bp">-</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="bp">←</span> <span class="n">sub_eq_zero</span><span class="o">]</span> <span class="n">at</span> <span class="n">h</span> <span class="c1">-- slow</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+
+
+
+<a name="322827808"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/%5Bfield_simp%5D%20simp%20timeout/near/322827808" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/287929-mathlib4/topic/.5Bfield_simp.5D.20simp.20timeout.html#322827808">(Jan 22 2023 at 08:56)</a>:</h4>
+<p>Actually, that one also times out in mathlib3.  Sorry for the noise.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

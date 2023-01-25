@@ -1,0 +1,63 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html">Casting Float to some integral type</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="222541854"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Casting%20Float%20to%20some%20integral%20type/near/222541854" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html#222541854">(Jan 13 2021 at 07:15)</a>:</h4>
+<p>For the life of me I can't figure out how to turn a <code>Float</code> into an integral type (IE: <code>Int</code>, <code>UInt32</code>, etc). For the record, I've tried some nasty C FFI hacks as well, but I don't think I've figured out exactly how to get that to generate the requisite code.</p>
+
+
+
+<a name="222572312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Casting%20Float%20to%20some%20integral%20type/near/222572312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html#222572312">(Jan 13 2021 at 12:31)</a>:</h4>
+<p>how about</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Float.toInt</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Float</span><span class="o">)</span> <span class="o">:</span> <span class="n">Int</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">f.toString.takeWhile</span> <span class="o">(</span><span class="k">fun</span> <span class="n">c</span> <span class="bp">=&gt;</span> <span class="n">c</span> <span class="bp">==</span> <span class="sc">'-'</span> <span class="bp">||</span> <span class="n">c.isDigit</span><span class="o">))</span><span class="bp">.</span><span class="n">toInt</span><span class="bp">!</span>
+</code></pre></div>
+<p><span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+<a name="222573279"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Casting%20Float%20to%20some%20integral%20type/near/222573279" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html#222573279">(Jan 13 2021 at 12:41)</a>:</h4>
+<p>Something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[extern c inline "(uint32)#1"]</span>  <span class="kd">constant</span> <span class="n">Float.toUInt32</span> <span class="o">:</span> <span class="n">Float</span> <span class="bp">→</span> <span class="n">UInt32</span>
+</code></pre></div>
+<p>should work, though you won't be able to use it in the interpreter without compiling it into a native library first. Implementing <code>Int/Nat</code> should be a bit more interesting if it's supposed to work on values &gt; 2^64...</p>
+
+
+
+<a name="222612950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Casting%20Float%20to%20some%20integral%20type/near/222612950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reed Mullanix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Casting.20Float.20to.20some.20integral.20type.html#222612950">(Jan 13 2021 at 17:07)</a>:</h4>
+<p>That inline cast was my first attempt, but I couldn't figure out how to compile as a native library. The solution I settled on was</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">partial</span> <span class="kd">def</span> <span class="n">UInt8.ofFloat</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Float</span><span class="o">)</span> <span class="o">:</span> <span class="n">UInt8</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">x</span> <span class="bp">&gt;=</span> <span class="mi">255</span> <span class="k">then</span> <span class="mi">255</span>
+  <span class="k">else</span> <span class="k">if</span> <span class="n">x</span> <span class="bp">&lt;</span> <span class="mi">0</span> <span class="k">then</span> <span class="mi">0</span>
+  <span class="k">else</span> <span class="n">go</span> <span class="mi">0</span> <span class="mi">255</span>
+
+  <span class="n">where</span>
+    <span class="n">go</span> <span class="o">(</span><span class="n">lo</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">(</span><span class="n">hi</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">UInt8</span> <span class="o">:=</span>
+      <span class="k">let</span> <span class="n">mid</span> <span class="o">:=</span> <span class="o">(</span><span class="n">lo</span> <span class="bp">+</span> <span class="n">hi</span><span class="o">)</span><span class="bp">/</span><span class="mi">2</span>
+      <span class="k">if</span> <span class="n">hi</span> <span class="bp">&lt;=</span> <span class="n">lo</span> <span class="k">then</span> <span class="o">(</span><span class="n">UInt8.ofNat</span> <span class="bp">$</span> <span class="n">lo</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+      <span class="k">else</span> <span class="k">if</span> <span class="n">x</span> <span class="bp">&lt;</span> <span class="o">(</span><span class="n">Float.ofNat</span> <span class="n">mid</span><span class="o">)</span> <span class="k">then</span> <span class="n">go</span> <span class="n">lo</span> <span class="n">mid</span> <span class="k">else</span> <span class="n">go</span> <span class="o">(</span><span class="n">mid</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="n">hi</span>
+</code></pre></div>
+<p>Also, while floats are up for discussion, I think there is a missing instance for <code>Neg Float</code></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

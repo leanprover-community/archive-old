@@ -1,0 +1,150 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html">command to generate universe polymorphic inductive failing</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="283172266"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283172266" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283172266">(May 21 2022 at 12:52)</a>:</h4>
+<p>I'm learning lean 4 meta-programming and as an exercise, I want to generate a structure programmatically from a command.<br>
+I'm inside CommandElabM here, so I don't know how to add a definition from syntax. As a result I'm trying to use Environment.addAndCompile stuff to create an inductive definition directly from an internal representation.<br>
+I've managed to generate my structure without universes, but I run into problems when I try to add universes in.<br>
+Here is my failing mwe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span>
+
+<span class="n">elab</span> <span class="s2">"gen_structure"</span> <span class="n">id</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">type_u</span> <span class="o">:=</span> <span class="n">mkSort</span> <span class="o">(</span><span class="n">mkLevelSucc</span> <span class="o">(</span><span class="n">mkLevelParam</span> <span class="s2">"u"</span><span class="o">))</span>
+  <span class="k">let</span> <span class="n">decl</span> <span class="o">:=</span> <span class="n">mkInductiveDeclEs</span> <span class="o">[</span><span class="s2">"u"</span><span class="o">]</span> <span class="mi">1</span> <span class="o">[{</span>
+    <span class="n">name</span> <span class="o">:=</span> <span class="n">id.getId</span>
+    <span class="n">type</span> <span class="o">:=</span> <span class="n">mkForall</span> <span class="bp">.</span><span class="n">anonymous</span> <span class="bp">.</span><span class="n">default</span> <span class="n">type_u</span> <span class="n">type_u</span>
+    <span class="n">ctors</span> <span class="o">:=</span> <span class="o">[{</span>
+      <span class="n">name</span> <span class="o">:=</span> <span class="n">id.getId</span> <span class="bp">++</span> <span class="s2">"mk"</span>
+      <span class="n">type</span> <span class="o">:=</span>
+        <span class="n">mkForall</span> <span class="s2">"α"</span> <span class="bp">.</span><span class="n">implicit</span> <span class="n">type_u</span>
+        <span class="bp">&lt;|</span> <span class="n">mkForall</span> <span class="s2">"x"</span> <span class="bp">.</span><span class="n">default</span> <span class="o">(</span><span class="n">mkBVar</span> <span class="mi">0</span><span class="o">)</span>
+        <span class="bp">&lt;|</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="n">id.getId</span><span class="o">)</span> <span class="o">(</span><span class="n">mkBVar</span> <span class="mi">1</span><span class="o">)</span>
+    <span class="o">}]</span>
+  <span class="o">}]</span> <span class="n">false</span>
+  <span class="k">match</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="n">addAndCompile</span> <span class="o">{}</span> <span class="n">decl</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">error</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="o">(</span><span class="s2">"addAndCompile error: "</span> <span class="bp">++</span> <span class="n">e.toMessageData</span> <span class="o">{})</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">ok</span> <span class="n">env</span> <span class="bp">=&gt;</span> <span class="n">setEnv</span> <span class="n">env</span>
+
+<span class="n">gen_structure</span> <span class="n">struct</span>
+<span class="k">#print</span> <span class="n">struct</span>
+</code></pre></div>
+<p>The error I get is this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">(</span><span class="n">kernel</span><span class="o">)</span> <span class="n">incorrect</span> <span class="n">number</span> <span class="n">of</span> <span class="kd">universe</span> <span class="n">levels</span> <span class="kd">parameters</span> <span class="n">for</span> <span class="bp">'</span><span class="n">struct'</span><span class="o">,</span> <span class="bp">#</span><span class="mi">1</span> <span class="n">expected</span><span class="o">,</span> <span class="bp">#</span><span class="mi">0</span> <span class="n">provided</span>
+</code></pre></div>
+<p>The code works if I replace the universe list ["u"] with an empty list, and (mkLevelParam "u") with levelZero.<br>
+It looks like it expects a u variable somewhere but I can't see where.  Is it a bug or am I missing something?<br>
+Thanks for suggestions. I'm using nightly-2022-05-21</p>
+
+
+
+<a name="283186451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283186451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283186451">(May 21 2022 at 18:21)</a>:</h4>
+<p>If you want to create a definition from syntax in CommandElabM you can do <code>elabCommand &lt;|&lt;- `(def foo : Nat := 1)</code></p>
+
+
+
+<a name="283186526"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283186526" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283186526">(May 21 2022 at 18:22)</a>:</h4>
+<p>By the way the usual way to quote names is <code> `x</code> not <code>"x"</code></p>
+
+
+
+<a name="283186662"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283186662" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283186662">(May 21 2022 at 18:26)</a>:</h4>
+<p>the issue is that in your <code>mkConst</code> you did not pass the universe parameter. Here's the fixed version:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="s2">"gen_structure"</span> <span class="n">id</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">type_u</span> <span class="o">:=</span> <span class="n">mkSort</span> <span class="o">(</span><span class="n">mkLevelSucc</span> <span class="o">(</span><span class="n">mkLevelParam</span> <span class="bp">`</span><span class="n">u</span><span class="o">))</span>
+  <span class="k">let</span> <span class="n">decl</span> <span class="o">:=</span> <span class="n">mkInductiveDeclEs</span> <span class="o">[</span><span class="bp">`</span><span class="n">u</span><span class="o">]</span> <span class="mi">1</span> <span class="o">[{</span>
+    <span class="n">name</span> <span class="o">:=</span> <span class="n">id.getId</span>
+    <span class="n">type</span> <span class="o">:=</span> <span class="n">mkForall</span> <span class="bp">.</span><span class="n">anonymous</span> <span class="bp">.</span><span class="n">default</span> <span class="n">type_u</span> <span class="n">type_u</span>
+    <span class="n">ctors</span> <span class="o">:=</span> <span class="o">[{</span>
+      <span class="n">name</span> <span class="o">:=</span> <span class="n">id.getId</span> <span class="bp">++</span> <span class="bp">`</span><span class="n">mk</span>
+      <span class="n">type</span> <span class="o">:=</span>
+        <span class="n">mkForall</span> <span class="bp">`</span><span class="n">α</span> <span class="bp">.</span><span class="n">implicit</span> <span class="n">type_u</span>
+        <span class="bp">&lt;|</span> <span class="n">mkForall</span> <span class="bp">`</span><span class="n">x</span> <span class="bp">.</span><span class="n">default</span> <span class="o">(</span><span class="n">mkBVar</span> <span class="mi">0</span><span class="o">)</span>
+        <span class="bp">&lt;|</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="n">id.getId</span> <span class="o">[</span><span class="n">mkLevelParam</span> <span class="bp">`</span><span class="n">u</span><span class="o">])</span> <span class="o">(</span><span class="n">mkBVar</span> <span class="mi">1</span><span class="o">)</span>
+    <span class="o">}]</span>
+  <span class="o">}]</span> <span class="n">false</span>
+  <span class="k">match</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="n">addAndCompile</span> <span class="o">{}</span> <span class="n">decl</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">error</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="o">(</span><span class="s2">"addAndCompile error: "</span> <span class="bp">++</span> <span class="n">e.toMessageData</span> <span class="o">{})</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">ok</span> <span class="n">env</span> <span class="bp">=&gt;</span> <span class="n">setEnv</span> <span class="n">env</span>
+</code></pre></div>
+
+
+
+<a name="283186677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283186677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283186677">(May 21 2022 at 18:27)</a>:</h4>
+<p><span class="user-mention" data-user-id="403214">@Michael Jam</span></p>
+
+
+
+<a name="283193360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283193360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283193360">(May 21 2022 at 21:15)</a>:</h4>
+<p>Thanks Mario, that helps. It seems way more convenient to create a syntax for the code I want and elab it with elabCommand. Using mkInductiveDeclEx and addAndCompile feels too bare bones. One issue I have is that I can't use match on my created structure, it's probably not generating some background stuff that's usually auto generated. <br>
+This works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">struct</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span> <span class="bp">|</span> <span class="n">mk</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">struct</span> <span class="n">α</span>
+<span class="kd">def</span> <span class="n">proj</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">struct</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">s</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">struct.mk</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+</code></pre></div>
+<p>But this doesn't :</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">gen_structure</span> <span class="n">struct</span>
+<span class="kd">def</span> <span class="n">proj</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">struct</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">s</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">struct.mk</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">x</span>
+</code></pre></div>
+<p>with the following error:</p>
+<div class="codehilite" data-code-language="tactic"><pre><span></span><code>tactic 'cases' failed, not applicable to the given hypothesis, ...
+</code></pre></div>
+<p>Another problem, is that I am actually implementing an attribute that parses an inductive type to generate a new structure from it, so I'm not in CommandElabM, but in  AttrM which doesn't seem to support elabCommand. Is there a way to generate the structure from syntax in AttrM (or CoreM ?)</p>
+
+
+
+<a name="283197672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283197672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wojciech Nawrocki <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283197672">(May 21 2022 at 23:04)</a>:</h4>
+<blockquote>
+<p>Another problem, is that I am actually implementing an attribute that parses an inductive type to generate a new structure from it, so I'm not in CommandElabM, but in AttrM which doesn't seem to support elabCommand. Is there a way to generate the structure from syntax in AttrM (or CoreM ?)</p>
+</blockquote>
+<p>I know that you can at least run <code>MetaM</code> and <code>TermElabM</code> there, as in this <a href="https://github.com/leanprover/lean4/blob/56cd6c1ff519d8be39f35875b5bf8719e6101c20/src/Lean/Server/Rpc/RequestHandling.lean#L111">usage example</a>. <code>CommandElabM</code> is probably also possible, but I couldn't immediately find a <code>run</code>/<code>run'</code> method for it.</p>
+
+
+
+<a name="283220464"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283220464" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Michael Jam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283220464">(May 22 2022 at 08:26)</a>:</h4>
+<p>I could not find a way to elab a command in AttrM/CoreM/MetaM. It seems all the lift / run functions take me away from CommandElabM. I'll try to understand better what all these monads do</p>
+
+
+
+<a name="283221233"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/command%20to%20generate%20universe%20polymorphic%20inductive%20failing/near/283221233" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/command.20to.20generate.20universe.20polymorphic.20inductive.20failing.html#283221233">(May 22 2022 at 08:45)</a>:</h4>
+<p>This thread should help: <a href="#narrow/stream/270676-lean4/topic/Lean.204.20monads">https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean.204.20monads</a></p>
+<p>Additionally, from my (limited) understanding:</p>
+<ul>
+<li><code>CoreM</code> seems to only provide low-level tools like the environment and timeout systems</li>
+<li><code>MetaM</code> gives you normalization, definitional equality, type inference and typeclass resolution. See also <a href="https://github.com/arthurpaulino/lean4-metaprogramming-book/blob/master/md/main/metam.md">this</a>. All the meta-level code I've encountered so far runs in it.</li>
+<li><code>TermElabM</code> is (unsurprisingly) used for term elaboration, it gives you access to term utilities like metavariables, coercions, etc. You usually get there by elaborating syntax rules for terms (eg. <code>macro_rules</code> or the term elab attribute).</li>
+<li><code>CommandElabM</code> is for command elaboration. It doesn't depend on <code>TermElabM</code> but it still has a method to run term elaboration so you still have access to term utils. You usually get there with the <code>elab</code> or <code>elab_rules</code> command, or the command elab attribute.</li>
+</ul>
+<p>Syntax quotations <code>`()</code> are available at several levels, <a href="https://github.com/arthurpaulino/lean4-metaprogramming-book/blob/master/md/main/macros.md#monadquotation-and-monadref">see here</a>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

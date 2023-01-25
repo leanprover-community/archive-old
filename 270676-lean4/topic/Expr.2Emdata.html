@@ -1,0 +1,95 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Expr.2Emdata.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html">Expr.mdata</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="287193661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/287193661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Dan Velleman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#287193661">(Jun 23 2022 at 13:55)</a>:</h4>
+<p>Can someone explain what Expr.mdata is for?  Here's a silly example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">elab</span> <span class="s2">"traceGoal"</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">g</span> <span class="bp">←</span> <span class="n">getMainTarget</span>
+  <span class="n">dbg_trace</span> <span class="n">g</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">p</span> <span class="bp">∧</span> <span class="n">q</span><span class="o">)</span> <span class="o">:</span> <span class="n">p</span> <span class="bp">→</span> <span class="n">q</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">traceGoal</span>
+  <span class="k">have</span> <span class="n">h2</span> <span class="o">:</span> <span class="n">q</span> <span class="o">:=</span> <span class="n">h.right</span>
+  <span class="n">traceGoal</span>
+</code></pre></div>
+<p>The two calls to <code>traceGoal</code> reveal that initially, the goal is <code>_uniq.45324 -&gt; _uniq.45325</code>, but after the use of <code>have</code> it is <code>[mdata noImplicitLambda:1 _uniq.45324 -&gt; _uniq.45325]</code>.  What happened?</p>
+<p>The reason for my interest is that I want to write tactics that decide what to do based on the form of the goal.  If the goal has the form <code>Expr.mdata m e d</code>, then I guess I need to look inside <code>e</code> to see what the form of the goal is.  It is easy enough to do that using something like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">stripMData</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">Expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">Expr</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">e</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">Expr.mdata</span> <span class="n">_</span> <span class="n">e</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">stripMData</span> <span class="n">e</span>
+    <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+</code></pre></div>
+<p>But is that a good idea?  If I remove all of the mdata to get at the underlying expression, am I going to get myself in trouble somehow?  I'm reluctant to throw away the mdata without knowing what it is.</p>
+
+
+
+<a name="287214170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/287214170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Keizer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#287214170">(Jun 23 2022 at 16:21)</a>:</h4>
+<p>I'm not sure what mdata is, but have you had a look at <code>whnf</code>? It stands for weak head normal form and if you want to match on expressions you probably want to normalise them first. I suspect <code>whnf</code> might get rid of the mdata for you.</p>
+
+
+
+<a name="287214528"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/287214528" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#287214528">(Jun 23 2022 at 16:23)</a>:</h4>
+<p>If <code>whnf</code> doesn't do it, there is also <code>Expr.consumeMData</code>.</p>
+
+
+
+<a name="287216529"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/287216529" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#287216529">(Jun 23 2022 at 16:36)</a>:</h4>
+<p><code>mdata</code> is a mechanism for attaching arbitrary metadata to expressions. It's used for a number of things (e.g. better pretty-printing if I recall correctly), but it should never be semantically relevant, so you can remove it if you need to. If you construct an expression that's derived from an existing expression, it may be nice to preserve <code>mdata</code>, but my impression is that Lean itself doesn't do this consistently.</p>
+
+
+
+<a name="293619420"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/293619420" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Dan Velleman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#293619420">(Aug 15 2022 at 20:54)</a>:</h4>
+<p>I'm still unclear on when it is necessary to call consumeMData.  For example, here's the definition of Expr.getAppFn:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">getAppFn</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">-&gt;</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="n">f</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">getAppFn</span> <span class="n">f</span>
+  <span class="bp">|</span> <span class="n">e</span>             <span class="bp">=&gt;</span> <span class="n">e</span>
+</code></pre></div>
+<p>Why isn't it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">getAppFn</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">-&gt;</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="n">f</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">getAppFn</span> <span class="o">(</span><span class="n">consumeMData</span> <span class="n">f</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">e</span>            <span class="bp">=&gt;</span> <span class="n">e</span>
+</code></pre></div>
+<p>How do we know <code>f</code> doesn't have mdata associated with it?</p>
+
+
+
+<a name="293662007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/293662007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#293662007">(Aug 16 2022 at 06:34)</a>:</h4>
+<p>I agree that your definition would likely be better for most purposes. Maybe the Lean devs would even consider this a bug, or maybe they use this function in ways that are supposed to be sensitive to mdata. Other functions have primed versions which ignore mdata, e.g. <a href="https://leanprover-community.github.io/mathlib4_docs/Lean/Expr.html#Lean.Expr.isAppOfArity'">isAppOfArity'</a>.</p>
+
+
+
+<a name="293666083"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Expr.mdata/near/293666083" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Expr.2Emdata.html#293666083">(Aug 16 2022 at 07:19)</a>:</h4>
+<p>Maybe we need a "what are mdata used for" document, because these are quite mysterious (and also very well hidden).  Some prominent applications:</p>
+<ol>
+<li><code>show X from y</code> is encoded as <code>.mdata (KVMap.empty.setBool `let_fun true) (.app (.lam _ X (.var 0) y)</code>.  Here mdata is used to create a "custom expression constructor", if you will.</li>
+<li>Tags like <code>noindex</code> or <code>@&amp;</code> are stored as annotations.</li>
+<li>You can annotate an expression with pretty-printing options using mdata.  Check out <code>Expr.setPPExplicit</code> and co.</li>
+</ol>
+<p>My general feeling is: only strip mdata if you're beta-reducing as well.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,166 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html">Overloading for non-number syntax?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="281731933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281731933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281731933">(May 09 2022 at 19:13)</a>:</h4>
+<p>While Lean features pervasive overloading for numbers, there doesn't seem to be anything similar for list literals. <code>Notation.lean</code> contains a <code>macro_rules</code> that expands list literal syntax directly into invocations of <code>List.cons</code> and <code>List.nil</code>. </p>
+<p>Similarly, string literals are not overloaded so far as I can see.</p>
+<p>What is the thought process behind determining which syntactic literals should admit overloading? I've had good luck with overloaded list in Idris for various kinds of indexed list types (e.g. environments for an interpreter that are indexed by the types of the values found in them). Overloaded strings are useful in contexts where there are embedded external strings, but this seems less compelling, because these contexts are likely to be under the control of a macro anyway.</p>
+<p>In any case, it would be nice to know why the system is as it is.</p>
+<p>Thanks!</p>
+
+
+
+<a name="281737913"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281737913" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281737913">(May 09 2022 at 19:59)</a>:</h4>
+<p>Technically speaking there is absolutely nothing stopping you from writing your own elaborator that define the semantics of list literals and build that semantic in a way that allows overloading, all syntax is overridable.</p>
+
+
+
+<a name="281738616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281738616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281738616">(May 09 2022 at 20:04)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">([</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="bp">@</span><span class="n">List.nil</span> <span class="n">Nat</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="o">[]</span> <span class="bp">==</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">,</span><span class="mi">3</span><span class="o">,</span><span class="mi">4</span><span class="o">]</span>
+</code></pre></div>
+<p>yields true.</p>
+
+
+
+<a name="281738848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281738848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281738848">(May 09 2022 at 20:06)</a>:</h4>
+<p>Lean 4 supports both ad-hoc overloading and typeclass-based overloading. TC-based polymorphism has many advantages, but some limitations too. For example: it forces the overloads to have a "similar shape". We also use expected type-based overloading where we use the expected type to provide the name of a namespace where we expect to have operations (e.g., the expected type is <code>Foo ...</code>, we could check whether we have <code>Foo.cons</code> and <code>Foo.nil</code> and build the list literal using them).<br>
+Here is the <code>[ ... ]</code> notation for <code>Vector</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Vector</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span>
+  <span class="bp">|</span> <span class="n">nil</span> <span class="o">:</span> <span class="n">Vector</span> <span class="n">α</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="n">cons</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Vector</span> <span class="n">α</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Vector</span> <span class="n">α</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span>
+
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">vector</span><span class="o">)</span> <span class="s2">"["</span> <span class="n">term</span><span class="o">,</span><span class="bp">*</span> <span class="s2">"]"</span>  <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">vector</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">([</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="k">do</span> <span class="n">elems.getElems.foldrM</span> <span class="o">(</span><span class="n">init</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">Vector.nil</span><span class="o">)))</span> <span class="k">fun</span> <span class="n">x</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Vector.cons</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">$</span><span class="n">xs</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">v</span> <span class="o">:</span> <span class="n">Vector</span> <span class="n">Nat</span> <span class="mi">3</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">xs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span>
+</code></pre></div>
+<p>One can also use scoped parsers and priorities, and make sure, for example, <code>[ ... ]</code> is always a <code>Vector</code>.</p>
+
+
+
+<a name="281739242"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281739242" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281739242">(May 09 2022 at 20:09)</a>:</h4>
+<p>:O how does it figure out when to use the vector vs the regular list macro?</p>
+
+
+
+<a name="281739710"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281739710" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281739710">(May 09 2022 at 20:12)</a>:</h4>
+<p>The parser creates a <code>Choice</code> node for the overloaded notation. The elaborator tries to elaborate both of them. If only one succeeds, it uses it. If more than one, then it generates an "ambiguous" error. In the example above, if we add </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">ys</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span>
+</code></pre></div>
+<p>we get the error</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code> <span class="n">error</span><span class="o">:</span> <span class="n">ambiguous</span><span class="o">,</span> <span class="n">possible</span> <span class="n">interpretations</span>
+  <span class="n">Vector.cons</span> <span class="mi">1</span> <span class="o">(</span><span class="n">Vector.cons</span> <span class="mi">2</span> <span class="o">(</span><span class="n">Vector.cons</span> <span class="mi">3</span> <span class="n">Vector.nil</span><span class="o">))</span> <span class="o">:</span> <span class="n">Vector</span> <span class="bp">?</span><span class="n">m.1531</span> <span class="o">(</span><span class="mi">0</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span>
+
+  <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span> <span class="o">:</span> <span class="n">List</span> <span class="bp">?</span><span class="n">m.1575</span>
+</code></pre></div>
+
+
+
+<a name="281740889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281740889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281740889">(May 09 2022 at 20:23)</a>:</h4>
+<p>Here is the scoped + priority approach for temporarily overriding notation</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Vector</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">u</span>
+  <span class="bp">|</span> <span class="n">nil</span> <span class="o">:</span> <span class="n">Vector</span> <span class="n">α</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="n">cons</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Vector</span> <span class="n">α</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">Vector</span> <span class="n">α</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span>
+
+<span class="kn">namespace</span> <span class="n">VectorNotation</span>
+
+<span class="n">scoped</span> <span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">vector</span><span class="o">)</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">high</span><span class="o">)</span> <span class="s2">"["</span> <span class="n">term</span><span class="o">,</span><span class="bp">*</span> <span class="s2">"]"</span>  <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">vector</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">([</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="k">do</span> <span class="n">elems.getElems.foldrM</span> <span class="o">(</span><span class="n">init</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">Vector.nil</span><span class="o">)))</span> <span class="k">fun</span> <span class="n">x</span> <span class="n">xs</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Vector.cons</span> <span class="bp">$</span><span class="n">x</span> <span class="bp">$</span><span class="n">xs</span><span class="o">)</span>
+
+<span class="kd">end</span> <span class="n">VectorNotation</span>
+
+<span class="kn">open</span> <span class="n">VectorNotation</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">v</span> <span class="o">:</span> <span class="n">Vector</span> <span class="n">Nat</span> <span class="mi">3</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">xs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">ys</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span> <span class="c1">-- ys is a List</span>
+
+<span class="kn">open</span> <span class="n">VectorNotation</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">zs</span> <span class="o">:=</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">,</span> <span class="mi">3</span><span class="o">]</span> <span class="c1">-- zs is a Vector</span>
+
+<span class="k">#check</span> <span class="n">zs</span>
+<span class="c1">-- Vector Nat (0+1+1+1)</span>
+</code></pre></div>
+
+
+
+<a name="281944665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281944665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281944665">(May 11 2022 at 10:28)</a>:</h4>
+<p>Thanks, this is really helpful! This might be a good example for the manual - I think it very clearly illustrates something interesting and useful.</p>
+<p>Have you encountered problems with nested elaborators with <code>Choice</code> nodes leading to quadratic blow-ups of elaboration time?</p>
+
+
+
+<a name="281945336"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281945336" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281945336">(May 11 2022 at 10:36)</a>:</h4>
+<p>Here's an example of something that stays orange for a long time on my machine:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">a</span><span class="o">)</span> <span class="s2">"S"</span> <span class="n">term</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">syntax</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">b</span><span class="o">)</span> <span class="s2">"S"</span> <span class="n">term</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">a</span><span class="o">)</span>
+ <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">S</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Nat.succ</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span>
+
+<span class="n">macro_rules</span> <span class="o">(</span><span class="n">kind</span> <span class="o">:=</span> <span class="n">b</span><span class="o">)</span>
+ <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">S</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Nat.succ</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">S</span> <span class="n">Nat.zero</span>
+</code></pre></div>
+<p>Not only is elaboration very slow, but the quadratically-growing error message causes challenges for at least the Emacs mode.</p>
+<p>I suppose the answer is akin to the old joke: "Doctor, it hurts when I raise my arm!" "Then don't do it!"</p>
+
+
+
+<a name="281945695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281945695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281945695">(May 11 2022 at 10:39)</a>:</h4>
+<p>(I could see something like this coming up if writing down a typing context using ordinary notation, as a snoc list that grows to the right, in a module that defines two variations of contexts (e.g. one for variables, one for the kinds of type variables))</p>
+
+
+
+<a name="281965289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Overloading%20for%20non-number%20syntax%3F/near/281965289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Overloading.20for.20non-number.20syntax.3F.html#281965289">(May 11 2022 at 13:31)</a>:</h4>
+<blockquote>
+<p>Have you encountered problems with nested elaborators with Choice nodes leading to quadratic blow-ups of elaboration time?</p>
+</blockquote>
+<p>Not really, but it is the least used form of overloading. The most used is typeclass-based overloading by far. In the "second" place, we have type-based overloading. Here is an example of type-based overloading: the <code>a[i]</code> notation. Lean infers the type of <code>a</code>, suppose it is <code>C ...</code>, then it looks for a function named <code>C.getOp</code>, and then expands the term to <code>C.getOp (self := a) (idx := i)</code>.<br>
+We do use ad-hoc polymorphism in examples such as the typed interpreter example: <a href="https://github.com/leanprover/lean4/blob/master/doc/examples/interp.lean">https://github.com/leanprover/lean4/blob/master/doc/examples/interp.lean</a><br>
+where <code>::</code> is notation for <code>List.cons</code>, <code>Vector.cons</code>, and <code>Env.con</code>. Everything is fast there because we do not build big "lists" using them.<br>
+The <code>Choice</code> node also works well if all but one alternative fail quickly. That is, there is enough contextual information for quickly discarding alternatives. This is not the case in your example since the two different <code>S</code>expand to the same thing. <br>
+There is also room for improving the performance of <code>Choice</code> node elaboration by implementing more aggressive alternative pruning.<br>
+We can also address the big error messages and suppress irrelevant information. However, I see it as a very low priority right now, since users are not currently hitting this problem in real examples.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

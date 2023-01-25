@@ -1,0 +1,606 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html">Lean 4 under the hood</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="234103816"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234103816" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234103816">(Apr 12 2021 at 05:03)</a>:</h4>
+<p>This will be a list of questions that came up while trying to write lean 4 tactics, macros and other backend things. The intent is to record that I had the question and what the answer was in hopes of improving documentation in the future.</p>
+<p>To parse 1D array literals, you need:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"#["</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">term</span><span class="o">,</span> <span class="s2">", "</span><span class="o">)</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">macro_rules</span>  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span> <span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+</code></pre></div>
+<p>Q: What is the analogue for 2D array literals (nested <code>sepBy</code>)?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"#["</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">sepBy</span><span class="o">(</span><span class="n">term</span><span class="o">,</span> <span class="s2">", "</span><span class="o">),</span> <span class="s2">"; "</span><span class="o">)</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+<span class="n">macro_rules</span> <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span> <span class="bp">???</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">...</span>
+</code></pre></div>
+<p>The rust syntax would be <code>$($elems,*);*</code> but that doesn't work.</p>
+
+
+
+<a name="234104018"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234104018" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234104018">(Apr 12 2021 at 05:07)</a>:</h4>
+<p>Q: How do you evaluate a syntax quotation?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="bp">;</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">])</span>
+</code></pre></div>
+<p>doesn't work because it doesn't know what monad it's working in.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Command</span>
+<span class="k">#print</span> <span class="n">CommandElabM</span>
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">CommandElabM</span> <span class="n">Syntax</span> <span class="k">from</span> <span class="k">do</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="bp">;</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">])</span>
+</code></pre></div>
+<p>doesn't work because <code>CommandElabM</code> doesn't implement <code>MetaEval</code>, whatever that means. What monads should I be using in <code>#eval</code>?</p>
+
+
+
+<a name="234104234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234104234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234104234">(Apr 12 2021 at 05:11)</a>:</h4>
+<p><a href="#narrow/stream/270676-lean4/topic/Lean.204.20under.20the.20hood/near/234104018">A</a>: Use<code>TermElabM</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span>
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">TermElabM</span> <span class="n">Syntax</span> <span class="k">from</span> <span class="k">do</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="bp">;</span> <span class="mi">3</span><span class="o">,</span> <span class="mi">4</span><span class="o">])</span>
+<span class="c1">-- (term#[_,;] "#[" [[(numLit "1") "," (numLit "2")] ";" [(numLit "3") "," (numLit "4")]] "]")</span>
+</code></pre></div>
+<p>The only monads that can be used in <code>#eval</code> are those implementing <code>MetaEval</code>, namely <code>TermElabM</code> and <code>MetaM</code>, and those implementing <code>Eval</code>, namely <code>IO</code> and pure expressions.</p>
+
+
+
+<a name="234106050"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234106050" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Lim, Thing-han <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234106050">(Apr 12 2021 at 05:43)</a>:</h4>
+<p>I just found out that using <code>quote</code> also works for evaluate a syntax quotation~</p>
+
+
+
+<a name="234106986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234106986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234106986">(Apr 12 2021 at 05:56)</a>:</h4>
+<p><code>quote</code> works but it does something else, I think. <code> `(1+1)</code> captures the <code>Syntax</code> corresponding to <code>1+1</code>, i.e. the AST of that expression, while <code>quote (1+1)</code> will return a syntax that represents the numeral 2</p>
+
+
+
+<a name="234107042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234107042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234107042">(Apr 12 2021 at 05:57)</a>:</h4>
+<p>(it's the equivalent of lean 3 <code>reflect</code>, while <code> `(..)</code> is the equivalent of lean 3 <code> ``(..)</code>)</p>
+
+
+
+<a name="234116833"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234116833" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234116833">(Apr 12 2021 at 07:46)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Lean.204.20under.20the.20hood/near/234103816">said</a>:</p>
+<blockquote>
+<p>The rust syntax would be <code>$($elems,*);*</code> but that doesn't work.</p>
+</blockquote>
+<p>We use <code>$[...]</code> for that purpose because we already use <code>$(e)</code> for antiquotations with non-atomic terms.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">elemss</span><span class="o">,</span><span class="bp">*</span><span class="o">]</span><span class="bp">;*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">_</span>
+</code></pre></div>
+<p>I've <em>just</em> written a journal chapter on our antiquotations, which I should copy to the docs when I find time...<br>
+For many (undocumented) examples, see also <a href="https://github.com/leanprover/lean4/blob/master/tests/lean/StxQuot.lean">https://github.com/leanprover/lean4/blob/master/tests/lean/StxQuot.lean</a>, which shows another way to run syntax quotations: <code>Unhygienic.run</code>, which as the name says can break hygiene because it does not depend on a name generator state.</p>
+
+
+
+<a name="234137346"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234137346" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234137346">(Apr 12 2021 at 10:46)</a>:</h4>
+<p>How do you do ambiguity resolution in a macro?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"#["</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">sepBy</span><span class="o">(</span><span class="n">term</span><span class="o">,</span> <span class="s2">", "</span><span class="o">),</span> <span class="s2">"; "</span><span class="o">)</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="bp">#</span><span class="o">[</span> <span class="bp">$</span><span class="o">[</span><span class="bp">$</span><span class="n">elems</span><span class="o">,</span><span class="bp">*</span><span class="o">]</span><span class="bp">;*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(())</span>
+
+<span class="k">#eval</span> <span class="bp">#</span><span class="o">[</span><span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">]</span>
+<span class="c1">-- ambiguous, possible interpretations</span>
+<span class="c1">--   Unit.unit</span>
+<span class="c1">--</span>
+<span class="c1">--   #[1, 2]</span>
+</code></pre></div>
+<p>Is there a priority system, or a way to <code>throwError</code> in the macro_rules so that it doesn't get picked?</p>
+
+
+
+<a name="234143911"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234143911" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234143911">(Apr 12 2021 at 11:49)</a>:</h4>
+<p>Yes to both: <a href="https://github.com/leanprover/lean4/blob/master/tests/lean/macroPrio.lean">https://github.com/leanprover/lean4/blob/master/tests/lean/macroPrio.lean</a> and <code>Macro.throwUnsupported</code></p>
+
+
+
+<a name="234179138"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179138" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179138">(Apr 12 2021 at 15:24)</a>:</h4>
+<p>Nice to see you thinking about this <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> . Julia and Numpy and Matlab have written tons of arguments on how to make <code>A * B</code> polymorphic and mathematically consistent. It turns out that Householder linear algebra notation can be quite tricky to get right because of historical and inconsistent definitions of what a vector means.<br>
+In Julia, we found that making <code>#[1, 2, 3]</code> a RowVector and <code>#[ 1 2 3]</code> a column vector a neat solution to preserve the appropriate mathematical mappings when doing linear algebra operations.<br>
+This 20 min talk by Dr. Jiahao Chen is a good summary of why it was hard to talk about and how it's been solved in Julia:<br>
+<a href="https://www.youtube.com/watch?v=C2RO34b_oPM">https://www.youtube.com/watch?v=C2RO34b_oPM</a></p>
+<div class="youtube-video message_inline_image"><a data-id="C2RO34b_oPM" href="https://www.youtube.com/watch?v=C2RO34b_oPM"><img src="https://i.ytimg.com/vi/C2RO34b_oPM/default.jpg"></a></div><p>Concretely: distinguishing between a <code>row vector</code> and a <code>column vector</code> allowed us to have <code>A * B</code> when are different row or column vectors to have the appropriate dimentions or become a scalar when the dot product is applied. Lean should consider using that as well.</p>
+
+
+
+<a name="234179276"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179276" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179276">(Apr 12 2021 at 15:25)</a>:</h4>
+<p>I think that the <code>#[1 2 3]</code> syntax would be a bit tough in lean since that means application</p>
+
+
+
+<a name="234179301"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179301" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179301">(Apr 12 2021 at 15:25)</a>:</h4>
+<p>You can use type synonyms instead in Lean</p>
+
+
+
+<a name="234179465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179465">(Apr 12 2021 at 15:26)</a>:</h4>
+<p>but lean 4 parsing is pretty much magic so I wouldn't consider anything impossible, if you really want to make it work</p>
+
+
+
+<a name="234179509"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179509" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179509">(Apr 12 2021 at 15:27)</a>:</h4>
+<p>In Lean 3 mathlib we have <code>vector</code> which is "1-dimensional" and you can apply <code>row</code> or <code>col</code> to make it "2-dimensional" in the sense that you get a matrix of size <code>m x 1</code> or <code>1 x n</code>.</p>
+
+
+
+<a name="234179538"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179538" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179538">(Apr 12 2021 at 15:27)</a>:</h4>
+<p>Yeah, it's your call on syntax, but its the distinction that matters.</p>
+
+
+
+<a name="234179714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179714">(Apr 12 2021 at 15:28)</a>:</h4>
+<p>Oh yeah that wouldn't be too bad, you just write <code>#[1, 2, 3].row</code> and <code>#[1, 2, 3].col</code></p>
+
+
+
+<a name="234179778"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179778" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179778">(Apr 12 2021 at 15:28)</a>:</h4>
+<p>Oh that's interesting <span class="user-mention" data-user-id="112680">@Johan Commelin</span> .<br>
+Do you get a scalar from multiplying a <code>1 x n</code> vector by an appropriate <code> n x 1</code>?</p>
+
+
+
+<a name="234179841"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179841" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179841">(Apr 12 2021 at 15:29)</a>:</h4>
+<p>You would get a 1x1 matrix</p>
+
+
+
+<a name="234179850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179850">(Apr 12 2021 at 15:29)</a>:</h4>
+<p>Like Matlab!</p>
+
+
+
+<a name="234179918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179918">(Apr 12 2021 at 15:29)</a>:</h4>
+<p>I don't think you should want to get around that, if you use strict types</p>
+
+
+
+<a name="234179925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234179925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234179925">(Apr 12 2021 at 15:30)</a>:</h4>
+<p>If row and col vectors are considered separate types distinct from matrices then you could get that to evaluate to a scalar</p>
+
+
+
+<a name="234180021"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180021" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180021">(Apr 12 2021 at 15:30)</a>:</h4>
+<p>We have <code>dotproduct : vector -&gt; vector -&gt; scalar</code></p>
+
+
+
+<a name="234180174"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180174" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180174">(Apr 12 2021 at 15:31)</a>:</h4>
+<p>This is the neat comparison chart at the proper time-stamp<br>
+<a href="https://youtu.be/C2RO34b_oPM?t=913">https://youtu.be/C2RO34b_oPM?t=913</a></p>
+<div class="youtube-video message_inline_image"><a data-id="C2RO34b_oPM" href="https://youtu.be/C2RO34b_oPM?t=913"><img src="https://i.ytimg.com/vi/C2RO34b_oPM/default.jpg"></a></div>
+
+
+
+<a name="234180183"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180183" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180183">(Apr 12 2021 at 15:31)</a>:</h4>
+<p>That too. Is it necessary to distinguish row and col vectors?</p>
+
+
+
+<a name="234180313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180313">(Apr 12 2021 at 15:32)</a>:</h4>
+<p>I don't know that having a seriously overloaded <code>*</code> operator is worth it</p>
+
+
+
+<a name="234180321"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180321" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180321">(Apr 12 2021 at 15:32)</a>:</h4>
+<p>I've always found the distinction artificial. But you certainly want functions to turn them into matrices.</p>
+
+
+
+<a name="234180370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180370">(Apr 12 2021 at 15:32)</a>:</h4>
+<p>I'll need to think about how Lean does it.</p>
+
+
+
+<a name="234180533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180533">(Apr 12 2021 at 15:33)</a>:</h4>
+<p>well lean doesn't do it right now so you can do what you like</p>
+
+
+
+<a name="234180708"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180708" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180708">(Apr 12 2021 at 15:34)</a>:</h4>
+<p>I proposed a mathlib coercion of (1 x 1) matrices into scalars, but that was shut down</p>
+
+
+
+<a name="234180725"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180725" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180725">(Apr 12 2021 at 15:34)</a>:</h4>
+<p>In general, in mathlib we use a lot more projection notation like <code>A.mul B</code> which gives some more flexibility to pick the right operation</p>
+
+
+
+<a name="234180759"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180759" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180759">(Apr 12 2021 at 15:34)</a>:</h4>
+<p>really <code>a x b</code> where <code>unique a</code> and <code>unique b</code></p>
+
+
+
+<a name="234180798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180798">(Apr 12 2021 at 15:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> the super overloaded <code>*</code> in Julia is about half the superpower of the language:</p>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">julia</span><span class="o">&gt;</span> <span class="n">methods</span><span class="p">(</span><span class="o">*</span><span class="p">)</span>
+<span class="c"># 331 methods for generic function "*":</span>
+<span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">T</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">T</span><span class="p">)</span> <span class="n">where</span> <span class="n">T</span><span class="o">&lt;:</span><span class="kt">Union</span><span class="p">{</span><span class="kt">Int128</span><span class="p">,</span> <span class="kt">UInt128</span><span class="p">}</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">int</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">908</span>
+<span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">T</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">T</span><span class="p">)</span> <span class="n">where</span> <span class="n">T</span><span class="o">&lt;:</span><span class="kt">Union</span><span class="p">{</span><span class="kt">Int128</span><span class="p">,</span> <span class="kt">Int16</span><span class="p">,</span> <span class="kt">Int32</span><span class="p">,</span> <span class="kt">Int64</span><span class="p">,</span> <span class="kt">Int8</span><span class="p">,</span> <span class="kt">UInt128</span><span class="p">,</span> <span class="kt">UInt16</span><span class="p">,</span> <span class="kt">UInt32</span><span class="p">,</span> <span class="kt">UInt64</span><span class="p">,</span> <span class="kt">UInt8</span><span class="p">}</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">int</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">88</span>
+<span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">s1</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="n">AbstractChar</span><span class="p">,</span> <span class="kt">AbstractString</span><span class="p">},</span> <span class="n">ss</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="n">AbstractChar</span><span class="p">,</span> <span class="kt">AbstractString</span><span class="p">}</span><span class="o">...</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">strings</span><span class="o">/</span><span class="n">basic</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">260</span>
+<span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">c</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">UInt16</span><span class="p">,</span> <span class="kt">UInt32</span><span class="p">,</span> <span class="kt">UInt64</span><span class="p">,</span> <span class="kt">UInt8</span><span class="p">},</span> <span class="n">x</span><span class="o">::</span><span class="kt">BigInt</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span><span class="o">.</span><span class="n">GMP</span> <span class="n">at</span> <span class="n">gmp</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">539</span>
+<span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">c</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">Int16</span><span class="p">,</span> <span class="kt">Int32</span><span class="p">,</span> <span class="kt">Int64</span><span class="p">,</span> <span class="kt">Int8</span><span class="p">},</span> <span class="n">x</span><span class="o">::</span><span class="kt">BigInt</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span><span class="o">.</span><span class="n">GMP</span> <span class="n">at</span> <span class="n">gmp</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">541</span>
+<span class="o">...</span>
+
+<span class="p">[</span><span class="mi">327</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Float16</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="kt">Float16</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">float</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">330</span>
+<span class="p">[</span><span class="mi">328</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Number</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">operators</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">516</span>
+<span class="p">[</span><span class="mi">329</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">T</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">T</span><span class="p">)</span> <span class="n">where</span> <span class="n">T</span><span class="o">&lt;:</span><span class="kt">Number</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">promotion</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">397</span>
+<span class="p">[</span><span class="mi">330</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Number</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="kt">Number</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">promotion</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">322</span>
+<span class="p">[</span><span class="mi">331</span><span class="p">]</span> <span class="o">*</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">xs</span><span class="o">...</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">operators</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">560</span>
+</code></pre></div>
+
+
+
+<a name="234180849"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180849" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180849">(Apr 12 2021 at 15:35)</a>:</h4>
+<p>What's very powerful about Lean matrices is that indexing types need not be numeric types.</p>
+
+
+
+<a name="234180985"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234180985" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234180985">(Apr 12 2021 at 15:36)</a>:</h4>
+<p>How the hell do you know what anything means?</p>
+
+
+
+<a name="234181001"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181001" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181001">(Apr 12 2021 at 15:36)</a>:</h4>
+<p>that looks like a nightmare</p>
+
+
+
+<a name="234181016"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181016" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181016">(Apr 12 2021 at 15:36)</a>:</h4>
+<p>This getting a polymorphic <code>*</code> with type class resolution dispatching to the appropriate structured matrix multiplication operations is an algorithmic must for nueric linear algebra.</p>
+
+
+
+<a name="234181046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181046">(Apr 12 2021 at 15:36)</a>:</h4>
+<p>What do you mean <code>know what anything means</code>?</p>
+
+
+
+<a name="234181083"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181083" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181083">(Apr 12 2021 at 15:36)</a>:</h4>
+<p>which of the 331 functions gets called when you write <code>x * y</code></p>
+
+
+
+<a name="234181205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181205">(Apr 12 2021 at 15:37)</a>:</h4>
+<p>julia is dynamically typed (or something) so it isn't even that easy to find out the types of <code>x</code> and <code>y</code></p>
+
+
+
+<a name="234181229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181229">(Apr 12 2021 at 15:37)</a>:</h4>
+<p>Same as in primary school:<br>
+Multiply 2 ints, apply the integer multiplication:</p>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">x</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">y</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">x</span> <span class="o">*</span> <span class="n">y</span> <span class="o">==</span> <span class="mi">12</span>
+</code></pre></div>
+
+
+
+<a name="234181378"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181378" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181378">(Apr 12 2021 at 15:38)</a>:</h4>
+<p>okay, so which function is getting called there</p>
+
+
+
+<a name="234181436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181436">(Apr 12 2021 at 15:38)</a>:</h4>
+<p>even with the type signatures it's not that obvious to me</p>
+
+
+
+<a name="234181492"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181492" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181492">(Apr 12 2021 at 15:39)</a>:</h4>
+<p>maybe it's 330? 331?</p>
+
+
+
+<a name="234181518"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181518" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181518">(Apr 12 2021 at 15:39)</a>:</h4>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">julia</span><span class="o">&gt;</span> <span class="nd">@which</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">4</span>
+<span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">T</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">T</span><span class="p">)</span> <span class="n">where</span> <span class="n">T</span><span class="o">&lt;:</span><span class="kt">Union</span><span class="p">{</span><span class="kt">Int128</span><span class="p">,</span> <span class="kt">Int16</span><span class="p">,</span> <span class="kt">Int32</span><span class="p">,</span> <span class="kt">Int64</span><span class="p">,</span> <span class="kt">Int8</span><span class="p">,</span> <span class="kt">UInt128</span><span class="p">,</span> <span class="kt">UInt16</span><span class="p">,</span> <span class="kt">UInt32</span><span class="p">,</span> <span class="kt">UInt64</span><span class="p">,</span> <span class="kt">UInt8</span><span class="p">}</span> <span class="kp">in</span> <span class="n">Base</span> <span class="n">at</span> <span class="n">int</span><span class="o">.</span><span class="n">jl</span><span class="o">:</span><span class="mi">88</span>
+</code></pre></div>
+<p>The multiplication that applies to all concrete Integer types.</p>
+
+
+
+<a name="234181578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181578">(Apr 12 2021 at 15:39)</a>:</h4>
+<p>It's like 5 characters to find out which specific method is being called.</p>
+
+
+
+<a name="234181591"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181591" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181591">(Apr 12 2021 at 15:39)</a>:</h4>
+<p>How many instance of <code>has_mul</code> does mathlib have? <span aria-label="rofl" class="emoji emoji-1f923" role="img" title="rofl">:rofl:</span></p>
+
+
+
+<a name="234181768"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181768" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181768">(Apr 12 2021 at 15:40)</a>:</h4>
+<p>well I wouldn't say mathlib is a shining beacon of hope here either</p>
+
+
+
+<a name="234181841"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181841" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181841">(Apr 12 2021 at 15:41)</a>:</h4>
+<p>And user defined functions are easy to instrospect as well:</p>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">julia</span><span class="o">&gt;</span> <span class="n">foo</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Int</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="kt">Int</span><span class="p">)</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
+<span class="n">foo</span> <span class="p">(</span><span class="n">generic</span> <span class="k">function</span> <span class="n">with</span> <span class="mi">1</span> <span class="n">method</span><span class="p">)</span>
+
+<span class="n">julia</span><span class="o">&gt;</span> <span class="n">foo</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="mi">6</span>
+
+<span class="n">julia</span><span class="o">&gt;</span> <span class="nd">@which</span> <span class="n">foo</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">foo</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Int64</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="kt">Int64</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Main</span> <span class="n">at</span> <span class="n">REPL</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span><span class="o">:</span><span class="mi">1</span>
+</code></pre></div>
+
+
+
+<a name="234181845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181845">(Apr 12 2021 at 15:41)</a>:</h4>
+<p>At least we have widgets <span aria-label="thinking" class="emoji emoji-1f914" role="img" title="thinking">:thinking:</span></p>
+
+
+
+<a name="234181860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234181860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234181860">(Apr 12 2021 at 15:41)</a>:</h4>
+<p>remember when application turned out to be a binary operator on <code>nat</code>?</p>
+
+
+
+<a name="234182124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182124">(Apr 12 2021 at 15:42)</a>:</h4>
+<p>Here, <code>foo(x::Int, y::Int)</code> means: When you call <code>foo</code> and the first argument <code>x</code> is an <code>Int</code>, and the second argument <code>y</code> is an <code>Int</code>, do <code>x * y</code></p>
+
+
+
+<a name="234182273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182273">(Apr 12 2021 at 15:43)</a>:</h4>
+<p>and it's trivial to add new methods for <code>foo</code> that dispatch on different types:</p>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">julia</span><span class="o">&gt;</span> <span class="n">foo</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">String</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">String</span><span class="p">)</span> <span class="o">=</span> <span class="s">"</span><span class="si">$x</span><span class="s"> and </span><span class="si">$y</span><span class="s">"</span>
+<span class="n">foo</span> <span class="p">(</span><span class="n">generic</span> <span class="k">function</span> <span class="n">with</span> <span class="mi">2</span> <span class="n">methods</span><span class="p">)</span>
+
+<span class="n">julia</span><span class="o">&gt;</span> <span class="n">foo</span><span class="p">(</span><span class="s">"a"</span><span class="p">,</span> <span class="s">"b"</span><span class="p">)</span>
+<span class="s">"a and b"</span>
+</code></pre></div>
+
+
+
+<a name="234182359"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182359" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182359">(Apr 12 2021 at 15:44)</a>:</h4>
+<p>And now <code>foo</code> has 2 specific methods:</p>
+<div class="codehilite" data-code-language="Julia"><pre><span></span><code><span class="n">julia</span><span class="o">&gt;</span> <span class="n">methods</span><span class="p">(</span><span class="n">foo</span><span class="p">)</span>
+<span class="c"># 2 methods for generic function "foo":</span>
+<span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="n">foo</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Int64</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="kt">Int64</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Main</span> <span class="n">at</span> <span class="n">REPL</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span><span class="o">:</span><span class="mi">1</span>
+<span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="n">foo</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="n">String</span><span class="p">,</span> <span class="n">y</span><span class="o">::</span><span class="n">String</span><span class="p">)</span> <span class="kp">in</span> <span class="n">Main</span> <span class="n">at</span> <span class="n">REPL</span><span class="p">[</span><span class="mi">10</span><span class="p">]</span><span class="o">:</span><span class="mi">1</span>
+</code></pre></div>
+
+
+
+<a name="234182413"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182413" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182413">(Apr 12 2021 at 15:44)</a>:</h4>
+<p>I'm not a big fan of operator overloading, but lean has the ability to do these things</p>
+
+
+
+<a name="234182438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182438">(Apr 12 2021 at 15:44)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Lean.204.20under.20the.20hood/near/234181205">said</a>:</p>
+<blockquote>
+<p>julia is dynamically typed (or something) so it isn't even that easy to find out the types of <code>x</code> and <code>y</code></p>
+</blockquote>
+<p>Not to derail the discussion too much, but I find this a weird argument. If we define a type with a couple of constructors and a function pattern-matching on those:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">some_enum</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="o">:</span> <span class="n">some_enum</span>
+<span class="bp">|</span> <span class="n">b</span> <span class="o">:</span> <span class="n">some_enum</span>
+<span class="bp">|</span> <span class="n">c</span> <span class="o">:</span> <span class="n">some_enum</span>
+<span class="bp">|</span> <span class="n">d</span> <span class="o">:</span> <span class="n">some_enum</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="o">:</span> <span class="n">some_enum</span>
+
+<span class="kn">open</span> <span class="n">some_enum</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">some_enum</span> <span class="bp">→</span> <span class="n">some_enum</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:=</span> <span class="mi">1</span>
+<span class="bp">|</span> <span class="n">c</span> <span class="n">d</span> <span class="o">:=</span> <span class="mi">37</span>
+<span class="bp">|</span> <span class="bp">...</span>
+</code></pre></div>
+<p>would you complain it's hard to figure out which alternative of <code>foo</code> gets called?</p>
+
+
+
+<a name="234182444"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182444" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182444">(Apr 12 2021 at 15:44)</a>:</h4>
+<p>We call it multiple dispatch in Julia-land, I think Lean people have it as type-class based resolution.</p>
+
+
+
+<a name="234182531"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182531" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182531">(Apr 12 2021 at 15:45)</a>:</h4>
+<p>Oh hey <span class="user-mention" data-user-id="238446">@Anne Baanen</span> , long time no see! <span aria-label="wave" class="emoji emoji-1f44b" role="img" title="wave">:wave:</span></p>
+
+
+
+<a name="234182740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182740">(Apr 12 2021 at 15:46)</a>:</h4>
+<p><span class="user-mention" data-user-id="238446">@Anne Baanen</span> My issue is more around "whole program type inference" and things of that nature. I'm talking about the types, not the values. In that example <code>foo</code> isn't getting called so I'm not sure exactly how the parallel goes</p>
+
+
+
+<a name="234182941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234182941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234182941">(Apr 12 2021 at 15:47)</a>:</h4>
+<p>FWIW, we don't do "whole program type inference" - Julia uses type inference for optimizations, but only at the function level. If it's not inside a function, we bail the analysis and run the program dynamically.</p>
+
+
+
+<a name="234183084"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183084" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183084">(Apr 12 2021 at 15:48)</a>:</h4>
+<p>Right, in julia it's more like dynamic typing + function overloading</p>
+
+
+
+<a name="234183196"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183196" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183196">(Apr 12 2021 at 15:48)</a>:</h4>
+<p>which means that by looking at the code you don't know what the types of values are (sometimes you do, but you don't have to) and hence what functions are getting called</p>
+
+
+
+<a name="234183287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183287">(Apr 12 2021 at 15:49)</a>:</h4>
+<p>maybe I'm just jaded from C++</p>
+
+
+
+<a name="234183340"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183340" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183340">(Apr 12 2021 at 15:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Lean.204.20under.20the.20hood/near/234182740">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="238446">Anne Baanen</span> My issue is more around "whole program type inference" and things of that nature. I'm talking about the types, not the values. In that example <code>foo</code> isn't getting called so I'm not sure exactly how the parallel goes</p>
+</blockquote>
+<p>Not sure I understand your distinction. Is it a type-level issue now?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">bar</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">some_enum</span><span class="o">)</span> <span class="o">:</span> <span class="n">fin</span> <span class="o">(</span><span class="n">foo</span> <span class="n">x</span> <span class="n">y</span><span class="o">)</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="234183524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183524">(Apr 12 2021 at 15:50)</a>:</h4>
+<p>In that example, there is only one function <code>foo</code> getting called, so I can look it up and see the pattern match to find out how the values <code>x</code> and <code>y</code> get treated</p>
+
+
+
+<a name="234183560"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183560" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183560">(Apr 12 2021 at 15:51)</a>:</h4>
+<p>Yeah PTSD from C++ is understandable <span aria-label="sweat smile" class="emoji emoji-1f605" role="img" title="sweat smile">:sweat_smile:</span> , no worries.</p>
+
+
+
+<a name="234183616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183616">(Apr 12 2021 at 15:51)</a>:</h4>
+<p>If <code>foo</code> was a generic function parameterized by a typeclass, I would have to look to the caller to find out what function is getting run</p>
+
+
+
+<a name="234183631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183631">(Apr 12 2021 at 15:51)</a>:</h4>
+<p>this can get quite involved</p>
+
+
+
+<a name="234183741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183741">(Apr 12 2021 at 15:52)</a>:</h4>
+<p>I've been tracing through lean 4 functions and the higher order arguments make your head spin, it's hard to find where the work gets done</p>
+
+
+
+<a name="234183844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234183844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miguel Raz Guzmán Macedo <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234183844">(Apr 12 2021 at 15:53)</a>:</h4>
+<p>fwiw in Julia we can always do <code>@edit foo(3,4)</code> and it will open up your editor to the specific line that implements that method.</p>
+
+
+
+<a name="234184046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184046">(Apr 12 2021 at 15:54)</a>:</h4>
+<p>You could kinda sorta do that with lean typeclasses if you <code>#check</code> the term and then look up the relevant typeclass</p>
+
+
+
+<a name="234184125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184125">(Apr 12 2021 at 15:54)</a>:</h4>
+<p>I don't think there is a unique place to look though, there could be lots of typeclasses involved in general</p>
+
+
+
+<a name="234184219"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184219" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184219">(Apr 12 2021 at 15:55)</a>:</h4>
+<p>So this is really an issue with higher-order functions, not generic functions? Because as soon as you have first-class closures, you have arbitrary gotos.</p>
+
+
+
+<a name="234184306"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184306" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184306">(Apr 12 2021 at 15:55)</a>:</h4>
+<p>well, there are higher order functions but mostly as continuations, they aren't terrible</p>
+
+
+
+<a name="234184332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184332">(Apr 12 2021 at 15:55)</a>:</h4>
+<p>The generics are tough though</p>
+
+
+
+<a name="234184397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184397">(Apr 12 2021 at 15:56)</a>:</h4>
+<p>because go to definition just isn't sufficient anymore</p>
+
+
+
+<a name="234184559"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/234184559" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#234184559">(Apr 12 2021 at 15:57)</a>:</h4>
+<p>The other thing, which is lean specific, is the connection between syntax -&gt; macro -&gt; elab, these are all scattered about and it's not obvious how the links are even connected to each other, let alone how to follow the link</p>
+
+
+
+<a name="237043782"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lean%204%20under%20the%20hood/near/237043782" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Lean.204.20under.20the.20hood.html#237043782">(May 02 2021 at 10:32)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Lean.204.20under.20the.20hood/near/234116833">said</a>:</p>
+<blockquote>
+<p>I've <em>just</em> written a journal chapter on our antiquotations, which I should copy to the docs when I find time...</p>
+</blockquote>
+<p>Here is the new section (4.1) in the meantime: <a href="https://arxiv.org/pdf/2001.10490.pdf">https://arxiv.org/pdf/2001.10490.pdf</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

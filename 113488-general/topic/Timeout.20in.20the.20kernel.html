@@ -1,0 +1,108 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Timeout.20in.20the.20kernel.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html">Timeout in the kernel</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="289294804"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289294804" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289294804">(Jul 12 2022 at 08:50)</a>:</h4>
+<p>I'm getting a timeout error in <a href="https://github.com/leanprover-community/mathlib/pull/14894">#14894</a> which from the profiler output appears to be thrown in the kernel typechecking stage, after elaboration finishes relatively quickly (less than half a second). Any tips on fixing a timeout in the kernel like this?</p>
+
+
+
+<a name="289294938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289294938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289294938">(Jul 12 2022 at 08:52)</a>:</h4>
+<p>As far as I can tell, there is no heavy refl going on: if I replace the <code>show</code> with a <code>rw</code>, the same symptoms occur.</p>
+
+
+
+<a name="289295757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289295757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289295757">(Jul 12 2022 at 09:02)</a>:</h4>
+<p>I've got a debug build in GDB, the timeout really comes from a kernel defeq check about 150 calls down the stack, so it's definitely the kernel going down some weird path here. Also something I learned today: apparently kernel checking starts with a fresh heartbeat counter since it's in a new thread.</p>
+
+
+
+<a name="289304287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289304287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289304287">(Jul 12 2022 at 10:32)</a>:</h4>
+<p>By the way, after merging (in particular after <a href="https://github.com/leanprover-community/mathlib/pull/15251">#15251</a>) the timeout doesn't appear in the build but it's still there in my editor.</p>
+
+
+
+<a name="289305631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289305631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289305631">(Jul 12 2022 at 10:48)</a>:</h4>
+<p>I'm just going to go ahead and split the lemma into two parts since it's already dangerously close to timing out on master.</p>
+
+
+
+<a name="289829491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289829491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289829491">(Jul 16 2022 at 13:57)</a>:</h4>
+<p><span class="user-mention" data-user-id="238446">@Anne Baanen</span> in your GitHub commit message regarding this you make claims of the form "this used to take 90k heartbeats, now it only takes 60k". How are you measuring this?</p>
+
+
+
+<a name="289837953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289837953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289837953">(Jul 16 2022 at 17:20)</a>:</h4>
+<p>I used a low-tech way: write <code>set_option profiler true</code> before the declaration and <code>#exit</code> after, then run the command <code>lean -T${N} ${FILE}</code> (where <code>${N}</code> is the number of heartbeats and <code>${FILE}</code> the file containing the declaration). When a timeout error pops up, if the profiler output mentions "decl post-processing" then the timeout is probably in the kernel. Then use binary search on <code>${N}</code> to determine the approximate value for which the timeout occurs.</p>
+
+
+
+<a name="289868232"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Timeout%20in%20the%20kernel/near/289868232" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Timeout.20in.20the.20kernel.html#289868232">(Jul 17 2022 at 06:42)</a>:</h4>
+<p>Here's one more presumable example of timeout in the kernel; if the final <code>sorry</code> is there, it shows "goals accomplished", but once <code>sorry</code> is removed it timeouts.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">category_theory.products.basic</span>
+<span class="kn">import</span> <span class="n">category_theory.functor.currying</span>
+<span class="kn">import</span> <span class="n">category_theory.products.associator</span>
+<span class="kn">import</span> <span class="n">category_theory.category.Cat</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+
+<span class="kd">universes</span> <span class="n">u₁</span> <span class="n">u₂</span> <span class="n">u₃</span> <span class="n">v₁</span> <span class="n">v₂</span> <span class="n">v₃</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v₁</span><span class="o">}</span> <span class="n">A</span><span class="o">]</span>
+          <span class="o">(</span><span class="n">B</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₂</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v₂</span><span class="o">}</span> <span class="n">B</span><span class="o">]</span>
+          <span class="o">(</span><span class="n">C</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₃</span><span class="o">)</span> <span class="o">[</span><span class="n">category.</span><span class="o">{</span><span class="n">v₃</span><span class="o">}</span> <span class="n">C</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">prod_functor_to_functor_prod</span> <span class="o">:</span> <span class="o">(</span><span class="n">A</span> <span class="bp">⥤</span> <span class="n">B</span><span class="o">)</span> <span class="bp">×</span> <span class="o">(</span><span class="n">A</span> <span class="bp">⥤</span> <span class="n">C</span><span class="o">)</span> <span class="bp">⥤</span> <span class="n">A</span> <span class="bp">⥤</span> <span class="n">B</span> <span class="bp">×</span> <span class="n">C</span> <span class="o">:=</span>
+<span class="n">curry_obj</span> <span class="bp">$</span> <span class="n">functor.prod'</span>
+  <span class="o">(</span><span class="n">uncurry.obj</span> <span class="bp">$</span> <span class="n">category_theory.prod.fst</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">uncurry.obj</span> <span class="bp">$</span> <span class="n">category_theory.prod.snd</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">functor_prod_to_prod_functor</span> <span class="o">:</span> <span class="o">(</span><span class="n">A</span> <span class="bp">⥤</span> <span class="n">B</span> <span class="bp">×</span> <span class="n">C</span><span class="o">)</span> <span class="bp">⥤</span> <span class="o">(</span><span class="n">A</span> <span class="bp">⥤</span> <span class="n">B</span><span class="o">)</span> <span class="bp">×</span> <span class="o">(</span><span class="n">A</span> <span class="bp">⥤</span> <span class="n">C</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">functor.prod'</span>
+  <span class="o">(</span><span class="n">curry_obj</span> <span class="bp">$</span> <span class="n">uncurry.obj</span> <span class="o">(</span><span class="mi">𝟭</span> <span class="n">_</span><span class="o">)</span> <span class="bp">⋙</span> <span class="n">category_theory.prod.fst</span> <span class="n">B</span> <span class="n">C</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">curry_obj</span> <span class="bp">$</span> <span class="n">uncurry.obj</span> <span class="o">(</span><span class="mi">𝟭</span> <span class="n">_</span><span class="o">)</span> <span class="bp">⋙</span> <span class="n">category_theory.prod.snd</span> <span class="n">B</span> <span class="n">C</span><span class="o">)</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">eq_to_hom_fst</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="n">B</span> <span class="bp">×</span> <span class="n">C</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">=</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">prod.fst</span> <span class="o">(</span><span class="n">eq_to_hom</span> <span class="n">h</span><span class="o">)</span> <span class="bp">=</span> <span class="n">eq_to_hom</span> <span class="o">(</span><span class="n">congr_arg</span> <span class="n">prod.fst</span> <span class="n">h</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">eq_to_hom_map</span> <span class="o">(</span><span class="n">category_theory.prod.fst</span> <span class="n">B</span> <span class="n">C</span><span class="o">)</span> <span class="n">h</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">eq_to_hom_snd</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="n">B</span> <span class="bp">×</span> <span class="n">C</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">=</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">prod.snd</span> <span class="o">(</span><span class="n">eq_to_hom</span> <span class="n">h</span><span class="o">)</span> <span class="bp">=</span> <span class="n">eq_to_hom</span> <span class="o">(</span><span class="n">congr_arg</span> <span class="n">prod.snd</span> <span class="n">h</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">eq_to_hom_map</span> <span class="o">(</span><span class="n">category_theory.prod.snd</span> <span class="n">B</span> <span class="n">C</span><span class="o">)</span> <span class="n">h</span>
+
+<span class="kd">def</span> <span class="n">hom_inv_id'</span> <span class="o">:</span> <span class="n">prod_functor_to_functor_prod</span> <span class="n">A</span> <span class="n">B</span> <span class="n">C</span> <span class="bp">⋙</span> <span class="n">functor_prod_to_prod_functor</span> <span class="n">A</span> <span class="n">B</span> <span class="n">C</span> <span class="bp">=</span> <span class="mi">𝟭</span> <span class="n">_</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">dsimp</span> <span class="o">[</span><span class="n">prod_functor_to_functor_prod</span><span class="o">,</span> <span class="n">functor_prod_to_prod_functor</span><span class="o">,</span> <span class="n">curry_obj</span><span class="o">,</span> <span class="n">uncurry</span><span class="o">],</span>
+  <span class="n">apply</span> <span class="n">category_theory.functor.ext</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">intros</span><span class="o">,</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">simp</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨⟨</span><span class="n">_</span><span class="o">⟩,</span> <span class="o">⟨</span><span class="n">_</span><span class="o">⟩⟩,</span> <span class="n">simp</span> <span class="o">},</span> <span class="gr">sorry</span><span class="o">,</span> <span class="c1">-- elaboration of hom_inv_id' took 5.29s</span>
+  <span class="c1">-- remove sorry: timeout (more than one minute)</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

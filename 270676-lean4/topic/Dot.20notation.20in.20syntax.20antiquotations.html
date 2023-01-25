@@ -1,0 +1,143 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html">Dot notation in syntax antiquotations</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="302577615"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302577615" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302577615">(Oct 06 2022 at 03:19)</a>:</h4>
+<p>I'm looking for some advice regarding dot notation inside of an antiquotation. I can't seem to get it to work (albeit I only tried naive things). For example, how would I go about getting the second command to work similarly to the first command (modulo namespaces):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"c0"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kn">namespace</span> <span class="bp">$</span><span class="n">s</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">t</span>
+    <span class="kd">end</span> <span class="bp">$</span><span class="n">s</span><span class="o">)</span>
+
+<span class="n">macro</span> <span class="s2">"c1"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s.</span><span class="bp">$</span><span class="n">t</span><span class="o">)</span>
+
+<span class="n">c0</span> <span class="n">foo</span> <span class="n">bar</span> <span class="n">baz</span>
+<span class="k">#check</span> <span class="n">foo.baz</span>
+
+<span class="n">c1</span> <span class="n">foo'</span> <span class="n">bar'</span> <span class="n">baz'</span> <span class="c1">-- fails</span>
+</code></pre></div>
+
+
+
+<a name="302578493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302578493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302578493">(Oct 06 2022 at 03:36)</a>:</h4>
+<p>dot notation directly on identifiers is lexed as a single identifier, so you have to combine the idents yourself:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">macro</span> <span class="s2">"c0"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kn">namespace</span> <span class="bp">$</span><span class="n">s</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">t</span>
+    <span class="kd">end</span> <span class="bp">$</span><span class="n">s</span><span class="o">)</span>
+
+<span class="n">macro</span> <span class="s2">"c1"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">s_t</span> <span class="o">:=</span> <span class="n">mkIdentFrom</span> <span class="o">(</span><span class="n">mkNullNode</span> <span class="bp">#</span><span class="o">[</span><span class="n">s</span><span class="o">,</span> <span class="n">t</span><span class="o">])</span> <span class="o">(</span><span class="n">s.getId</span> <span class="bp">++</span> <span class="n">t.getId</span><span class="o">)</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s_t</span><span class="o">)</span>
+
+<span class="n">c0</span> <span class="n">foo</span> <span class="n">bar</span> <span class="n">baz</span>
+<span class="k">#print</span> <span class="n">foo.baz</span>
+<span class="c1">-- def foo.baz : foo → Nat :=</span>
+<span class="c1">-- foo.bar</span>
+
+<span class="n">c1</span> <span class="n">foo'</span> <span class="n">bar'</span> <span class="n">baz'</span>
+<span class="k">#print</span> <span class="n">baz'</span>
+<span class="c1">-- def baz' : foo' → Nat :=</span>
+<span class="c1">-- foo'.bar'</span>
+</code></pre></div>
+
+
+
+<a name="302578610"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302578610" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302578610">(Oct 06 2022 at 03:38)</a>:</h4>
+<p>Ah! I see. Thanks Mario!</p>
+
+
+
+<a name="302578640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302578640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302578640">(Oct 06 2022 at 03:39)</a>:</h4>
+<p>In fact, in this case you aren't actually using dot notation. The error you get in the original version is what you get if you force dot notation use, similar to writing <code>(foo).bar</code> or <code>foo |&gt;.bar</code>, which fails because <code>foo</code> is a type / namespace, not an expression whose type is in an appropriate namespace</p>
+
+
+
+<a name="302578745"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302578745" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302578745">(Oct 06 2022 at 03:40)</a>:</h4>
+<p>Yeah, I figured out that much... but had no idea what to try instead :)</p>
+
+
+
+<a name="302578987"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302578987" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302578987">(Oct 06 2022 at 03:44)</a>:</h4>
+<p>One more question: What's the purpose of <code>mkIdentFrom</code> and <code>mkNullNode</code>? The following works as well -- is it  equivalent?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"c1"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">s_t</span> <span class="o">:=</span> <span class="n">mkIdent</span> <span class="o">(</span><span class="n">s.getId</span> <span class="bp">++</span> <span class="n">t.getId</span><span class="o">)</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s_t</span><span class="o">)</span>
+
+<span class="n">c1</span> <span class="n">foo</span> <span class="n">bar</span> <span class="n">baz</span>
+<span class="k">#print</span> <span class="n">baz</span>
+</code></pre></div>
+
+
+
+<a name="302579176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302579176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302579176">(Oct 06 2022 at 03:47)</a>:</h4>
+<p>it annotates the synthesized identifier <code>s_t</code> with the span of <code>foo bar</code> in the original call to <code>c1</code></p>
+
+
+
+<a name="302579187"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302579187" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302579187">(Oct 06 2022 at 03:47)</a>:</h4>
+<p>so for example if there was a type error when elaborating the <code>def</code> you would see a red underline on that span</p>
+
+
+
+<a name="302579246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302579246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302579246">(Oct 06 2022 at 03:48)</a>:</h4>
+<p>Ah interesting! Thanks!</p>
+
+
+
+<a name="302579361"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302579361" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302579361">(Oct 06 2022 at 03:50)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">macro</span> <span class="s2">"c1"</span> <span class="n">s</span><span class="o">:</span><span class="n">ident</span> <span class="n">t</span><span class="o">:</span><span class="n">ident</span> <span class="n">r</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+  <span class="k">let</span> <span class="n">s_t</span> <span class="o">:=</span> <span class="n">mkIdentFrom</span> <span class="o">(</span><span class="n">mkNullNode</span> <span class="bp">#</span><span class="o">[</span><span class="n">s</span><span class="o">,</span> <span class="n">t</span><span class="o">])</span> <span class="o">(</span><span class="n">s.getId</span> <span class="bp">++</span> <span class="n">t.getId</span><span class="o">)</span>
+  <span class="bp">`</span><span class="o">(</span><span class="kd">structure</span> <span class="bp">$</span><span class="n">s</span> <span class="n">where</span> <span class="o">(</span><span class="bp">$</span><span class="n">t</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+    <span class="kd">def</span> <span class="bp">$</span><span class="n">r</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="bp">$</span><span class="n">s_t</span><span class="o">)</span>
+
+<span class="n">c1</span> <span class="n">foo'</span> <span class="n">bar'</span> <span class="n">baz'</span>
+<span class="c1">-- ^^^^^^^^^ type mismatch, bla bla</span>
+</code></pre></div>
+
+
+
+<a name="302579457"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dot%20notation%20in%20syntax%20antiquotations/near/302579457" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dot.20notation.20in.20syntax.20antiquotations.html#302579457">(Oct 06 2022 at 03:52)</a>:</h4>
+<p>of course it's a design question where exactly you want to put those underlines for any given macro</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

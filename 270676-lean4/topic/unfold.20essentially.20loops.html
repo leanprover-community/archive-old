@@ -1,0 +1,78 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/unfold.20essentially.20loops.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unfold.20essentially.20loops.html">unfold essentially loops</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="288083209"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unfold%20essentially%20loops/near/288083209" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unfold.20essentially.20loops.html#288083209">(Jun 30 2022 at 20:28)</a>:</h4>
+<p>The following piece of code causes <code>unfold</code> to run for time exponential in the length of either string (while constantly allocating memory). Sorry for the somewhat contrived MWE <span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>, I wasn't able to cut it down any further. Confirmed on yesterday's nightly <code>leanprover/lean4:nightly-2022-06-29</code>. </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Wrapper</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">wrap</span><span class="o">:</span> <span class="n">Wrapper</span>
+
+<span class="kd">def</span> <span class="n">Wrapper.extend</span><span class="o">:</span> <span class="n">Wrapper</span> <span class="bp">→</span> <span class="o">(</span><span class="n">Unit</span> <span class="bp">×</span> <span class="n">Unit</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">wrap</span> <span class="bp">=&gt;</span> <span class="o">((),</span> <span class="o">())</span>
+
+<span class="kd">mutual</span>
+<span class="kd">inductive</span> <span class="n">Op</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">mk</span><span class="o">:</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">Block</span> <span class="bp">→</span> <span class="n">Op</span>
+
+<span class="kd">inductive</span> <span class="n">Assign</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">mk</span> <span class="o">:</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">Op</span> <span class="bp">→</span> <span class="n">Assign</span>
+
+<span class="kd">inductive</span> <span class="n">Block</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">mk</span><span class="o">:</span> <span class="n">Assign</span> <span class="bp">→</span> <span class="n">Block</span>
+  <span class="bp">|</span> <span class="n">empty</span><span class="o">:</span> <span class="n">Block</span>
+<span class="kd">end</span>
+
+<span class="kd">mutual</span>
+<span class="kd">def</span> <span class="n">runOp</span><span class="o">:</span> <span class="n">Op</span> <span class="bp">→</span> <span class="n">Wrapper</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">mk</span> <span class="n">_</span> <span class="n">r</span> <span class="bp">=&gt;</span> <span class="k">let</span> <span class="n">r'</span> <span class="o">:=</span> <span class="n">runBlock</span> <span class="n">r</span><span class="bp">;</span> <span class="bp">.</span><span class="n">wrap</span>
+
+<span class="kd">def</span> <span class="n">runAssign</span><span class="o">:</span> <span class="n">Assign</span> <span class="bp">→</span> <span class="n">Wrapper</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">mk</span> <span class="n">_</span> <span class="n">op</span> <span class="bp">=&gt;</span> <span class="n">runOp</span> <span class="n">op</span>
+
+<span class="kd">def</span> <span class="n">runBlock</span><span class="o">:</span> <span class="n">Block</span> <span class="bp">→</span> <span class="n">Wrapper</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">mk</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="n">runAssign</span> <span class="n">a</span>
+  <span class="bp">|</span> <span class="bp">.</span><span class="n">empty</span> <span class="bp">=&gt;</span> <span class="bp">.</span><span class="n">wrap</span>
+<span class="kd">end</span>
+
+<span class="kn">private</span> <span class="kd">def</span> <span class="n">b</span><span class="o">:</span> <span class="n">Assign</span> <span class="o">:=</span> <span class="bp">.</span><span class="n">mk</span> <span class="s2">"r"</span> <span class="o">(</span><span class="bp">.</span><span class="n">mk</span> <span class="s2">"APrettyLongString"</span> <span class="bp">.</span><span class="n">empty</span><span class="o">)</span>
+
+<span class="kd">theorem</span> <span class="n">bug</span><span class="o">:</span> <span class="o">(</span><span class="n">runAssign</span> <span class="n">b</span><span class="o">)</span><span class="bp">.</span><span class="n">extend.snd</span> <span class="bp">=</span> <span class="o">(</span><span class="n">runAssign</span> <span class="n">b</span><span class="o">)</span><span class="bp">.</span><span class="n">extend.snd</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="c1">--unfold b -- extremely slow</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="288107047"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unfold%20essentially%20loops/near/288107047" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unfold.20essentially.20loops.html#288107047">(Jul 01 2022 at 00:56)</a>:</h4>
+<p><span class="user-mention" data-user-id="484617">@Sébastien Michelland</span> Thanks for reporting this issue. I pushed a fix for it. <br>
+<a href="https://github.com/leanprover/lean4/commit/14260f454b9b73d85aafef5e7be79c58ce4381b5">https://github.com/leanprover/lean4/commit/14260f454b9b73d85aafef5e7be79c58ce4381b5</a><br>
+The problem was not <code>unfold</code>, but type checking the proof generated using <code>unfold</code> in the kernel.<br>
+When checking whether <code>s.i</code> and <code>r.i</code> are definitionally equal, the kernel was always trying to reduce them. However, in your example, this is very expensive, and checking whether <code>s</code> and <code>r</code> are definitionally equal first is a better strategy.<br>
+I have another commit that also fixes the problem in the <code>isDefEq</code> for the <code>MetaM</code> monad.</p>
+
+
+
+<a name="288151362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/unfold%20essentially%20loops/near/288151362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/unfold.20essentially.20loops.html#288151362">(Jul 01 2022 at 10:39)</a>:</h4>
+<p>Thanks for the super quick fixes, this is helping a ton. Reducing entire projects never felt so worthwhile :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,97 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/inferType.20in.20delaborator.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html">inferType in delaborator</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="258223789"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258223789" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258223789">(Oct 19 2021 at 16:13)</a>:</h4>
+<p>I am trying to use <code>inferType</code> in a delaborator. This causes Lean to crash when I type constants that are undefined, such as <code>test</code> below:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">namespace</span> <span class="n">Lean.PrettyPrinter.Delaborator</span>
+<span class="kn">open</span> <span class="n">SubExpr</span>
+<span class="kn">open</span> <span class="n">Meta</span>
+
+<span class="kd">@[delab app]</span>
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">delabMinimization</span> <span class="o">:</span> <span class="n">Delab</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">ty</span> <span class="bp">←</span> <span class="n">inferType</span> <span class="bp">$</span> <span class="bp">←</span> <span class="n">getExpr</span>
+  <span class="n">failure</span>
+
+<span class="kd">end</span> <span class="n">Lean.PrettyPrinter.Delaborator</span>
+
+<span class="kd">set_option</span> <span class="n">pp.rawOnError</span> <span class="n">true</span>
+
+<span class="k">#check</span> <span class="n">test</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">[Error - 6:06:45 PM] Request textDocument/hover failed.</span>
+<span class="cm">  Message: unknown constant '[Error pretty printing expression: unknown constant 'test'. Falling back to raw printer.]</span>
+<span class="cm">test'</span>
+<span class="cm">  Code: -32603</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>Do I first need to test whether <code>← getExpr</code> is actually a valid expression? How can I do that?</p>
+
+
+
+<a name="258224214"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258224214" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258224214">(Oct 19 2021 at 16:15)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="258224222"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258224222" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258224222">(Oct 19 2021 at 16:15)</a>:</h4>
+<p>That is definitely not expected (and the error message is hilarious).</p>
+
+
+
+<a name="258466368"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258466368" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258466368">(Oct 21 2021 at 00:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> Maybe just remove the <code>mkConst</code> from <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Term.lean#L1504">https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Term.lean#L1504</a>? Since we know the constant does not exist, I don't see a point in having the message view it as an expression rather than as a name.</p>
+
+
+
+<a name="258470211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258470211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258470211">(Oct 21 2021 at 01:02)</a>:</h4>
+<p>The <code>mkConst</code> is there to make sure the name is not treated as a regular <code>Name</code> object, but as an <code>Expr</code>. <br>
+The delaborator should tolerate type incorrect terms.</p>
+
+
+
+<a name="258496367"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258496367" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258496367">(Oct 21 2021 at 06:56)</a>:</h4>
+<p>So how can I check if a term is not type correct?</p>
+
+
+
+<a name="258607289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258607289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258607289">(Oct 21 2021 at 19:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="129120">Alexander Bentkamp</span> <a href="#narrow/stream/270676-lean4/topic/inferType.20in.20delaborator/near/258496367">said</a>:</p>
+<blockquote>
+<p>So how can I check if a term is not type correct?</p>
+</blockquote>
+<p>Delaborators should not assume that <code>inferType</code> will succeed in general. In your example, you could just wrap the <code>inferType</code> with <code>try/catch</code>. It is perhaps surprising though that the delaborator outer-loop will not recover from the exception -- it might make sense to put a <code>try/catch</code> here as well: <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/PrettyPrinter/Delaborator/Basic.lean#L226">https://github.com/leanprover/lean4/blob/master/src/Lean/PrettyPrinter/Delaborator/Basic.lean#L226</a></p>
+
+
+
+<a name="258690720"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/inferType%20in%20delaborator/near/258690720" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/inferType.20in.20delaborator.html#258690720">(Oct 22 2021 at 10:14)</a>:</h4>
+<p>Ok, thanks!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

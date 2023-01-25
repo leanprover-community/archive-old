@@ -1,0 +1,103 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html">Dependent Type Ref Counting</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="257744124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744124">(Oct 15 2021 at 18:33)</a>:</h4>
+<p>How do dependent types work with reference counting? Consider the following example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">constant</span> <span class="n">ContextPtr</span> <span class="o">:</span> <span class="n">PointedType</span>
+<span class="kd">def</span> <span class="n">ContextRef</span> <span class="o">:=</span> <span class="n">ContextPtr.type</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="n">ContextRef</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">ContextPtr.val</span><span class="o">⟩</span>
+
+<span class="kd">@[extern "new_context"]</span>
+<span class="kd">constant</span> <span class="n">ContextRef.new</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">ContextRef</span>
+
+<span class="kd">constant</span> <span class="n">TypePtr</span> <span class="o">(</span><span class="n">ctx</span> <span class="o">:</span> <span class="n">ContextRef</span><span class="o">)</span> <span class="o">:</span> <span class="n">PointedType</span>
+<span class="kd">def</span> <span class="n">TypeRef</span> <span class="o">(</span><span class="n">ctx</span> <span class="o">:</span> <span class="n">ContextRef</span><span class="o">)</span> <span class="o">:=</span> <span class="n">TypePtr</span> <span class="n">ctx</span> <span class="bp">|&gt;.</span><span class="n">type</span>
+<span class="kd">instance</span>  <span class="o">{</span><span class="n">ctx</span> <span class="o">:</span> <span class="n">ContextRef</span><span class="o">}</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">TypeRef</span> <span class="n">ctx</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">TypePtr</span> <span class="n">ctx</span> <span class="bp">|&gt;.</span><span class="n">val</span><span class="o">⟩</span>
+
+<span class="kd">@[extern "get_float_type"]</span>
+<span class="kd">constant</span> <span class="n">getFloatType</span> <span class="o">(</span><span class="n">ctx</span> <span class="o">:</span> <span class="bp">@&amp;</span> <span class="n">ContextRef</span><span class="o">)</span> <span class="o">:</span> <span class="n">TypeRef</span> <span class="n">ctx</span>
+</code></pre></div>
+<p>Does <code>get_float_type</code> need to increment <code>ctx</code> reference counter? Does <code>ctx</code> reference counter get decremented during the collection of each of object of <code>TypeRef ctx</code>?  How does that work? Does <code>get_float_type</code> need to do anything special to make that happen?</p>
+
+
+
+<a name="257744285"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744285" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744285">(Oct 15 2021 at 18:34)</a>:</h4>
+<p>Dependent types shouldn't matter at all. The types are all erased in compilation</p>
+
+
+
+<a name="257744407"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744407" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744407">(Oct 15 2021 at 18:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> so how does Lean determine when to garbage collect <code>ctx</code> so that it does not get collected pre-maturely before objects of types depending on it do?</p>
+
+
+
+<a name="257744521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744521">(Oct 15 2021 at 18:36)</a>:</h4>
+<p><code>get_float_type</code> does not need to increment <code>ctx</code>, because it takes it as borrowed data. If it was owned it would have to decrement <code>ctx</code></p>
+
+
+
+<a name="257744556"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744556" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744556">(Oct 15 2021 at 18:36)</a>:</h4>
+<p>That is, it's just as if the type was <code>constant getFloatType (ctx : @&amp; ContextRef) : Unit</code></p>
+
+
+
+<a name="257744667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744667">(Oct 15 2021 at 18:37)</a>:</h4>
+<p>The only effect of the dependent type is that a <code>ContextRef</code> is going to be forced as an argument to many functions, with all the normal consequences of passing it as an argument</p>
+
+
+
+<a name="257744897"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744897" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744897">(Oct 15 2021 at 18:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting/near/257744407">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> so how does Lean determine when to garbage collect <code>ctx</code> so that it does not get collected pre-maturely before objects of types depending on it do?</p>
+</blockquote>
+<p>There is no such relation. It can garbage collect <code>ctx</code> once it has finished actually using the data, it doesn't matter if an object of type <code>TypeRef ctx</code> still exists</p>
+
+
+
+<a name="257744977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257744977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257744977">(Oct 15 2021 at 18:39)</a>:</h4>
+<p>However, if you pass that <code>TypeRef ctx</code> to another function you will have to pass <code>ctx</code> along with it, which will keep it alive</p>
+
+
+
+<a name="257745320"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257745320" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257745320">(Oct 15 2021 at 18:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting/near/257744977">said</a>:</p>
+<blockquote>
+<p>However, if you pass that <code>TypeRef ctx</code> to another function you will have to pass <code>ctx</code> along with it, which will keep it alive</p>
+</blockquote>
+<p>But, in many cases, it infers that <code>ctx</code> from the <code>TypeRef ctx</code> object itself?</p>
+
+
+
+<a name="257751633"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Dependent%20Type%20Ref%20Counting/near/257751633" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Dependent.20Type.20Ref.20Counting.html#257751633">(Oct 15 2021 at 19:29)</a>:</h4>
+<p>Type inference is orthogonal to all this. The compiler doesn't care if the argument is explicit or implicit</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

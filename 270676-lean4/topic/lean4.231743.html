@@ -1,0 +1,149 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/lean4.231743.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html">lean4#1743</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="304585304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304585304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304585304">(Oct 18 2022 at 00:15)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span>, could I ask your advice on how I might achieve what I was asking about in <a href="https://github.com/leanprover/lean4/pull/1743">lean4#1743</a>, without needing changes to Lean 4?</p>
+<p>I have a collection of simp lemmas, each with side-conditions, and I would like to simplify by them, only applying each lemma if its side condition can be discharged (e.g. by <code>decide</code>), and I would like to proceed even if the <code>Expr.acLt</code> term order would usually reject the rewrite.</p>
+<p>So far I am only thinking of dreadful hacks. (e.g. tweak the lemmas by adding superfluous extra parameters so that <code>simp</code> doesn't classify them as <code>perm</code> lemmas).</p>
+<p>As reasonable answer is, of course: "Please don't try this, it sounds like a bad idea."</p>
+
+
+
+<a name="304585722"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304585722" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304585722">(Oct 18 2022 at 00:19)</a>:</h4>
+<p>I would just take that part into my own hands, by adding a <code>pre :=</code> tactic which rewrites with your lemma to the <code>Simp.Methods</code></p>
+
+
+
+<a name="304585820"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304585820" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304585820">(Oct 18 2022 at 00:20)</a>:</h4>
+<p>Is this actually used in mathlib, or do we want this for exciting new stuff?</p>
+
+
+
+<a name="304586010"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586010" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586010">(Oct 18 2022 at 00:22)</a>:</h4>
+<p>As I said briefly during the meeting, the idea is to try implementing something like <code>abel</code> in two phases:</p>
+<ul>
+<li>a tactic that abstract atoms, e.g. replacing <code>a + 2 • b - a + b</code> with <code>let L := [a, b]; let f i := L.get! i; f 0 + 2 • f 1 - f 0 + f 1</code></li>
+<li>then do all the proofs with the simplifier, using side conditions on indices appearing in <code>f i</code> to get the term order correct.</li>
+</ul>
+
+
+
+<a name="304586120"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586120" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586120">(Oct 18 2022 at 00:23)</a>:</h4>
+<p>So <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span>, this is for "exciting new stuff" (or rather, an alternative implementation of a tactic that needs porting).</p>
+<p>When I look at tactics like <code>abel</code> (or <code>ring</code> for that matter), it makes me wish that we were doing less manual proof construction, and more letting tools like <code>simp</code> handle it for us.</p>
+<p>This approach would only require constructing a proof for the "abstract atoms" step.</p>
+
+
+
+<a name="304586470"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586470" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586470">(Oct 18 2022 at 00:27)</a>:</h4>
+<p>I would rather have those tactics be as efficient as possible. They are used a lot, including as components of other tactics, so they should try not to do unnecessary things</p>
+
+
+
+<a name="304586561"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586561" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586561">(Oct 18 2022 at 00:28)</a>:</h4>
+<p>Okay, so it seems like the possibilities would be:</p>
+<ul>
+<li>Be able to disable the term order checking in <code>Simp</code> (probably not acceptable for Lean 4)</li>
+<li>Be able to pass a custom term order into <code>Simp</code> (probably not acceptable)</li>
+<li>Manage <code>Simp</code> more manually, by doing the rewriting myself in <code>pre := </code> with a custom tactic.</li>
+<li>Obfuscate the lemmas so that <code>simp</code> doesn't treat them as <code>perm</code> lemmas.</li>
+</ul>
+
+
+
+<a name="304586584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586584">(Oct 18 2022 at 00:28)</a>:</h4>
+<p>Is it clearly less efficient to do it this way, though?</p>
+
+
+
+<a name="304586621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586621">(Oct 18 2022 at 00:29)</a>:</h4>
+<p>the additional let bindings and list construction is clearly unnecessary</p>
+
+
+
+<a name="304586628"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586628" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586628">(Oct 18 2022 at 00:29)</a>:</h4>
+<p>Okay, true.</p>
+
+
+
+<a name="304586640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586640">(Oct 18 2022 at 00:29)</a>:</h4>
+<p>also <code>simp</code> likes to unfold those</p>
+
+
+
+<a name="304586736"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586736" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586736">(Oct 18 2022 at 00:30)</a>:</h4>
+<p>but it seems like the abstraction step is pretty cheap, hopefully just linear in the expression, and so insignificant compared to the term reordering proof.</p>
+
+
+
+<a name="304586742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586742">(Oct 18 2022 at 00:30)</a>:</h4>
+<p>I'm not even sure why you need to use indices here, why doesn't the regular term order work?</p>
+
+
+
+<a name="304586869"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586869" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586869">(Oct 18 2022 at 00:31)</a>:</h4>
+<p>I guess I haven't tried explicitly, but as you pointed out in the meeting the signs are probably trouble.</p>
+
+
+
+<a name="304586922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586922">(Oct 18 2022 at 00:32)</a>:</h4>
+<p>I would go for an encoding more like <code>have x := a; have y := b; x + 2 • y - x + y</code> here</p>
+
+
+
+<a name="304586960"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586960" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586960">(Oct 18 2022 at 00:32)</a>:</h4>
+<p>Really what I had in mind was <code>f 37 2</code>, which means "37 times the 2nd atom"</p>
+
+
+
+<a name="304586982"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304586982" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304586982">(Oct 18 2022 at 00:32)</a>:</h4>
+<p>so you can absorb any signs into an argument to <code>f</code>, where it can't interfere with the term order.</p>
+
+
+
+<a name="304587043"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304587043" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304587043">(Oct 18 2022 at 00:33)</a>:</h4>
+<p>well the + and - here can be a tactic-specific operator, I think <code>abel</code> uses some kind of additive version of <code>horner</code> IIRC</p>
+
+
+
+<a name="304587348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/lean4%231743/near/304587348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/lean4.231743.html#304587348">(Oct 18 2022 at 00:36)</a>:</h4>
+<p>but every time I think about the most optimal way to combine all these pluses and minuses I end up with a pretty specific solution that uses custom data structures like insertion into a <code>RBMap ExprId Int</code> with proofs</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

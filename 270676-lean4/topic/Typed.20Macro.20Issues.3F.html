@@ -1,0 +1,55 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html">Typed Macro Issues?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="287931599"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Typed%20Macro%20Issues%3F/near/287931599" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html#287931599">(Jun 29 2022 at 21:33)</a>:</h4>
+<p>I'm running into a couple of issues updating code after the "Typed Macro" update. I managed to fix them all so far but I'm puzzled by some of the solutions.</p>
+<p>For example, this macro:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"mwe"</span> <span class="n">name</span><span class="o">:</span><span class="n">ident</span> <span class="n">rest</span><span class="o">:</span><span class="n">tacticSeq</span> <span class="o">:</span> <span class="n">tactic</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">intro</span> <span class="bp">$</span><span class="n">name</span><span class="o">:</span><span class="n">ident</span><span class="bp">;</span> <span class="o">(</span><span class="bp">$</span><span class="n">rest</span><span class="o">))</span>
+</code></pre></div>
+<p>Doesn't work without specifying <code>$name:ident</code> on the RHS. It seems like <code>intro</code> expects a <code>matchAlt</code> argument by default instead of an <code>ident</code>. This is probably a bug.</p>
+<p>The parentheses around <code>$rest</code> are also necessary for some reason. This might be a feature but I don't understand why this is necessary.</p>
+
+
+
+<a name="287936504"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Typed%20Macro%20Issues%3F/near/287936504" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html#287936504">(Jun 29 2022 at 21:48)</a>:</h4>
+<p>Thanks for the feedback! The <code>intro</code> issue is an artifact resulting from the fact that there are actually two separate <code>intro</code> tactics, for idents and for matchAlts, would be feasible but maybe a bit complex to make that still work. The second issue is "technically correct", without parentheses Lean expects a single tactic at that point. We could define a coercion to insert the parentheses for us.</p>
+
+
+
+<a name="287944716"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Typed%20Macro%20Issues%3F/near/287944716" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html#287944716">(Jun 29 2022 at 22:13)</a>:</h4>
+<p>Thanks Sebastian! That makes sense. The <code>$rest</code> issue makes total sense now. It would be convenient to have a coercion since I had quite a few cases of that to fix.</p>
+<p>Thanks for the explanation of the <code>intro</code> issue! Is this an instance "the matchAlt case is tried before the ident case because the matchAlt case was defined last" or is it more complex than that?</p>
+
+
+
+<a name="287989131"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Typed%20Macro%20Issues%3F/near/287989131" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Typed.20Macro.20Issues.3F.html#287989131">(Jun 30 2022 at 07:58)</a>:</h4>
+<p><code>intro $name</code> is in fact parsed into a choice node of both tactics</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>     <span class="o">[(</span><span class="n">choice</span>
+       <span class="o">(</span><span class="n">Tactic.intro</span> <span class="s2">"intro"</span> <span class="o">[(</span><span class="n">term.pseudo.antiquot</span> <span class="s2">"$"</span> <span class="o">[]</span> <span class="bp">`</span><span class="n">name</span> <span class="o">[])])</span>
+       <span class="o">(</span><span class="n">Tactic.introMatch</span> <span class="s2">"intro"</span> <span class="o">(</span><span class="n">Term.matchAlts.antiquot</span> <span class="s2">"$"</span> <span class="o">[]</span> <span class="bp">`</span><span class="n">name</span> <span class="o">[])))</span>
+</code></pre></div>
+<p>We would have to select and generate the correct alternative given <code>name : TSyntax [`term, `matchAlt]</code></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,192 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html">Counting the size of a structure</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="244047649"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244047649" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sorawee Porncharoenwase <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244047649">(Jun 27 2021 at 03:35)</a>:</h4>
+<p>Given a Lean data structure, is there a way to count the size of the value, taken reference sharing into account?</p>
+<p>As a concrete example, consider:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="o">:</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="n">b</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span>
+
+<span class="kn">open</span> <span class="n">A</span>
+
+<span class="kd">def</span> <span class="n">c</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">a</span> <span class="n">a</span> <span class="c1">-- 3 / 2</span>
+<span class="kd">def</span> <span class="n">d</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">c</span> <span class="n">c</span> <span class="c1">-- 7 / 3</span>
+<span class="kd">def</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">d</span> <span class="n">d</span> <span class="c1">-- 15 / 4</span>
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">e</span> <span class="n">e</span>  <span class="c1">-- 31 / 5</span>
+</code></pre></div>
+<p>If I walk over the tree and count every node one, I will get that <code>f</code> has size 31. However, in most functional languages, references can be shared, so a more accurate size would be 5.</p>
+<p>Does Lean share references? And if so, is it possible to compute the size somehow?</p>
+
+
+
+<a name="244058658"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244058658" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244058658">(Jun 27 2021 at 09:33)</a>:</h4>
+<p>Would something like that do what you want?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.finset.basic</span>
+
+<span class="kd">inductive</span> <span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="o">:</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="n">b</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span>
+
+<span class="kn">open</span> <span class="n">A</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">decidable_eq</span> <span class="n">A</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">def</span> <span class="n">without_ref</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="n">a</span>       <span class="o">:=</span> <span class="mi">1</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">b</span> <span class="n">l</span> <span class="n">r</span><span class="o">)</span> <span class="o">:=</span> <span class="n">without_ref</span> <span class="n">l</span> <span class="bp">+</span> <span class="n">without_ref</span> <span class="n">r</span> <span class="bp">+</span> <span class="mi">1</span>
+
+<span class="kd">def</span> <span class="n">with_ref_aux</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">finset</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="n">a</span>       <span class="o">:=</span> <span class="bp">∅</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">b</span> <span class="n">l</span> <span class="n">r</span><span class="o">)</span> <span class="o">:=</span> <span class="n">insert</span> <span class="o">(</span><span class="n">b</span> <span class="n">l</span> <span class="n">r</span><span class="o">)</span> <span class="o">(</span><span class="n">with_ref_aux</span> <span class="n">l</span> <span class="bp">∪</span> <span class="n">with_ref_aux</span> <span class="n">r</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">with_ref</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">with_ref_aux</span> <span class="n">x</span><span class="o">)</span><span class="bp">.</span><span class="n">card</span> <span class="bp">+</span> <span class="mi">1</span>
+
+<span class="kd">def</span> <span class="n">c</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">a</span> <span class="n">a</span> <span class="c1">-- 3 / 2</span>
+<span class="kd">def</span> <span class="n">d</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">c</span> <span class="n">c</span> <span class="c1">-- 7 / 3</span>
+<span class="kd">def</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">d</span> <span class="n">d</span> <span class="c1">-- 15 / 4</span>
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:=</span> <span class="n">b</span> <span class="n">e</span> <span class="n">e</span>  <span class="c1">-- 31 / 5</span>
+
+<span class="k">#eval</span> <span class="n">without_ref</span> <span class="n">f</span>
+<span class="k">#eval</span> <span class="n">with_ref_aux</span> <span class="n">c</span>
+<span class="k">#eval</span> <span class="n">with_ref</span> <span class="n">c</span>
+</code></pre></div>
+
+
+
+<a name="244058790"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244058790" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244058790">(Jun 27 2021 at 09:36)</a>:</h4>
+<p>You'll have to define to define what you mean by size anyway. If you really mean reference and not equality, then no that's impossible. If <code>c = d = b a a</code>, then you can't expect <code>size (b c c) = 3</code> and <code>size (b c d) = 4</code>, because then substituting <code>c = d</code> would give <code>3 = 4</code>.</p>
+
+
+
+<a name="244060593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244060593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sorawee Porncharoenwase <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244060593">(Jun 27 2021 at 10:31)</a>:</h4>
+<p>I really do mean reference, unfortunately. </p>
+<p>Can you confirm though that Lean does share reference internally? Intuitively it should be, since _not_ sharing seems harder to implement, but I want to be sure.</p>
+
+
+
+<a name="244060648"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244060648" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244060648">(Jun 27 2021 at 10:32)</a>:</h4>
+<p>I don't know. Ask <span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> or <span class="user-mention silent" data-user-id="110049">Mario Carneiro</span>.</p>
+
+
+
+<a name="244060857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244060857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244060857">(Jun 27 2021 at 10:39)</a>:</h4>
+<p>I assume what you mean here is "size <em>when run in the VM</em>"?</p>
+
+
+
+<a name="244063815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244063815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244063815">(Jun 27 2021 at 12:00)</a>:</h4>
+<p>There's <a href="https://leanprover-community.github.io/mathlib_docs/find/sizeof">docs#sizeof</a> that is used, inter alia, by the equation compiler to infer that terms aren't growing without bound in recursive definitions. Perhaps it is related to what you need.</p>
+
+
+
+<a name="244063817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244063817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244063817">(Jun 27 2021 at 12:00)</a>:</h4>
+<p>I think it might help for you to give some discussion about what you are looking to do with this information.  Also there are different levels here.  </p>
+<p>There is the pure mathematical level.  In that case, as Yael pointed out, since Lean as a math language, can’t behave differently on equal objects, there is no way to have a math function which takes a value as input and can say anything about its implementation.  (This goes as well for <code>sizeof</code> mentioned above.)</p>
+<p>Then there is the expression level.  Your <code>f</code> definition is stored in the environment, and using <code>meta</code> code, you can examine its expression, recursing over the tree.  In that case, I know references are shared since <code>e</code> in the expression for <code>f</code> is just basically a reference to the previous <code>e</code> declaration. You would have to do it as something like <code>refsizeof “e”</code> where <code>refsizeof</code> is a meta function which looks up a name from the environment, gets its expression, and traverses the tree.  (Edit: the <code>refsizeof</code> doesn’t exist.  You would have to write it.)</p>
+<p>Finally, there is the execution level, where this datastructure is turned into computer code and uses pointers to other data structures.  It would be silly not to share references, but I don’t know how the VM works exactly and if there is any way to probe it.  Also, for Lean 4 (every thing I’ve said so far is for Lean 3) you might find this paper interesting where they show optimizations to recursive computations exploiting shared references: <a href="https://dl.acm.org/doi/10.1145/3408997">https://dl.acm.org/doi/10.1145/3408997</a></p>
+
+
+
+<a name="244067772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244067772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Stephen Butler <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244067772">(Jun 27 2021 at 13:44)</a>:</h4>
+<p>Can I ask the dumb question - why do you want/care about this? What is it you are ultimately trying to achieve?</p>
+<p>If what you want is not possible, it's possible there's another way to achieve what you actually want without having to resolve this particular issue.</p>
+
+
+
+<a name="244072343"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244072343" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244072343">(Jun 27 2021 at 15:45)</a>:</h4>
+<p>Leo wrote some code to calculate the size of a term for a Lean 4 test case: <a href="https://github.com/leanprover/lean4/blob/master/tests/lean/run/KyleAlg.lean">https://github.com/leanprover/lean4/blob/master/tests/lean/run/KyleAlg.lean</a> (see <code>dagSize</code>) -- not sure if it can be ported to Lean 3, but maybe it's useful to see.</p>
+
+
+
+<a name="244082831"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244082831" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244082831">(Jun 27 2021 at 20:15)</a>:</h4>
+<p>I can't seem to find any meta function in Lean 3 that gives access to the pointer address of an object (this is what makes that Lean 4 code work as well as the optimizations in the paper). However, if you really want to be certain that Lean 3 shares references (in the VM), here is a simple proof by example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">A</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="o">:</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="n">b</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">A</span>
+
+<span class="sd">/-- Binary tree of given height (not counting root).  Implemented via sharing references. -/</span>
+<span class="kd">def</span> <span class="n">binary_tree</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">A</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="n">A.a</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="k">let</span> <span class="n">t</span> <span class="o">:=</span> <span class="n">binary_tree</span> <span class="n">n</span> <span class="k">in</span> <span class="n">A.b</span> <span class="n">t</span> <span class="n">t</span>
+
+<span class="kd">def</span> <span class="n">left_path_size</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="n">A.a</span> <span class="o">:=</span> <span class="mi">0</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">A.b</span> <span class="n">t1</span> <span class="n">_</span><span class="o">)</span> <span class="o">:=</span> <span class="mi">1</span> <span class="bp">+</span> <span class="o">(</span><span class="n">left_path_size</span> <span class="n">t1</span><span class="o">)</span>
+
+<span class="k">#eval</span> <span class="n">left_path_size</span> <span class="o">(</span><span class="n">binary_tree</span> <span class="mi">2</span><span class="o">)</span> <span class="c1">-- 2</span>
+
+<span class="c">/-</span><span class="cm"> This tree if expanded is larger than the number of atoms in the universe -/</span>
+<span class="k">#eval</span> <span class="n">left_path_size</span> <span class="o">(</span><span class="n">binary_tree</span> <span class="mi">1000</span><span class="o">)</span> <span class="c1">-- 1000</span>
+</code></pre></div>
+
+
+
+<a name="244159598"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244159598" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244159598">(Jun 28 2021 at 15:12)</a>:</h4>
+<p>As others have already surmised, this information is not exposed to lean code, although the VM is keeping track of it. It would not be hard to expose though, with a signature like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">constant</span> <span class="n">reference_count</span> <span class="o">{</span><span class="n">A</span> <span class="n">B</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">A</span> <span class="bp">-&gt;</span> <span class="n">nat</span> <span class="bp">-&gt;</span> <span class="n">B</span><span class="o">)</span> <span class="o">:</span> <span class="n">B</span>
+</code></pre></div>
+<p>This is used by lean to make some behavioral changes for unshared arrays, for example. But knowing that something has 6 references or 5 is not necessarily so useful, and also you will have to be careful about off by one errors because the <code>reference_count</code> function itself will count as an extra reference (that's why it is being passed through the function in this example instead of just consumed)</p>
+
+
+
+<a name="244160015"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244160015" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244160015">(Jun 28 2021 at 15:15)</a>:</h4>
+<p><code>expr.replace</code> is an example of a function that exploits dag sharing in order to efficiently traverse a highly shared expr data structure. Unfortunately I don't know a way to do the same thing for user types, so for example with the <code>binary_tree</code> type in Jason's example I don't know how you could write a <code>size</code> function that doesn't take exponential time in the highly shared case</p>
+
+
+
+<a name="244160287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244160287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244160287">(Jun 28 2021 at 15:17)</a>:</h4>
+<p>we could just do something similar to lean 4 and expose pointer positions so that you can stick them in a hash table. Of course you will lose any ability to prove the correctness of such a function, and there is no way to avoid the unsafety of these accessors because they don't respect equality</p>
+
+
+
+<a name="244229652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244229652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sorawee Porncharoenwase <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244229652">(Jun 29 2021 at 03:29)</a>:</h4>
+<p>Oh, I didn't necessarily want a function like <code>reference_count</code> that "just works" (although it would be cool to have one nonetheless). Having a function that takes a value and return an address (perhaps virtual one) would suffice for me. I can walk the structure and do the counting myself.</p>
+
+
+
+<a name="244229738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244229738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sorawee Porncharoenwase <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244229738">(Jun 29 2021 at 03:31)</a>:</h4>
+<p>But as Jason said, this doesn't seem to be possible to Lean 3. But it is possible in Lean 4, as Kyle's link shows.</p>
+
+
+
+<a name="244229962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Counting%20the%20size%20of%20a%20structure/near/244229962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Rute <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Counting.20the.20size.20of.20a.20structure.html#244229962">(Jun 29 2021 at 03:36)</a>:</h4>
+<p>As Mario said it would be possible to add access to the pointer as a meta function, but it would require modifying Lean 3 to expose it.  (It would have to be <code>meta</code> since it doesn’t respect equality.  Similarly the Lean 4 version is <code>unsafe</code>.)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

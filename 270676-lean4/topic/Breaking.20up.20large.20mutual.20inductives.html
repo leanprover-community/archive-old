@@ -1,0 +1,386 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html">Breaking up large mutual inductives</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="246505712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246505712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246505712">(Jul 19 2021 at 19:56)</a>:</h4>
+<p>Are there any techniques for dealing with inductive types which contain a large recursion? The issue is that I have an almost acyclic collection of types A ... Z that all build on one another, but A needs to refer to Z, and this causes all the types in between to end up in one giant mutual inductive block, which causes problems for the kernel. I'm considering using <code>unsafe</code> to avoid all the theorem generation because I don't need anything to be verified, I just want long distance mutual recursion like one would find in C / haskell / etc. Lean 4 core has a couple file-spanning mutual recursions, but they generally seem to go via <code>builtin_initialize</code> which isn't available to user code.</p>
+
+
+
+<a name="246507699"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246507699" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246507699">(Jul 19 2021 at 20:12)</a>:</h4>
+<p>oftentimes, what the F# folks do is being parametric in the type you would have to be recursive on otherwise. Maybe that could work for you?</p>
+
+
+
+<a name="246507980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246507980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246507980">(Jul 19 2021 at 20:14)</a>:</h4>
+<p>You still have to close the loop at the end, though. Is lean able to handle nested inductives like that?</p>
+
+
+
+<a name="246527370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246527370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246527370">(Jul 19 2021 at 23:20)</a>:</h4>
+<p>I think <span class="user-mention" data-user-id="235513">@Daniel Fabian</span>  means something like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">BaseFoo</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">(</span><span class="n">foobar</span> <span class="o">:</span> <span class="n">a</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">BaseBar</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">bar</span> <span class="o">(</span><span class="n">foobar</span> <span class="o">:</span> <span class="n">a</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">Foobar</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">BaseFoo</span> <span class="n">Foobar</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">bar</span> <span class="o">(</span><span class="n">bar</span> <span class="o">:</span> <span class="n">BaseBar</span> <span class="n">Foobar</span><span class="o">)</span>
+
+<span class="n">abbrev</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="n">BaseFoo</span> <span class="n">Foobar</span>
+<span class="n">abbrev</span> <span class="n">Bar</span> <span class="o">:=</span> <span class="n">BaseBar</span> <span class="n">Foobar</span>
+</code></pre></div>
+<p>which works like the following mutual block:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+
+<span class="kd">inductive</span> <span class="n">Foo</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">(</span><span class="n">foobar</span> <span class="o">:</span> <span class="n">Foobar</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+<span class="bp">|</span> <span class="n">bar</span> <span class="o">(</span><span class="n">foobar</span> <span class="o">:</span> <span class="n">Foobar</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">Foobar</span>
+<span class="bp">|</span> <span class="n">foo</span> <span class="o">(</span><span class="n">foo</span> <span class="o">:</span> <span class="n">Foo</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">bar</span> <span class="o">(</span><span class="n">bar</span> <span class="o">:</span> <span class="n">Bar</span><span class="o">)</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+<p>I've used this pattern myself in the past. For example, I used it to model LLVM's type hierarchy, which you can see <a href="https://github.com/tydeu/lean4-papyrus/blob/master/Papyrus/IR/Type.lean">here</a> if you want.</p>
+
+
+
+<a name="246530040"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530040" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530040">(Jul 20 2021 at 00:06)</a>:</h4>
+<p>doesn't this incur just as much complexity internally as the mutual block? In order to prove that the nested inductive is okay it has to work out all the intermediate inductives</p>
+
+
+
+<a name="246530067"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530067" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530067">(Jul 20 2021 at 00:07)</a>:</h4>
+<p>it's not so bad here but imagine there are 6 more defs and structures between <code>BaseFoo</code> and the thing that shows up in <code>Foobar</code></p>
+
+
+
+<a name="246530748"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530748" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530748">(Jul 20 2021 at 00:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246530040">said</a>:</p>
+<blockquote>
+<p>In order to prove that the nested inductive is okay it has to work out all the intermediate inductives</p>
+</blockquote>
+<p>What do you mean by okay? I don't think any special checking is going on in the non-<code>mutual</code> example. I know that, at the very least, some of the checking that goes on in a <code>mutual</code> block does not occur, since you can mix structures and inductives with this pattern but you can't do so in <code>mutual</code> blocks.</p>
+
+
+
+<a name="246530877"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530877" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530877">(Jul 20 2021 at 00:20)</a>:</h4>
+<p>I think that's just <code>mutual</code> being stingy</p>
+
+
+
+<a name="246530887"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530887" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530887">(Jul 20 2021 at 00:20)</a>:</h4>
+<p><code>structure</code> is just an inductive under the hood</p>
+
+
+
+<a name="246530989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530989">(Jul 20 2021 at 00:22)</a>:</h4>
+<p>there are lots of other things that could be supported in <code>mutual</code> but aren't like <code>variable</code>, <code>set_option</code>, and especially <code>def</code> and <code>structure</code></p>
+
+
+
+<a name="246530994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246530994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246530994">(Jul 20 2021 at 00:22)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246530887">said</a>:</p>
+<blockquote>
+<p><code>structure</code> is just an inductive under the hood</p>
+</blockquote>
+<p>You've mentioned this before and it has always struck me as odd. As, at the very least, structures support <code>extends</code> which behaves specially in many cases. So, I would not say they are all that identical.</p>
+
+
+
+<a name="246531039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531039">(Jul 20 2021 at 00:23)</a>:</h4>
+<p>structures have lots of elaborator magic layered on top but from the kernel's perspective they are just inductives</p>
+
+
+
+<a name="246531158"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531158" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531158">(Jul 20 2021 at 00:24)</a>:</h4>
+<p>they generate all the usual inductive gizmos like <code>noConfusion</code>, plus some more things specific to structures like projections and parent instances</p>
+
+
+
+<a name="246531170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531170">(Jul 20 2021 at 00:24)</a>:</h4>
+<p>Ah, that's it. I tend to think at the Lean level, not the kernel level. For me,  that's what matters.</p>
+
+
+
+<a name="246531199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531199">(Jul 20 2021 at 00:25)</a>:</h4>
+<p>when asking whether a nested inductive is okay the check is in terms of kernel concepts</p>
+
+
+
+<a name="246531285"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531285" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531285">(Jul 20 2021 at 00:26)</a>:</h4>
+<p>I am confused though about what part of this you would expect to error. In the non-<code>mutual</code> pattern there isn't really any nested inductives (in the sense that they are mutually referring to one another).</p>
+
+
+
+<a name="246531291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531291">(Jul 20 2021 at 00:26)</a>:</h4>
+<p><code>mutual</code> blocks are part of the elaborator layered on top, which is why it's possible for <code>mutual</code> to reject something that would be perfectly fine if it made it to the kernel</p>
+
+
+
+<a name="246531341"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531341" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531341">(Jul 20 2021 at 00:27)</a>:</h4>
+<p><code>Foobar</code> is a nested inductive</p>
+
+
+
+<a name="246531416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531416">(Jul 20 2021 at 00:28)</a>:</h4>
+<p>in order to validate a nested inductive that has a constructor like <code>mk : Foo T -&gt; T</code>, you have to inspect and unfold <code>Foo</code> down to basic parts, because not every type operator <code>Foo</code> is sound in that position</p>
+
+
+
+<a name="246531441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531441">(Jul 20 2021 at 00:28)</a>:</h4>
+<p>specifically, <code>Foo := \lam X, X -&gt; False</code> would cause a contradiction</p>
+
+
+
+<a name="246531468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531468">(Jul 20 2021 at 00:29)</a>:</h4>
+<p>The check that has to be done is that <code>Foo</code> unfolds to a nested combination of inductive type operators</p>
+
+
+
+<a name="246531520"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531520" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531520">(Jul 20 2021 at 00:30)</a>:</h4>
+<p>and this process entails essentially building that whole mutual inductive block under the hood</p>
+
+
+
+<a name="246531565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531565">(Jul 20 2021 at 00:31)</a>:</h4>
+<p>It might be a bit faster since this construction is happening at a lower level where the elaborator doesn't have to get involved, but from a pure complexity standpoint they should be about the same</p>
+
+
+
+<a name="246531570"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531570" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531570">(Jul 20 2021 at 00:31)</a>:</h4>
+<p>Ah. Makes sense. Sadly, I don't know much about how the kernel works.</p>
+
+
+
+<a name="246531647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531647">(Jul 20 2021 at 00:32)</a>:</h4>
+<p>Plus, the recursor for a nested inductive explicitly references all those intermediates, and lean also wants to prove a bunch of injectivity lemmas about the inductive, and I think this is what costs most of the processing time</p>
+
+
+
+<a name="246531676"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531676" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531676">(Jul 20 2021 at 00:32)</a>:</h4>
+<p>I'm sure you have noticed that if you put <code>unsafe</code> on a large mutual or nested inductive it runs a lot faster</p>
+
+
+
+<a name="246531707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246531707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246531707">(Jul 20 2021 at 00:33)</a>:</h4>
+<p>That's weird, because I said, I used this pattern to represent LLVM type hierarchy (i.e. <a href="https://github.com/tydeu/lean4-papyrus/blob/master/Papyrus/IR/Type.lean">here</a>) which had a decent number of different nested inductives and I didn't really notice any overhead. But maybe that wasn't enough nesting?</p>
+
+
+
+<a name="246532430"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246532430" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246532430">(Jul 20 2021 at 00:49)</a>:</h4>
+<p>you should try playing with the nested inductive <a href="https://github.com/dselsam/mathport/blob/master/Mathport/AST3.lean">here</a>. I gave up trying to fold <code>Command</code> into the big mutual inductive and instead I'm storing the backreferences in an external data structure and storing <code>CommandId</code> in the inductive instead</p>
+
+
+
+<a name="246532605"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246532605" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246532605">(Jul 20 2021 at 00:51)</a>:</h4>
+<p>It's already enough to exceed maxHeartbeats if you add a few more of those inductives into the mutual block</p>
+
+
+
+<a name="246532672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246532672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246532672">(Jul 20 2021 at 00:52)</a>:</h4>
+<p>Do you think you could try the parameterized pattern there and see if this might be an elaborator issue  with <code>mutual</code> blocks rather than a kernel issue with nested inductives?</p>
+
+
+
+<a name="246532720"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246532720" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246532720">(Jul 20 2021 at 00:53)</a>:</h4>
+<p>Because while I haven't experienced slowdowns with the parametrized  pattern, I definitely have encountered many a problem with using <code>mutual</code> blocks (including processing time).</p>
+
+
+
+<a name="246533178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246533178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246533178">(Jul 20 2021 at 00:59)</a>:</h4>
+<p>Though I guess it might be wise to probe the Lean developers further to see if that could really be a solution before engaging in such a large refactor.</p>
+
+
+
+<a name="246534385"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246534385" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246534385">(Jul 20 2021 at 01:14)</a>:</h4>
+<p>I do suspect though that the problem may be that <code>mutual</code> blocks have to do a lot more checking because they don't know a priori if the inductives are merely nested or if they are fully mutually recursive.</p>
+
+
+
+<a name="246535137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246535137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246535137">(Jul 20 2021 at 01:25)</a>:</h4>
+<p>Just for fun, here's a plot of the dependency graph between all the inductives (only counting the ones in the SCC) <a href="/user_uploads/3121/4UYIqY0dvZz-H2lO7MVs5_pX/lean3-mutual.png">lean3-mutual.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/4UYIqY0dvZz-H2lO7MVs5_pX/lean3-mutual.png" title="lean3-mutual.png"><img src="/user_uploads/3121/4UYIqY0dvZz-H2lO7MVs5_pX/lean3-mutual.png"></a></div>
+
+
+
+<a name="246541681"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246541681" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246541681">(Jul 20 2021 at 03:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246531565">said</a>:</p>
+<blockquote>
+<p>It might be a bit faster since this construction is happening at a lower level where the elaborator doesn't have to get involved, but from a pure complexity standpoint they should be about the same</p>
+</blockquote>
+<p>have you verified this? I'd expect that you can do the check locally for each parametrized inductive as opposed to having to do it for the whole SCC. The fact that you are parametric breaks the loop after all.</p>
+
+
+
+<a name="246542376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246542376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246542376">(Jul 20 2021 at 03:55)</a>:</h4>
+<p>I actually don't know that much about what it's doing; my paper on the lean kernel was pre-nested inductives and I haven't looked at it since beyond observational testing like this</p>
+
+
+
+<a name="246542437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246542437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246542437">(Jul 20 2021 at 03:56)</a>:</h4>
+<p>as in does adding the type parameter fix your perf problem or not?</p>
+
+
+
+<a name="246542829"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246542829" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246542829">(Jul 20 2021 at 04:04)</a>:</h4>
+<p>I haven't tried it yet; one type parameter wouldn't be enough to untangle that graph, maybe 3 would get it into a collection of reasonably small mutual inductives but there are little cycles all over</p>
+
+
+
+<a name="246554348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246554348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246554348">(Jul 20 2021 at 07:43)</a>:</h4>
+<p>Now I'm glad that <code>Syntax</code> is stringly-typed... it does avoid this whole bunch of issues</p>
+
+
+
+<a name="246554405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246554405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246554405">(Jul 20 2021 at 07:44)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246531647">said</a>:</p>
+<blockquote>
+<p>Plus, the recursor for a nested inductive explicitly references all those intermediates, and lean also wants to prove a bunch of injectivity lemmas about the inductive, and I think this is what costs most of the processing time</p>
+</blockquote>
+<p>You could try <code>set_option genInjectivity false</code> for that</p>
+
+
+
+<a name="246554483"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246554483" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246554483">(Jul 20 2021 at 07:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246505712">said</a>:</p>
+<blockquote>
+<p>but they generally seem to go via <code>builtin_initialize</code> which isn't available to user code.</p>
+</blockquote>
+<p>I think <code>initialize</code> should work there instead</p>
+
+
+
+<a name="246614271"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246614271" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris B <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246614271">(Jul 20 2021 at 16:19)</a>:</h4>
+<p>That graph is nicely formatted btw, how'd you make it?</p>
+
+
+
+<a name="246620790"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246620790" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246620790">(Jul 20 2021 at 17:10)</a>:</h4>
+<p>mathematica, no special settings, just <code>Graph[data, VertexLabels -&gt; All]</code>. I was originally hoping that one of the embeddings would help find good cut points in the graph, but it's pretty interconnected</p>
+
+
+
+<a name="246621099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246621099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246621099">(Jul 20 2021 at 17:13)</a>:</h4>
+<p>I don't suppose anyone knows whether there is an algorithm for finding a permutation of vertices of a directed graph that minimizes the number of backward edges (like topological sort, but for non-dags)</p>
+
+
+
+<a name="246657829"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246657829" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246657829">(Jul 20 2021 at 22:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246621099">said</a>:</p>
+<blockquote>
+<p>I don't suppose anyone knows whether there is an algorithm for finding a permutation of vertices of a directed graph that minimizes the number of backward edges (like topological sort, but for non-dags)</p>
+</blockquote>
+<p>According to section 9.4 of di Battista et al., "Graph Drawing: Algorithms for the Visualization of Graphs," this is an NP-complete problem.  They give a greedy linear time algorithm, and they claim it works relatively well for sparse digraphs.  (The formulation of the problem is to find the subset of edges to reverse to form a DAG.)</p>
+
+
+
+<a name="246658178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246658178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246658178">(Jul 20 2021 at 22:19)</a>:</h4>
+<p>The greedy algorithm calculates a permutation of the vertices (as a list) that tries to minimize the set of leftward edges.  Pseudocode:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>let L and R be initialized as empty lists.
+while there are still vertices:
+  remove all sinks, prepending them to the list R
+  remove all sources, appending them to the list L
+  if G is nonempty,
+    choose and remove a vertex maximizing outdeg - indeg, and append it to the list L
+the result is L concatenated with R.
+</code></pre></div>
+
+
+
+<a name="246658287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246658287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246658287">(Jul 20 2021 at 22:20)</a>:</h4>
+<p>is the vertex chosen in the last step also removed from the graph?</p>
+
+
+
+<a name="246658397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246658397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246658397">(Jul 20 2021 at 22:22)</a>:</h4>
+<p>Oh, I made a big mistake translating it.  Hold on.</p>
+
+
+
+<a name="246658514"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246658514" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246658514">(Jul 20 2021 at 22:24)</a>:</h4>
+<p>Ok, fixed.  I was reading the notation too quickly, sorry.</p>
+
+
+
+<a name="246825975"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Breaking%20up%20large%20mutual%20inductives/near/246825975" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marcus Rossel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives.html#246825975">(Jul 22 2021 at 09:35)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Breaking.20up.20large.20mutual.20inductives/near/246542376">said</a>:</p>
+<blockquote>
+<p>my paper on the lean kernel</p>
+</blockquote>
+<p>What paper is that?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

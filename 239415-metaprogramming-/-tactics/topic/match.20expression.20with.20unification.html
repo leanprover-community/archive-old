@@ -1,0 +1,97 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html">match expression with unification</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="235149682"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235149682" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235149682">(Apr 19 2021 at 09:10)</a>:</h4>
+<p>Is there a way to pattern match on an expression with definition unfolding (like <code>tactic.unify</code> does)? For example, how to make the following function <code>get_first_summand</code> working also in the other cases?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">get_first_summand</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">expr</span>
+<span class="o">:=</span>
+<span class="k">do</span>
+  <span class="c1">-- tactic.unify `(nat.add 2 5) e, -- tactic.unify would work but there is no space for variables</span>
+  <span class="bp">`</span><span class="o">(</span><span class="n">nat.add</span> <span class="bp">%%</span><span class="n">a</span> <span class="bp">%%</span><span class="n">_</span><span class="o">)</span> <span class="bp">←</span> <span class="n">return</span> <span class="n">e</span><span class="o">,</span>
+  <span class="n">return</span> <span class="n">a</span>
+
+<span class="c1">-- succeeds with 2</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">get_first_summand</span> <span class="bp">`</span><span class="o">(</span><span class="n">nat.add</span> <span class="mi">2</span> <span class="mi">5</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">new_func</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="o">(</span><span class="n">nat.add</span> <span class="n">n</span> <span class="mi">5</span><span class="o">)</span>
+
+<span class="c1">-- fails</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">get_first_summand</span> <span class="bp">`</span><span class="o">(</span><span class="n">new_func</span> <span class="mi">2</span><span class="o">))</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.trace</span> <span class="o">(</span><span class="n">get_first_summand</span> <span class="bp">`</span><span class="o">(</span><span class="mi">2</span> <span class="bp">+</span> <span class="mi">5</span><span class="o">))</span>
+</code></pre></div>
+<p>I don't want to just add more cases for <code>new_func</code> or <code>has_add.add</code> because function <code>new_func</code> could be defined after the tactic.</p>
+
+
+
+<a name="235150394"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235150394" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235150394">(Apr 19 2021 at 09:16)</a>:</h4>
+<p>You'll have to use <code>whnf</code> or <code>dsimp</code> to reduce the expression to head-normal form, then <code>match</code> on it. There is unfortunately no way to directly match 'up to conversion'. You'll also have to decide what transparency to use; this controls which constants get unfolded during the <code>whnf</code> reduction.</p>
+
+
+
+<a name="235150624"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235150624" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235150624">(Apr 19 2021 at 09:18)</a>:</h4>
+<p>(Actually, you could <code>unify</code> with a term containing metavariables, then read those. But that's probably more expensive.)</p>
+
+
+
+<a name="235150783"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235150783" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235150783">(Apr 19 2021 at 09:20)</a>:</h4>
+<p>I do not need too much efficiency in this case, how do I construct an expression with metavariables?</p>
+
+
+
+<a name="235151465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235151465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235151465">(Apr 19 2021 at 09:25)</a>:</h4>
+<p>I guess there's no quotation for mvars, so you'll have to build it manually. Something like this (untested):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">summand1</span> <span class="bp">&lt;-</span> <span class="n">mk_mvar</span> <span class="n">nat</span><span class="o">,</span>
+<span class="n">summand2</span> <span class="bp">&lt;-</span> <span class="n">mk_mvar</span> <span class="n">nat</span><span class="o">,</span>
+<span class="k">let</span> <span class="n">pattern</span> <span class="o">:=</span> <span class="bp">`</span><span class="o">(</span><span class="n">nat.add</span> <span class="bp">%</span><span class="n">summand1</span> <span class="bp">%</span><span class="n">summand2</span><span class="o">),</span>
+<span class="n">unify</span> <span class="n">e</span> <span class="n">pattern</span><span class="o">,</span>
+<span class="n">summand1</span> <span class="bp">&lt;-</span> <span class="n">instantiate_mvars</span> <span class="n">summand1</span><span class="o">,</span>
+<span class="n">pure</span> <span class="n">summand1</span>
+</code></pre></div>
+<p>I should stress this is highly unidiomatic; I just had this idea. YMMV.</p>
+
+
+
+<a name="235151805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235151805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235151805">(Apr 19 2021 at 09:28)</a>:</h4>
+<p>thanks, I will play with it, maybe <code>whnf</code> will suffice (but I don't want to expand what could be expanded in the match, so I will have to play with reducibility a bit)</p>
+
+
+
+<a name="235153421"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/match%20expression%20with%20unification/near/235153421" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/match.20expression.20with.20unification.html#235153421">(Apr 19 2021 at 09:42)</a>:</h4>
+<p>For completeness, this is a working code with metavariables.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">get_first_summand</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">expr</span>
+<span class="o">:=</span>
+<span class="k">do</span>
+  <span class="n">summand1</span> <span class="bp">&lt;-</span> <span class="n">tactic.mk_mvar</span><span class="o">,</span>
+  <span class="n">summand2</span> <span class="bp">&lt;-</span> <span class="n">tactic.mk_mvar</span><span class="o">,</span>
+  <span class="k">let</span> <span class="n">pattern</span> <span class="o">:=</span> <span class="bp">`</span><span class="o">(</span><span class="n">nat.add</span> <span class="bp">%%</span><span class="n">summand1</span> <span class="bp">%%</span><span class="n">summand2</span><span class="o">),</span>
+  <span class="n">tactic.unify</span> <span class="n">e</span> <span class="n">pattern</span><span class="o">,</span>
+  <span class="n">summand1</span> <span class="bp">&lt;-</span> <span class="n">tactic.instantiate_mvars</span> <span class="n">summand1</span><span class="o">,</span>
+  <span class="n">return</span> <span class="n">summand1</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

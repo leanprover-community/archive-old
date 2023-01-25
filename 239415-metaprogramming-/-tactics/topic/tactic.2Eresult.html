@@ -1,0 +1,70 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html">tactic.result</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="282464650"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/tactic.result/near/282464650" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html#282464650">(May 16 2022 at 08:34)</a>:</h4>
+<p>Hi, I need help in figuring out how to retrieve the (partial) proof term produced by some tactics. Consider the following mwe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">open</span> <span class="n">tactic</span>
+
+<span class="kd">def</span> <span class="n">example_lemma</span> <span class="o">:</span> <span class="mi">1</span> <span class="bp">=</span> <span class="mi">1</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">tidy</span>
+
+<span class="k">#print</span> <span class="n">example_lemma</span>
+<span class="c1">-- def example_lemma : 1 = 1 := eq.refl 1</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tidy_test</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="n">mv</span> <span class="bp">←</span> <span class="n">mk_meta_var</span> <span class="bp">`</span><span class="o">(</span><span class="mi">1</span><span class="bp">=</span><span class="mi">1</span><span class="o">),</span>
+  <span class="n">tactic.set_goals</span> <span class="o">[</span><span class="n">mv</span><span class="o">],</span>
+  <span class="n">tactic.get_goals</span> <span class="bp">&gt;&gt;=</span> <span class="n">list.mmap</span> <span class="n">infer_type</span> <span class="bp">&gt;&gt;=</span> <span class="n">trace</span><span class="o">,</span>
+  <span class="c1">-- [1 = 1]</span>
+  <span class="n">tactic.result</span> <span class="bp">&gt;&gt;=</span> <span class="n">infer_type</span> <span class="bp">&gt;&gt;=</span> <span class="n">trace</span><span class="o">,</span>
+  <span class="c1">-- true</span>
+  <span class="n">tactic.tidy.core</span> <span class="bp">&gt;&gt;=</span> <span class="n">trace</span><span class="o">,</span>
+  <span class="c1">-- [refl]</span>
+  <span class="n">tactic.result</span> <span class="bp">&gt;&gt;=</span> <span class="n">infer_type</span> <span class="bp">&gt;&gt;=</span> <span class="n">trace</span><span class="o">,</span>
+  <span class="c1">-- true</span>
+  <span class="n">pure</span> <span class="o">()</span>
+
+<span class="k">#eval</span> <span class="n">tidy_test</span>
+</code></pre></div>
+<p><code>example_lemma</code> shows that <code>tidy</code> is able to find the <code>refl</code> proof of <code>1 = 1</code>. When I manually set this as the proof goal and call <code>tactic.tidy.core</code>, <code>tactic.get_goals</code> will report the correct goal and <code>tactic.tidy.core</code> it is able to produce the correct tactic, but <code>tactic.result</code> still contains a mvar of type <code>true</code> as if <code>set_goals</code> had never been called.</p>
+<p>How does one correctly set goals in tactic mode, call tactics and retrieve the partial proof term constructed by the tactics? Thanks in advance!</p>
+
+
+
+<a name="282483006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/tactic.result/near/282483006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html#282483006">(May 16 2022 at 11:42)</a>:</h4>
+<p>I think you aren't interested in <code>tactic.result</code>. Instead just look at the metavariable <code>mv</code> you constructed. After running the tactic on your synthetic goal, you can call <code>instantiate_mvars mv</code> and it should contain (the <code>expr</code> corresponding to) the term constructed by the tactic.</p>
+
+
+
+<a name="282483038"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/tactic.result/near/282483038" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html#282483038">(May 16 2022 at 11:42)</a>:</h4>
+<p><code>tactic.result</code> isn't fooled by your pretend goals. :-)</p>
+
+
+
+<a name="282484305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/tactic.result/near/282484305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/tactic.2Eresult.html#282484305">(May 16 2022 at 11:57)</a>:</h4>
+<p>I see! That works, thank you :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

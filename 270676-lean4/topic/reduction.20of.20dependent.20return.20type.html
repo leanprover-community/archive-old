@@ -1,0 +1,87 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html">reduction of dependent return type</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="276038801"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/reduction%20of%20dependent%20return%20type/near/276038801" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sébastien Michelland <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html#276038801">(Mar 21 2022 at 11:53)</a>:</h4>
+<p>I'm trying to map a symbolic type to a Lean type and define a default value through a function, but I often run into instances where the unification algorithm does not reduce the <code>eval</code> function in each branch. Here is a MWE:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">T</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">int</span> <span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">T</span>
+  <span class="bp">|</span> <span class="n">tuple</span> <span class="o">:</span> <span class="n">List</span> <span class="n">T</span> <span class="bp">-&gt;</span> <span class="n">T</span>
+
+<span class="kd">def</span> <span class="n">T.eval</span><span class="o">:</span> <span class="n">T</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="n">T.int</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">Int</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">Unit</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">(</span><span class="n">τ</span><span class="o">::</span><span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">τ.eval</span>
+
+<span class="kd">def</span> <span class="n">T.default</span> <span class="o">(</span><span class="n">τ</span><span class="o">:</span> <span class="n">T</span><span class="o">):</span> <span class="n">τ.eval</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">τ</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">T.int</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="mi">0</span><span class="o">:</span><span class="n">Int</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">()</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">(</span><span class="n">τ</span><span class="o">::</span><span class="n">l</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">τ.default</span>
+</code></pre></div>
+<p>For instance I get an error on <code>(0:Int)</code> saying it expects an <code>eval (int x✝)</code>. I'm not sure what influences this result; removing the parameter to <code>T.int</code>, getting rid of <code>T.tuple</code>, or returning <code>Int</code> rather than <code>τ.eval</code> for the third matching case of <code>T.eval</code> all cause this error to go away on the first case.</p>
+<p>I'd think there is some function attribute to indicate that <code>T.eval</code> should be reduced, but neither <code>@[simp]</code> or <code>@[reducible]</code> work. The best I can get currently is with <code>@[simp]</code>, by replacing the terms with <code>cast (by simp) _</code>, but it's inconvenient.</p>
+
+
+
+<a name="276044057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/reduction%20of%20dependent%20return%20type/near/276044057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html#276044057">(Mar 21 2022 at 12:42)</a>:</h4>
+<p>The problem is that <code>T</code> is a nested inductive datatype, and in the current implementation, every recursive function defined on this kind of type uses well-founded recursion.  You can use </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#print</span> <span class="n">T.eval</span>
+</code></pre></div>
+<p>to see how <code>T.eval</code> was compiled before being sent to the kernel. <br>
+Moreover, well-founded recursion requires theorems to be unfolded to reduce, and by default, the Lean elaborator does not unfold theorems. <br>
+The current workaround is to define <code>T.eval</code> using the primitive <code>T.rec</code> recursor. It is painful, but it is doable for a simple function like <code>T.eval</code>.  In the future, we want to be able to show definitions such as <code>T.eval</code> terminate using <code>T.rec</code> instead of well-founded recursion, but it will not happen in the near future. Here is your example with <code>T.rec</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">T</span> <span class="o">:=</span>
+  <span class="bp">|</span> <span class="n">int</span> <span class="o">:</span> <span class="n">Int</span> <span class="bp">-&gt;</span> <span class="n">T</span>
+  <span class="bp">|</span> <span class="n">tuple</span> <span class="o">:</span> <span class="n">List</span> <span class="n">T</span> <span class="bp">-&gt;</span> <span class="n">T</span>
+
+<span class="kd">def</span> <span class="n">T.eval</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">T</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="o">:=</span>
+  <span class="bp">@</span><span class="n">T.rec</span>
+    <span class="o">(</span><span class="n">motive_1</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="kt">Type</span><span class="o">)</span>
+    <span class="o">(</span><span class="n">motive_2</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="kt">Type</span><span class="o">)</span>
+    <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">Int</span><span class="o">)</span>
+    <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="n">ih</span> <span class="bp">=&gt;</span> <span class="n">ih</span><span class="o">)</span>
+    <span class="n">Unit</span>
+    <span class="o">(</span><span class="k">fun</span> <span class="n">_</span> <span class="n">_</span> <span class="n">ih₁</span> <span class="n">ih₂</span> <span class="bp">=&gt;</span> <span class="n">ih₁</span><span class="o">)</span>
+    <span class="n">t</span>
+
+<span class="kd">def</span> <span class="n">T.default</span> <span class="o">(</span><span class="n">τ</span><span class="o">:</span> <span class="n">T</span><span class="o">):</span> <span class="n">τ.eval</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">τ</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">T.int</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="mi">0</span><span class="o">:</span><span class="n">Int</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="o">()</span>
+  <span class="bp">|</span> <span class="n">T.tuple</span> <span class="o">(</span><span class="n">τ</span><span class="o">::</span><span class="n">l</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">τ.default</span>
+</code></pre></div>
+
+
+
+<a name="276046506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/reduction%20of%20dependent%20return%20type/near/276046506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html#276046506">(Mar 21 2022 at 13:01)</a>:</h4>
+<p>I pushed your example to our test suite as a reminder that we need to add support for nested and mutual inductive types to the structural recursion module. <br>
+<a href="https://github.com/leanprover/lean4/blob/master/tests/lean/run/nestedInductiveRecType.lean">https://github.com/leanprover/lean4/blob/master/tests/lean/run/nestedInductiveRecType.lean</a></p>
+
+
+
+<a name="276047544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/reduction%20of%20dependent%20return%20type/near/276047544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/reduction.20of.20dependent.20return.20type.html#276047544">(Mar 21 2022 at 13:08)</a>:</h4>
+<p>BTW, file above also uses the recursor <code>T.rec_1</code>that takes <code>List T</code> as a major premise. We need it if want <code>eval</code> to return a <code>Prod</code> for <code>T.tuple</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

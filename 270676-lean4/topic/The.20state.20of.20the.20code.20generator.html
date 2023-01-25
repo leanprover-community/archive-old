@@ -1,0 +1,110 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html">The state of the code generator</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="320097286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320097286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320097286">(Jan 08 2023 at 16:48)</a>:</h4>
+<p>From the recent thread <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span>:</p>
+<blockquote>
+<p>this is a workaround for the fact that there are two lean compilers</p>
+</blockquote>
+<p>Can someone explain some of the end-to-end details behind what is happening with the code generator? I've been able to piece things together by going to dev meetings, looking at the PR history, and scanning the compiler code base, so I have ~some idea of what's going on. However, I've never heard the "full story" and would appreciate any insight!</p>
+
+
+
+<a name="320099352"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320099352" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320099352">(Jan 08 2023 at 17:11)</a>:</h4>
+<p>There exists a 2 part old code generator, the first part is written in C++ in <code>src/library/compiler</code>, the 2nd part is written in Lean in <code>src/Lean/Compiler/IR</code>. The Lean part implements the lambda RC part of the pipeline, most notably the garbage collection optimizations + outputting C or LLVM code based on that. This part is written in Lean due to historical reasons.</p>
+<p><code>src/Lean/Compiler/LCNF</code> is right now a reimplementation of <code>src/library/compiler</code> in Lean and better. It is not fully functional because we cannot generate actual executable code with it yet but basically all relevant parts of the old C++ part are already ported here and I do have a branch laying around that gets 90% the way there to attach the LCNF Lean implementation to the IR implementation so that we can produce executable code, we're probably gonna integrate that soon <span aria-label="tm" class="emoji emoji-2122" role="img" title="tm">:tm:</span> Once that works we can basically drop the C++ part of the compiler.</p>
+<p>The next step from there would be to port <code>src/Lean/Compiler/IR</code> to the LCNF representation, this involves two major things:</p>
+<ol>
+<li>We will need to port the new LLVM backend that is available for the IR part right now. I don't know if we want to port the C backend that is in use right now as well.</li>
+<li>We will need to port the lambda rc optimizations</li>
+</ol>
+<p>Once we have that tackled we can also drop <code>src/Lean/Compiler/IR</code>, then the entire compiler will live in <code>src/Lean/Compiler/LCNF</code> and we can be happy at last <span aria-label="octopus" class="emoji emoji-1f419" role="img" title="octopus">:octopus:</span></p>
+
+
+
+<a name="320100212"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320100212" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320100212">(Jan 08 2023 at 17:21)</a>:</h4>
+<p>Does it look something like this?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean</span> <span class="bp">-&gt;</span> <span class="n">LCNF</span> <span class="o">(</span><span class="n">originally</span> <span class="k">in</span> <span class="bp">`</span><span class="n">library</span><span class="bp">/</span><span class="n">compiler</span><span class="bp">`</span><span class="o">,</span> <span class="n">rewritten</span> <span class="k">in</span> <span class="bp">`</span><span class="n">Lean</span><span class="bp">/</span><span class="n">Compiler</span><span class="bp">/</span><span class="n">LCNF</span><span class="bp">`;</span> <span class="n">theoretically</span> <span class="n">done</span><span class="o">,</span> <span class="n">but</span> <span class="n">untested</span><span class="o">)</span>
+<span class="n">LCNF</span> <span class="bp">-&gt;</span> <span class="n">LCNF.IR</span> <span class="o">(</span><span class="n">originally</span> <span class="bp">???</span><span class="o">,</span> <span class="n">rewritten</span> <span class="k">in</span> <span class="n">Lean</span> <span class="n">soon</span><span class="bp">?;</span> <span class="n">not</span> <span class="n">done</span><span class="o">,</span> <span class="n">but</span> <span class="n">should</span> <span class="n">be</span> <span class="n">soon</span><span class="o">)</span>
+                <span class="o">(</span><span class="n">afaiu</span> <span class="n">Perceus</span> <span class="n">is</span> <span class="n">written</span> <span class="k">in</span> <span class="n">Lean</span><span class="o">)</span>
+<span class="n">LCNF.IR</span> <span class="bp">-&gt;</span> <span class="n">LLVM</span> <span class="o">(</span><span class="n">originally</span> <span class="bp">`</span><span class="n">C</span><span class="bp">/</span><span class="n">C</span><span class="bp">++`</span> <span class="k">in</span> <span class="bp">`</span><span class="n">EmitC.lean</span><span class="bp">`?</span><span class="o">,</span> <span class="n">rewritten</span> <span class="k">in</span> <span class="bp">`</span><span class="n">EmitLLVM.lean</span><span class="bp">`?;</span> <span class="n">theoretically</span> <span class="n">done</span><span class="bp">?</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="320100329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320100329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320100329">(Jan 08 2023 at 17:22)</a>:</h4>
+<p>What does "porting the LLVM/C backend" mean?</p>
+
+
+
+<a name="320100386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320100386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320100386">(Jan 08 2023 at 17:23)</a>:</h4>
+<p>Yes it does look like that pretty much</p>
+<p>Right now <code>IR</code> supports outputting the final code as both LLVM and C, if we want to get rid off <code>IR</code> we have to reimplement that for the LCNF format.</p>
+
+
+
+<a name="320101357"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320101357" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320101357">(Jan 08 2023 at 17:35)</a>:</h4>
+<p>By get rid of <code>IR</code>, do you mean removing the <code>LCNF.IR</code> type? Or is the plan to move LCNF.IR into Compiler/LCNF and reimplement it, porting the lowering/Perceus/EmitLLVM</p>
+<p>Also <code>src/runtime</code> will remain, right? Then we will link against its binaries as normal</p>
+
+
+
+<a name="320101454"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320101454" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320101454">(Jan 08 2023 at 17:36)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+<a name="320101981"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320101981" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320101981">(Jan 08 2023 at 17:43)</a>:</h4>
+<p>We want to drop all of the old code generator and implement it completely with the LCNF type in one pipeline and yes that involves porting perceus and EmitLLVM to LCNF.</p>
+<p>I am not aware of plans to touch the runtime, however we might end up eventually reimplementing the C++ based interpeter while we are at it.</p>
+
+
+
+<a name="320102414"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320102414" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320102414">(Jan 08 2023 at 17:48)</a>:</h4>
+<p>Ah so the new pipeline should be</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Lean</span> <span class="bp">-&gt;</span> <span class="n">LCNF</span>
+<span class="n">LCNF</span> <span class="bp">-&gt;</span> <span class="n">LCNF</span> <span class="o">(</span><span class="n">base</span> <span class="n">phase</span><span class="o">,</span> <span class="n">mono</span> <span class="n">phase</span><span class="o">)</span>
+<span class="n">LCNF</span> <span class="bp">-&gt;</span> <span class="n">LCNF</span> <span class="o">(</span><span class="n">refcounting</span> <span class="n">here</span><span class="bp">?</span><span class="o">)</span>
+<span class="n">LCNF</span> <span class="bp">-&gt;</span> <span class="n">LLVM</span>
+</code></pre></div>
+
+
+
+<a name="320102923"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320102923" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320102923">(Jan 08 2023 at 17:54)</a>:</h4>
+<p>Yes</p>
+
+
+
+<a name="320103032"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/The%20state%20of%20the%20code%20generator/near/320103032" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Hanting Zhang <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/The.20state.20of.20the.20code.20generator.html#320103032">(Jan 08 2023 at 17:55)</a>:</h4>
+<p>:O ok interesting, thank you!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

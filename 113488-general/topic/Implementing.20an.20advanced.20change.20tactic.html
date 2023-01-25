@@ -1,0 +1,143 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html">Implementing an advanced change tactic</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="280519173"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280519173" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280519173">(Apr 28 2022 at 16:21)</a>:</h4>
+<p>Sometimes I want to change a part of an assumption or the goal with another expression, providing a proof that they are equal. Tactics <code>convert</code>, <code>convert_to</code>, <code>congr</code>, <code>congr'</code> and <code>change</code> may help sometimes, but they are not flexible enough for my use case.</p>
+<p>I would like to have a tactic <code>ch</code> that changes a part of an expression with another expression and creates a new goal to prove that the two expressions are equal. Example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">ch</span> <span class="n">_</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">_</span> <span class="bp">*</span> <span class="mi">1</span> <span class="n">at</span> <span class="bp">⊢</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>The goals become:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">a</span> <span class="n">b</span><span class="o">:</span> <span class="n">ℕ</span>
+<span class="bp">⊢</span> <span class="n">a</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="bp">?</span><span class="n">m_1</span> <span class="bp">*</span> <span class="mi">1</span>
+
+<span class="n">a</span> <span class="n">b</span><span class="o">:</span> <span class="n">ℕ</span>
+<span class="bp">⊢</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="bp">?</span><span class="n">m_1</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">?</span><span class="n">m_1</span> <span class="bp">*</span> <span class="mi">1</span><span class="o">)</span>
+
+<span class="n">a</span> <span class="n">b</span><span class="o">:</span> <span class="n">ℕ</span>
+<span class="bp">⊢</span> <span class="n">ℕ</span>
+</code></pre></div>
+<p>The tactic looks at <code>_ + 1</code> and tries to resolve <code>_</code>. If there was additional <code>b + 1</code> in the goal expression, the tactic would throw an error, because the match would be ambiguous. After resolving <code>_</code> to <code>a</code>, it produces a new goal asking to prove that <code>a + 1 = ?m_1 * 1</code> for some natural number <code>?m_1</code>. Underscores on the LHS resolve to fixed expressions, while underscores on the RHS become metavariables. The tactic can also be applied at multiple locations.</p>
+<p>This is my attempt to implement it:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">open</span> <span class="n">tactic</span>
+<span class="kn">open</span> <span class="n">tactic.interactive</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.interactive.ch</span>
+  <span class="o">(</span><span class="n">eq</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">texpr</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">h</span> <span class="bp">←</span> <span class="n">i_to_expr</span> <span class="n">eq</span><span class="o">,</span>
+  <span class="n">p</span> <span class="bp">←</span> <span class="n">tactic.assert</span> <span class="bp">`</span><span class="n">this</span> <span class="n">h</span><span class="o">,</span>
+  <span class="n">tactic.swap</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="n">none</span> <span class="n">none</span> <span class="n">tt</span> <span class="o">[</span><span class="n">simp_arg_type.expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">p</span><span class="o">)]</span> <span class="o">[]</span> <span class="n">l</span><span class="o">,</span>
+  <span class="n">clear</span> <span class="o">[</span><span class="bp">`</span><span class="n">this</span><span class="o">],</span>
+  <span class="n">tactic.swap</span>
+</code></pre></div>
+<p>It does not support underscores at all and <code>simp</code> is not good enough for this purpose, because, for example, it will fail if we try to replace <code>x</code> with <code>x * 1</code>. The better approach would be to rewrite it manually (by using <code>eq.rec</code> to explicitly specify what parts we want to rewrite). Any suggestions on how to proceed?</p>
+
+
+
+<a name="280520231"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280520231" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280520231">(Apr 28 2022 at 16:28)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">*</span> <span class="n">b</span> <span class="bp">*</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">(</span><span class="n">_</span> <span class="o">:</span> <span class="n">_</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">_</span> <span class="bp">*</span> <span class="mi">1</span><span class="o">),</span>
+
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">tactic failed, there are unsolved goals</span>
+<span class="cm">state:</span>
+<span class="cm">2 goals</span>
+<span class="cm">a b : ℕ</span>
+<span class="cm">⊢ 0 ≤ ?m_1 * 1 * b * (?m_1 * 1)</span>
+
+<span class="cm">a b : ℕ</span>
+<span class="cm">⊢ a + 1 = ?m_1 * 1</span>
+<span class="cm">-/</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="280534436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280534436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280534436">(Apr 28 2022 at 18:13)</a>:</h4>
+<p>That's nice, but somewhat too verbose. I tried to make a single tactic for <code>rw [...], swap</code>, but I'm not sure how to construct a <code>parse rw_rules</code> term:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">tactic.interactive.ch</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">texpr</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">location</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">rw</span> <span class="n">p</span> <span class="n">l</span><span class="o">,</span> <span class="c1">-- term `p` has type `parse texpr` but is expected to have type `parse rw_rules`</span>
+  <span class="n">tactic.swap</span>
+</code></pre></div>
+
+
+
+<a name="280535936"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280535936" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280535936">(Apr 28 2022 at 18:25)</a>:</h4>
+<p>I would also like the tactic to handle the following case:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">ch</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="mi">1</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Goals:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">x</span><span class="o">:</span> <span class="n">ℕ</span>
+<span class="bp">⊢</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span> <span class="bp">*</span> <span class="mi">1</span>
+
+<span class="bp">⊢</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">n</span> <span class="bp">*</span> <span class="mi">1</span> <span class="bp">=</span> <span class="mi">0</span> <span class="bp">*</span> <span class="mi">1</span>
+</code></pre></div>
+
+
+
+<a name="280537697"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280537697" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280537697">(Apr 28 2022 at 18:38)</a>:</h4>
+<p>Can you do the <code>rw</code> trick above but for <code>simp_rw</code> to solve that one?</p>
+
+
+
+<a name="280538397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280538397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280538397">(Apr 28 2022 at 18:44)</a>:</h4>
+<p>Apparently not.</p>
+
+
+
+<a name="280558245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Implementing%20an%20advanced%20change%20tactic/near/280558245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Implementing.20an.20advanced.20change.20tactic.html#280558245">(Apr 28 2022 at 21:28)</a>:</h4>
+<p>Lean <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/rewrite.20tactic.20failed.2C.20lemma.20lhs.20is.20a.20metavariable.html#273731209">doesn't allow you to rewrite by <code>x = x + 1</code></a>, but if you switch the sides it works, but not without a call of the <code>have</code> or <code>suffices</code> tactic:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="mi">0</span> <span class="bp">+</span> <span class="mi">1</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="k">suffices</span> <span class="n">h</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">,</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">n</span><span class="o">,</span>
+  <span class="n">simp_rw</span> <span class="n">h</span><span class="o">,</span>
+  <span class="c">/-</span><span class="cm"></span>
+<span class="cm">  tactic failed, there are unsolved goals</span>
+<span class="cm">  state:</span>
+<span class="cm">  2 goals</span>
+<span class="cm">  h : ∀ (n : ℕ), n + 1 = n</span>
+<span class="cm">  ⊢ ∃ (n : ℕ), n = 0</span>
+
+<span class="cm">  ⊢ ∀ (n : ℕ), n + 1 = n</span>
+<span class="cm">  -/</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>There's also the conv mode.<br>
+If you want to dig into tactic writing, the  metaprogramming / tactics stream would be the place to get help from.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

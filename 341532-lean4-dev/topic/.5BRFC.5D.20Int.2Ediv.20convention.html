@@ -1,0 +1,555 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/index.html">lean4 dev</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html">[RFC] Int.div convention</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="296956937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296956937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296956937">(Sep 03 2022 at 08:20)</a>:</h4>
+<p>In lean 3, there were three functions for integer division, corresponding to three common conventions for rounding:</p>
+<ul>
+<li><code>Int.div</code>, <code>Int.mod</code>: E-rounding (euclidean division): satisfies <code>0 ≤ mod x y &lt; natAbs y</code> for <code>y ≠ 0</code></li>
+<li><code>Int.fdiv</code>, <code>Int.fmod</code>: F-rounding (flooring division): satisfies <code>fdiv x y = floor (x / y)</code></li>
+<li><code>Int.quot</code>, <code>Int.rem</code>: T-rounding (truncating division): satisfies <code>quot x y = round_to_zero (x / y)</code></li>
+</ul>
+<p>In each case, the pair of functions unconditionally satisfies <code>x % y + (x / y) * y = x</code>, which is used to fix the value of one function based on the other. All versions also satisfy <code>x / 0 = 0</code> and <code>x % 0 = x</code>.</p>
+<p>Here is an example showing how these differ:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- Lean 3</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.div</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">,</span> <span class="n">int.mod</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">)</span> <span class="c1">-- (-1, 1)</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.fdiv</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">,</span> <span class="n">int.fmod</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">)</span> <span class="c1">-- (-1, 1)</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.quot</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">,</span> <span class="n">int.rem</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="mi">2</span><span class="o">)</span> <span class="c1">-- (0, -1)</span>
+
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.div</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">),</span> <span class="n">int.mod</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">))</span> <span class="c1">-- (1, 1)</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.fdiv</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">),</span> <span class="n">int.fmod</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">))</span> <span class="c1">-- (0, -1)</span>
+<span class="k">#eval</span> <span class="o">(</span><span class="n">int.quot</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">),</span> <span class="n">int.rem</span> <span class="o">(</span><span class="bp">-</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="bp">-</span><span class="mi">2</span><span class="o">))</span> <span class="c1">-- (0, -1)</span>
+</code></pre></div>
+<p>In Lean 4, <code>Int.div</code> and <code>Int.mod</code> have been changed to use the T-rounding convention, possibly because that's what C's <code>/</code> operator does. <a href="http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html">Python</a> uses flooring division and justifies it as being more mathematically sensible, which I agree with. I would like to argue for lean to continue using the E-rounding convention (which is the same as T-rounding for positive denominator, which is usually the only case that matters). Because this is a defeq mismatch, this is a problem for mathport and we should make the two agree one way or another.</p>
+
+
+
+<a name="296957922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296957922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296957922">(Sep 03 2022 at 08:29)</a>:</h4>
+<p>The commit that made the change is <a href="https://github.com/leanprover/lean4/commit/425a4b70d1f6ae932156fb6486c8cfa4b74ec70b">https://github.com/leanprover/lean4/commit/425a4b70d1f6ae932156fb6486c8cfa4b74ec70b</a> which cites the simplification of the C++ implementation</p>
+
+
+
+<a name="296958024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958024">(Sep 03 2022 at 08:30)</a>:</h4>
+<p>Is T-rounding easier from a computational point of view? I.e. is it easier to implement in assembly?</p>
+
+
+
+<a name="296958615"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958615" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958615">(Sep 03 2022 at 08:36)</a>:</h4>
+<p>While there is some argument that F-rounding is fewer gates to implement, in practice T-rounding is easier because the x86 IDIV instruction does it</p>
+
+
+
+<a name="296958663"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958663" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958663">(Sep 03 2022 at 08:36)</a>:</h4>
+<p>Right, so we should blame the x86 spec <span aria-label="rofl" class="emoji emoji-1f923" role="img" title="rofl">:rofl:</span></p>
+
+
+
+<a name="296958683"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958683" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958683">(Sep 03 2022 at 08:37)</a>:</h4>
+<p>I think they got it from C <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span></p>
+
+
+
+<a name="296958738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958738">(Sep 03 2022 at 08:37)</a>:</h4>
+<p>IIRC division rounding in C was implementation-defined until recently</p>
+
+
+
+<a name="296958755"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958755" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958755">(Sep 03 2022 at 08:37)</a>:</h4>
+<p>lol, the best kind of defined</p>
+
+
+
+<a name="296958804"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958804" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958804">(Sep 03 2022 at 08:38)</a>:</h4>
+<p>well, second best after UB</p>
+
+
+
+<a name="296958934"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/296958934" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#296958934">(Sep 03 2022 at 08:39)</a>:</h4>
+<p>Actually it is defined in C99 so it is not very recent &lt;<a href="https://stackoverflow.com/questions/3602827/what-is-the-behavior-of-integer-division/3604984#3604984">https://stackoverflow.com/questions/3602827/what-is-the-behavior-of-integer-division/3604984#3604984</a>&gt;</p>
+
+
+
+<a name="315252651"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315252651" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315252651">(Dec 11 2022 at 20:16)</a>:</h4>
+<p>For me the T-rounding (C <code>/</code> behavior) has only ever been a source of bugs and awkward workarounds.<br>
+I appreciate that Haskell makes you use weird names <code>quot</code>/<code>rem</code> to access it.</p>
+
+
+
+<a name="315266444"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315266444" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315266444">(Dec 11 2022 at 23:26)</a>:</h4>
+<p>After writing <a href="https://github.com/leanprover/std4/blob/main/Std/Data/Int/DivMod.lean">https://github.com/leanprover/std4/blob/main/Std/Data/Int/DivMod.lean</a>, I have to say that it has only strengthened my feelings on this point. The ability to hide this distinction behind an API is limited, because many of the theorems just plain don't hold on T-rounding division and users are going to have to use <code>x.ediv y</code> in lots of front-end theorems.</p>
+
+
+
+<a name="315266537"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315266537" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315266537">(Dec 11 2022 at 23:27)</a>:</h4>
+<p>Just avoid integer division completely ;-)</p>
+
+
+
+<a name="315267129"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267129" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267129">(Dec 11 2022 at 23:35)</a>:</h4>
+<p>Can we just use a different symbol for integer division in mathlib? How many lemmas about regular division hold for <code>int</code> and <code>nat</code> anyway?</p>
+
+
+
+<a name="315267574"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267574" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267574">(Dec 11 2022 at 23:43)</a>:</h4>
+<p>see Data.Int.DivMod linked above</p>
+
+
+
+<a name="315267580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267580">(Dec 11 2022 at 23:43)</a>:</h4>
+<p>I proved all of the ones that are true</p>
+
+
+
+<a name="315267704"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267704" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267704">(Dec 11 2022 at 23:45)</a>:</h4>
+<p>What I mean is, how many generic lemmas have typeclasses which are true for int and nat division?</p>
+
+
+
+<a name="315267714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267714">(Dec 11 2022 at 23:45)</a>:</h4>
+<p>oh, we don't have a typeclass like that</p>
+
+
+
+<a name="315267717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267717">(Dec 11 2022 at 23:45)</a>:</h4>
+<p>we could though</p>
+
+
+
+<a name="315267739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267739">(Dec 11 2022 at 23:46)</a>:</h4>
+<p>Because if all our typeclasses about <code>has_div.div</code> don't apply to int and nat, there's nothing motivating keeping the same notation typeclass</p>
+
+
+
+<a name="315267776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267776">(Dec 11 2022 at 23:46)</a>:</h4>
+<p>there are several reasonable theorems that they do satisfy which could be a typeclass</p>
+
+
+
+<a name="315267793"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267793" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267793">(Dec 11 2022 at 23:47)</a>:</h4>
+<p>we already have a typeclass for euclidean div/mod</p>
+
+
+
+<a name="315267909"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315267909" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315267909">(Dec 11 2022 at 23:48)</a>:</h4>
+<p>the notation <code>/</code> for Int.div is in core though, so there would be some lean4 changes anyway if we want to remove the notation or replace it with something else</p>
+
+
+
+<a name="315268385"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315268385" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Marc Huisinga <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315268385">(Dec 11 2022 at 23:56)</a>:</h4>
+<p>Could mixfix notation be useful here? (e.g. something like <code>⌊a/b⌋</code>) I thought that something like this would be cool for float operations before, where I'd prefer it if rounding was explicit in the notation.</p>
+
+
+
+<a name="315268734"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315268734" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315268734">(Dec 12 2022 at 00:01)</a>:</h4>
+<p>That would interfere with <code>⌊a/b⌋</code> meaning <code>floor (div a b)</code></p>
+
+
+
+<a name="315268998"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315268998" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315268998">(Dec 12 2022 at 00:04)</a>:</h4>
+<p>Could we have a <code>HDiv Int Int Int.DivResult</code> instance where <code>DivResult</code> has only floor and ceil operations? I suppose that's just <code>Rat</code>...</p>
+
+
+
+<a name="315269016"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269016" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269016">(Dec 12 2022 at 00:04)</a>:</h4>
+<p>Isn't <code>Int.DivResult</code> just <code>Rat</code>?</p>
+
+
+
+<a name="315269038"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269038" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269038">(Dec 12 2022 at 00:05)</a>:</h4>
+<p>Yeah, but we might have problems with circular dependencies, and we'd need nnrat to do the same thing for <code>Nat</code></p>
+
+
+
+<a name="315269044"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269044" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269044">(Dec 12 2022 at 00:05)</a>:</h4>
+<p>Also this doesn't help for <code>%</code></p>
+
+
+
+<a name="315269170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269170">(Dec 12 2022 at 00:07)</a>:</h4>
+<p>Doesn't Lean 4 let us use <code>/ₑ</code> and <code>%ₑ</code> as notation for specific <code>Div</code> and <code>Mod</code> (non)instances? In lean 3 <code>notation </code>%ₑ<code> = @has_mod.mod nat some_inst</code> didn't work in the pretty printer.</p>
+
+
+
+<a name="315269270"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269270" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269270">(Dec 12 2022 at 00:08)</a>:</h4>
+<p>If it's another notation then we may as well do <code>infix "/ₑ" =&gt; Int.ediv</code></p>
+
+
+
+<a name="315269415"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269415" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269415">(Dec 12 2022 at 00:10)</a>:</h4>
+<p>The approach I mention above still leaves us the option of having a typeclass unifying int/nat/normal division (as you point would be possible), as the head symbol is the same</p>
+
+
+
+<a name="315269438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269438">(Dec 12 2022 at 00:11)</a>:</h4>
+<p>Maybe the mechanim is not convenient in practice though.</p>
+
+
+
+<a name="315269479"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269479" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269479">(Dec 12 2022 at 00:11)</a>:</h4>
+<p>Or more likely, we would never bother with that typeclass, since we never needed it in mathlib3.</p>
+
+
+
+<a name="315269568"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269568" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269568">(Dec 12 2022 at 00:13)</a>:</h4>
+<p>we already have a typeclass in mathlib for div/mod</p>
+
+
+
+<a name="315269578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315269578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315269578">(Dec 12 2022 at 00:13)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/euclidean_domain">docs#euclidean_domain</a></p>
+
+
+
+<a name="315270133"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315270133" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315270133">(Dec 12 2022 at 00:22)</a>:</h4>
+<p><del>Not one about <code>has_div</code> and <code>has_mod</code> though, as far as I can tell?</del> Oh, it implies has_div and has_mod, rather than taking them as arguments</p>
+
+
+
+<a name="315296659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315296659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315296659">(Dec 12 2022 at 06:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/315266537">said</a>:</p>
+<blockquote>
+<p>Just avoid integer division completely ;-)</p>
+</blockquote>
+<p>This is reasonable, but it's much harder to avoid integer <code>mod</code>.</p>
+
+
+
+<a name="315315525"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315315525" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315315525">(Dec 12 2022 at 08:50)</a>:</h4>
+<p>In my experience (thinking of mainly programming competitions, puzzles, etc.) <code>a / b</code> only ever shows up with <code>a</code> nonnegative and <code>b</code> positive, but <code>a % b</code> shows up a lot where <code>a</code> may be negative (e.g., <code>(x - y) % b</code>) and <code>-1</code> is never a correct/useful result.</p>
+
+
+
+<a name="315518929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315518929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315518929">(Dec 13 2022 at 06:19)</a>:</h4>
+<p>So it seems this RFC is now getting urgent, as the porting effort to reach <code>data.rat.order</code> (see <a href="https://tqft.net/mathlib4/2022-12-13/data.rat.order.pdf">https://tqft.net/mathlib4/2022-12-13/data.rat.order.pdf</a>) is now waiting on <a href="https://github.com/leanprover-community/mathlib4/pull/938">mathlib4#938</a>, porting <code>Data.Int.Order.Basic</code>.</p>
+
+
+
+<a name="315519103"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315519103" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315519103">(Dec 13 2022 at 06:20)</a>:</h4>
+<p>Might it be possible to just make a minimal change to core:</p>
+<ul>
+<li>remove the instances <code>Div Int</code> and <code>Mod Int</code> that use <code>Int.div</code> and <code>Int.mod</code> (which use T-rounding).</li>
+<li>optionally rename <code>Int.div</code> to <code>Int.tdiv</code> (similarly for <code>mod</code>), along with a note explaining that Std/Mathlib will define alternative rounding conventions</li>
+</ul>
+
+
+
+<a name="315520329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315520329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315520329">(Dec 13 2022 at 06:31)</a>:</h4>
+<p>(I'm compiling / testing this now.)</p>
+
+
+
+<a name="315525484"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315525484" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315525484">(Dec 13 2022 at 07:19)</a>:</h4>
+<p>It is also possible to just align <code>/</code> to <code>ediv</code>, this is what std does</p>
+
+
+
+<a name="315525523"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315525523" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315525523">(Dec 13 2022 at 07:19)</a>:</h4>
+<p>that's what we will want to do assuming the RFC fails</p>
+
+
+
+<a name="315525854"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315525854" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315525854">(Dec 13 2022 at 07:22)</a>:</h4>
+<p>but if we don't want to wait for core and override the convention this is also a possibility, we can define another <code>Div Int</code> instance in std and write things in terms of that</p>
+
+
+
+<a name="315525948"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315525948" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315525948">(Dec 13 2022 at 07:23)</a>:</h4>
+<p>I think that we can't make changes to core right now since this definitely needs leo's input and he's on vacation</p>
+
+
+
+<a name="315526757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315526757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315526757">(Dec 13 2022 at 07:30)</a>:</h4>
+<p>Let's define new <code>Div Int</code> and <code>Mod Int</code> in std for now, then.</p>
+
+
+
+<a name="315526798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315526798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315526798">(Dec 13 2022 at 07:30)</a>:</h4>
+<p>It seems that will be easy to clean up if the RFC results in a change in Lean 4.</p>
+
+
+
+<a name="315526817"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315526817" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315526817">(Dec 13 2022 at 07:30)</a>:</h4>
+<p>And will be sufficient if the RFC fails.</p>
+
+
+
+<a name="315527675"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315527675" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315527675">(Dec 13 2022 at 07:37)</a>:</h4>
+<p><a href="https://github.com/leanprover/std4/pull/64">https://github.com/leanprover/std4/pull/64</a></p>
+
+
+
+<a name="315527934"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315527934" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315527934">(Dec 13 2022 at 07:39)</a>:</h4>
+<p>Do you want to put some high priority on these instances?</p>
+
+
+
+<a name="315528151"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315528151" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315528151">(Dec 13 2022 at 07:41)</a>:</h4>
+<p>They seem to work as is, just by having been defined later, but sure, I guess that's safer?</p>
+
+
+
+<a name="315529469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315529469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315529469">(Dec 13 2022 at 07:52)</a>:</h4>
+<p>Oh, hrm, it is much more work than that, because half of <code>Std.Data.Int.DivMod</code> needs to be rewritten.</p>
+
+
+
+<a name="315529712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315529712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315529712">(Dec 13 2022 at 07:54)</a>:</h4>
+<p>and it is annoying to do so because it's not clear how to name things. Do we use <code>div</code> in lemma names to refer to <code>/</code> coming from the new higher priority instance, or to refer to <code>Int.div</code>? </p>
+<p>If <a href="https://github.com/leanprover/lean4/pull/1946">https://github.com/leanprover/lean4/pull/1946</a> were acceptable, then the naming issue goes away, because that PR renames <code>Int.div</code> and <code>Int.mod</code> in core to <code>Int.tdiv</code> and <code>Int.tmod</code>.</p>
+
+
+
+<a name="315530478"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315530478" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315530478">(Dec 13 2022 at 08:00)</a>:</h4>
+<p>I guess I am just going to keep all the names, but replace all <code>/</code> notation with <code>.div</code>, and replace all <code>.ediv</code> with <code>/</code>.</p>
+
+
+
+<a name="315533430"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315533430" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315533430">(Dec 13 2022 at 08:22)</a>:</h4>
+<p>they were named <code>quot</code> and <code>rem</code> in lean 3 fwiw</p>
+
+
+
+<a name="315539665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/315539665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#315539665">(Dec 13 2022 at 09:01)</a>:</h4>
+<p>Okay, I've updated <a href="https://github.com/leanprover/std4/pull/64">https://github.com/leanprover/std4/pull/64</a> so the statements use the new typeclass.</p>
+
+
+
+<a name="317242466"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317242466" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317242466">(Dec 21 2022 at 20:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/296956937">said</a>:</p>
+<blockquote>
+<p>In Lean 4, <code>Int.div</code> and <code>Int.mod</code> have been changed to use the T-rounding convention, possibly because that's what C's <code>/</code> operator does. <a href="http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html">Python</a> uses flooring division and justifies it as being more mathematically sensible, which I agree with. I would like to argue for lean to continue using the E-rounding convention (which is the same as T-rounding for positive denominator, which is usually the only case that matters). Because this is a defeq mismatch, this is a problem for mathport and we should make the two agree one way or another.</p>
+</blockquote>
+<p>I presume this is because small <code>Int</code> values are unboxed and (programming) users would want the normal division operation to become the C/ASM division operation (idiv) -- anything else would induce overhead in small <code>Int</code>-using programming code. Python can usually ignore this because it is interpreted and dynamically typed so division operations generally result in floats unless the user specifically aims for integer division.</p>
+
+
+
+<a name="317243137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317243137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317243137">(Dec 21 2022 at 20:27)</a>:</h4>
+<p>Lean could, however, do what a lot of new languages do and have <code>a / b</code> for <code>(a b : Int)</code> result in a float (e.g., using <code>HDiv</code>) and have new operator <code>//</code> for integer division. Also, there was an old RFC issue that touched on this a while back -- <a href="https://github.com/leanprover/lean4/issues/433">lean4#433</a> -- but that eventually mostly fell apart with few changes.</p>
+
+
+
+<a name="317246390"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317246390" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317246390">(Dec 21 2022 at 20:48)</a>:</h4>
+<p>I don't find "I want this to be one instruction" desire to be a strong reason to change the language semantics as long as the fast function is still available by some name, so that people who care about performance over correctness (and are using a dependent type theory language...?) can use it. Besides, this is only relevant for fixed-width integers; <code>Int</code> division is generally not using that code path. I believe it is still faster to implement T-rounding on bignums because they tend to use sign-magnitude representation, but it's very much in the noise.</p>
+<p>But this is all somewhat beside the point: If you have the option of doing the wrong thing fast or the right thing slow, it's usually not an option at all. This convention affects the set of provable theorems about the operation, and definitely for the worse. It's not really an option for mathlib to migrate, so if we don't do this in core we'll have a messy schism instead.</p>
+<p>Having <code>(a : Int) / (b : Int)</code> result in a <code>Float</code> would be... so much worse than this rounding convention issue. Let's not go there.</p>
+
+
+
+<a name="317250769"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317250769" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317250769">(Dec 21 2022 at 21:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317246390">said</a>:</p>
+<blockquote>
+<p>Besides, this is only relevant for fixed-width integers; <code>Int</code> division is generally not using that code path. </p>
+</blockquote>
+<p>What do you mean? Small <code>Int</code> (the common case) are all just unboxed fixed-width integers (with the flag). So this is the common code path.</p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317246390">said</a>:</p>
+<blockquote>
+<p>I believe it is still faster to implement T-rounding on bignums because they tend to use sign-magnitude representation, but it's very much in the noise.</p>
+</blockquote>
+<p>For bignums, libraries like GMP provide each kind of division.</p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317246390">said</a>:</p>
+<blockquote>
+<p>If you have the option of doing the wrong thing fast or the right thing slow, it's usually not an option at all. </p>
+</blockquote>
+<p>It's not "the wrong thing" -- it is just different definitions. In fact, I would argue that -- for CS use cases -- T-rounding is "the right thing" (if we accept that as a notion) -- as it is the standard in CS.</p>
+
+
+
+<a name="317250865"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317250865" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317250865">(Dec 21 2022 at 21:17)</a>:</h4>
+<p>I think the simplest solution would be to just have to different operators for the different divisions. Since math tends to love unicode operators, why not just come up with one to use for that kind of integer division?</p>
+
+
+
+<a name="317251188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317251188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317251188">(Dec 21 2022 at 21:19)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317246390">said</a>:</p>
+<blockquote>
+<p>Having <code>(a : Int) / (b : Int)</code> result in a <code>Float</code> would be... so much worse than this rounding convention issue. Let's not go there.</p>
+</blockquote>
+<p>Ideally it would result in a <code>Rat</code> (as that is not lossy) -- which is what some other more mathematically focused languages do (e.g., Mathematica I believe).</p>
+
+
+
+<a name="317251941"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317251941" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317251941">(Dec 21 2022 at 21:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317250769">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317246390">said</a>:</p>
+<blockquote>
+<p>If you have the option of doing the wrong thing fast or the right thing slow, it's usually not an option at all. </p>
+</blockquote>
+<p>It's not "the wrong thing" -- it is just different definitions. In fact, I would argue that -- for CS use cases -- T-rounding is "the right thing" (if we accept that as a notion) -- as it is the standard in CS.</p>
+</blockquote>
+<p>In any individual application, there is going to be some notion of right or wrong. You have some problem that needs solving and you need the division to come out to something in particular or else your program doesn't work. The "standard in CS" is not particularly relevant to this, unless the thing that defines your spec is compatibility with some particular other language, instruction set, etc. The fact is that for <em>all</em> problems that have come up in mathlib with regard to integer division (to my knowledge), either all definitions are equally bad (because rounding is undesirable) or the <code>Int.ediv</code> convention is what is required. That is what I mean by using objective phrasing like "the right thing".</p>
+
+
+
+<a name="317254392"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317254392" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317254392">(Dec 21 2022 at 21:45)</a>:</h4>
+<blockquote>
+<p>users would want the normal division operation to become the C [...] division operation</p>
+</blockquote>
+<p>It's not that clear cut.  Apparently C89 didn't even specify the rounding convention for integer division. <a href="http://port70.net/%7Ensz/c/c89/c9x_changes.html">http://port70.net/%7Ensz/c/c89/c9x_changes.html</a> (25)</p>
+
+
+
+<a name="317260809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317260809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317260809">(Dec 21 2022 at 22:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317251188">said</a>:</p>
+<blockquote>
+<p>Ideally it would result in a <code>Rat</code> (as that is not lossy) -- which is what some other more mathematically focused languages do (e.g., Mathematica I believe).</p>
+</blockquote>
+<p>This is defined as <code>/.</code> in <code>Std</code> (and then used widely in mathlib4).</p>
+
+
+
+<a name="317261007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317261007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317261007">(Dec 21 2022 at 22:38)</a>:</h4>
+<p>you can also just use <code>↑x / ↑y</code>, although <code>x /. y</code> is probably a bit faster</p>
+
+
+
+<a name="317261469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317261469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317261469">(Dec 21 2022 at 22:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110043">Gabriel Ebner</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317254392">said</a>:</p>
+<blockquote>
+<p>Apparently C89 didn't even specify the rounding convention for integer division. <a href="http://port70.net/%7Ensz/c/c89/c9x_changes.html">http://port70.net/%7Ensz/c/c89/c9x_changes.html</a> (25)</p>
+</blockquote>
+<p>Yes, but as mentioned above, C99 did standardize T-rounding.</p>
+
+
+
+<a name="317264319"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317264319" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317264319">(Dec 21 2022 at 23:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317251941">said</a>:</p>
+<blockquote>
+<p>The "standard in CS" is not particularly relevant to this, unless the thing that defines your spec is compatibility with some particular other language, instruction set, etc. </p>
+</blockquote>
+<p>Unless I am mistaken (its been a while since I considered binary division), the logic behind T-rounding in CS (and thus its use in Fortran and C) comes from it being a natural result of the common hardware division algorithm for the two's-complement binary integers. That strikes me as a pretty good reason to do it that way. Furthermore, as a CS person, I would very much hope my division operation in a compiled language results in a single instruction on common architectures.</p>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention/near/317251941">said</a>:</p>
+<blockquote>
+<p>The fact is that for <em>all</em> problems that have come up in mathlib with regard to integer division (to my knowledge), either all definitions are equally bad (because rounding is undesirable) or the <code>Int.ediv</code> convention is what is required. </p>
+</blockquote>
+<p>Yes, in mathlib, "the right thing" would be <code>ediv</code>. However, "the right thing" in CS is T-rounding. The simplest solution to me would be for mathlib to just have another operator symbol for its "right thing" (or just overload <code>/</code> in its context) and let core Lean follow the CS standard. I even presume that following the CS standard was part of the reason for the change between Lean 3 and Lean 4 in the first place.</p>
+
+
+
+<a name="317265767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317265767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317265767">(Dec 21 2022 at 23:18)</a>:</h4>
+<p>T-rounding exists mainly because it was invented before two's complement was standardized: <a href="https://blog.vero.site/post/modulo">https://blog.vero.site/post/modulo</a></p>
+
+
+
+<a name="317269871"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317269871" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317269871">(Dec 22 2022 at 00:00)</a>:</h4>
+<p>That's a nice reference!</p>
+
+
+
+<a name="317289569"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317289569" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317289569">(Dec 22 2022 at 04:59)</a>:</h4>
+<p>I can't really think of the last time I actually wanted C truncated division, since I just instinctively write <code>((x%y)+y)%y</code> in C... Though, I can't really think of the last time that I actually wanted <code>int</code> instead of a <code>uint</code> <span aria-label="joy" class="emoji emoji-1f602" role="img" title="joy">:joy:</span></p>
+
+
+
+<a name="317290697"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317290697" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317290697">(Dec 22 2022 at 05:16)</a>:</h4>
+<p>I am inclined to agree with<br>
+<a href="https://github.com/rust-lang/rfcs/pull/2169#issuecomment-338028572">https://github.com/rust-lang/rfcs/pull/2169#issuecomment-338028572</a></p>
+<blockquote>
+<p>I don't recall any programming problem where a division-with-remainder by a negative divisor is meaningful, so from this point of view, there also seems to be no reason to prefer either. (Well, I think I can imagine a problem where the choice of definition may conceivably matter, but I still don't see how either is more advantageous).</p>
+</blockquote>
+<p>which might also suggest just not having an <code>Int -&gt; Int -&gt; Int</code> division operation, but rather an <code>Int -&gt; Nat -&gt; Int</code> division operation and an <code>Int -&gt; Nat -&gt; Nat</code> remainder operation. but perhaps that's deviating too much from the comfortable weirdness of C division.</p>
+
+
+
+<a name="317291252"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/317291252" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#317291252">(Dec 22 2022 at 05:24)</a>:</h4>
+<p>Well, if the negative-divisor case never arises (which I am inclined to agree with as well), then that makes things easier, since we can have whatever garbage value we like there. In particular, the negative-divisor case is where the E-rounding and F-rounding conventions differ, so really these two are much more similar to each other than the T-rounding convention. I don't think it is necessary to restrict the domain of the operator; it is more convenient to have uniform types where possible so that operators compose.</p>
+<p>(We can of course have these restricted domain functions as named functions - we already have a <code>Int.natMod : Int -&gt; Int -&gt; Nat</code> operator in Std, which of course has to use the E-rounding convention to be sensible. (It was originally in core with T-rounding, and this was a bug!))</p>
+
+
+
+<a name="320379287"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BRFC%5D%20Int.div%20convention/near/320379287" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BRFC.5D.20Int.2Ediv.20convention.html#320379287">(Jan 10 2023 at 05:32)</a>:</h4>
+<p>I just stumbled on this paper, which might even be the origin of the names E-/F-/T- convention that I've been using: <a href="https://dl.acm.org/doi/pdf/10.1145/128861.128862">https://dl.acm.org/doi/pdf/10.1145/128861.128862</a> . It looks like a good reference for if we want to explain why we prefer the E convention in the future.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

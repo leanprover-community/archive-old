@@ -1,0 +1,77 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/SepBy.20matcher.20being.20too.20greedy.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/SepBy.20matcher.20being.20too.20greedy.3F.html">SepBy matcher being too greedy?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="277302476"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/SepBy%20matcher%20being%20too%20greedy%3F/near/277302476" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/SepBy.20matcher.20being.20too.20greedy.3F.html#277302476">(Mar 31 2022 at 15:55)</a>:</h4>
+<p>I'd like to have a trailing <code>×</code> symbol after a <code>sepBy(str, "×")</code> parser. It seems like within the syntax matcher, there is no way to match against such a syntax (I am unable to match against <code>bar</code> in the example below). How should I write the <code>macro_rules</code> for <code>[bar|...]</code> so I can parse the <code>bar</code> syntax defined below?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">import</span> <span class="n">Lean.Parser</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean.Parser</span>
+
+<span class="c1">-- we want to parse terms of the form ["foo" × "bar" × ... ×  "quux" ×  10]</span>
+<span class="n">declare_syntax_cat</span> <span class="n">bar</span>
+<span class="n">syntax</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">str</span><span class="o">,</span> <span class="s2">"×"</span><span class="o">)</span> <span class="s2">"×"</span> <span class="n">num</span> <span class="o">:</span> <span class="n">bar</span>
+<span class="n">syntax</span> <span class="s2">"[bar|"</span> <span class="n">bar</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="c1">-- | ERROR: expected ×</span>
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">bar</span><span class="bp">|</span> <span class="bp">$</span><span class="o">[</span> <span class="bp">$</span><span class="n">xs</span> <span class="o">]</span><span class="bp">×*</span> <span class="bp">×</span> <span class="bp">$</span><span class="n">y</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">quote</span> <span class="n">xs</span>
+
+<span class="c1">-- | ERROR: expected ×</span>
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">bar</span><span class="bp">|</span> <span class="bp">$</span><span class="o">[</span> <span class="bp">$</span><span class="n">xs</span> <span class="o">]</span><span class="bp">×*</span> <span class="bp">$</span><span class="n">y</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">quote</span> <span class="n">xs</span>
+
+<span class="c1">-- vvv what does work vvv</span>
+<span class="c1">-- The macro without the trailing ×  num works!</span>
+<span class="n">declare_syntax_cat</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">str</span><span class="o">,</span> <span class="s2">"×"</span><span class="o">)</span>  <span class="o">:</span> <span class="n">foo</span>
+<span class="n">syntax</span> <span class="s2">"[foo|"</span> <span class="n">foo</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">foo</span><span class="bp">|</span> <span class="bp">$</span><span class="o">[</span> <span class="bp">$</span><span class="n">xs</span> <span class="o">]</span><span class="bp">×*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">quote</span> <span class="n">xs</span>
+</code></pre></div>
+
+
+
+<a name="277307313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/SepBy%20matcher%20being%20too%20greedy%3F/near/277307313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/SepBy.20matcher.20being.20too.20greedy.3F.html#277307313">(Mar 31 2022 at 16:29)</a>:</h4>
+<p>Yes, <code>sepBy</code> is greedy. I'm not sure how it could avoid that without arbitrary backtracking. You should use <code>sepBy(str &lt;|&gt; num, "×")</code> and enforce the typing in the macro rules instead.</p>
+
+
+
+<a name="277337940"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/SepBy%20matcher%20being%20too%20greedy%3F/near/277337940" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/SepBy.20matcher.20being.20too.20greedy.3F.html#277337940">(Mar 31 2022 at 20:48)</a>:</h4>
+<p>You can also use <code>notFollowedBy</code>. Example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">declare_syntax_cat</span> <span class="n">bar</span>
+
+<span class="n">syntax</span> <span class="n">sepBy</span><span class="o">(</span><span class="n">str</span><span class="o">,</span> <span class="s2">"×"</span><span class="o">,</span> <span class="s2">"×"</span> <span class="n">notFollowedBy</span><span class="o">(</span><span class="n">num</span><span class="o">))</span> <span class="s2">"×"</span> <span class="n">num</span> <span class="o">:</span> <span class="n">bar</span>
+
+<span class="n">syntax</span> <span class="s2">"[bar|"</span> <span class="n">bar</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+<span class="bp">|</span> <span class="bp">`</span><span class="o">([</span><span class="n">bar</span><span class="bp">|</span> <span class="bp">$</span><span class="o">[</span> <span class="bp">$</span><span class="n">xs</span> <span class="o">]</span><span class="bp">×*</span> <span class="bp">×</span> <span class="bp">$</span><span class="n">y</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">Lean.quote</span> <span class="o">(</span><span class="n">xs</span><span class="o">,</span> <span class="n">y</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="o">[</span><span class="n">bar</span><span class="bp">|</span> <span class="s2">"foo"</span> <span class="bp">×</span> <span class="s2">"bar"</span> <span class="bp">×</span> <span class="mi">10</span><span class="o">]</span>
+<span class="c1">-- (#["foo", "bar"], 10) : Array String × Nat</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

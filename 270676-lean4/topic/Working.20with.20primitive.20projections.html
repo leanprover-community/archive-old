@@ -1,0 +1,96 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Working.20with.20primitive.20projections.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html">Working with primitive projections</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="278627609"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278627609" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278627609">(Apr 11 2022 at 22:55)</a>:</h4>
+<p>There seems to be a difference between <code>.1</code> when produced by unification (via eta-for-structures) and <code>.1</code> when written directly:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">Fin</span> <span class="n">n</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">i</span> <span class="n">h</span><span class="o">,</span> <span class="n">i</span> <span class="bp">=</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">f</span> <span class="o">⟨</span><span class="n">i</span><span class="o">,</span> <span class="n">h</span><span class="o">⟩)</span> <span class="o">:</span> <span class="n">f</span> <span class="n">i</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">apply</span> <span class="n">h</span>
+  <span class="c1">-- ⊢ i.1 = 0</span>
+  <span class="n">fail_if_success</span> <span class="n">rw</span> <span class="o">[</span><span class="k">show</span> <span class="n">i.1</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">from</span> <span class="gr">sorry</span><span class="o">]</span>
+  <span class="c1">-- tactic 'rewrite' failed, did not find instance of the pattern in the target expression</span>
+  <span class="c1">--   i.val</span>
+  <span class="n">change</span> <span class="n">i.1</span> <span class="bp">=</span> <span class="mi">0</span>
+  <span class="c1">-- ⊢ i.val = 0</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="k">show</span> <span class="n">i.1</span> <span class="bp">=</span> <span class="mi">0</span> <span class="k">from</span> <span class="gr">sorry</span><span class="o">]</span> <span class="c1">-- ok</span>
+</code></pre></div>
+
+
+
+<a name="278629642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278629642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278629642">(Apr 11 2022 at 23:19)</a>:</h4>
+<p>Yes, "eta-for-structures" is using <code>Expr.proj</code>, and the "elaborator for <code>i.&lt;idx&gt;</code> is using the auto-generated projection functions (<code>Fin.val</code> in this case). <code>rw</code> uses keyed matching, and it thinks the key is <code>Fin.val</code> here. <br>
+BTW, <code>simp [show i.1 = 0 from sorry]</code>works as expected since it indexes after unfolding <code>[reducible]</code> constants.</p>
+
+
+
+<a name="278629955"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278629955" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278629955">(Apr 11 2022 at 23:24)</a>:</h4>
+<p>There are multiple possible fixes here:</p>
+<ul>
+<li>Modify keyed matching</li>
+<li>Modify "eta-for-structures"</li>
+<li>Modify field access elaborator (and delaborator). This one will probably generate problems for the Mathlib port.</li>
+</ul>
+
+
+
+<a name="278630844"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278630844" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278630844">(Apr 11 2022 at 23:36)</a>:</h4>
+<p>My inclination is to hide the primitive projections when possible. That would mean changing eta-for-structures (in unification) to automatically hide the projections behind the definitions. Probably they can still appear sometimes, so <code>rw</code> might also need to be able to match through reducible definitions (which I believe is also what lean 3 <code>rw</code> does).</p>
+
+
+
+<a name="278630903"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278630903" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278630903">(Apr 11 2022 at 23:37)</a>:</h4>
+<p>Note that <code>rw</code> matches through reducible definitions. The issue here is the head symbol only.</p>
+
+
+
+<a name="278631105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278631105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278631105">(Apr 11 2022 at 23:40)</a>:</h4>
+<p>Even if the head symbol is keyed after unfolding, won't it be a very uninformative key <code>Expr.proj 1</code>?</p>
+
+
+
+<a name="278631125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278631125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278631125">(Apr 11 2022 at 23:41)</a>:</h4>
+<p>like that could apply to any structure</p>
+
+
+
+<a name="278631219"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278631219" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278631219">(Apr 11 2022 at 23:42)</a>:</h4>
+<p>The <code>Expr.proj</code> contains the structure name. We have been using this approach for <code>simp</code>, and it seems to be working well.</p>
+
+
+
+<a name="278631465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278631465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278631465">(Apr 11 2022 at 23:46)</a>:</h4>
+<p>I think we can also have a (mathlib4) tactic to re-fold all projections in the goal. My guess is that most tactics will choke on primitive projections because the assumption that expressions are mostly structured around <code>Expr.const</code> and <code>Expr.app</code> is widespread</p>
+
+
+
+<a name="278631932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Working%20with%20primitive%20projections/near/278631932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Working.20with.20primitive.20projections.html#278631932">(Apr 11 2022 at 23:53)</a>:</h4>
+<p>Yes, this macro will probably be useful even if we modify the behavior of "eta-for-structurer" in the elaborator.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

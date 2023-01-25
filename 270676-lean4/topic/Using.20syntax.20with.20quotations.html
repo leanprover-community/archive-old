@@ -1,0 +1,58 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html">Using syntax with quotations</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="246910790"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Using%20syntax%20with%20quotations/near/246910790" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html#246910790">(Jul 22 2021 at 21:58)</a>:</h4>
+<p>For builtin notations defined with <code>leading_parser</code> like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">fromTerm</span>   <span class="o">:=</span> <span class="n">leading_parser</span> <span class="s2">" from "</span> <span class="bp">&gt;&gt;</span> <span class="n">termParser</span>
+</code></pre></div>
+<p>I find that I can write quotations targeting this syntax class using <code> `(Parser.Term.fromTerm| from $stx)</code>, which is very convenient. But this does not seem to extend to definitions created with the more high level command <code>syntax</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">binderIdent</span> <span class="o">:=</span> <span class="n">ident</span> <span class="bp">&lt;|&gt;</span> <span class="s2">"_"</span>
+</code></pre></div>
+<p>Here <code>binderIdent</code> itself has the type <code>Lean.ParserDescr</code>, unlike <code>fromTerm</code> which is a <code>LeadingParser</code>. As a result <code> `(binderIdent| _)</code> doesn't work. I'm also not sure if this command generates a parenthesizer / formatter; it is not in the obvious place if so.</p>
+
+
+
+<a name="246931301"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Using%20syntax%20with%20quotations/near/246931301" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html#246931301">(Jul 23 2021 at 03:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Using.20syntax.20with.20quotations/near/246910790">said</a>:</p>
+<blockquote>
+<p>I'm also not sure if this command generates a parenthesizer / formatter; it is not in the obvious place if so.</p>
+</blockquote>
+<p>It does. See <a href="https://github.com/leanprover/lean4/blob/1eee82f745a098773acef51a00bdafac0851146c/src/Lean/Parser.lean#L68">here</a> for how it generates a <code>Parenthesizer</code> and <a href="https://github.com/leanprover/lean4/blob/1eee82f745a098773acef51a00bdafac0851146c/src/Lean/Parser.lean#L99">here</a> for how it generates a <code>Formatter</code>.</p>
+
+
+
+<a name="246931740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Using%20syntax%20with%20quotations/near/246931740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html#246931740">(Jul 23 2021 at 03:36)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Using.20syntax.20with.20quotations/near/246910790">said</a>:</p>
+<blockquote>
+<p>Here <code>binderIdent</code> itself has the type <code>Lean.ParserDescr</code>, unlike <code>fromTerm</code> which is a <code>LeadingParser</code>. As a result <code> `(binderIdent| _)</code> doesn't work.</p>
+</blockquote>
+<p>I suspect this is merely an oversight. The problem is simply that <a href="https://github.com/leanprover/lean4/blob/1eee82f745a098773acef51a00bdafac0851146c/src/Lean/Parser/Basic.lean#L1819"><code>evalParserConstUnsafe</code></a> has no case for <code>ParserDescr</code>.</p>
+
+
+
+<a name="246932069"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Using%20syntax%20with%20quotations/near/246932069" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Using.20syntax.20with.20quotations.html#246932069">(Jul 23 2021 at 03:44)</a>:</h4>
+<p>Though it is worth noting that adding such a case would require it needing to call something like <a href="https://github.com/leanprover/lean4/blob/1eee82f745a098773acef51a00bdafac0851146c/src/Lean/Parser/Extension.lean#L268"><code>compileParserDescr</code></a>, which would likely  require moving the definition of <code>evalParserConstUnsafe</code> (and, more importantly, <code>parserOfStack</code>) out of <code>Lean.Parser.Basic</code> so that it can import it.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

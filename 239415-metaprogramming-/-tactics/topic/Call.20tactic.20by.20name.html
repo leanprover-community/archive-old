@@ -1,0 +1,135 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html">Call tactic by name</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="302385971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302385971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302385971">(Oct 05 2022 at 04:50)</a>:</h4>
+<p>Suppose I want to write a tactic <code>foo</code> that calls an interactive tactic <code>bar</code>. One simple way to do this is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.bar</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">foo</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="bp">`</span><span class="o">[</span><span class="n">bar</span><span class="o">]</span>
+</code></pre></div>
+<p>Now suppose that I insist on not importing <code>tactic.bar</code> in the file where I define <code>foo</code>. I am happy to rely on the user to have also imported <code>tactic.bar</code> by the time <code>foo</code> is actually invoked. Thus I want <code>foo</code> to run a parser on the string <code>"bar"</code> at invocation time, and then run the discovered tactic.</p>
+<p>Is there a simple way to achieve this?</p>
+<p>I see that something along these lines happens at <a href="https://github.com/leanprover-community/mathlib/blob/master/src/tactic/hint.lean#L40">https://github.com/leanprover-community/mathlib/blob/master/src/tactic/hint.lean#L40</a>, but this is doing something slightly different (resolving the <code>"`[bar]"</code> to an <code>expr</code>, and making a new declaration from it).</p>
+
+
+
+<a name="302397477"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302397477" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302397477">(Oct 05 2022 at 07:00)</a>:</h4>
+<p>Do you need to use the interactive parser here? (the <code> `[ ... ]</code>)? It is a lot easier if you can write out the expr directly</p>
+
+
+
+<a name="302416714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302416714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302416714">(Oct 05 2022 at 09:12)</a>:</h4>
+<p>Sorry, I should <a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a>. All I want to do is take a file that has a tactic that calls <code>`[ring]</code>, and avoid the need to have <code>import tactic.ring</code>.</p>
+
+
+
+<a name="302534642"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302534642" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302534642">(Oct 05 2022 at 20:00)</a>:</h4>
+<p>that still doesn't quite answer my question. Is it possible for you to refactor the original file so that it does not need to use the `[] notation? It is the difference between calling a function which is looked up at tactic execution time (easy) and running a parser that only exists at tactic execution time (hard)</p>
+
+
+
+<a name="302536017"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302536017" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302536017">(Oct 05 2022 at 20:08)</a>:</h4>
+<p>Here's an example for calling <code> `[ring]</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="o">:=</span> <span class="o">(</span><span class="n">expr.const</span> <span class="bp">`</span><span class="n">tactic.interactive.ring</span> <span class="o">[])</span><span class="bp">.</span><span class="n">app</span> <span class="o">(</span><span class="bp">`</span><span class="o">(</span><span class="bp">@</span><span class="n">none</span> <span class="n">unit</span><span class="o">):</span><span class="n">expr</span><span class="o">),</span>
+  <span class="n">tac</span> <span class="bp">←</span> <span class="n">eval_expr</span> <span class="o">(</span><span class="n">tactic</span> <span class="n">unit</span><span class="o">)</span> <span class="n">e</span><span class="o">,</span>
+  <span class="n">tac</span>
+</code></pre></div>
+<p>If at runtime the <code>tactic.interactive.ring</code> declaration exists, it will be executed, otherwise it fails with a <code>unknown declaration 'tactic.interactive.ring'</code> error</p>
+
+
+
+<a name="302549525"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302549525" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302549525">(Oct 05 2022 at 21:38)</a>:</h4>
+<p>Great, that does it. I wanted to hack <code>tactic.linarith</code> so it doesn't need to import <code>tactic.ring</code> or <code>tactic.norm_num</code> (until, obviously, at runtime). This trick (and the variants which handle <code> `[ring!]</code> and <code> `[norm_num]</code>) is exactly what I wanted. I'm trying to sort out what exactly needs to be ported to port <code>linarith</code>, and the huge imports for <code>tactic.ring</code> were getting in the way.</p>
+
+
+
+<a name="302549966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302549966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302549966">(Oct 05 2022 at 21:41)</a>:</h4>
+<p>Oh that's interesting. I would like something similar to happen for <code>positivity</code> because having it defined after the point of declaration of many lemmas whose assumptions it could fulfill measn we can't use it as <code>out_param</code> there.</p>
+
+
+
+<a name="302550086"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550086" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550086">(Oct 05 2022 at 21:42)</a>:</h4>
+<p>This is of course a worse version fo Heather's new tactic, but quite a cheap one were the imports not getting in the way.</p>
+
+
+
+<a name="302550447"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550447" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550447">(Oct 05 2022 at 21:45)</a>:</h4>
+<p>I don't think we want to land something like that though, because <code>import tactic.linarith</code> and then using <code>linarith</code> shouldn't result in a crash</p>
+
+
+
+<a name="302550645"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550645" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550645">(Oct 05 2022 at 21:46)</a>:</h4>
+<p>What huge imports does <code>tactic.ring</code> have? I would assume it only needs basic properties of <code>ring</code>, i.e. <code>algebra.ring.basic</code> or so</p>
+
+
+
+<a name="302550772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550772">(Oct 05 2022 at 21:47)</a>:</h4>
+<p>The answer is the same, always.</p>
+
+
+
+<a name="302550927"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550927" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550927">(Oct 05 2022 at 21:48)</a>:</h4>
+<p>The algebraic order hierarchy gets back into the pure algebraic hierarchy in several points because of concrete structures and the way we fix defeqs with forgetful inheritance.</p>
+
+
+
+<a name="302550978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302550978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302550978">(Oct 05 2022 at 21:49)</a>:</h4>
+<p>In that case, you need to define <code>rat.cast</code> before you can define <code>field</code>.</p>
+
+
+
+<a name="302551176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302551176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302551176">(Oct 05 2022 at 21:50)</a>:</h4>
+<p>This is very annoying and it keeps causing me headaches.</p>
+
+
+
+<a name="302552213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302552213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302552213">(Oct 05 2022 at 21:59)</a>:</h4>
+<p>I agree we should be very cautious about actually landing this. A weird compromise might be for <code>import tactic.linartih</code> to do the <code>import tactic.ring</code> and <code>import tactic.norm_num</code>, while leaving the <code>tactic/linarith/*.lean</code> files <em>without</em> those imports. This would mean that hopefully no one gets a surprising failure from <code>linarith</code>, but it's still easy to  pare down imports and see what is really being used.</p>
+
+
+
+<a name="302553558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302553558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302553558">(Oct 05 2022 at 22:09)</a>:</h4>
+<p>I'm not sure I understand the reasoning here though. <code>linarith</code> <em>does</em> use <code>ring</code>, it will fail if you try to call it without <code>ring</code> available</p>
+
+
+
+<a name="302553630"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Call%20tactic%20by%20name/near/302553630" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Call.20tactic.20by.20name.html#302553630">(Oct 05 2022 at 22:10)</a>:</h4>
+<p>it would make more sense to do this for <code>norm_num</code>'s lemmas</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

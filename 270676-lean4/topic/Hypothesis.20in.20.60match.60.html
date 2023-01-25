@@ -1,0 +1,85 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html">Hypothesis in `match`</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="265468660"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Hypothesis%20in%20%60match%60/near/265468660" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Horatiu Cheval <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html#265468660">(Dec 19 2021 at 08:29)</a>:</h4>
+<p>Consider the snippet below. I want to define the function <code>foo</code> through a dependent if-then-else, and to do pattern matching on one of the branches. But the hypothesis <code>h</code>given by <code>if</code> is in some patterns absurd, i.e. I am on the true branch but I know that the function is always false one some pattern, so <code>foo</code> is trivially defined through exfalso there. The problem is that the hypothesis from <code>if</code> remains stated in the local context in terms of the general variable <code>t</code>, instead of by replacing <code>t</code> with its form in the current pattern. Can this be done?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Term</span>
+<span class="bp">|</span> <span class="n">var</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Term</span>
+<span class="bp">|</span> <span class="n">app</span> <span class="o">:</span> <span class="n">Term</span> <span class="bp">→</span> <span class="n">Term</span> <span class="bp">→</span> <span class="n">Term</span>
+
+<span class="kn">open</span> <span class="n">Term</span>
+
+<span class="kd">def</span> <span class="n">bar</span> <span class="o">:</span> <span class="n">Term</span> <span class="bp">→</span> <span class="n">Bool</span> <span class="o">:=</span> <span class="gr">sorry</span> <span class="c1">-- let's say this is some function which returns `false` on `var (i + 1)`</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">bar</span> <span class="n">t</span> <span class="k">then</span> <span class="k">match</span> <span class="n">t</span> <span class="k">with</span>
+    <span class="c1">-- here `t` should be `i + 1`,but how do I get that `bar t = bar (i + 1)`?</span>
+    <span class="c1">-- I know `h : bar t`, but `bar $ var (i + 1)` is false, si I want to apply False elimination</span>
+    <span class="bp">|</span> <span class="n">var</span> <span class="o">(</span><span class="n">i</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">_</span>
+    <span class="c">/-</span><span class="cm"></span>
+<span class="cm">    context:</span>
+<span class="cm">    t : Term</span>
+<span class="cm">    h : bar t = true</span>
+<span class="cm">    i : Nat</span>
+<span class="cm">    ⊢ Term</span>
+<span class="cm">    -/</span>
+    <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="gr">sorry</span>
+  <span class="k">else</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="265472073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Hypothesis%20in%20%60match%60/near/265472073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alexander Bentkamp <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html#265472073">(Dec 19 2021 at 09:58)</a>:</h4>
+<p>You can also match on <code>h</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">t</span> <span class="o">:</span> <span class="n">Term</span><span class="o">)</span> <span class="o">:</span> <span class="n">Term</span> <span class="o">:=</span>
+  <span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">bar</span> <span class="n">t</span> <span class="k">then</span> <span class="k">match</span> <span class="n">t</span><span class="o">,</span> <span class="n">h</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">var</span> <span class="o">(</span><span class="n">i</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">),</span> <span class="n">h'</span> <span class="bp">=&gt;</span> <span class="n">_</span>
+    <span class="c">/-</span><span class="cm"></span>
+<span class="cm">    t : Term</span>
+<span class="cm">    h : bar t = true</span>
+<span class="cm">    i : Nat</span>
+<span class="cm">    h' : bar (var (i + 1)) = true</span>
+<span class="cm">    -/</span>
+    <span class="bp">|</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="gr">sorry</span>
+  <span class="k">else</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="265472374"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Hypothesis%20in%20%60match%60/near/265472374" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html#265472374">(Dec 19 2021 at 10:05)</a>:</h4>
+<p>Or, equivalently, <code>match (generalizing := true) t with</code></p>
+
+
+
+<a name="265472800"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Hypothesis%20in%20%60match%60/near/265472800" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html#265472800">(Dec 19 2021 at 10:16)</a>:</h4>
+<p>Added to the <code>match</code> docstring.</p>
+
+
+
+<a name="265474311"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Hypothesis%20in%20%60match%60/near/265474311" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Horatiu Cheval <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Hypothesis.20in.20.60match.60.html#265474311">(Dec 19 2021 at 10:56)</a>:</h4>
+<p>Great, thank you both!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

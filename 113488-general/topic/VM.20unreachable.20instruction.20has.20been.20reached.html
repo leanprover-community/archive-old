@@ -1,0 +1,71 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html">VM unreachable instruction has been reached</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="296083234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/VM%20unreachable%20instruction%20has%20been%20reached/near/296083234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jiatong Yang <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html#296083234">(Aug 30 2022 at 11:41)</a>:</h4>
+<p>I get "VM unreachable instruction has been reached" when I eval n. i know, of course, that n can't be calculated. But why I get this instead of "noncomputable" ?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">axiom</span> <span class="n">contra</span> <span class="o">:</span> <span class="n">false</span>
+<span class="kd">def</span> <span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">contra.elim</span>
+<span class="k">#eval</span> <span class="n">n</span>
+</code></pre></div>
+
+
+
+<a name="296106905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/VM%20unreachable%20instruction%20has%20been%20reached/near/296106905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html#296106905">(Aug 30 2022 at 13:55)</a>:</h4>
+<p>Noncomputable simply means that lean cannot generate executable code for the function.<br>
+The first thing to note is that <a href="https://leanprover-community.github.io/mathlib_docs/find/false.elim">docs#false.elim</a> is a computable function, its code looks like this (in pseudo-code):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">false.elim</span><span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">false</span><span class="o">):</span>
+<span class="c1">-- check if a is any of the constructors of false</span>
+<span class="c1">-- oh wait there are none</span>
+<span class="c1">-- ok we are done</span>
+<span class="n">unreachable</span>
+</code></pre></div>
+<p>this is a well defined function with executable code, albeit slightly useless..<br>
+You can see the code generated for any def using the opton <code>set_option trace.compiler.code_gen true</code>, it is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">compiler.optimize_bytecode</span><span class="o">]</span>  <span class="n">false.elim</span> <span class="mi">2</span>
+<span class="mi">0</span><span class="o">:</span> <span class="n">unreachable</span>
+<span class="mi">1</span><span class="o">:</span> <span class="n">ret</span>
+</code></pre></div>
+<p>so if this function is ever called with an argument (which should be impossible) we get <code>unreachable</code>.<br>
+Now the reason you may be surprised by this is that axioms usually aren't computable either, we get some error about <code>VM does not have code for blah</code> instead.<br>
+What's happening is that <code>false.elim</code> is inlined and the compiler is smart enough to realise it doesn't really matter what the input is and so gets rid of the use of the axiom, leaving you with something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">n</span><span class="o">():</span>
+<span class="c1">-- check if _ is any of the constructors of false</span>
+<span class="c1">-- oh wait there are none</span>
+<span class="c1">-- ok we are done</span>
+<span class="n">unreachable</span>
+</code></pre></div>
+<p>maybe the short answer is that if you add false as an axiom you are not really doing anything the system was designed for...</p>
+
+
+
+<a name="296144441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/VM%20unreachable%20instruction%20has%20been%20reached/near/296144441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html#296144441">(Aug 30 2022 at 15:18)</a>:</h4>
+<p>I believe the axiom is eliminated for another reason than inlining in this case, which is that <code>contra</code> is a proof, which is erased because proofs are computationally irrelevant. In any case, <code>false.elim</code> certainly is being inlined.</p>
+
+
+
+<a name="296145253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/VM%20unreachable%20instruction%20has%20been%20reached/near/296145253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/VM.20unreachable.20instruction.20has.20been.20reached.html#296145253">(Aug 30 2022 at 15:22)</a>:</h4>
+<p>Good point, I forgot false was a Prop <span aria-label="grinning" class="emoji emoji-1f600" role="img" title="grinning">:grinning:</span>!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

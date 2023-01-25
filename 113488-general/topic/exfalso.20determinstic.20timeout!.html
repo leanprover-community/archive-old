@@ -1,0 +1,121 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/exfalso.20determinstic.20timeout!.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html">exfalso determinstic timeout!</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="270596019"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270596019" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270596019">(Feb 03 2022 at 18:32)</a>:</h4>
+<p><span class="user-mention" data-user-id="452140">@Billy Miao</span> just showed me some Lean code at Xena where <code>exfalso</code> causes a determinstic timeout! This really surprised me because I thought <code>exfalso</code> would just be <code>apply false.elim</code>. Apparently not -- it seems to do something far more exotic involving the <code>contradiction</code> tactic, and <code>contradiction</code> also times out on the below goal.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.real.basic</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">:</span>
+<span class="k">let</span> <span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">finset.range</span> <span class="mi">101</span><span class="o">,</span>
+<span class="n">S</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ℝ</span> <span class="o">:=</span> <span class="n">finset.image</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">abs</span> <span class="o">(</span><span class="n">b</span> <span class="n">n</span><span class="o">))</span> <span class="n">s</span> <span class="k">in</span>
+<span class="n">abs</span> <span class="o">(</span><span class="n">b</span> <span class="mi">100</span><span class="o">)</span> <span class="bp">∈</span> <span class="n">S</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intros</span> <span class="n">s</span> <span class="n">S</span><span class="o">,</span>
+  <span class="n">exfalso</span><span class="o">,</span> <span class="c1">-- deterministic timeout</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="270600009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270600009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270600009">(Feb 03 2022 at 19:00)</a>:</h4>
+<p>I think <code>contradiction</code> tries to check if you have both <code>P</code> and <code>not P</code> as hypotheses, or something? And maybe it tries to reduce <code>s</code></p>
+
+
+
+<a name="270603113"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270603113" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270603113">(Feb 03 2022 at 19:21)</a>:</h4>
+<p>Blocking reduction does eliminate the deterministic timeout (and it seems that <code>s</code> being reduced is the problem):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.real.basic</span>
+
+<span class="kd">@[irreducible]</span>
+<span class="kd">def</span> <span class="n">no_reduce</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">x</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">:</span>
+<span class="k">let</span> <span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ℕ</span> <span class="o">:=</span> <span class="n">no_reduce</span> <span class="bp">$</span> <span class="n">finset.range</span> <span class="mi">101</span><span class="o">,</span>
+<span class="n">S</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ℝ</span> <span class="o">:=</span> <span class="n">no_reduce</span> <span class="bp">$</span> <span class="n">finset.image</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">),</span> <span class="n">abs</span> <span class="o">(</span><span class="n">b</span> <span class="n">n</span><span class="o">))</span> <span class="n">s</span> <span class="k">in</span>
+<span class="n">abs</span> <span class="o">(</span><span class="n">b</span> <span class="mi">100</span><span class="o">)</span> <span class="bp">∈</span> <span class="n">S</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intros</span> <span class="n">s</span> <span class="n">S</span><span class="o">,</span>
+  <span class="n">exfalso</span><span class="o">,</span> <span class="c1">-- no timeout</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="270604087"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270604087" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270604087">(Feb 03 2022 at 19:28)</a>:</h4>
+<p>Putting aside the question of what <code>exfalso</code> is doing in the first place, it seems reasonable that <code>contradiction</code> should do its work at "reducible" transparency level so this doesn't happen.</p>
+
+
+
+<a name="270604435"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270604435" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270604435">(Feb 03 2022 at 19:30)</a>:</h4>
+<p>On a related but separate note, I always wished we could <code>exfalso (_ : false)</code>; i dislike <code>exact (...).elim</code> and <code>exfalso, exact</code> as they often force awkward code</p>
+
+
+
+<a name="270684971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270684971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270684971">(Feb 04 2022 at 08:55)</a>:</h4>
+<p>Billy actually found the timeout when applying the <code>use</code> tactic, a really common tactic amongst beginner mathematicians. Use tries triv which tries contradiction.</p>
+
+
+
+<a name="270702048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270702048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270702048">(Feb 04 2022 at 11:32)</a>:</h4>
+<p>Do you mean <code>trivial</code>? I didn't know about <code>triv</code> but from the documentation, its unique feature is that it <em>doesn't</em> try <code>contradiction</code>.</p>
+
+
+
+<a name="270755330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270755330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270755330">(Feb 04 2022 at 18:39)</a>:</h4>
+<p><code>use</code> now uses <code>trivial'</code> rather than <code>triv</code> (assuming you have a recent version of mathlib). <code>use</code> doesn't use <code>trivial</code> because it wants to be careful only to only look for things that are trivial with <code>reducible</code> visibility.</p>
+<p>I recently renamed <code>triv</code> to <code>trivial'</code> and made a variant of <code>trivial</code> called <code>triv</code> that does everything but <code>contradiction</code>, since Kevin had wanted a tactic that really only looks for triviality. As far as I was able to tell, <code>triv</code> had only existed for the implementation of <code>use</code>.</p>
+
+
+
+<a name="270755428"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270755428" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270755428">(Feb 04 2022 at 18:40)</a>:</h4>
+<p>Something that should still be done, I think, is make a variant of <code>contradiction</code> that similarly only looks at <code>reducible</code> visibility, then make <code>trivial'</code> use that instead.</p>
+
+
+
+<a name="270764142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270764142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270764142">(Feb 04 2022 at 19:50)</a>:</h4>
+<p>Oh sorry, I might have been on an older mathlib when I wrote that post. The changes to triv came about from frustration that students were proving things accidentally using it</p>
+
+
+
+<a name="270764329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270764329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270764329">(Feb 04 2022 at 19:52)</a>:</h4>
+<p>I was getting questions of the form "you said <code>triv</code> proves the goal when it's <code>true</code> but it also proves the goal when it's <code>false</code>"</p>
+
+
+
+<a name="270764448"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/exfalso%20determinstic%20timeout%21/near/270764448" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/exfalso.20determinstic.20timeout!.html#270764448">(Feb 04 2022 at 19:53)</a>:</h4>
+<p>(because I have contradictory hypotheses)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

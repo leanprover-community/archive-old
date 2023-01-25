@@ -1,0 +1,136 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html">all_some vs traverse id</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="219902715"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219902715" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219902715">(Dec 14 2020 at 21:13)</a>:</h4>
+<p>In the new <code>induction'</code> tactic, there is a new <code>def all_some : list (option α) → option (list α)</code> defined, which is provably equal to <code>traverse id</code>. It is used solely in the body of <code>constructor_argument_naming_rule_index</code> as</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">let</span> <span class="n">local_index_instantiations</span> <span class="o">:=</span>
+  <span class="o">(</span><span class="n">index_occs.map</span> <span class="n">get_major_premise_arg_local_names</span><span class="o">)</span><span class="bp">.</span><span class="n">all_some</span> <span class="k">in</span>
+</code></pre></div>
+<p>Are there runtime efficiencies to providing this specialized function, or would <code>traverse id</code> be good enough? Just asking to understand what sorts of constraints there are for writing perfomant tactic code. <span class="user-mention" data-user-id="256311">@Jannis Limperg</span></p>
+
+
+
+<a name="219903713"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219903713" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219903713">(Dec 14 2020 at 21:21)</a>:</h4>
+<p>If I had realised that <code>traverse id = all_some</code>, I would have probably used the former. However, I suspect (but haven't checked) that <code>traverse id</code> does not short-circuit when it encounters a <code>none</code>, so the specialised thing should be faster. Lean also doesn't specialise type class instances like Haskell probably would, so that's another source of overhead. Whether this sort of consideration matters, given Lean's general slowness, I don't know.</p>
+
+
+
+<a name="219904020"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219904020" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219904020">(Dec 14 2020 at 21:23)</a>:</h4>
+<p>What would be a way to check if the short-circuiting does occur?</p>
+
+
+
+<a name="219907161"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219907161" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219907161">(Dec 14 2020 at 21:52)</a>:</h4>
+<p>Good question actually. I didn't immediately find a way to test this experimentally; maybe our resident wizards can help with that. Failing that, you can always try to mentally step through the strict execution of <code>traverse id [none, some1]</code>.</p>
+
+
+
+<a name="219910211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219910211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219910211">(Dec 14 2020 at 22:16)</a>:</h4>
+<p>Is short-circuiting is a meaningful thing to ask about if there are no observable side-effects?</p>
+
+
+
+<a name="219910538"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219910538" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219910538">(Dec 14 2020 at 22:19)</a>:</h4>
+<p>"does <code>if c then f x else g x</code> short-circuit" seems meaningless to me, and I'm not sure if this case is different</p>
+
+
+
+<a name="219910554"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219910554" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219910554">(Dec 14 2020 at 22:19)</a>:</h4>
+<p>Well, timing is observable; also lean isn't completely side effect free if you use <code>trace</code></p>
+
+
+
+<a name="219910657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219910657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219910657">(Dec 14 2020 at 22:20)</a>:</h4>
+<p>also nonterminating computations are observable, and it's not hard to make those in meta code</p>
+
+
+
+<a name="219910982"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219910982" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rob Lewis <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219910982">(Dec 14 2020 at 22:23)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.induction</span> <span class="n">control.traversable.basic</span>
+
+<span class="kd">def</span> <span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="o">(</span><span class="n">option</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:=</span> <span class="n">none</span><span class="o">::(</span><span class="n">list.range</span> <span class="mi">1000000</span><span class="o">)</span><span class="bp">.</span><span class="n">map</span> <span class="n">some</span>
+
+<span class="kd">set_option</span> <span class="n">profiler</span> <span class="n">true</span>
+
+<span class="k">#eval</span> <span class="n">list.all_some</span> <span class="n">l</span>
+
+<span class="k">#eval</span> <span class="n">traverse</span> <span class="n">id</span> <span class="n">l</span>
+</code></pre></div>
+<p>implies <code>traverse</code> doesn't short circuit. (Both <code>eval</code>s are O(n) because of <code>list.map</code> but you can see the difference in the profiler output.)</p>
+
+
+
+<a name="219911360"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219911360" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219911360">(Dec 14 2020 at 22:27)</a>:</h4>
+<p>Here are some evaluation order puzzlers:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">loop</span> <span class="o">:</span> <span class="n">bool</span> <span class="o">:=</span> <span class="n">loop</span>
+
+<span class="c1">-- #eval if tt then loop else ff -- don't use this, it will eat up all your memory</span>
+<span class="k">#eval</span> <span class="k">if</span> <span class="n">tt</span> <span class="k">then</span> <span class="n">ff</span> <span class="k">else</span> <span class="n">undefined</span> <span class="c1">-- ok</span>
+<span class="k">#eval</span> <span class="k">if</span> <span class="n">tt</span> <span class="k">then</span> <span class="n">undefined</span> <span class="k">else</span> <span class="n">ff</span> <span class="c1">-- fail</span>
+<span class="k">#eval</span> <span class="n">ff</span> <span class="bp">&amp;&amp;</span> <span class="n">undefined</span> <span class="c1">-- ok</span>
+<span class="k">#eval</span> <span class="k">let</span> <span class="n">n</span> <span class="o">:</span> <span class="n">bool</span> <span class="o">:=</span> <span class="n">undefined</span> <span class="k">in</span> <span class="n">ff</span> <span class="bp">&amp;&amp;</span> <span class="n">n</span> <span class="c1">-- ok</span>
+</code></pre></div>
+
+
+
+<a name="219990419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219990419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219990419">(Dec 15 2020 at 14:59)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">control.traversable.basic</span>
+
+<span class="kd">def</span> <span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="o">(</span><span class="n">option</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:=</span> <span class="n">none</span><span class="o">::(</span><span class="n">list.range</span> <span class="mi">1000000</span><span class="o">)</span><span class="bp">.</span><span class="n">map</span> <span class="n">some</span>
+
+<span class="kd">def</span> <span class="n">all_some</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">:</span> <span class="n">list</span> <span class="o">(</span><span class="n">option</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">option</span> <span class="o">(</span><span class="n">list</span> <span class="n">α</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="o">:=</span> <span class="n">some</span> <span class="o">[]</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">some</span> <span class="n">a</span> <span class="o">::</span> <span class="n">as</span><span class="o">)</span> <span class="o">:=</span> <span class="n">list.cons</span> <span class="n">a</span> <span class="bp">&lt;$&gt;</span> <span class="n">all_some</span> <span class="n">as</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">none</span> <span class="o">::</span> <span class="n">as</span><span class="o">)</span> <span class="o">:=</span> <span class="n">none</span>
+
+<span class="kd">set_option</span> <span class="n">profiler</span> <span class="n">true</span>
+
+<span class="k">#eval</span> <span class="n">all_some</span> <span class="n">l</span>
+<span class="k">#reduce</span> <span class="n">all_some</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">none</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+<span class="k">#reduce</span> <span class="n">all_some</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">some</span> <span class="mi">0</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">mmap</span> <span class="n">id</span> <span class="n">l</span>
+<span class="k">#reduce</span> <span class="n">mmap</span> <span class="n">id</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">none</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+<span class="k">#reduce</span> <span class="n">mmap</span> <span class="n">id</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">some</span> <span class="mi">0</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+
+<span class="k">#eval</span> <span class="n">traverse</span> <span class="n">id</span> <span class="n">l</span>
+<span class="k">#reduce</span> <span class="n">traverse</span> <span class="n">id</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">none</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+<span class="k">#reduce</span> <span class="n">traverse</span> <span class="n">id</span> <span class="o">[</span><span class="n">some</span> <span class="mi">1</span><span class="o">,</span> <span class="n">some</span> <span class="mi">0</span><span class="o">,</span> <span class="n">some</span> <span class="mi">2</span><span class="o">]</span>
+</code></pre></div>
+
+
+
+<a name="219990511"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/all_some%20vs%20traverse%20id/near/219990511" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/all_some.20vs.20traverse.20id.html#219990511">(Dec 15 2020 at 15:00)</a>:</h4>
+<p>so <code>mmap id</code> is exactly <code>all_some</code>, and on my machine, actually a little faster (?)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

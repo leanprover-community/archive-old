@@ -1,0 +1,176 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html">Unfolding the type of a variable creates a new variable</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="278552443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278552443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Keizer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278552443">(Apr 11 2022 at 13:23)</a>:</h4>
+<p>I'm working on a proof that requires me to unfold the type of some variable <code>x</code>, so that I can do a cases on the internal definition.<br>
+However, when doing this unfold, lean adds a new variable to the context, of the required unfolded type, but all other occurences of <code>x</code> still refer to the now inaccessible original variable.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Wrapper</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">×</span> <span class="kt">Type</span> <span class="o">:=</span> <span class="o">(</span><span class="n">Fin</span> <span class="n">n</span><span class="o">,</span> <span class="n">Fin</span> <span class="n">n</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">some_property</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Fin</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="o">:=</span> <span class="n">True</span>
+
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="o">(</span><span class="n">Wrapper</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">some_property</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="c">/-</span><span class="cm"></span>
+<span class="cm">    n : Nat</span>
+<span class="cm">    x : (Wrapper n).fst</span>
+<span class="cm">    h : some_property x</span>
+<span class="cm">    ⊢ True</span>
+<span class="cm">  -/</span>
+  <span class="n">unfold</span> <span class="n">Wrapper</span> <span class="n">at</span> <span class="n">x</span>
+  <span class="c">/-</span><span class="cm"></span>
+<span class="cm">    n : Nat</span>
+<span class="cm">    x✝ : (Wrapper n).fst</span>
+<span class="cm">    h : some_property x✝</span>
+<span class="cm">    x : (Fin n, Fin n).fst</span>
+<span class="cm">    ⊢ True</span>
+<span class="cm">  -/</span>
+  <span class="n">rename_i</span> <span class="n">x'</span><span class="bp">;</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="gr">sorry</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+<p>I've tried to prove that <code>x</code> and <code> x✝</code> are equal, without much success.</p>
+<p>I want to do this unfold because I need to a <code>cases</code> on something that uses <code>x</code>, which fails with the error <code>tactic 'generalize' failed, result is not type correct</code> unless I unfold the type of <code>x</code>. Sadly have not managed to find a MWE that has this behaviour.</p>
+
+
+
+<a name="278553913"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278553913" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278553913">(Apr 11 2022 at 13:34)</a>:</h4>
+<p><span class="user-mention" data-user-id="481133">@Alex Keizer</span> Thanks for raising this issue. We will improve the <code>unfold</code> tactic. It is currently using the <code>simp</code> infrastructure which creates auxiliary declarations instead of replacing them when there are dependencies. It the meantime, here are two possible workarounds.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Wrapper</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">×</span> <span class="kt">Type</span> <span class="o">:=</span> <span class="o">(</span><span class="n">Fin</span> <span class="n">n</span><span class="o">,</span> <span class="n">Fin</span> <span class="n">n</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">some_property</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Fin</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="o">:=</span> <span class="n">True</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="o">(</span><span class="n">Wrapper</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">some_property</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">delta</span> <span class="n">Wrapper</span> <span class="n">at</span> <span class="n">x</span>
+  <span class="gr">sorry</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">n</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="o">(</span><span class="n">Wrapper</span> <span class="n">n</span><span class="o">)</span><span class="bp">.</span><span class="mi">1</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">some_property</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">revert</span> <span class="n">x</span> <span class="n">h</span>
+  <span class="n">unfold</span> <span class="n">Wrapper</span>
+  <span class="n">intro</span> <span class="n">x</span> <span class="n">h</span>
+  <span class="gr">sorry</span>
+</code></pre></div>
+<p>BTW, the <code>delta</code> tactic preserves definitional equality, and it will expose the internal encoding used to justify the termination of recursive functions. It is not an issue in the example above because <code>Wrapper</code> is not recursive.</p>
+
+
+
+<a name="278555075"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278555075" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278555075">(Apr 11 2022 at 13:43)</a>:</h4>
+<p>BTW, the second workaround only works if the <code>unfold</code> is preserving definitional equality. This is the case for your example, but it is not true in the following one.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">NatTuple</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="kt">Type</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">Unit</span>
+  <span class="bp">|</span> <span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">Nat</span> <span class="bp">×</span> <span class="n">NatTuple</span> <span class="n">n</span>
+
+<span class="kd">def</span> <span class="n">NatTuple.property</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">NatTuple</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span> <span class="n">True</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">NatTuple</span> <span class="mi">3</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">x.property</span><span class="o">)</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">revert</span> <span class="n">x</span> <span class="n">h</span>
+  <span class="n">unfold</span> <span class="n">NatTuple</span> <span class="c1">-- Did not unfold `NatTuple`.</span>
+</code></pre></div>
+
+
+
+<a name="278555905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278555905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Keizer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278555905">(Apr 11 2022 at 13:49)</a>:</h4>
+<p>Thanks, I hadn't heard of <code>delta</code> before, but it seems to do exactly what I need!<br>
+My more complicated unfold does preserve definition equality as well (at least, the types can be proven equal with a <code>rfl</code>), hence my surprise with <code>unfold</code>s behaviour.</p>
+<p>Turns out my actual issue was something else, as soon as I used <code>delta</code>, the <code>tactic 'generalize' failed</code> error popped up again.<br>
+Managed to fix it by introducing a new variable with a <code>let</code>-binding, rather than doing <code>cases</code> directly on an expression.</p>
+
+
+
+<a name="278556406"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278556406" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278556406">(Apr 11 2022 at 13:53)</a>:</h4>
+<blockquote>
+<p>Turns out my actual issue was something else, as soon as I used delta, the tactic 'generalize' failed error popped up again.</p>
+</blockquote>
+<p>Could you please send us the example that triggered the problem?</p>
+
+
+
+<a name="278563579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278563579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Keizer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278563579">(Apr 11 2022 at 14:41)</a>:</h4>
+<p>It's in this file: <a href="https://github.com/alexkeizer/qpf4/blob/master/Qpf/PFunctor/Multivariate/M.lean">https://github.com/alexkeizer/qpf4/blob/master/Qpf/PFunctor/Multivariate/M.lean</a><br>
+The working code is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">M.bisim_lemma</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="n">TypeVec</span> <span class="n">n</span><span class="o">}</span>
+                      <span class="o">{</span><span class="n">a₁</span> <span class="o">:</span> <span class="o">(</span><span class="n">Mp</span> <span class="n">P</span><span class="o">)</span><span class="bp">.</span><span class="n">A</span><span class="o">}</span>
+                      <span class="o">{</span><span class="n">f₁</span> <span class="o">:</span> <span class="o">(</span><span class="n">Mp</span> <span class="n">P</span><span class="o">)</span><span class="bp">.</span><span class="n">B</span> <span class="n">a₁</span> <span class="bp">⟹</span> <span class="n">α</span><span class="o">}</span>
+                      <span class="o">{</span><span class="n">a'</span> <span class="o">:</span> <span class="n">P.A</span><span class="o">}</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="o">(</span><span class="n">P.B</span> <span class="n">a'</span><span class="o">)</span><span class="bp">.</span><span class="n">drop</span> <span class="bp">⟹</span> <span class="n">α</span><span class="o">}</span>
+                      <span class="o">{</span><span class="n">f₁'</span> <span class="o">:</span> <span class="o">(</span><span class="n">P.B</span> <span class="n">a'</span><span class="o">)</span><span class="bp">.</span><span class="n">last</span> <span class="bp">→</span> <span class="n">M</span> <span class="n">P</span> <span class="n">α</span><span class="o">}</span>
+                      <span class="o">(</span><span class="n">e₁</span> <span class="o">:</span> <span class="n">M.dest</span> <span class="n">P</span> <span class="o">⟨</span><span class="n">a₁</span><span class="o">,</span> <span class="n">f₁</span><span class="o">⟩</span> <span class="bp">=</span> <span class="o">⟨</span><span class="n">a'</span><span class="o">,</span> <span class="n">splitFun</span> <span class="n">f'</span> <span class="n">f₁'</span><span class="o">⟩)</span>
+                    <span class="o">:</span>
+    <span class="bp">∃</span> <span class="o">(</span><span class="n">g₁'</span> <span class="o">:</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">e₁'</span> <span class="o">:</span> <span class="n">PFunctor.M.dest</span> <span class="n">a₁</span> <span class="bp">=</span> <span class="o">⟨</span><span class="n">a'</span><span class="o">,</span> <span class="n">g₁'</span><span class="o">⟩),</span>
+      <span class="n">f'</span> <span class="bp">=</span> <span class="n">M.pathDestLeft</span> <span class="n">P</span> <span class="n">e₁'</span> <span class="n">f₁</span>
+      <span class="bp">∧</span> <span class="n">f₁'</span> <span class="bp">=</span> <span class="k">fun</span> <span class="n">x</span> <span class="o">:</span> <span class="o">(</span><span class="n">last</span> <span class="n">P</span><span class="o">)</span><span class="bp">.</span><span class="n">B</span> <span class="n">a'</span> <span class="bp">=&gt;</span> <span class="o">⟨</span><span class="n">g₁'</span> <span class="n">x</span><span class="o">,</span> <span class="n">M.pathDestRight</span> <span class="n">P</span> <span class="n">e₁'</span> <span class="n">f₁</span> <span class="n">x</span><span class="o">⟩</span>
+<span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">revert</span> <span class="n">e₁</span>
+  <span class="n">generalize</span> <span class="n">ef</span> <span class="o">:</span> <span class="bp">@</span><span class="n">splitFun</span> <span class="n">n</span> <span class="n">_</span> <span class="o">(</span><span class="n">append1</span> <span class="n">α</span> <span class="o">(</span><span class="n">M</span> <span class="n">P</span> <span class="n">α</span><span class="o">))</span> <span class="n">f'</span> <span class="n">f₁'</span> <span class="bp">=</span> <span class="n">ff</span> <span class="bp">;</span>
+  <span class="n">intro</span> <span class="n">e₁</span><span class="bp">;</span>
+  <span class="c1">-- \/ HERE</span>
+  <span class="k">let</span> <span class="n">he₁'</span> <span class="o">:=</span> <span class="n">PFunctor.M.dest</span> <span class="n">a₁</span><span class="bp">;</span>
+  <span class="n">rcases</span> <span class="n">e₁'</span> <span class="o">:</span> <span class="n">he₁'</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">a₁'</span><span class="o">,</span> <span class="n">g₁'</span><span class="o">⟩</span><span class="bp">;</span>
+  <span class="c1">-- /\ HERE</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="n">M.dest_eq_dest'</span> <span class="n">P</span> <span class="n">e₁'</span><span class="o">]</span> <span class="n">at</span> <span class="n">e₁</span>
+  <span class="n">cases</span> <span class="n">e₁</span>
+  <span class="n">exact</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">e₁'</span><span class="o">,</span> <span class="n">split_fun_inj</span> <span class="n">ef</span><span class="o">⟩</span>
+</code></pre></div>
+<p>I originally used </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">rcases</span> <span class="n">e₁'</span> <span class="o">:</span> <span class="n">PFunctor.M.dest</span> <span class="n">a₁</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">a₁'</span><span class="o">,</span> <span class="n">g₁'</span><span class="o">⟩</span><span class="bp">;</span>
+</code></pre></div>
+<p>Which triggered the error</p>
+<p>This is on nightly-2022-03-17, btw. I tried to update to the most recent nightly but that broke some other stuff.</p>
+<p>I was trying to unfold <code>Mp</code> at variable <code>a1</code>, but it seems that wasn't even necessary after I introduced the <code>let</code>-binding</p>
+
+
+
+<a name="278567121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278567121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278567121">(Apr 11 2022 at 15:03)</a>:</h4>
+<p>I pushed a fix for <code>unfold</code> and <code>simp</code>. They do not create the auxiliary declaration anymore when the result is definitionally equal. <br>
+Thanks for posting the full example above. It would be great if we could create a <a href="https://leanprover-community.github.io/mwe.html">#mwe</a> for it. It would help us to diagnose the problem. <br>
+Does the issue also happen when you use <code>match</code>-tactic? </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">match</span> <span class="n">e₁'</span> <span class="o">:</span> <span class="n">PFunctor.M.dest</span> <span class="n">a₁</span> <span class="k">with</span> <span class="bp">|</span> <span class="o">⟨</span><span class="n">a₁'</span><span class="o">,</span> <span class="n">g₁'</span><span class="o">⟩</span> <span class="bp">=&gt;</span>
+</code></pre></div>
+
+
+
+<a name="278568947"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Unfolding%20the%20type%20of%20a%20variable%20creates%20a%20new%20variable/near/278568947" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex Keizer <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Unfolding.20the.20type.20of.20a.20variable.20creates.20a.20new.20variable.html#278568947">(Apr 11 2022 at 15:14)</a>:</h4>
+<p>The <code>match</code> fails also, but with a more descriptive error</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">application</span> <span class="n">type</span> <span class="n">mismatch</span>
+  <span class="n">pathDestLeft</span> <span class="n">P</span> <span class="n">e₁'</span>
+<span class="n">argument</span>
+  <span class="n">e₁'</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="o">{</span> <span class="n">fst</span> <span class="o">:=</span> <span class="n">a₁'</span><span class="o">,</span> <span class="n">snd</span> <span class="o">:=</span> <span class="n">g₁'</span> <span class="o">}</span> <span class="bp">=</span> <span class="o">{</span> <span class="n">fst</span> <span class="o">:=</span> <span class="n">a'</span><span class="o">,</span> <span class="n">snd</span> <span class="o">:=</span> <span class="n">g₁'</span> <span class="o">}</span> <span class="o">:</span> <span class="kt">Prop</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">PFunctor.M.dest</span> <span class="n">a₁</span> <span class="bp">=</span> <span class="o">{</span> <span class="n">fst</span> <span class="o">:=</span> <span class="n">a'</span><span class="o">,</span> <span class="n">snd</span> <span class="o">:=</span> <span class="n">g₁'</span> <span class="o">}</span> <span class="o">:</span> <span class="kt">Prop</span>
+</code></pre></div>
+<p>Marking <code>PFunctor.M.dest</code> as an <code>abbrev</code> rather than a <code>def</code> makes the error go away.<br>
+Interestingly, with the <code>abbrev</code> version of M.dest the original <code>rcases</code> also works</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

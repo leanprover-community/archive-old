@@ -1,0 +1,64 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html">elab a term within a tactic</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="309250304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309250304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309250304">(Nov 11 2022 at 19:29)</a>:</h4>
+<p>This might be a basic question, but let's say I want to define a term elaboration meant to be used within a tactic (in such a way that it depends on the current goals). Is that possible?</p>
+<p>I get a type mismatch error when I try to use <code>Tactic.getMainDecl</code>within a term elaboration, and a different one if I try to return an <code>Expr</code> within a <code>tactic</code> elab. (Can monad lifting can help out here somehow? Or do I need a different type of elaboration?)</p>
+
+
+
+<a name="309252317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309252317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jannis Limperg <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309252317">(Nov 11 2022 at 19:46)</a>:</h4>
+<p><code>MetaM</code> lifts into <code>TermElabM</code> lifts into <code>TacticM</code>. To use a <code>TermElabM</code> computation which depends on the current goals, you'll have to use <code>getGoals</code> first and pass this to the <code>TermElabM</code> computation (which gets auto-lifted into <code>TacticM</code>). To lift a <code>MetaM</code> tactic into <code>TacticM</code>, use <code>liftMetaTactic</code>. Does that help?</p>
+
+
+
+<a name="309253295"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309253295" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309253295">(Nov 11 2022 at 19:56)</a>:</h4>
+<p>Just to make sure we're on the same page, <code>getGoals</code> has type <code>TacticM (List MVarId)</code>, right? If I try to use this within the <code>TermElabM</code> computation, e.g. <code>let goals ← Tactic.getGoals</code>, I get hit with a type mismatch, saying that it should have type <code>TermElabM ...</code>. To pass the result to the <code>TermElabM</code> computation, we'd have to be in a <code>TacticM</code> computation "on the outside", right? My problem then is being able to return an expression from the <code>TacticM</code> computation, since it seems like that's fundamentally not what <code>TacticM Unit</code> can do. Unless...is there a way to define a <code>TacticM Expr</code> elaboration somehow?</p>
+
+
+
+<a name="309254585"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309254585" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309254585">(Nov 11 2022 at 20:08)</a>:</h4>
+<p>Terms and tactics are distinct. A term elaborator cannot depend on the current goal.</p>
+
+
+
+<a name="309256172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309256172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309256172">(Nov 11 2022 at 20:23)</a>:</h4>
+<p>This cannot be done, and moreover it is a really weird thing to do. The closest approximation would be a tactic with a <code>term</code> argument, which uses a side channel to pass its list of goals to a subterm of the input argument. (<code>squeeze_scope</code> has to do something like this because it passes information about the scope to all nested <code>simp</code> calls.)</p>
+
+
+
+<a name="309256202"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309256202" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309256202">(Nov 11 2022 at 20:23)</a>:</h4>
+<p>I think it might help to explain what you want to do (<a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a>)</p>
+
+
+
+<a name="309257401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elab%20a%20term%20within%20a%20tactic/near/309257401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Thomas Murrills <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elab.20a.20term.20within.20a.20tactic.html#309257401">(Nov 11 2022 at 20:34)</a>:</h4>
+<p>So, the actual application was just to see if I could "improve on" <code>have_field</code> and, instead of having it <code>have</code> things into the context, be able to simply use something like <code>currentFieldProj</code> in syntax to represent the projection itself. Currently, this would have to read off some metadata from the current goal. (I do wonder if there's a better way to do this, though—something in the environment, maybe?)</p>
+<p>I was mostly just trying to see if I could do it for fun/learning/experience—as far as I can tell, <code>have_field</code> isn't used <em>once</em> in mathlib3 <span aria-label="upside down" class="emoji emoji-1f643" role="img" title="upside down">:upside_down:</span> (in contrast to <code>refine_struct</code>, which is used occasionally.) Not spending too much time on it, though, since there are other, more useful things to be done... :)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

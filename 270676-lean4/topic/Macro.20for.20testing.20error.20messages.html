@@ -1,0 +1,335 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html">Macro for testing error messages</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="278407541"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278407541" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278407541">(Apr 09 2022 at 12:23)</a>:</h4>
+<p>I'm working on a document in which I'd like to accurately describe error messages thrown by Lean, and have CI keep them up to date as the document and the compiler evolve over time.</p>
+<p>To support this, I'm trying to build a macro. This should be a command macro that takes a command and an expected error as arguments. If the command elaborates successfully, then an error should be thrown. If the command results in an error, then the error should be compared with the expected error. If they are equal, the result of elaboration should be thrown away and nothing more should happen. If they are not equal, then an error should be thrown.</p>
+<p>Here's my quick attempt to make this work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="n">syntax</span> <span class="n">withPosition</span><span class="o">(</span><span class="s2">"expect"</span> <span class="s2">"error"</span> <span class="n">colGt</span> <span class="n">command</span> <span class="s2">"message"</span> <span class="n">str</span> <span class="s2">"end"</span><span class="o">)</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">elab_rules</span> <span class="o">:</span> <span class="n">command</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">expect</span> <span class="n">error</span> <span class="bp">$</span><span class="n">cmd</span><span class="o">:</span><span class="n">command</span> <span class="n">message</span> <span class="bp">$</span><span class="n">msg</span><span class="o">:</span><span class="n">str</span> <span class="kd">end</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean.Elab.Command</span> <span class="k">in</span>
+    <span class="kn">open</span> <span class="n">Lean.Meta</span> <span class="k">in</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">savedState</span> <span class="bp">&lt;-</span> <span class="n">get</span>
+      <span class="n">try</span>
+        <span class="n">elabCommandTopLevel</span> <span class="n">cmd</span>
+        <span class="n">throwError</span> <span class="s2">"no error"</span>
+      <span class="n">catch</span> <span class="n">ex</span> <span class="bp">=&gt;</span>
+        <span class="k">match</span> <span class="n">msg.isStrLit</span><span class="bp">?</span> <span class="k">with</span>
+          <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="s2">"Invalid message format {msg}, expected a string literal"</span>
+          <span class="bp">|</span> <span class="n">some</span> <span class="n">str</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+            <span class="k">let</span> <span class="n">foundString</span> <span class="bp">&lt;-</span> <span class="n">ex.toMessageData.toString</span>
+            <span class="k">if</span> <span class="n">str</span> <span class="bp">==</span> <span class="n">foundString</span>
+              <span class="k">then</span> <span class="n">return</span> <span class="o">()</span>
+              <span class="k">else</span> <span class="n">throwError</span> <span class="s2">"Expected error {str} but got {foundString}"</span>
+      <span class="n">finally</span>
+        <span class="n">modify</span> <span class="k">fun</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">savedState</span>
+
+<span class="n">expect</span> <span class="n">error</span>
+  <span class="kd">def</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="s2">"I am not a Nat"</span>
+<span class="n">message</span>
+  <span class="s2">"nope"</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>I would expect this to throw an error like <code>Expected error "nope" but got "type mismatch..."</code>. However, it throws the error <code>Expected error nope  but got no error</code>, which makes me think that I need to do something after the call to <code>elabCommandTopLevel</code> to make it fail if there's errors. I get the same result with <code>elabCommand</code> - I'm not sure which is appropriate here.</p>
+<p>Any help would be appreciated!</p>
+
+
+
+<a name="278407691"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278407691" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278407691">(Apr 09 2022 at 12:26)</a>:</h4>
+<p>Also, as an aside, the conversion from the string literal required in the grammar to an inhabitant of type <code>String</code> seems a bit overly fiddly here - is there a better way to project a string out of a syntax pattern match when the grammar declares it to be so?</p>
+
+
+
+<a name="278408213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408213">(Apr 09 2022 at 12:39)</a>:</h4>
+<p>You can use <code>dbg_trace</code> to see what's going on:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">⋯</span>
+<span class="k">let</span> <span class="n">foundString</span> <span class="bp">&lt;-</span> <span class="n">ex.toMessageData.toString</span>
+<span class="n">dbg_trace</span> <span class="n">str</span>
+<span class="n">dbg_trace</span> <span class="n">foundString</span>
+<span class="k">if</span> <span class="n">str</span> <span class="bp">==</span> <span class="n">foundString</span>
+<span class="bp">⋯</span>
+</code></pre></div>
+<p>It's outputting:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>nope
+no error
+</code></pre></div>
+
+
+
+<a name="278408284"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408284" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408284">(Apr 09 2022 at 12:40)</a>:</h4>
+<p>Those are indeed different, so Lean is throwing an error with the message <code>"Expected error {str} but got {foundString}"</code>, which results in that exact message we're seeing</p>
+
+
+
+<a name="278408308"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408308" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408308">(Apr 09 2022 at 12:41)</a>:</h4>
+<p>Thanks!</p>
+<p>That part doesn't surprise me. What surprises me is that <code>throwError "no error"</code> is running, because I would expect the call to <code>elabCommandTopLevel</code> to throw an error itself, short-circuiting the evaluation of the <code>try</code>, and throwing a different error.</p>
+
+
+
+<a name="278408347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408347">(Apr 09 2022 at 12:43)</a>:</h4>
+<p>Got it. I'll try debugging in a few minutes</p>
+
+
+
+<a name="278408502"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408502" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408502">(Apr 09 2022 at 12:47)</a>:</h4>
+<p>Thank you!</p>
+
+
+
+<a name="278408760"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278408760" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278408760">(Apr 09 2022 at 12:53)</a>:</h4>
+<p>The error is caught in <code>withLogging</code> inside <code>elabCommand</code> so that Lean continues elaboration after a failed command. I think the simplest solution is to check <code>(← get).messages</code> before and after <code>elabCommandTopLevel cmd</code>; for example, whether the size increased by exactly 1 and the head is the expected error.</p>
+
+
+
+<a name="278409036"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278409036" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278409036">(Apr 09 2022 at 12:58)</a>:</h4>
+<p>That makes sense - thanks! I'll give it a shot.</p>
+<p>Could a command elaborator plausibly throw more than one message?</p>
+
+
+
+<a name="278409277"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278409277" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278409277">(Apr 09 2022 at 13:04)</a>:</h4>
+<p>Yes, error recovery inside the term elaborator can do that! Or a command macro that unfolds to multiple commands.</p>
+
+
+
+<a name="278409327"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278409327" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278409327">(Apr 09 2022 at 13:05)</a>:</h4>
+<p>Sounds like I should instead look for errors that were introduced by the sub-elaborator, and then ensure that the one I wanted happens to be present, then. Should be reasonable.</p>
+
+
+
+<a name="278412024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278412024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278412024">(Apr 09 2022 at 14:11)</a>:</h4>
+<p>Well, this seems to work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">withPosition</span><span class="o">(</span><span class="s2">"expect"</span> <span class="s2">"error"</span> <span class="n">colGt</span> <span class="n">command</span> <span class="s2">"message"</span> <span class="n">str</span> <span class="s2">"end"</span><span class="o">)</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">elab_rules</span> <span class="o">:</span> <span class="n">command</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">expect</span> <span class="n">error</span> <span class="bp">$</span><span class="n">cmd</span><span class="o">:</span><span class="n">command</span> <span class="n">message</span> <span class="bp">$</span><span class="n">msg</span><span class="o">:</span><span class="n">str</span> <span class="kd">end</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean.Elab.Command</span> <span class="k">in</span>
+    <span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span>
+    <span class="kn">open</span> <span class="n">Lean.Meta</span> <span class="k">in</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">savedState</span> <span class="bp">&lt;-</span> <span class="n">get</span>
+      <span class="k">match</span> <span class="n">msg.isStrLit</span><span class="bp">?</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="s2">"Desired message must be a string, but got {msg}"</span>
+      <span class="bp">|</span> <span class="n">some</span> <span class="n">desiredError</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+        <span class="n">try</span>
+          <span class="n">elabCommand</span> <span class="n">cmd</span>
+          <span class="k">let</span> <span class="n">afterState</span> <span class="bp">&lt;-</span> <span class="n">get</span>
+          <span class="k">let</span> <span class="n">lengthDifference</span> <span class="o">:=</span> <span class="n">afterState.messages.msgs.size</span> <span class="bp">-</span> <span class="n">savedState.messages.msgs.size</span>
+          <span class="k">let</span> <span class="n">newMessages</span> <span class="o">:=</span> <span class="n">afterState.messages.msgs.getN</span><span class="bp">!</span> <span class="n">lengthDifference</span>
+          <span class="k">let</span> <span class="n">newErrors</span> <span class="o">:=</span> <span class="n">newMessages.filter</span> <span class="o">(</span><span class="k">fun</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m.severity</span> <span class="bp">==</span> <span class="n">MessageSeverity.error</span><span class="o">)</span>
+          <span class="k">let</span> <span class="n">mut</span> <span class="n">errStrings</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span> <span class="o">:=</span> <span class="o">[]</span>
+
+          <span class="n">for</span> <span class="n">err</span> <span class="k">in</span> <span class="n">newErrors</span> <span class="k">do</span>
+            <span class="k">let</span> <span class="n">asString</span> <span class="bp">&lt;-</span> <span class="n">err.data.toString</span>
+            <span class="n">errStrings</span> <span class="o">:=</span> <span class="n">asString</span> <span class="o">::</span> <span class="n">errStrings</span>
+            <span class="k">if</span> <span class="o">(</span><span class="bp">&lt;-</span> <span class="n">err.data.toString</span><span class="o">)</span> <span class="bp">==</span> <span class="n">desiredError</span>
+              <span class="k">then</span> <span class="n">return</span> <span class="o">()</span>
+              <span class="k">else</span> <span class="n">pure</span> <span class="o">()</span>
+          <span class="n">throwError</span> <span class="s2">"The desired error {desiredError} was not found in</span><span class="se">\n</span><span class="s2">{errStrings.reverse}"</span>
+
+        <span class="n">finally</span>
+          <span class="n">modify</span> <span class="k">fun</span> <span class="n">s</span> <span class="bp">=&gt;</span> <span class="n">savedState</span>
+
+<span class="n">expect</span> <span class="n">error</span>
+  <span class="kd">def</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="s2">"I am not a Nat"</span>
+<span class="n">message</span>
+<span class="s2">"type mismatch</span>
+<span class="s2">  </span><span class="se">\"</span><span class="s2">I am not a Nat</span><span class="se">\"</span><span class="s2"></span>
+<span class="s2">has type</span>
+<span class="s2">  String : Type</span>
+<span class="s2">but is expected to have type</span>
+<span class="s2">  Nat : Type"</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Thanks for the help!</p>
+<p>It looks like the removal of <code>traverse</code> and its replacement with <code>forM</code> a while back makes <code>let mut</code> and <code>for ... in </code> mandatory here, whereas my Haskell-loving self would normally have wanted to first calculate the list of strings using <code>traverse</code> and then done a separate check for membership, rather than having to interleave them as I did above.  Am I missing something about that?</p>
+
+
+
+<a name="278412091"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278412091" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278412091">(Apr 09 2022 at 14:12)</a>:</h4>
+<p>Also, is there something like Python's triple-quoted strings to avoid escaping quotes in the message? This is all going to be slurped through some regexp nonsense that I'd like to keep simple if possible :-)</p>
+
+
+
+<a name="278412561"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278412561" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278412561">(Apr 09 2022 at 14:25)</a>:</h4>
+<blockquote>
+<p>It looks like the removal of traverse and its replacement with forM a while back makes let mut and for ... in  mandatory here, whereas my Haskell-loving self would normally have wanted to first calculate the list of strings using traverse and then done a separate check for membership, rather than having to interleave them as I did above. Am I missing something about that?</p>
+</blockquote>
+<p>You can also write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>          <span class="k">let</span> <span class="n">errStrings</span> <span class="bp">←</span> <span class="n">newErrors.mapM</span> <span class="k">fun</span> <span class="n">err</span> <span class="bp">=&gt;</span> <span class="n">err.data.toString</span>
+          <span class="n">unless</span> <span class="n">errStrings.contains</span> <span class="n">desiredError</span> <span class="k">do</span>
+            <span class="n">throwError</span> <span class="s2">"The desired error {desiredError} was not found in</span><span class="se">\n</span><span class="s2">{errStrings.reverse}"</span>
+</code></pre></div>
+<p>It seems closer to what you want.</p>
+
+
+
+<a name="278412705"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278412705" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278412705">(Apr 09 2022 at 14:29)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="354934">David Thrane Christiansen</span> <a href="#narrow/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages/near/278412091">said</a>:</p>
+<blockquote>
+<p>Also, is there something like Python's triple-quoted strings to avoid escaping quotes in the message? This is all going to be slurped through some regexp nonsense that I'd like to keep simple if possible :-)</p>
+</blockquote>
+<p>We don't, but I agree it would be great for the <code>expect error</code> macro.</p>
+
+
+
+<a name="278412874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278412874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278412874">(Apr 09 2022 at 14:33)</a>:</h4>
+<p>Thanks for that update, I think it makes things much easier to follow. I can even get rid of <code>.reverse</code> :-)</p>
+<p>And the lack of triple-quotes strings will be easy enough to hack around.</p>
+<p>For those keeping score, here's the macro:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="n">withPosition</span><span class="o">(</span><span class="s2">"expect"</span> <span class="s2">"error"</span> <span class="n">colGt</span> <span class="n">command</span> <span class="s2">"message"</span> <span class="n">str</span> <span class="s2">"end"</span><span class="o">)</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">elab_rules</span> <span class="o">:</span> <span class="n">command</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">expect</span> <span class="n">error</span> <span class="bp">$</span><span class="n">cmd</span><span class="o">:</span><span class="n">command</span> <span class="n">message</span> <span class="bp">$</span><span class="n">msg</span><span class="o">:</span><span class="n">str</span> <span class="kd">end</span><span class="o">)</span> <span class="bp">=&gt;</span>
+    <span class="kn">open</span> <span class="n">Lean.Elab.Command</span> <span class="k">in</span>
+    <span class="kn">open</span> <span class="n">Lean</span> <span class="k">in</span>
+    <span class="kn">open</span> <span class="n">Lean.Meta</span> <span class="k">in</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">savedState</span> <span class="bp">&lt;-</span> <span class="n">get</span>
+      <span class="k">match</span> <span class="n">msg.isStrLit</span><span class="bp">?</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">throwError</span> <span class="s2">"Desired message must be a string, but got {msg}"</span>
+      <span class="bp">|</span> <span class="n">some</span> <span class="n">desiredError</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+        <span class="n">try</span>
+          <span class="n">elabCommand</span> <span class="n">cmd</span>
+          <span class="k">let</span> <span class="n">afterState</span> <span class="bp">&lt;-</span> <span class="n">get</span>
+          <span class="k">let</span> <span class="n">lengthDifference</span> <span class="o">:=</span> <span class="n">afterState.messages.msgs.size</span> <span class="bp">-</span> <span class="n">savedState.messages.msgs.size</span>
+          <span class="k">let</span> <span class="n">newMessages</span> <span class="o">:=</span> <span class="n">afterState.messages.msgs.getN</span><span class="bp">!</span> <span class="n">lengthDifference</span>
+          <span class="k">let</span> <span class="n">newErrors</span> <span class="o">:=</span> <span class="n">newMessages.filter</span> <span class="k">fun</span> <span class="n">m</span> <span class="bp">=&gt;</span> <span class="n">m.severity</span> <span class="bp">==</span> <span class="n">MessageSeverity.error</span>
+          <span class="k">let</span> <span class="n">errStrings</span> <span class="bp">&lt;-</span> <span class="n">newErrors.mapM</span> <span class="k">fun</span> <span class="n">err</span> <span class="bp">=&gt;</span> <span class="n">err.data.toString</span>
+          <span class="n">unless</span> <span class="n">errStrings.contains</span> <span class="n">desiredError</span> <span class="k">do</span>
+            <span class="n">throwError</span> <span class="s2">"The desired error {desiredError} was not found in</span><span class="se">\n</span><span class="s2">{errStrings}"</span>
+        <span class="n">finally</span>
+          <span class="n">set</span> <span class="n">savedState</span>
+
+<span class="n">expect</span> <span class="n">error</span>
+  <span class="kd">def</span> <span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="s2">"I am not a Nat"</span>
+<span class="n">message</span>
+<span class="s2">"type mismatch</span>
+<span class="s2">  </span><span class="se">\"</span><span class="s2">I am not a Nat</span><span class="se">\"</span><span class="s2"></span>
+<span class="s2">has type</span>
+<span class="s2">  String : Type</span>
+<span class="s2">but is expected to have type</span>
+<span class="s2">  Nat : Type"</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="278419804"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278419804" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278419804">(Apr 09 2022 at 17:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="354934">David Thrane Christiansen</span> <a href="#narrow/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages/near/278412091">said</a>:</p>
+<blockquote>
+<p>Also, is there something like Python's triple-quoted strings to avoid escaping quotes in the message? This is all going to be slurped through some regexp nonsense that I'd like to keep simple if possible :-)</p>
+</blockquote>
+<p>I believe the primary purpose of triple-quoted strings in Python is to enable multi-line literals, which is already the case for standard string literals in Lean. So I'd rather like to see "raw" string literals (which Python also has) that also disable other escape characters. There was a little prior discussion in <a href="https://github.com/leanprover/lean4/issues/407">https://github.com/leanprover/lean4/issues/407</a>.</p>
+
+
+
+<a name="278422084"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278422084" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278422084">(Apr 09 2022 at 17:52)</a>:</h4>
+<p>Multi-line literals are nice, but another effect of triple-quoted strings in Python is that single quotes don't automatically terminate the string. For instance:</p>
+<div class="codehilite" data-code-language="Python"><pre><span></span><code><span class="o">&gt;&gt;&gt;</span> <span class="s2">"""Strings are "great", right?"""</span>
+<span class="s1">'Strings are "great", right?'</span>
+</code></pre></div>
+<p>There's some corner cases when the quote is the last character in the string, but it is still useful in many cases for multi-line strings that contain string literals.</p>
+
+
+
+<a name="278453810"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278453810" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278453810">(Apr 10 2022 at 07:34)</a>:</h4>
+<p>Right, but this can also be true for raw string literals (e.g. Rust's), which are a more general solution to the problem of embedding a string literally</p>
+
+
+
+<a name="278455606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/278455606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#278455606">(Apr 10 2022 at 08:22)</a>:</h4>
+<p>That's true, and the "add more <code>#</code>s" solution is a nice one.</p>
+
+
+
+<a name="292144168"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292144168" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292144168">(Aug 05 2022 at 12:05)</a>:</h4>
+<p>Is there any progress on the question of triple-quoted strings? Is there any term elaborator that could do that? The syntax doesn't have to be the same as in python, but the effect would be that we have multiline line strings where you can put as many <code>"</code> or <code>'</code> as you want without escaping.</p>
+
+
+
+<a name="292144980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292144980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292144980">(Aug 05 2022 at 12:13)</a>:</h4>
+<p>I created a separate issue at least: <a href="https://github.com/leanprover/lean4/issues/1422">https://github.com/leanprover/lean4/issues/1422</a><br>
+Feel free to upvote important issues I'd say, we could use that for prioritization</p>
+
+
+
+<a name="292145331"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292145331" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292145331">(Aug 05 2022 at 12:17)</a>:</h4>
+<p>Thanks, I upvoted!</p>
+
+
+
+<a name="292157932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292157932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddhartha Gadgil <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292157932">(Aug 05 2022 at 14:03)</a>:</h4>
+<p>Just today I wanted this and had to use a lot of escaped quotes.</p>
+
+
+
+<a name="292188797"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292188797" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292188797">(Aug 05 2022 at 18:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="354934">@David Thrane Christiansen</span> <br>
+<span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages/near/278412561">said</a>:</p>
+<blockquote>
+<blockquote>
+<p>It looks like the removal of traverse and its replacement with forM a while back makes let mut and for ... in  mandatory here, whereas my Haskell-loving self would normally have wanted to first calculate the list of strings using traverse and then done a separate check for membership, rather than having to interleave them as I did above. Am I missing something about that?</p>
+</blockquote>
+<p>You can also write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>          <span class="k">let</span> <span class="n">errStrings</span> <span class="bp">←</span> <span class="n">newErrors.mapM</span> <span class="k">fun</span> <span class="n">err</span> <span class="bp">=&gt;</span> <span class="n">err.data.toString</span>
+          <span class="n">unless</span> <span class="n">errStrings.contains</span> <span class="n">desiredError</span> <span class="k">do</span>
+            <span class="n">throwError</span> <span class="s2">"The desired error {desiredError} was not found in</span><span class="se">\n</span><span class="s2">{errStrings.reverse}"</span>
+</code></pre></div>
+<p>It seems closer to what you want.</p>
+</blockquote>
+<p>Sorry for resuscitating an old discussion, but the Haskell-esque solution is much less efficient in Lean, right? (Since Lean, unless I am mistaken, lacks list fusion). That is, the conventional imperative approach only iterates through the list once, but the functional version loops through it twice.</p>
+
+
+
+<a name="292188972"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macro%20for%20testing%20error%20messages/near/292188972" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Thrane Christiansen <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macro.20for.20testing.20error.20messages.html#292188972">(Aug 05 2022 at 18:07)</a>:</h4>
+<p>You're absolutely right about that. These lists typically contain 2-3 elements at most, so I'm not particularly concerned here, but in other contexts it could matter quite a bit.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

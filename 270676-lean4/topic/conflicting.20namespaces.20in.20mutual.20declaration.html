@@ -1,0 +1,97 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/conflicting.20namespaces.20in.20mutual.20declaration.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/conflicting.20namespaces.20in.20mutual.20declaration.html">conflicting namespaces in mutual declaration</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="288853341"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/conflicting%20namespaces%20in%20mutual%20declaration/near/288853341" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrés Goens <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/conflicting.20namespaces.20in.20mutual.20declaration.html#288853341">(Jul 07 2022 at 19:20)</a>:</h4>
+<p>Is there some fundamental reason why we can't mix namespaces in mutually-recursive functions?</p>
+<p>As an example (MWE), if I have mutually recursive types:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+<span class="kd">inductive</span> <span class="n">Foo</span>
+ <span class="bp">|</span> <span class="n">somefoo</span> <span class="o">:</span> <span class="n">Foo</span>
+ <span class="bp">|</span> <span class="n">bar</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+ <span class="bp">|</span> <span class="n">somebar</span> <span class="o">:</span> <span class="n">Bar</span>
+ <span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>and want to define some functions on them, say</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+<span class="kd">def</span> <span class="n">Foo.ToString</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">String</span>
+<span class="bp">|</span> <span class="n">Foo.somefoo</span> <span class="bp">=&gt;</span> <span class="s2">"foo"</span>
+<span class="bp">|</span> <span class="n">Foo.bar</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">Bar.toString</span> <span class="n">b</span>
+
+<span class="kd">def</span> <span class="n">Bar.ToString</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">String</span>
+<span class="bp">|</span> <span class="n">Bar.somebar</span> <span class="bp">=&gt;</span> <span class="s2">"bar"</span>
+<span class="bp">|</span> <span class="n">Bar.foobar</span> <span class="n">f</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">Foo.toString</span> <span class="n">f</span><span class="o">)</span> <span class="bp">++</span> <span class="o">(</span><span class="n">Bar.toString</span> <span class="n">b</span><span class="o">)</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Then Lean complains: <code>conflicting namespaces in mutual declaration, using namespace 'Bar', but used 'Foo' in previous declaration</code></p>
+<p>I know that I could solve that easily for this example (and my real-use case), by splitting it up into two "phases":</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+<span class="kd">def</span> <span class="n">fooToString</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">String</span>
+  <span class="bp">|</span> <span class="n">Foo.somefoo</span> <span class="bp">=&gt;</span> <span class="s2">"foo"</span>
+  <span class="bp">|</span> <span class="n">Foo.bar</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">barToString</span> <span class="n">b</span>
+
+<span class="kd">def</span> <span class="n">barToString</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">String</span>
+  <span class="bp">|</span> <span class="n">Bar.somebar</span> <span class="bp">=&gt;</span> <span class="s2">"bar"</span>
+  <span class="bp">|</span> <span class="n">Bar.foobar</span> <span class="n">f</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">fooToString</span> <span class="n">f</span><span class="o">)</span> <span class="bp">++</span> <span class="o">(</span><span class="n">barToString</span> <span class="n">b</span><span class="o">)</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">Foo.toString</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">fooToString</span>
+<span class="kd">def</span> <span class="n">Bar.toString</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">barToString</span>
+</code></pre></div>
+<p>My question is wether there's any reason (e.g. type-theoretical) why this is difficult for the general case, i.e. why Lean won't support it, or is it "just" busywork to define e.g. a hygenic expansion that does something like this?</p>
+
+
+
+<a name="288877156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/conflicting%20namespaces%20in%20mutual%20declaration/near/288877156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/conflicting.20namespaces.20in.20mutual.20declaration.html#288877156">(Jul 07 2022 at 23:02)</a>:</h4>
+<p>In Lean, <code>def Foo.bla ...</code> is expanded to <code>namespace Foo def bla ...  end Foo</code>. When we defined <code>mutual</code> commands, we wanted to keep the same semantics. This is where the restriction came from. <code>mutual</code> is an atomic command in Lean. To correctly support your example, we would have to simulate the <code>namespace</code> command in the <code>mutual</code>. This is doable, and it will happen in the future. <br>
+In the meantime, one can use the new <code>_root_</code> modifier as a workaround. It is not perfect since the namespace <code>Bar</code> will not be open at <code>Bar.Foo</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">mutual</span>
+<span class="kd">inductive</span> <span class="n">Foo</span>
+ <span class="bp">|</span> <span class="n">somefoo</span> <span class="o">:</span> <span class="n">Foo</span>
+ <span class="bp">|</span> <span class="n">bar</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Foo</span>
+
+<span class="kd">inductive</span> <span class="n">Bar</span>
+ <span class="bp">|</span> <span class="n">somebar</span> <span class="o">:</span> <span class="n">Bar</span>
+ <span class="bp">|</span> <span class="n">foobar</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">Bar</span>
+<span class="kd">end</span>
+
+<span class="kd">mutual</span>
+  <span class="kd">def</span> <span class="n">Foo.toString</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">String</span>
+    <span class="bp">|</span> <span class="n">Foo.somefoo</span> <span class="bp">=&gt;</span> <span class="s2">"foo"</span>
+    <span class="bp">|</span> <span class="n">Foo.bar</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">b.toString</span>
+
+  <span class="kd">def</span> <span class="n">_root_.Bar.toString</span> <span class="o">:</span> <span class="n">Bar</span> <span class="bp">→</span> <span class="n">String</span>
+    <span class="bp">|</span> <span class="n">Bar.somebar</span> <span class="bp">=&gt;</span> <span class="s2">"bar"</span>
+    <span class="bp">|</span> <span class="n">Bar.foobar</span> <span class="n">f</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">f.toString</span> <span class="bp">++</span> <span class="n">b.toString</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="288877365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/conflicting%20namespaces%20in%20mutual%20declaration/near/288877365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/conflicting.20namespaces.20in.20mutual.20declaration.html#288877365">(Jul 07 2022 at 23:05)</a>:</h4>
+<p>BTW, the example above requires the following fix pushed today <a href="https://github.com/leanprover/lean4/commit/fce7697151475aef7d46ebba052952e2148e77a4">https://github.com/leanprover/lean4/commit/fce7697151475aef7d46ebba052952e2148e77a4</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

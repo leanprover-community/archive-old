@@ -1,0 +1,106 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Testing.20commands.20help.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Testing.20commands.20help.html">Testing commands help</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="303499472"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Testing%20commands%20help/near/303499472" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Josh Clune <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Testing.20commands.20help.html#303499472">(Oct 11 2022 at 18:51)</a>:</h4>
+<p>Hello,</p>
+<p>I'm trying to figure out the best approach for testing a command that I've been working on. Specifically, I'm interested in measuring speed and viewing the outputs of the command on a large number of tests. The two main approaches I'm considering are compiling an executable that will run the command or writing a lake script that will run/test the command. But I've been having trouble figuring out how to get either approach to work.</p>
+<p>For the first approach, I just can't seem to figure out how to invoke the command from IO. I know that for testing TacticM, TermElabM, MetaM, and CoreM functions, there are .run and .run' functions that let me do things like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean.Elab.Tactic</span>
+
+<span class="kd">def</span> <span class="n">metaMFunction</span> <span class="o">:</span> <span class="n">Lean.MetaM</span> <span class="n">String</span> <span class="o">:=</span> <span class="n">return</span> <span class="s2">"hi"</span>
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">UInt32</span> <span class="o">:=</span> <span class="k">fun</span> <span class="n">args</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="o">:</span> <span class="n">Lean.Environment</span> <span class="bp">←</span> <span class="n">Lean.mkEmptyEnvironment</span>
+  <span class="k">let</span> <span class="n">fileName</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="k">let</span> <span class="n">fileMap</span> <span class="o">:</span> <span class="n">FileMap</span> <span class="o">:=</span> <span class="gr">sorry</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">s</span><span class="o">,</span> <span class="n">_</span><span class="o">)</span> <span class="bp">←</span> <span class="n">metaMFunction.run'.toIO</span> <span class="o">{</span><span class="n">fileName</span><span class="o">,</span> <span class="n">fileMap</span><span class="o">}</span> <span class="o">{</span><span class="n">env</span><span class="o">}</span>
+  <span class="n">IO.println</span> <span class="n">s</span>
+  <span class="n">return</span> <span class="mi">0</span>
+</code></pre></div>
+<p>Is there anything analogous for CommandElabM? Likewise, if I'm defining a command via a macro, is there anything analogous for MacroM?</p>
+<p>For the second approach, I've had a bit more success writing a script in my lakefile:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lake</span>
+
+<span class="kn">open</span> <span class="n">Lake</span> <span class="n">DSL</span>
+
+<span class="n">package</span> <span class="n">Duper</span> <span class="o">{</span>
+  <span class="n">precompileModules</span> <span class="o">:=</span> <span class="n">true</span>
+<span class="o">}</span>
+
+<span class="n">lean_lib</span> <span class="n">Duper</span>
+
+<span class="kd">@[defaultTarget]</span>
+<span class="n">lean_exe</span> <span class="n">defaultExe</span> <span class="o">{</span>
+  <span class="n">root</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Main</span>
+<span class="o">}</span>
+
+<span class="kn">open</span> <span class="n">Std</span>
+<span class="kn">open</span> <span class="n">System</span>
+
+<span class="kd">def</span> <span class="n">runTest</span> <span class="o">(</span><span class="n">lean</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">(</span><span class="n">leanPath</span> <span class="o">:</span> <span class="n">SearchPath</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">test</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">UInt32</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">IO.println</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"Start : {test}"</span>
+  <span class="k">let</span> <span class="n">out</span> <span class="bp">←</span> <span class="n">IO.Process.output</span> <span class="o">{</span>
+    <span class="n">cmd</span> <span class="o">:=</span> <span class="n">lean.toString</span>
+    <span class="n">args</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[</span><span class="n">test.toString</span><span class="o">],</span>
+    <span class="n">env</span> <span class="o">:=</span> <span class="bp">#</span><span class="o">[(</span><span class="s2">"LEAN_PATH"</span><span class="o">,</span> <span class="n">leanPath.toString</span><span class="o">)]</span>
+  <span class="o">}</span>
+  <span class="c1">-- I can run whatever tests I want to check that out.stderr and out.stdout are as I want</span>
+  <span class="n">return</span> <span class="mi">0</span>
+
+<span class="sd">/--</span>
+<span class="sd">Run tests.</span>
+<span class="sd">USAGE:</span>
+<span class="sd">  lake script run test</span>
+<span class="sd">Run tests.</span>
+<span class="sd">-/</span>
+<span class="n">script</span> <span class="n">test</span> <span class="n">args</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">lean</span> <span class="bp">←</span> <span class="n">getLean</span>
+  <span class="k">let</span> <span class="n">leanPath</span> <span class="bp">←</span> <span class="n">getAugmentedLeanPath</span>
+  <span class="k">let</span> <span class="n">task</span> <span class="bp">←</span> <span class="n">IO.asTask</span> <span class="o">(</span><span class="n">runTest</span> <span class="n">lean</span> <span class="n">leanPath</span> <span class="n">args</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="bp">!</span><span class="o">)</span>
+  <span class="k">let</span> <span class="n">code</span> <span class="bp">←</span> <span class="n">IO.ofExcept</span> <span class="n">task.get</span>
+  <span class="n">return</span> <span class="n">code</span>
+</code></pre></div>
+<p>Although this mostly works in that <code>lake script run test</code> does basically what I want, I've found that with my current setup, the script test does not appear to be using precompiled modules. Since I'm interested in measuring speed (and since my command is sensitive to the heartbeat differences that arise when using or not using precompiled modules), this code doesn't quite do what I need it to. Is there some way to modify this code/approach to make sure that the precompiled modules are used?</p>
+<p>Alternatively, if there's some other better way of testing commands, I would be totally open to that as well. Thanks!</p>
+
+
+
+<a name="303512017"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Testing%20commands%20help/near/303512017" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Testing.20commands.20help.html#303512017">(Oct 11 2022 at 20:10)</a>:</h4>
+<p>Sorry, what do you mean by "test commands"?<br>
+<a href="https://en.wikipedia.org/wiki/XY_problem">#xy</a>: have you seen LSpec? <a href="https://github.com/yatima-inc/LSpec">https://github.com/yatima-inc/LSpec</a></p>
+
+
+
+<a name="303519962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Testing%20commands%20help/near/303519962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Josh Clune <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Testing.20commands.20help.html#303519962">(Oct 11 2022 at 21:04)</a>:</h4>
+<p>Ah, sorry I wasn't really clear. I'm working on a command that takes a filepath and proof as input, parses the corresponding file, builds a goal, tries to prove said goal with the input proof, and then uses Lean.logInfo to print some stuff. </p>
+<p>If I write this command in some file <code>ex.lean</code>, then I can see the output either by viewing it in VSCode or by running <code>lake env lean ex.lean</code>. However, viewing output in VSCode doesn't let me easily run the command many times and see all the outputs/timings at once, and <code>lake env lean ex.lean</code> currently has the same issue my script file does that it will run the command without precompiled modules turned on.</p>
+<p>So at the end of the day, when I say test my command I mean I want to be able to run my command a bunch of times on various inputs and see the resulting outputs, and I want to do this in such a way that when the command is run, it is run with precompiled modules.</p>
+<p>I haven't seen LSpec before, and it seems interesting (thanks for the link), but I think the problem it's trying to solve is different from the problem I'm currently having.</p>
+<p>Edit: Also, if possible, I'm trying to do this in such a way that I not only can see the outputs, but I can run various tests/checks on the outputs in Lean automatically (e.g. at the end of runTest in the lakefile I provided) rather than having to do that separately.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,96 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/.60decide.60.20and.20recursion.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html">`decide` and recursion</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="277157782"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%60decide%60%20and%20recursion/near/277157782" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julien Marquet <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html#277157782">(Mar 30 2022 at 14:57)</a>:</h4>
+<p>I'm working on a project that is more computer science than math, and that involves some calculation that I would like to automate<br>
+I tried to make my properties decidable and my functions computable, but it seems like I hit a wall when I tried to <code>decide</code> propositions involving nontrivial recursive definitions. Here's a mwe:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">fac</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+<span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+<span class="bp">|</span> <span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=&gt;</span> <span class="o">(</span><span class="n">n</span> <span class="bp">+</span> <span class="mi">1</span><span class="o">)</span> <span class="bp">*</span> <span class="n">fac</span> <span class="n">n</span>
+
+<span class="c1">-- This one computes just well</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">fac</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">2</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">decide</span>
+
+<span class="c1">-- (adapted from `lean4/tests/lean/termination_by2`)</span>
+<span class="kd">def</span> <span class="n">f</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="k">match</span> <span class="n">n</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">1</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">n</span> <span class="bp">*</span> <span class="mi">3</span>
+<span class="n">termination_by</span>
+  <span class="n">f</span> <span class="n">n</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+
+<span class="c1">-- `decide` can't compute that :'(</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">9</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">decide</span>
+
+<span class="c1">-- But it's still true and `simp` knows it</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">9</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">f</span><span class="o">]</span>
+</code></pre></div>
+<p>I guess the problem comes from the way general recursive definitions are handled (I think I've read here there is some kernel magic at work for these), and it looks like it has a lot to do with code generation, which is not implemented yet.</p>
+<p>Is there a way to work around it ? I thought about using <code>simp</code> more and writing a lot of <code>simp</code> lemmas, but I was wondering if there was a more natural way</p>
+<p>I was also wondering if there was some tactic that could deeply reduce a term that still contains free variables, some kind of mix between <code>simp</code> and <code>decide</code>, like a <code>dsimp</code> (that would go further than <code>simp</code> but would still be general enough to handle free variables) -- but maybe that's what "simp and a lot of simp lemmas" is intended for</p>
+
+
+
+<a name="277163105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%60decide%60%20and%20recursion/near/277163105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html#277163105">(Mar 30 2022 at 15:34)</a>:</h4>
+<p><code>f</code> is defined using well-founded recursion. Lean elaborator does not reduce this kind of definition by default because it is too expensive. There are two possible workarounds.<br>
+1- use the <code>with_unfolding_all</code> tactic to force Lean to do it.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">9</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">with_unfolding_all</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>We have the macro <code>rfl'</code>. So, you can also write</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">9</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rfl'</span>
+</code></pre></div>
+<p>This only scales for small examples.<br>
+2- use the <code>nativeDecide</code> tactic. This tactic uses the code generator and interpreter to check whether functions that evaluate a <code>Bool</code> reduce to <code>true</code>. We suggest you use it for tests only since it dramatically increases the size of the trusted code base (it will now include the compiler and interpreter too).</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">f</span> <span class="mi">2</span> <span class="bp">==</span> <span class="mi">9</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">nativeDecide</span>  <span class="c1">-- Note that I used `==` because `nativeDecide` is for Booleans.</span>
+<span class="c1">-- we can also write</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="o">(</span><span class="n">f</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">9</span><span class="o">)</span> <span class="bp">=</span> <span class="n">true</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">nativeDecide</span>
+</code></pre></div>
+
+
+
+<a name="277163244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%60decide%60%20and%20recursion/near/277163244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html#277163244">(Mar 30 2022 at 15:35)</a>:</h4>
+<p>BTW, we forgot to apply the new naming conventions to <code>nativeDecide</code>. I will rename it <code>native_decide</code>, and the change should be available in the next nightly build.</p>
+
+
+
+<a name="277214058"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%60decide%60%20and%20recursion/near/277214058" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html#277214058">(Mar 30 2022 at 23:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> Although there is no real interface for listing registered tactics, the following will report the initial tokens expected when parsing <code>tactic</code> category:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">MetaM</span> <span class="n">_</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="n">for</span> <span class="o">(</span><span class="n">tk</span><span class="o">,</span> <span class="n">ps</span><span class="o">)</span> <span class="k">in</span> <span class="k">show</span> <span class="n">Std.RBMap</span> <span class="bp">..</span> <span class="k">from</span>
+      <span class="o">(</span><span class="n">Parser.parserExtension.getState</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">))</span><span class="bp">.</span><span class="n">categories.find</span><span class="bp">!</span> <span class="bp">`</span><span class="n">tactic</span> <span class="bp">|&gt;.</span><span class="n">tables.leadingTable</span> <span class="k">do</span>
+    <span class="n">dbg_trace</span> <span class="s2">"{tk}"</span>
+</code></pre></div>
+<p>From which I deduce that other than <code>nativeDecide</code>, the only remaining camel case tactic is <code>eraseAuxDiscrs!</code>.</p>
+
+
+
+<a name="277214175"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/%60decide%60%20and%20recursion/near/277214175" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/.60decide.60.20and.20recursion.html#277214175">(Mar 30 2022 at 23:07)</a>:</h4>
+<p>Thanks. <br>
+We deleted <code>eraseAuxDiscrs!</code> yesterday. It is not needed anymore.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

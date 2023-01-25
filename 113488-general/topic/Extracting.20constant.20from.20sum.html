@@ -1,0 +1,361 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/Extracting.20constant.20from.20sum.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html">Extracting constant from sum</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="245621223"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621223" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621223">(Jul 11 2021 at 18:47)</a>:</h4>
+<p>Not sure what's going on here, sort of long MWE below, sorry for that.</p>
+<p>I am trying to make a simp attribute that puts mv_polynomials into a normal form which makes it easier to evaluate their coefficients. As a part of this, I want to rewrite expressions of the form <code>(∑ x in r, X s * f x)</code> into  <code>X s * (∑ x in r, f x)</code>. To do this, I make a lemma which is a straightforward application of the <code>finset.mul_sum</code> lemma.</p>
+<p>But when I do make this lemma, I get that the tactic fails due to not finding instance of pattern. Strangely, <code>&lt;-finset.mul_sum</code> itself works fine, but I'd rather this simplification be self-contained. (Is there a way to add <code>&lt;-lemma</code> to a simp attribute?)</p>
+<p>Am I making a dumb mistake here? What is the issue? I have tried <code>set_option pp.notation false</code> and <code>set_option pp.implicit true</code> but they make the output to verbose to read.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.mv_polynomial.basic</span>
+<span class="kn">import</span> <span class="n">algebra.polynomial.big_operators</span>
+
+<span class="n">open_locale</span> <span class="n">big_operators</span> <span class="n">classical</span>
+
+<span class="kn">section</span>
+
+<span class="kn">open</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">noncomputable theory</span>
+
+
+
+<span class="kd">universes</span> <span class="n">u</span>
+
+<span class="kd">parameter</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">parameter</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span>
+
+<span class="kn">namespace</span> <span class="n">mv_polynomial</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">e</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">σ</span><span class="o">}</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→₀</span> <span class="n">ℕ</span><span class="o">}</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">}</span>
+
+
+
+<span class="kd">@[derive decidable_eq]</span>
+<span class="kd">inductive</span> <span class="n">vars</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">α</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">β</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">γ</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">δ</span> <span class="o">:</span> <span class="n">vars</span>
+
+<span class="kd">run_cmd</span> <span class="n">mk_simp_attr</span> <span class="bp">`</span><span class="n">polynomial_nf</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.add_doc_string</span> <span class="bp">`</span><span class="n">simp_attr.polynomial_nf</span> <span class="s2">"Attribute for lemmas that are used in the conversion of mv_polynomial expressions to a normal form"</span>
+
+<span class="kd">@[polynomial_nf]</span>
+<span class="kd">lemma</span> <span class="n">sum_X_mul</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">r</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">}</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">r</span><span class="o">,</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">r</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span>
+<span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">finset.mul_sum</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="c1">-- set_option pp.notation false</span>
+<span class="c1">-- set_option pp.implicit true</span>
+
+<span class="kd">lemma</span> <span class="n">foo</span> <span class="o">:</span>
+  <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">)</span> <span class="k">in</span> <span class="n">finset.fin_range</span> <span class="mi">3</span><span class="o">,</span>
+    <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+    <span class="bp">*</span> <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+  <span class="bp">=</span>
+  <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+  <span class="bp">*</span> <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">4</span><span class="o">)</span> <span class="k">in</span> <span class="n">finset.fin_range</span> <span class="mi">4</span><span class="o">,</span>
+    <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+   <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="c1">-- simp only with polynomial_nf, -- failed to simplify</span>
+  <span class="n">rw</span> <span class="n">sum_X_mul</span><span class="o">,</span> <span class="c1">-- rewrite tactic failed, did not find instance of the pattern</span>
+  <span class="c1">-- rw &lt;-finset.mul_sum, -- works fine</span>
+  <span class="c1">-- simp only [&lt;-finset.mul_sum], -- works fine</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="245621409"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621409" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621409">(Jul 11 2021 at 18:52)</a>:</h4>
+<p><code>simp</code> is a rewrite system. It doesn't choose which way to rewrite -- if it could go in both directions it would loop. It only ever rewrites the LHS of a simp lemma into the RHS</p>
+
+
+
+<a name="245621432"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621432" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621432">(Jul 11 2021 at 18:53)</a>:</h4>
+<p>Yes, which is why I put the form I wanted on the right side in the lemma I made. There is no way for it to loop here</p>
+
+
+
+<a name="245621509"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621509" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621509">(Jul 11 2021 at 18:55)</a>:</h4>
+<p>Oh ok sorry, I misunderstood your use of &lt;- in your question</p>
+
+
+
+<a name="245621524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621524">(Jul 11 2021 at 18:55)</a>:</h4>
+<p>Indeed, as you can see, putting simp aside entirely, <code>rw &lt;-finset.mul_sum</code> works but <code>rw sum_X_mul</code> does not. I am wondering why this is the case.</p>
+
+
+
+<a name="245621589"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621589" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621589">(Jul 11 2021 at 18:57)</a>:</h4>
+<p>Try making the <code>r</code> and <code>f</code> explicit args, and supplying them in the rw.</p>
+
+
+
+<a name="245621594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621594">(Jul 11 2021 at 18:57)</a>:</h4>
+<p>Then find where removing them leads to breakage</p>
+
+
+
+<a name="245621741"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621741" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621741">(Jul 11 2021 at 19:01)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">type</span> <span class="n">mismatch</span> <span class="n">at</span> <span class="n">application</span>
+  <span class="n">mv_polynomial.sum_X_mul</span> <span class="o">(</span><span class="n">finset.fin_range</span> <span class="mi">3</span><span class="o">)</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">),</span> <span class="bp">⇑</span><span class="n">C</span> <span class="bp">↑</span><span class="n">i</span><span class="o">)</span>
+<span class="n">term</span>
+  <span class="bp">λ</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">),</span> <span class="bp">⇑</span><span class="n">C</span> <span class="bp">↑</span><span class="n">i</span>
+<span class="n">has</span> <span class="n">type</span>
+  <span class="n">fin</span> <span class="mi">3</span> <span class="bp">→</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span>
+<span class="n">but</span> <span class="n">is</span> <span class="n">expected</span> <span class="n">to</span> <span class="k">have</span> <span class="n">type</span>
+  <span class="n">fin</span> <span class="mi">3</span> <span class="bp">→</span> <span class="n">mv_polynomial</span> <span class="bp">?</span><span class="n">m_1</span> <span class="bp">?</span><span class="n">m_2</span> <span class="o">:</span> <span class="kt">Type</span> <span class="bp">?</span>
+</code></pre></div>
+<p>Is it a universe issue?</p>
+
+
+
+<a name="245621802"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621802" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621802">(Jul 11 2021 at 19:02)</a>:</h4>
+<p>Are you explicitly writing coercion arrows?</p>
+
+
+
+<a name="245621894"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245621894" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245621894">(Jul 11 2021 at 19:03)</a>:</h4>
+<p>No, the above is the copy-pasted error message when I start putting in the arguments. this is what I wrote</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">foo</span> <span class="o">:</span>
+  <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">)</span> <span class="k">in</span> <span class="n">finset.fin_range</span> <span class="mi">3</span><span class="o">,</span>
+    <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+    <span class="bp">*</span> <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+  <span class="bp">=</span>
+  <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+  <span class="bp">*</span> <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">4</span><span class="o">)</span> <span class="k">in</span> <span class="n">finset.fin_range</span> <span class="mi">4</span><span class="o">,</span>
+    <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+   <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="c1">-- simp only with polynomial_nf, -- failed to simplify</span>
+  <span class="n">rw</span> <span class="n">sum_X_mul</span> <span class="o">(</span><span class="n">finset.fin_range</span> <span class="mi">3</span><span class="o">)</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))),</span>
+  <span class="c1">-- rewrite tactic failed, did not find instance of the pattern</span>
+  <span class="c1">-- rw &lt;-finset.mul_sum, -- works fine</span>
+  <span class="c1">-- simp only [&lt;-finset.mul_sum], -- works fine</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="245622039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622039">(Jul 11 2021 at 19:06)</a>:</h4>
+<p>Ah, so rewrite works up to syntactic equality usually.</p>
+
+
+
+<a name="245622112"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622112" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622112">(Jul 11 2021 at 19:08)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.mv_polynomial.basic</span>
+<span class="kn">import</span> <span class="n">algebra.polynomial.big_operators</span>
+
+<span class="n">open_locale</span> <span class="n">big_operators</span> <span class="n">classical</span>
+
+<span class="kn">section</span>
+
+<span class="kn">open</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">noncomputable theory</span>
+
+<span class="kd">universes</span> <span class="n">u</span>
+
+<span class="kd">parameter</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">parameter</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span>
+
+<span class="kn">namespace</span> <span class="n">mv_polynomial</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">e</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">σ</span><span class="o">}</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→₀</span> <span class="n">ℕ</span><span class="o">}</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">}</span>
+
+<span class="kd">@[derive decidable_eq]</span>
+<span class="kd">inductive</span> <span class="n">vars</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">α</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">β</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">γ</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">δ</span> <span class="o">:</span> <span class="n">vars</span>
+
+<span class="kd">lemma</span> <span class="n">sum_X_mul</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span><span class="o">,</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="n">finset.mul_sum</span>
+
+<span class="kd">lemma</span> <span class="n">foo</span> <span class="o">:</span>
+  <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">),</span>
+    <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+    <span class="bp">*</span> <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+  <span class="bp">=</span>
+  <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+  <span class="bp">*</span> <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">4</span><span class="o">),</span>
+    <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+   <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="c1">-- ∑ (i : fin 3), X vars.γ * ⇑C ↑i = X vars.γ * ∑ (i : fin 4), ⇑C ↑i</span>
+  <span class="n">rw</span> <span class="n">sum_X_mul</span> <span class="o">(</span><span class="n">mv_polynomial.C</span><span class="o">)</span> <span class="n">vars.γ</span><span class="o">,</span>
+  <span class="c1">-- rewrite tactic failed, did not find instance of the pattern in the target expression</span>
+  <span class="c1">-- ∑ (x : ?m_1), X vars.γ * ⇑C x</span>
+  <span class="c1">-- notice that here `x` is without a coercion arrow</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="245622118"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622118" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622118">(Jul 11 2021 at 19:08)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="n">simp</span> <span class="o">[</span><span class="n">sum_X_mul</span> <span class="o">(</span><span class="n">mv_polynomial.C</span><span class="o">)</span> <span class="n">vars.γ</span><span class="o">],</span>
+<span class="bp">```</span> <span class="n">will</span> <span class="n">work</span>
+</code></pre></div>
+
+
+
+<a name="245622182"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622182" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622182">(Jul 11 2021 at 19:10)</a>:</h4>
+<p>Ah, was the issue that I was conflating finset with fintype?</p>
+
+
+
+<a name="245622234"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622234" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622234">(Jul 11 2021 at 19:12)</a>:</h4>
+<p>No, I was just simplifying the lemma requirements. The issue is that your statement has <code>⇑C ↑i</code> but rw is looking for <code>⇑C i</code>. They are not syntactically the same.</p>
+
+
+
+<a name="245622295"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622295" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622295">(Jul 11 2021 at 19:14)</a>:</h4>
+<p>Ok, but none of this solves my problem of wanting to include this in a simp attribute, it seems. It still doesn't work as <code>rw sum_X_mul</code></p>
+
+
+
+<a name="245622806"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622806" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622806">(Jul 11 2021 at 19:29)</a>:</h4>
+<p>It also doesn't explain why sum_mul works but sum_X_mul doesn't.</p>
+
+
+
+<a name="245622925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/Extracting%20constant%20from%20sum/near/245622925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Bolton Bailey <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/Extracting.20constant.20from.20sum.html#245622925">(Jul 11 2021 at 19:33)</a>:</h4>
+<p>Here's the mwe again with mul_sum.symm dragged into the file as mul_sum_2. It works fine, but my lemma does not. Why?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.mv_polynomial.basic</span>
+<span class="kn">import</span> <span class="n">algebra.polynomial.big_operators</span>
+
+<span class="n">open_locale</span> <span class="n">big_operators</span> <span class="n">classical</span>
+
+<span class="kn">section</span>
+
+<span class="kn">open</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">noncomputable theory</span>
+
+
+
+<span class="kd">universes</span> <span class="n">u</span> <span class="n">v</span>
+
+<span class="kd">parameter</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">parameter</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span>
+
+<span class="kn">namespace</span> <span class="n">mv_polynomial</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">e</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">n</span> <span class="n">m</span> <span class="o">:</span> <span class="n">σ</span><span class="o">}</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→₀</span> <span class="n">ℕ</span><span class="o">}</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">R</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">comm_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">{</span><span class="n">p</span> <span class="n">q</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">}</span>
+
+
+
+<span class="kd">@[derive decidable_eq]</span>
+<span class="kd">inductive</span> <span class="n">vars</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="bp">|</span> <span class="n">α</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">β</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">γ</span> <span class="o">:</span> <span class="n">vars</span>
+<span class="bp">|</span> <span class="n">δ</span> <span class="o">:</span> <span class="n">vars</span>
+
+<span class="kd">run_cmd</span> <span class="n">mk_simp_attr</span> <span class="bp">`</span><span class="n">polynomial_nf</span>
+<span class="kd">run_cmd</span> <span class="n">tactic.add_doc_string</span> <span class="bp">`</span><span class="n">simp_attr.polynomial_nf</span> <span class="s2">"Attribute for lemmas that are used in the conversion of mv_polynomial expressions to a normal form"</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">{</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span>
+
+<span class="kn">namespace</span> <span class="n">finset</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">s₁</span> <span class="n">s₂</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">}</span> <span class="o">{</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">}</span>  <span class="o">{</span><span class="n">f</span> <span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">}</span>
+
+
+<span class="kn">section</span> <span class="n">semiring</span>
+<span class="kd">variables</span> <span class="o">[</span><span class="n">non_unital_non_assoc_semiring</span> <span class="n">β</span><span class="o">]</span>
+
+<span class="kd">lemma</span> <span class="n">mul_sum_2</span> <span class="o">:</span>
+ <span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">s₁</span><span class="o">,</span> <span class="n">b</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">x</span>
+  <span class="bp">=</span> <span class="n">b</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">s₁</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">finset.mul_sum.symm</span>
+
+
+<span class="kd">@[polynomial_nf]</span>
+<span class="kd">lemma</span> <span class="n">sum_X_mul</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">-&gt;</span> <span class="n">mv_polynomial</span> <span class="n">σ</span> <span class="n">R</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">σ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">s₁</span><span class="o">,</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">=</span> <span class="n">X</span> <span class="n">s</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∑</span> <span class="n">x</span> <span class="k">in</span> <span class="n">s₁</span><span class="o">,</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">rw</span> <span class="n">finset.mul_sum</span>
+
+
+<span class="c1">-- set_option pp.notation false</span>
+<span class="c1">-- set_option pp.implicit true</span>
+
+<span class="kd">lemma</span> <span class="n">foo</span> <span class="o">:</span>
+  <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">3</span><span class="o">),</span>
+    <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+    <span class="bp">*</span> <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+  <span class="bp">=</span>
+  <span class="n">mv_polynomial.X</span> <span class="n">vars.γ</span>
+  <span class="bp">*</span> <span class="bp">∑</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">fin</span> <span class="mi">4</span><span class="o">),</span>
+    <span class="o">((</span><span class="n">mv_polynomial.C</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span> <span class="o">:</span> <span class="n">mv_polynomial</span> <span class="n">vars</span> <span class="o">(</span><span class="n">polynomial</span> <span class="n">F</span><span class="o">))</span>
+   <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">sum_X_mul</span><span class="o">,</span> <span class="c1">-- fails</span>
+  <span class="c1">-- rw mul_sum_2, -- works</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">semiring</span>
+
+<span class="kd">end</span> <span class="n">finset</span>
+
+<span class="kd">end</span> <span class="n">mv_polynomial</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

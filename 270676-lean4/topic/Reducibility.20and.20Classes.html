@@ -1,0 +1,126 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Reducibility.20and.20Classes.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html">Reducibility and Classes</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="223659743"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223659743" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223659743">(Jan 22 2021 at 15:56)</a>:</h4>
+<p>Type class inference has changed drastically in Lean 4, with better and faster search algorithms. However, I found the following Lean 4 behavior surprising:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">P</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+
+<span class="kd">def</span> <span class="n">T</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">P</span> <span class="n">op</span><span class="o">]</span> <span class="o">:=</span> <span class="mi">0</span>
+
+<span class="kd">def</span> <span class="n">natAdd</span> <span class="o">:=</span> <span class="n">Nat.add</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">P</span> <span class="n">natAdd</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="k">#check</span> <span class="n">T</span> <span class="n">natAdd</span> <span class="c1">-- works</span>
+<span class="k">#check</span> <span class="n">T</span> <span class="n">Nat.add</span> <span class="c1">-- fails</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="n">reducible</span><span class="o">]</span> <span class="n">natAdd</span>
+
+<span class="k">#check</span> <span class="n">T</span> <span class="n">natAdd</span> <span class="c1">-- fails!?</span>
+<span class="k">#check</span> <span class="n">T</span> <span class="n">Nat.add</span> <span class="c1">-- fails!?</span>
+</code></pre></div>
+<p>In Lean 3 (after substituting <code>Nat</code> with <code>nat</code>), marking the definition reducible has the exact opposite effect where the last two checks both work. I would have expected at least the first check to continue working in Lean 4 after marking <code>natAdd</code> reducible. I can live with the last check failing but I prefer the Lean 3 behavior. What is the rationale for Lean 4's behavior?</p>
+
+
+
+<a name="223661264"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223661264" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223661264">(Jan 22 2021 at 16:07)</a>:</h4>
+<p>The current implementation assumes the reducibility settings do not change after the declaration is created. Note that the two checks succeed if you use </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[reducible]</span> <span class="kd">def</span> <span class="n">natAdd</span> <span class="o">:=</span> <span class="n">Nat.add</span>
+</code></pre></div>
+<p>We should generate an error if the user tries to change the reducibility annotation using</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">attribute</span> <span class="o">[</span><span class="n">reducible</span><span class="o">]</span> <span class="n">natAdd</span>
+</code></pre></div>
+<p>We are making this assumption because we don't want to spend time reconstructing all indices when reducibility settings are modified.<br>
+We index type class instances, simp lemmas, etc.</p>
+
+
+
+<a name="223666546"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223666546" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223666546">(Jan 22 2021 at 16:43)</a>:</h4>
+<p>Thank you Leo! That makes perfect sense!</p>
+<p>Is the following a variation on the same?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">A</span> <span class="o">(</span><span class="n">α</span><span class="o">)</span> <span class="n">where</span> <span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="kd">class</span> <span class="n">P</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">op</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+
+<span class="kd">def</span> <span class="n">T</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">P</span> <span class="n">x.op</span><span class="o">]</span> <span class="o">:=</span> <span class="mi">0</span>
+
+<span class="kd">class</span> <span class="n">Q</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="kt">Prop</span>
+
+<span class="kd">instance</span> <span class="n">instPOfQ</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">Q</span> <span class="n">x</span><span class="o">]</span> <span class="o">:</span> <span class="n">P</span> <span class="n">x.op</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="kd">def</span> <span class="n">x₁</span> <span class="o">:</span> <span class="n">A</span> <span class="n">Nat</span> <span class="n">where</span> <span class="n">op</span> <span class="o">:=</span> <span class="n">Nat.add</span>
+<span class="kd">instance</span> <span class="n">q₁</span> <span class="o">:</span> <span class="n">Q</span> <span class="n">x₁</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="kd">@[reducible]</span> <span class="kd">def</span> <span class="n">x₂</span> <span class="o">:</span> <span class="n">A</span> <span class="n">Nat</span> <span class="n">where</span> <span class="n">op</span> <span class="o">:=</span> <span class="n">Nat.add</span>
+<span class="kd">instance</span> <span class="n">q₂</span> <span class="o">:</span> <span class="n">Q</span> <span class="n">x₂</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+
+<span class="bp">#</span><span class="n">synth</span> <span class="n">P</span> <span class="o">(</span><span class="n">x₁.op</span><span class="o">)</span> <span class="c1">-- works</span>
+<span class="bp">#</span><span class="n">synth</span> <span class="n">P</span> <span class="o">(</span><span class="n">x₂.op</span><span class="o">)</span> <span class="c1">-- fails</span>
+
+<span class="k">#check</span> <span class="n">T</span> <span class="n">x₁</span> <span class="c1">-- works</span>
+<span class="k">#check</span> <span class="n">T</span> <span class="n">x₂</span> <span class="c1">-- fails</span>
+</code></pre></div>
+
+
+
+<a name="223667894"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223667894" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223667894">(Jan 22 2021 at 16:54)</a>:</h4>
+<p>Yes, it is. Your type class index contains an entry for <code>P x.op</code>. When you mark <code>x₂</code> as reducible, <code>P (x₂.op)</code> becomes <code>P Nat.add</code>. Then, when we ask the index for candidate instances for <code>P Nat.add</code>, we get none. <br>
+In Lean 3, the example above works because the index uses just the head symbol, <code>P</code> in this example.<br>
+The indexing data-structure for simp lemmas and instances work as follows:</p>
+<ul>
+<li>When adding a "key" to the index, we expand reducible constants.</li>
+<li>When searching the index for "candidates", we also expand "reducible" constants.</li>
+</ul>
+
+
+
+<a name="223668450"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223668450" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223668450">(Jan 22 2021 at 16:59)</a>:</h4>
+<p>BTW, we added an annotation to disable indexing on subterms. If you write </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">instance</span> <span class="n">instPOfQ</span> <span class="o">{</span><span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">A</span> <span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">Q</span> <span class="n">x</span><span class="o">]</span> <span class="o">:</span> <span class="n">P</span> <span class="o">(</span><span class="n">noindex</span><span class="bp">!</span> <span class="n">x.op</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨⟩</span>
+</code></pre></div>
+<p>Lean 4 will treat <code>x.op</code> as a wildcard, and the example above will succeed. The <code>noindex!</code> is just an annotation.<br>
+Of course, if one overuses <code>noindex!</code>, the indexing data structures will not filter potential candidates effectively and will impact performance.</p>
+
+
+
+<a name="223670951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/223670951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#223670951">(Jan 22 2021 at 17:17)</a>:</h4>
+<p>Thank you for the detailed explanation. I will need to rethink some of the ways I use classes in Lean 4.</p>
+<p>So far, <code>noindex!</code> works for porting Lean 3 code. Thanks for the tip!</p>
+
+
+
+<a name="231373056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/231373056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jason Gross <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#231373056">(Mar 22 2021 at 19:44)</a>:</h4>
+<p>Is it an oversight that <code>attribute [reducible]</code> is supported for structure fields, but <code>@[reducible]</code> is not?  (I think I just hit this as <a href="https://github.com/leanprover/lean4/issues/365">https://github.com/leanprover/lean4/issues/365</a> ?)</p>
+
+
+
+<a name="231396385"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Reducibility%20and%20Classes/near/231396385" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Reducibility.20and.20Classes.html#231396385">(Mar 22 2021 at 22:48)</a>:</h4>
+<p>(deleted)</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

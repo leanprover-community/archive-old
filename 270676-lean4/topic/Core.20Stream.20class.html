@@ -1,0 +1,459 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Core.20Stream.20class.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html">Core Stream class</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="321721593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321721593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321721593">(Jan 16 2023 at 21:41)</a>:</h4>
+<p>The core <code>Stream</code> class is intended to be usable in monadic code, but the return type of <code>Stream.next?</code> looks incorrect to me. Right now it returns <code>Option (value × stream)</code> but it should return <code>Option value × stream</code>. The idea is that <code>next?</code> could have side-effects even if there is no output, so it should update the stream state. For example, if a stream processes data from another input stream, it receives some data from the input but not enough to produce an output, returning <code>none</code> simply loses the partial data.</p>
+<p>Is there a better stream class elsewhere? Or is this a defect with the current <code>Stream</code> class?</p>
+
+
+
+<a name="321725005"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321725005" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321725005">(Jan 16 2023 at 22:13)</a>:</h4>
+<p>I think the class is okay as is. If a stream has a "partial-next" then I think it is difficult to describe what the output type of that partial result is, and it is better to just have a special (non-typeclass) method on the object to express that.</p>
+
+
+
+<a name="321727980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321727980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321727980">(Jan 16 2023 at 22:42)</a>:</h4>
+<p>I thought the idea of making <code>Stream</code> a class was to keep it lightweight but still usable in monadic code. There are definitely many monadic <code>StreamM</code> and even <code>StreamT</code> options, but that's what I'm trying to avoid. (Am I falling into an anti-pattern?)</p>
+<p>Since <code>Stream</code> is a pure class, <code>Stream.next?</code> can't have side-effects  on its own and so any "partial-next" would have to be stored in the stream state. It's the job of the user to work with the enclosing monad to keep track of the state change.</p>
+<p>My use case is with unicode normalization where it makes perfect sense to gradually process a string, especially inside monadic code like inside <code>IO</code>, but it makes little sense to add a layer the monad stack just for that.</p>
+
+
+
+<a name="321732121"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732121" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732121">(Jan 16 2023 at 23:30)</a>:</h4>
+<p>Note that <code>Stream</code> is used by <code>do</code> notation, so its type is partially affected by the use case there</p>
+
+
+
+<a name="321732255"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732255" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732255">(Jan 16 2023 at 23:32)</a>:</h4>
+<p>What I'm saying is that you could have a <code>UnicodeStream.partialNext? : UnicodeStream -&gt; Except PartialChar (Char × UnicodeStream)</code> and then wrap that for the typeclass <code>next?</code> operation</p>
+
+
+
+<a name="321732273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732273">(Jan 16 2023 at 23:32)</a>:</h4>
+<p>Yes, it's embedded really deep! I'm toying with the idea of adding a <code>Std.Stream</code> class but I'm not sure, that's why I'm asking.</p>
+
+
+
+<a name="321732563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732563">(Jan 16 2023 at 23:36)</a>:</h4>
+<p>(Out of order reply) That makes sense but there's lots of normalizations and intermediate steps, each of which has their own <code>PartialChar</code> type. Some of these are internal where it doesn't matter, but some are user facing. There's also the issue when the input reaches a hard ending but the last character hasn't been output yet...</p>
+
+
+
+<a name="321732670"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732670" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732670">(Jan 16 2023 at 23:38)</a>:</h4>
+<p>I thought the last thing was what <code>PartialChar</code> was</p>
+
+
+
+<a name="321732695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732695">(Jan 16 2023 at 23:38)</a>:</h4>
+<p>If you run out of the current buffer but you aren't at the actual end, you shouldn't be returning <code>none</code></p>
+
+
+
+<a name="321732708"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732708" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732708">(Jan 16 2023 at 23:39)</a>:</h4>
+<p>Exactly!</p>
+
+
+
+<a name="321732714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732714">(Jan 16 2023 at 23:39)</a>:</h4>
+<p>I'm not even sure you should be using a stream for that</p>
+
+
+
+<a name="321732727"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732727" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732727">(Jan 16 2023 at 23:39)</a>:</h4>
+<p>That's why I asked for another option.</p>
+
+
+
+<a name="321732808"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732808" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732808">(Jan 16 2023 at 23:40)</a>:</h4>
+<p>the return value can be a sum type representing the possible completions, e.g. "need more input", "invalid UTF8", "input ended with partial char", "complete char"</p>
+
+
+
+<a name="321732863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732863">(Jan 16 2023 at 23:41)</a>:</h4>
+<p>There's no need for that complexity.</p>
+
+
+
+<a name="321732889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732889">(Jan 16 2023 at 23:41)</a>:</h4>
+<p>if you want to make a state machine for utf8 then that's roughly what you would need to have internally</p>
+
+
+
+<a name="321732973"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321732973" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321732973">(Jan 16 2023 at 23:42)</a>:</h4>
+<p>Normalization works with code points, not utf8 specifically.</p>
+
+
+
+<a name="321733004"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733004" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733004">(Jan 16 2023 at 23:42)</a>:</h4>
+<p>I'm not sure I would expose any of it to the user except for a basic stream of chars</p>
+
+
+
+<a name="321733045"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733045" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733045">(Jan 16 2023 at 23:43)</a>:</h4>
+<p>normalization has similar characteristics to utf8 chars in this regard I think</p>
+
+
+
+<a name="321733052"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733052" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733052">(Jan 16 2023 at 23:43)</a>:</h4>
+<p>The Unicode standard recommends it (and I recommend it too!)</p>
+
+
+
+<a name="321733080"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733080" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733080">(Jan 16 2023 at 23:43)</a>:</h4>
+<p>why should the user need to care about it?</p>
+
+
+
+<a name="321733146"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733146" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733146">(Jan 16 2023 at 23:44)</a>:</h4>
+<p>utf8 is a specific encoding of Unicode characters. It has nothing to do with what I care about.</p>
+
+
+
+<a name="321733188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733188">(Jan 16 2023 at 23:45)</a>:</h4>
+<p>sure, my point is only that normalization involves looking at some units and merging them together</p>
+
+
+
+<a name="321733204"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733204" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733204">(Jan 16 2023 at 23:45)</a>:</h4>
+<p>so if you are in a streaming context then you have to remember whether you are mid-merge</p>
+
+
+
+<a name="321733215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733215">(Jan 16 2023 at 23:45)</a>:</h4>
+<p>It's about accented characters and their many equivalent representations as actual <code>String</code> type.</p>
+
+
+
+<a name="321733294"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733294" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733294">(Jan 16 2023 at 23:46)</a>:</h4>
+<p>Obviously it's going to be a lot simpler to do normalization as a bulk operation</p>
+
+
+
+<a name="321733329"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733329" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733329">(Jan 16 2023 at 23:46)</a>:</h4>
+<p>What bulk?</p>
+
+
+
+<a name="321733333"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733333" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733333">(Jan 16 2023 at 23:46)</a>:</h4>
+<p>the string</p>
+
+
+
+<a name="321733350"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733350" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733350">(Jan 16 2023 at 23:47)</a>:</h4>
+<p>input: unnormalized string, output: normalized string</p>
+
+
+
+<a name="321733365"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733365" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733365">(Jan 16 2023 at 23:47)</a>:</h4>
+<p>simple type, hard to misuse</p>
+
+
+
+<a name="321733539"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733539" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733539">(Jan 16 2023 at 23:49)</a>:</h4>
+<p>Yes, but you're thinking of normalization is a one-step procedure. It's not, there's several normalization types and steps and the intermediate steps have their own uses, so it's optimal to process as a stream, piggy backing each step to achieve linear-ish processing.</p>
+
+
+
+<a name="321733650"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733650" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733650">(Jan 16 2023 at 23:51)</a>:</h4>
+<p>The stream type I originally described is perfect for this.</p>
+
+
+
+<a name="321733738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733738">(Jan 16 2023 at 23:53)</a>:</h4>
+<blockquote>
+<p>Yes, but you're thinking of normalization is a one-step procedure. It's not, there's several normalization types and steps and the intermediate steps have their own uses, so it's optimal to process as a stream, piggy backing each step to achieve linear-ish processing.</p>
+</blockquote>
+<p>From a user standpoint, it is simpler to <em>present</em> it as a one-step procedure. Anything more than that is decidedly advanced usage</p>
+
+
+
+<a name="321733871"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733871" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733871">(Jan 16 2023 at 23:55)</a>:</h4>
+<p>Moreover, I'm fairly certain that layering a bunch of option functions processing characters will result in a slower code than a bunch of passes over the data. You should benchmark the options first</p>
+
+
+
+<a name="321733885"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321733885" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321733885">(Jan 16 2023 at 23:55)</a>:</h4>
+<p>Yes, but as I said before, the Unicode standard recommends exposing some (but not all) intermediate steps to allow users to implement optimizations (e.g. locale-specific optimizations).</p>
+
+
+
+<a name="321734030"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734030" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734030">(Jan 16 2023 at 23:57)</a>:</h4>
+<p>anyway, you don't need a stream typeclass to do what you want. Just have functions that return whatever you find preferable</p>
+
+
+
+<a name="321734283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734283">(Jan 17 2023 at 00:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Core.20Stream.20class/near/321733871">said</a>:</p>
+<blockquote>
+<p>Moreover, I'm fairly certain that layering a bunch of option functions processing characters will result in a slower code than a bunch of passes over the data. You should benchmark the options first</p>
+</blockquote>
+<p>I thought so too but no, the most efficient way is to skip characters where the transformation stack would be useless (there's always a table for that) and only apply the transformations when necessary. So the optimizations are always handled in the earliest transformation step. This is built-into the standard and annexes.</p>
+
+
+
+<a name="321734600"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734600" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734600">(Jan 17 2023 at 00:03)</a>:</h4>
+<p>I'm thinking more about the cost of the operations themselves in lean's runtime rather than the algorithmic cost. Again, benchmarking is key</p>
+
+
+
+<a name="321734666"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734666" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734666">(Jan 17 2023 at 00:04)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Core.20Stream.20class/near/321734030">said</a>:</p>
+<blockquote>
+<p>anyway, you don't need a stream typeclass to do what you want. Just have functions that return whatever you find preferable</p>
+</blockquote>
+<p>Yes, it's easy to implement a <code>Unicode.Stream</code> class that does the right thing. Which brings me back to my original question:  Is there a better steam class elsewhere?</p>
+
+
+
+<a name="321734686"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734686" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734686">(Jan 17 2023 at 00:04)</a>:</h4>
+<p>I don't think you need a class at all</p>
+
+
+
+<a name="321734691"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734691" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734691">(Jan 17 2023 at 00:05)</a>:</h4>
+<p>just plain functions</p>
+
+
+
+<a name="321734738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734738">(Jan 17 2023 at 00:05)</a>:</h4>
+<p>I'm not ready to generalize from this example to a typeclass with a big API</p>
+
+
+
+<a name="321734805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321734805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321734805">(Jan 17 2023 at 00:06)</a>:</h4>
+<p>What big API? There's just one function!?</p>
+
+
+
+<a name="321735664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321735664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321735664">(Jan 17 2023 at 00:18)</a>:</h4>
+<p>If the one function is all you want, then why bother with a class?</p>
+
+
+
+<a name="321737272"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321737272" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321737272">(Jan 17 2023 at 00:38)</a>:</h4>
+<p>I think we're running in circles here.</p>
+<ul>
+<li>I want to use a class because (1) a unified interface is useful (2) it's reused in the codebase a lot and (3) there are user facing applications. (The last point is why I'm asking about existing options.)</li>
+<li>I don't want to use a monad or anything heavyweight or too specialized because the API has only one nontrivial function (which is exactly the same signature in all use cases, but different implementations). </li>
+<li>It's only a tiny variation of an existing class. (Which is baked hard in core, so hard to change.)</li>
+</ul>
+
+
+
+<a name="321739592"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321739592" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321739592">(Jan 17 2023 at 01:06)</a>:</h4>
+<p>In that case you should make your own class and test it out</p>
+
+
+
+<a name="321739951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321739951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321739951">(Jan 17 2023 at 01:11)</a>:</h4>
+<p>I did and it works fine! I wouldn't have asked this without testing it out first!</p>
+<p>If there are no existing alternatives that meet my needs, then the second question still stands: is this a defect in the core <code>Stream</code> class? Or is it really intended as a "fused stream"?</p>
+
+
+
+<a name="321740215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321740215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321740215">(Jan 17 2023 at 01:15)</a>:</h4>
+<p>(That's "fused" as in "fuse box", once it blows you have to replace it.)</p>
+
+
+
+<a name="321743552"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321743552" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321743552">(Jan 17 2023 at 02:05)</a>:</h4>
+<p>It is clearly a fused stream</p>
+
+
+
+<a name="321751531"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321751531" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321751531">(Jan 17 2023 at 04:15)</a>:</h4>
+<p>(which is a very useful class for representing iteration, since it has a clear indication of the end of iteration)</p>
+
+
+
+<a name="321751672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321751672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321751672">(Jan 17 2023 at 04:18)</a>:</h4>
+<p>I suspect eventually we'll have a library of classes for expressing transformer pipelines, but like Mario said it feels super unclear what that should look like without examples.</p>
+<p>I'm not sure I followed the Unicode example, but if you have the code pushed to a repository somewhere I'm interested in taking a look :D</p>
+
+
+
+<a name="321785580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321785580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321785580">(Jan 17 2023 at 09:24)</a>:</h4>
+<p>I didn't know this was allowed in e.g. Rust, but it still sounds crazy to me. Would be interesting to know how much they rely on it.</p>
+<blockquote>
+<p>Individual iterator implementations may choose to resume iteration, and so calling next() again may or may not eventually start returning Some(Item) again at some point. <a href="https://doc.rust-lang.org/std/iter/trait.Iterator.html#tymethod.next">https://doc.rust-lang.org/std/iter/trait.Iterator.html#tymethod.next</a></p>
+</blockquote>
+
+
+
+<a name="321821100"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321821100" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321821100">(Jan 17 2023 at 12:43)</a>:</h4>
+<p><span class="user-mention" data-user-id="407274">@James Gallicchio</span>  This is the basic code I am using:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- Stream class appropriate for monadic use. -/</span>
+<span class="kd">class</span> <span class="n">MStream</span> <span class="o">(</span><span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="n">where</span>
+  <span class="sd">/-- Attempt to get the next item -/</span>
+  <span class="n">next</span><span class="bp">?</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→</span> <span class="n">m</span> <span class="o">(</span><span class="n">Option</span> <span class="n">α</span> <span class="bp">×</span> <span class="n">σ</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">low</span><span class="o">)</span> <span class="o">(</span><span class="n">σ</span> <span class="n">α</span> <span class="n">m</span><span class="o">)</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">Stream</span> <span class="n">σ</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">MStream</span> <span class="n">σ</span> <span class="n">m</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">next</span><span class="bp">?</span> <span class="o">(</span><span class="n">s</span><span class="o">)</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">Stream.next</span><span class="bp">?</span> <span class="n">s</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">some</span> <span class="o">(</span><span class="n">x</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">pure</span> <span class="o">(</span><span class="n">some</span> <span class="n">x</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">pure</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span>
+
+<span class="sd">/-- `ForIn` for `MStream` -/</span>
+<span class="kn">protected</span> <span class="n">partial</span> <span class="kd">def</span> <span class="n">MStream.forIn</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MStream</span> <span class="n">ρ</span> <span class="n">m</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">ρ</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">m</span> <span class="o">(</span><span class="n">ForInStep</span> <span class="n">β</span><span class="o">))</span> <span class="o">:</span> <span class="n">m</span> <span class="n">β</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">_</span> <span class="o">:</span> <span class="n">Inhabited</span> <span class="o">(</span><span class="n">m</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">pure</span> <span class="n">b</span><span class="o">⟩</span>
+  <span class="k">let</span> <span class="n">rec</span> <span class="n">visit</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">ρ</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">m</span> <span class="n">β</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">match</span> <span class="bp">←</span> <span class="n">next</span><span class="bp">?</span> <span class="n">s</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="o">(</span><span class="n">some</span> <span class="n">a</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="o">(</span><span class="bp">←</span> <span class="n">f</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="k">with</span>
+      <span class="bp">|</span> <span class="n">ForInStep.done</span> <span class="n">b</span>  <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">b</span>
+      <span class="bp">|</span> <span class="n">ForInStep.yield</span> <span class="n">b</span> <span class="bp">=&gt;</span> <span class="n">visit</span> <span class="n">s</span> <span class="n">b</span>
+    <span class="bp">|</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="n">return</span> <span class="n">b</span>
+    <span class="n">return</span> <span class="n">b</span>
+  <span class="n">visit</span> <span class="n">s</span> <span class="n">b</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">priority</span> <span class="o">:=</span> <span class="n">low</span><span class="o">)</span> <span class="o">[</span><span class="n">MStream</span> <span class="n">ρ</span> <span class="n">m</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">ForIn</span> <span class="n">m</span> <span class="n">ρ</span> <span class="n">α</span> <span class="n">where</span>
+  <span class="n">forIn</span> <span class="o">:=</span> <span class="n">MStream.forIn</span>
+</code></pre></div>
+<p>The monad <code>m</code> parameter would also be helpful addition to core <code>Stream</code>. As far as I can tell, these two instances are impossible with the current <code>Stream</code> class.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- IO.FS.Stream as a byte stream -/</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">MStream</span> <span class="n">IO.FS.Stream</span> <span class="n">IO</span> <span class="n">UInt8</span> <span class="n">where</span>
+  <span class="n">next</span><span class="bp">?</span> <span class="n">s</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">bs</span> <span class="bp">←</span> <span class="n">s.read</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="o">:</span> <span class="n">bs.size</span> <span class="bp">&gt;</span> <span class="mi">0</span> <span class="k">then</span>
+      <span class="n">return</span> <span class="o">(</span><span class="n">some</span> <span class="bp">&lt;|</span> <span class="n">bs.get</span> <span class="o">⟨</span><span class="mi">0</span><span class="o">,</span><span class="n">h</span><span class="o">⟩,</span> <span class="n">s</span><span class="o">)</span>
+    <span class="k">else</span>
+      <span class="n">return</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span>
+
+<span class="sd">/-- IO.FS.Stream as a line stream -/</span>
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">MStream</span> <span class="n">IO.FS.Stream</span> <span class="n">IO</span> <span class="n">String</span> <span class="n">where</span>
+  <span class="n">next</span><span class="bp">?</span> <span class="n">s</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">ln</span> <span class="bp">←</span> <span class="n">s.getLine</span>
+    <span class="k">if</span> <span class="n">ln.isEmpty</span> <span class="k">then</span>
+      <span class="n">return</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="n">s</span><span class="o">)</span>
+    <span class="k">else</span>
+      <span class="n">return</span> <span class="o">(</span><span class="n">some</span> <span class="bp">&lt;|</span> <span class="n">ln.dropRightWhile</span> <span class="o">(</span><span class="bp">·==</span><span class="sc">'\n'</span><span class="o">),</span> <span class="n">s</span><span class="o">)</span>
+</code></pre></div>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> Rust gave me the idea to use the different signature.</p>
+
+
+
+<a name="321826273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321826273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321826273">(Jan 17 2023 at 13:10)</a>:</h4>
+<p>One small advantage of using <code>Option α × σ</code> over <code>Option (α × σ)</code> is to avoid partial defs. For example: </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">LineStreamOfCharStream</span> <span class="o">(</span><span class="n">σ</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">stream</span> <span class="o">:</span> <span class="n">σ</span>
+  <span class="n">buffer</span> <span class="o">:</span> <span class="n">String</span> <span class="o">:=</span> <span class="s2">""</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">Monad</span> <span class="n">m</span><span class="o">]</span> <span class="o">[</span><span class="n">MStream</span> <span class="n">σ</span> <span class="n">m</span> <span class="n">Char</span><span class="o">]</span> <span class="o">:</span> <span class="n">MStream</span> <span class="o">(</span><span class="n">LineStreamOfCharStream</span> <span class="n">σ</span><span class="o">)</span> <span class="n">m</span> <span class="n">String</span> <span class="n">where</span>
+  <span class="n">next</span><span class="bp">?</span> <span class="n">s</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">match</span> <span class="bp">←</span> <span class="n">MStream.next</span><span class="bp">?</span> <span class="n">s.stream</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="o">(</span><span class="n">some</span> <span class="n">c</span><span class="o">,</span> <span class="n">stream</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="k">if</span> <span class="n">c</span> <span class="bp">==</span> <span class="sc">'\n'</span> <span class="k">then</span>
+        <span class="n">return</span> <span class="o">(</span><span class="n">some</span> <span class="n">s.buffer</span><span class="o">,</span> <span class="o">{</span><span class="n">stream</span> <span class="o">:=</span> <span class="n">stream</span><span class="o">,</span> <span class="n">buffer</span> <span class="o">:=</span> <span class="s2">""</span><span class="o">})</span>
+      <span class="k">else</span>
+        <span class="n">return</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="o">{</span><span class="n">stream</span> <span class="o">:=</span> <span class="n">stream</span><span class="o">,</span> <span class="n">buffer</span> <span class="o">:=</span> <span class="n">s.buffer.push</span> <span class="n">c</span><span class="o">})</span>
+    <span class="bp">|</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="n">stream</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="n">return</span> <span class="o">(</span><span class="n">none</span><span class="o">,</span> <span class="o">{</span><span class="n">s</span> <span class="k">with</span> <span class="n">stream</span> <span class="o">:=</span> <span class="n">stream</span><span class="o">})</span>
+</code></pre></div>
+<p>Since there's no way to know whether or when a newline will occur, a fused version of this would have to be partial or somehow break long lines.</p>
+
+
+
+<a name="321828354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321828354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321828354">(Jan 17 2023 at 13:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Core.20Stream.20class/near/321785580">said</a>:</p>
+<blockquote>
+<p>I didn't know this was allowed in e.g. Rust, but it still sounds crazy to me. Would be interesting to know how much they rely on it.</p>
+</blockquote>
+<p><a href="https://www.reddit.com/r/rust/comments/sbdb9t/comment/htzl4rp/">https://www.reddit.com/r/rust/comments/sbdb9t/comment/htzl4rp/</a> It kinda sounds like the API  is a source of problems... But I've asked the local Rustaceans if they had any idea why it's like that, will update y'all :)</p>
+
+
+
+<a name="321830105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321830105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321830105">(Jan 17 2023 at 13:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="119741">François G. Dorais</span> <a href="#narrow/stream/270676-lean4/topic/Core.20Stream.20class/near/321826273">said</a>:</p>
+<blockquote>
+<p>One small advantage of using <code>Option α × σ</code> over <code>Option (α × σ)</code> is to avoid partial defs. For example: </p>
+</blockquote>
+<p>I have some infrastructure lying around for dealing with specifically finite iterators (it gives you a well-foundedness proof that the iteration eventually terminates, which satisfies Lean). And for potentially infinite iterators I assume eventually we'll have infrastructure around coinduction but I'm not sure unfused streams are the right way to go...</p>
+
+
+
+<a name="321830302"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321830302" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321830302">(Jan 17 2023 at 13:31)</a>:</h4>
+<p>I guess in principle Python's <code>__iter__</code> / <code>__next__</code> framework allows these resumable streams too; but note that the coroutine syntax with <code>yield</code> does not support them, nor can I think of any examples in the standard library that behave in this way.</p>
+
+
+
+<a name="321836996"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Core%20Stream%20class/near/321836996" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> François G. Dorais <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Core.20Stream.20class.html#321836996">(Jan 17 2023 at 14:01)</a>:</h4>
+<p>I agree that non-fused streams are strange. But after some thought I realized that the issue with <code>Stream.next?</code> is not the output type but the missing monad parameter. I think the best type would be this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Stream</span> <span class="o">(</span><span class="n">σ</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="n">outParam</span> <span class="o">(</span><span class="kt">Type</span> <span class="n">_</span><span class="o">))</span> <span class="n">where</span>
+  <span class="n">next</span> <span class="o">:</span> <span class="n">σ</span> <span class="bp">→</span> <span class="n">m</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">σ</span><span class="o">)</span>
+</code></pre></div>
+<p>That way <code>Stream σ Id α</code> is an infinite stream, <code>Stream σ Option α</code> is the same as the current class, and <code>Stream σ (Except σ) α</code> would basically be the same as the type I originally suggested. It also provides a direct way to turn <code>IO.FS.Stream</code> into a stream within <code>IO</code>.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

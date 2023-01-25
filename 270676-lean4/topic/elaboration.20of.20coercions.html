@@ -1,0 +1,77 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/elaboration.20of.20coercions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html">elaboration of coercions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="313727754"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elaboration%20of%20coercions/near/313727754" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html#313727754">(Dec 03 2022 at 19:45)</a>:</h4>
+<p>I'm still wrestling with the new normal for coercions. In Lean 3 I was familiar with this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.group.with_one.defs</span>
+
+<span class="kd">theorem</span> <span class="n">coe_inv</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_inv</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">((</span><span class="n">a</span><span class="bp">⁻¹</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">with_one</span> <span class="n">α</span><span class="o">)</span> <span class="bp">=</span> <span class="n">a</span><span class="bp">⁻¹</span> <span class="o">:=</span>
+  <span class="n">rfl</span>
+
+<span class="k">#check</span> <span class="n">coe_inv</span> <span class="c1">-- ↑a⁻¹ = (↑a)⁻¹</span>
+</code></pre></div>
+<p>What happens here is that the LHS has type <code>with_one \alpha</code> (a type synonym for <code>option \alpha</code>) so <code>inv</code> is elaborated as <code>with_one.inv</code> and then <code>a</code> is coerced from <code>\alpha</code>to <code>with_one \alpha</code>. In Lean 4 this common mathlib idiom behaves differently:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Inv</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="n">where</span>
+  <span class="sd">/-- Invert an element of α. -/</span>
+  <span class="n">inv</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="kd">postfix</span><span class="o">:</span><span class="n">max</span> <span class="s2">"⁻¹"</span> <span class="bp">=&gt;</span> <span class="n">Inv.inv</span>
+
+<span class="kd">instance</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">)</span> <span class="o">[</span><span class="n">Inv</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Inv</span> <span class="o">(</span><span class="n">Option</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="bp">λ</span> <span class="n">a</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="n">a</span> <span class="k">with</span>
+     <span class="bp">|</span> <span class="n">Option.none</span> <span class="bp">=&gt;</span> <span class="n">Option.none</span>
+     <span class="bp">|</span> <span class="n">Option.some</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">Option.some</span> <span class="n">x</span><span class="bp">⁻¹</span>
+  <span class="o">⟩</span>
+
+<span class="kd">theorem</span> <span class="n">coe_inv</span> <span class="o">[</span><span class="n">Inv</span> <span class="n">α</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="o">((</span><span class="n">a</span><span class="bp">⁻¹</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">Option</span> <span class="n">α</span><span class="o">)</span> <span class="bp">=</span> <span class="n">a</span><span class="bp">⁻¹</span> <span class="o">:=</span>
+  <span class="n">rfl</span>
+
+<span class="k">#check</span> <span class="n">coe_inv</span> <span class="c1">-- some a⁻¹ = some a⁻¹</span>
+</code></pre></div>
+<p>For some reason elaboration is behaving differently; the same code is giving us a syntactic tautology. This looks like something which we'll have to be careful about when porting. Why is it happening, out of interest? Of course it's easily fixed with <code>(a : Option α)⁻¹</code> but this is everywhere in mathlib.</p>
+
+
+
+<a name="313729574"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elaboration%20of%20coercions/near/313729574" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html#313729574">(Dec 03 2022 at 20:10)</a>:</h4>
+<p><code> ((a⁻¹ : α) : Option α) = (↑a)⁻¹</code> works, by the way (and is what I'm using on the ground)</p>
+
+
+
+<a name="313757183"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elaboration%20of%20coercions/near/313757183" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html#313757183">(Dec 04 2022 at 02:51)</a>:</h4>
+<p>this looks like something that should be reported as an issue</p>
+
+
+
+<a name="313822756"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elaboration%20of%20coercions/near/313822756" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html#313822756">(Dec 04 2022 at 15:21)</a>:</h4>
+<p><a href="https://github.com/leanprover/lean4/issues/1915">https://github.com/leanprover/lean4/issues/1915</a></p>
+
+
+
+<a name="313827289"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/elaboration%20of%20coercions/near/313827289" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/elaboration.20of.20coercions.html#313827289">(Dec 04 2022 at 16:02)</a>:</h4>
+<p>Presumably <code>↑(a⁻¹) = ((↑a)⁻¹ : Option α)</code> also works?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

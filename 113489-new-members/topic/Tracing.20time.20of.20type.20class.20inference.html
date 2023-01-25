@@ -1,0 +1,441 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/index.html">new members</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html">Tracing time of type class inference</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="239987251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/239987251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#239987251">(May 23 2021 at 23:55)</a>:</h4>
+<p>At some point of some new code I wrote, Lean is taking a very long time (several minutes) to resolve all the type class inference. I saw I can trace the result with <code>trace.class_instances true</code>, but is there a way to rank all the results by the time it took lean to find them? I want to understand where exactly it is taking so long so I can try to play with priorities</p>
+
+
+
+<a name="239990710"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/239990710" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#239990710">(May 24 2021 at 00:56)</a>:</h4>
+<p>Typically each individual step in <code>trace.class_instances true</code> is somewhat uniform in time. The thing you're really looking for is the parts of the typeclass search that are extremely deep (the number in parentheses), because that often indicates a combinatorial blow-up in the search tree, which is what you want to avoid.</p>
+<p>But I'd also be happy to hear an answer to your actual question! :-)</p>
+
+
+
+<a name="239991626"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/239991626" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#239991626">(May 24 2021 at 01:10)</a>:</h4>
+<p>Well basically this is a <a href="https://leanprover-community.github.io/mwe.html">#mwe</a> of my problem:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">geometry.manifold.algebra.smooth_functions</span>
+<span class="kn">import</span> <span class="n">ring_theory.derivation</span>
+
+<span class="n">open_locale</span> <span class="n">manifold</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="bp">𝕜</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">nondiscrete_normed_field</span> <span class="bp">𝕜</span><span class="o">]</span>
+<span class="o">{</span><span class="n">E</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">normed_group</span> <span class="n">E</span><span class="o">]</span> <span class="o">[</span><span class="n">normed_space</span> <span class="bp">𝕜</span> <span class="n">E</span><span class="o">]</span>
+<span class="o">{</span><span class="n">H</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">H</span><span class="o">]</span> <span class="o">(</span><span class="n">I</span> <span class="o">:</span> <span class="n">model_with_corners</span> <span class="bp">𝕜</span> <span class="n">E</span> <span class="n">H</span><span class="o">)</span>
+<span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">charted_space</span> <span class="n">H</span> <span class="n">M</span><span class="o">]</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span><span class="o">)</span>
+
+<span class="kd">structure</span> <span class="n">test</span> <span class="kd">extends</span> <span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span>
+</code></pre></div>
+<p>The last two lines both take ages to compile and in particular the last line triggers a <code>deterministic timeout</code> although it compiles through <code>lean --make</code> on the command line. I played with <code>set_option trace.class_instances true</code> for the past 3 hours but I still did not manage to understand where is type class inference having such a hard time...</p>
+
+
+
+<a name="239991758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/239991758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#239991758">(May 24 2021 at 01:12)</a>:</h4>
+<p>What priorities can I change to make this work?</p>
+
+
+
+<a name="240020943"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240020943" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240020943">(May 24 2021 at 08:29)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">geometry.manifold.algebra.smooth_functions</span>
+<span class="kn">import</span> <span class="n">ring_theory.derivation</span>
+
+<span class="n">open_locale</span> <span class="n">manifold</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="bp">𝕜</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">nondiscrete_normed_field</span> <span class="bp">𝕜</span><span class="o">]</span>
+<span class="o">{</span><span class="n">E</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">normed_group</span> <span class="n">E</span><span class="o">]</span> <span class="o">[</span><span class="n">normed_space</span> <span class="bp">𝕜</span> <span class="n">E</span><span class="o">]</span>
+<span class="o">{</span><span class="n">H</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">H</span><span class="o">]</span> <span class="o">(</span><span class="n">I</span> <span class="o">:</span> <span class="n">model_with_corners</span> <span class="bp">𝕜</span> <span class="n">E</span> <span class="n">H</span><span class="o">)</span>
+<span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">charted_space</span> <span class="n">H</span> <span class="n">M</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">_</span> <span class="n">_</span> <span class="c1">-- instant</span>
+
+<span class="k">#check</span> <span class="bp">@</span><span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">_</span> <span class="n">_</span> <span class="c1">-- Π [_inst_3_1 : algebra 𝕜 C^⊤⟮I, M; 𝓘(𝕜, 𝕜), 𝕜⟯] ...</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">algebra</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^⊤⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝓘</span><span class="o">(</span><span class="bp">𝕜</span><span class="o">,</span> <span class="bp">𝕜</span><span class="o">),</span> <span class="bp">𝕜⟯</span> <span class="o">:=</span> <span class="n">infer_instance</span> <span class="c1">-- instant</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="n">algebra</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝓘</span><span class="o">(</span><span class="bp">𝕜</span><span class="o">,</span> <span class="bp">𝕜</span><span class="o">),</span> <span class="bp">𝕜⟯</span> <span class="o">:=</span> <span class="n">infer_instance</span> <span class="c1">-- instant</span>
+
+<span class="kd">def</span> <span class="n">bar</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span>
+<span class="c1">-- elaboration of bar took 3.34s</span>
+</code></pre></div>
+
+
+
+<a name="240021142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240021142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240021142">(May 24 2021 at 08:31)</a>:</h4>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[class_instances] caching instance for comm_ring C^⊤⟮I, M; 𝓘(𝕜, 𝕜), 𝕜⟯
+@smooth_map_comm_ring 𝕜 _inst_1 E _inst_2 _inst_3 𝕜
+  (@normed_ring.to_normed_group 𝕜
+     (@normed_comm_ring.to_normed_ring 𝕜
+        (@normed_field.to_normed_comm_ring 𝕜 (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1))))
+  (@normed_field.to_normed_space 𝕜 (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1))
+  H
+  _inst_4
+  I
+  𝕜
+  (@uniform_space.to_topological_space 𝕜
+     (@metric_space.to_uniform_space' 𝕜
+        (@semi_normed_group.to_pseudo_metric_space 𝕜
+           (@normed_group.to_semi_normed_group 𝕜
+              (@normed_ring.to_normed_group 𝕜
+                 (@normed_comm_ring.to_normed_ring 𝕜
+                    (@normed_field.to_normed_comm_ring 𝕜
+                       (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1))))))))
+  𝓘(𝕜, 𝕜)
+  M
+  _inst_5
+  _inst_6
+  𝕜
+  (@semi_normed_comm_ring.to_comm_ring 𝕜
+     (@normed_comm_ring.to_semi_normed_comm_ring 𝕜
+        (@normed_field.to_normed_comm_ring 𝕜 (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1))))
+  (@uniform_space.to_topological_space 𝕜
+     (@metric_space.to_uniform_space' 𝕜
+        (@semi_normed_ring.to_pseudo_metric_space 𝕜
+           (@semi_normed_comm_ring.to_semi_normed_ring 𝕜
+              (@normed_comm_ring.to_semi_normed_comm_ring 𝕜
+                 (@normed_field.to_normed_comm_ring 𝕜 (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1)))))))
+  (@charted_space_self 𝕜
+     (@uniform_space.to_topological_space 𝕜
+        (@metric_space.to_uniform_space' 𝕜
+           (@semi_normed_group.to_pseudo_metric_space 𝕜
+              (@normed_group.to_semi_normed_group 𝕜
+                 (@normed_ring.to_normed_group 𝕜
+                    (@normed_comm_ring.to_normed_ring 𝕜
+                       (@normed_field.to_normed_comm_ring 𝕜
+                          (@nondiscrete_normed_field.to_normed_field 𝕜 _inst_1)))))))))
+  _
+</code></pre></div>
+
+
+
+<a name="240026034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240026034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240026034">(May 24 2021 at 09:21)</a>:</h4>
+<p>Hmm. Lean is looking for an <code>is_scalar_tower</code> instance. The type of the term that Lean is trying to find is <a href="https://gist.github.com/kbuzzard/799ace8f2b25e45da5b03aad5c92f554">here</a>. It takes over 700 lines to write out with pp.all true. Let's call that term X.</p>
+<p>The trace then looks like this:</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[class_instances]  class-instance resolution trace
+[class_instances] (0) ?x_0 : X := @derivation.is_scalar_tower ?x_1 ?x_2 ?x_3 ?x_4 ?x_5 ?x_6 ?x_7 ?x_8 ?x_9 ?x_10
+failed is_def_eq
+[class_instances] (0) ?x_0 : X := @power_series.is_scalar_tower ?x_11 ?x_12 ?x_13 ?x_14 ?x_15 ?x_16 ?x_17 ?x_18 ?x_19 ?x_20
+failed is_def_eq
+[class_instances] (0) ?x_0 : X := @mv_power_series.is_scalar_tower ?x_21 ?x_22 ?x_23 ?x_24 ?x_25 ?x_26 ?x_27 ?x_28 ?x_29 ?x_30 ?x_31
+failed is_def_eq
+[class_instances] (0) ?x_0 : X := @continuous_multilinear_map.is_scalar_tower ?x_32 ?x_33 ?x_34 ?x_35 ?x_36 ?x_37 ?x_38 ?x_39 ?x_40 ?x_41 ?x_42 ?x_43  ?x_44  ?x_45  ?x_46  ?x_47  ?x_48  ?x_49  ?x_50  ?x_51  ?x_52  ?x_53  ?x_54  ?x_55  ?x_56  ?x_57  ?x_58  ?x_59
+failed is_def_eq
+[class_instances] (0) ?x_0 : X := @module.real_complex_tower ?x_60 ?x_61 ?x_62
+failed is_def_eq
+...
+</code></pre></div>
+<p>(fourteen of these, each taking up over 700 lines of output) until it finally finds <code>@is_scalar_tower.of_ring_hom ?x_140 ?x_141 ?x_142 ?x_143 ?x_144 ?x_145 ?x_146 ?x_147 ?x_148</code> which it gets extremely excited about (spending well over 1000 lines of debugging output on, doing lots of hard work like finding comm_semiring instances on <code>𝕜</code> and linear_ordered_comm_ring instances and etc etc) until it eventually gives up on this,  and we're back to</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[class_instances] (0) ?x_0 : X := @is_scalar_tower.comap ?x_149 ?x_150 ?x_151 ?x_152 ?x_153 ?x_154 ?x_155 ?x_156
+failed is_def_eq
+</code></pre></div>
+<p>(a reminder that each one of these lines with an <code>X</code> represents 715 lines of output). We then run into</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>[class_instances] (0) ?x_0 : X := @is_scalar_tower.right ?x_194 ?x_195 ?x_196 ?x_197 ?x_198
+</code></pre></div>
+<p>and Lean launches into this big search for a proof that <code>𝕜</code> is a normed field etc <em>again</em>, but this time it works out and Lean caches the term whose type is this gigantic <code>X</code>. </p>
+<p>Ultimately this is a small number of attempts by the type class inference system (20 or so, not an unreasonable number) to find a term whose type is humungous in pp.all land, but I don't know whether that sort of thing affects speed in practice because I have no idea how type class inference actually works.</p>
+
+
+
+<a name="240028026"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240028026" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240028026">(May 24 2021 at 09:40)</a>:</h4>
+<p>Making the following file on the command line</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">geometry.manifold.algebra.smooth_functions</span>
+<span class="kn">import</span> <span class="n">ring_theory.derivation</span>
+
+<span class="n">open_locale</span> <span class="n">manifold</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="bp">𝕜</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">nondiscrete_normed_field</span> <span class="bp">𝕜</span><span class="o">]</span>
+<span class="o">{</span><span class="n">E</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">normed_group</span> <span class="n">E</span><span class="o">]</span> <span class="o">[</span><span class="n">normed_space</span> <span class="bp">𝕜</span> <span class="n">E</span><span class="o">]</span>
+<span class="o">{</span><span class="n">H</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">H</span><span class="o">]</span> <span class="o">(</span><span class="n">I</span> <span class="o">:</span> <span class="n">model_with_corners</span> <span class="bp">𝕜</span> <span class="n">E</span> <span class="n">H</span><span class="o">)</span>
+<span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">charted_space</span> <span class="n">H</span> <span class="n">M</span><span class="o">]</span>
+
+<span class="kd">set_option</span> <span class="n">trace.class_instances</span> <span class="n">true</span>
+<span class="kd">structure</span> <span class="n">test</span> <span class="kd">extends</span> <span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span>
+</code></pre></div>
+<p>and piping all output to a text file gives you an 11 megabyte text file. After 2 minutes it does succeed.</p>
+
+
+
+<a name="240028659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240028659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240028659">(May 24 2021 at 09:46)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">geometry.manifold.algebra.smooth_functions</span>
+<span class="kn">import</span> <span class="n">ring_theory.derivation</span>
+
+<span class="n">open_locale</span> <span class="n">manifold</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="bp">𝕜</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">nondiscrete_normed_field</span> <span class="bp">𝕜</span><span class="o">]</span>
+<span class="o">{</span><span class="n">E</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">normed_group</span> <span class="n">E</span><span class="o">]</span> <span class="o">[</span><span class="n">normed_space</span> <span class="bp">𝕜</span> <span class="n">E</span><span class="o">]</span>
+<span class="o">{</span><span class="n">H</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">H</span><span class="o">]</span> <span class="o">(</span><span class="n">I</span> <span class="o">:</span> <span class="n">model_with_corners</span> <span class="bp">𝕜</span> <span class="n">E</span> <span class="n">H</span><span class="o">)</span>
+<span class="o">(</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">M</span><span class="o">]</span> <span class="o">[</span><span class="n">charted_space</span> <span class="n">H</span> <span class="n">M</span><span class="o">]</span>
+
+<span class="kn">namespace</span> <span class="n">instances</span>
+
+<span class="kd">def</span> <span class="n">algebra</span> <span class="o">:</span> <span class="n">algebra</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="o">:=</span> <span class="n">infer_instance</span> <span class="c1">-- instant</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="kd">instance</span><span class="o">,</span> <span class="n">priority</span> <span class="mi">10000</span><span class="o">]</span> <span class="n">algebra</span>
+
+<span class="kd">def</span> <span class="n">tower</span> <span class="o">:</span> <span class="n">is_scalar_tower</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="o">:=</span> <span class="n">infer_instance</span> <span class="c1">-- instant</span>
+
+<span class="kn">attribute</span> <span class="o">[</span><span class="kd">instance</span><span class="o">,</span> <span class="n">priority</span> <span class="mi">10000</span><span class="o">]</span> <span class="n">tower</span>
+
+<span class="kd">end</span> <span class="n">instances</span>
+
+<span class="kd">structure</span> <span class="n">test</span> <span class="kd">extends</span> <span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span>
+</code></pre></div>
+<p>terminates in around 12 seconds on my machine</p>
+
+
+
+<a name="240028956"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240028956" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240028956">(May 24 2021 at 09:48)</a>:</h4>
+<p>But <code>def foo := derivation 𝕜 C^∞⟮I, M; 𝕜⟯ C^∞⟮I, M; 𝕜⟯</code> is essentially instant, so the issue really is with the <code>structure</code> command, meaning that I can't go any further.</p>
+
+
+
+<a name="240040673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240040673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240040673">(May 24 2021 at 11:55)</a>:</h4>
+<p>Thank you very much Kevin for this answer, I am learning so much from it</p>
+
+
+
+<a name="240041313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240041313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240041313">(May 24 2021 at 12:01)</a>:</h4>
+<p>Unfortunately I am not learning the answer to the problem</p>
+
+
+
+<a name="240041659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240041659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240041659">(May 24 2021 at 12:04)</a>:</h4>
+<p>So first of all how did you locate that <code>is_scalar_tower</code> was the problem? I was looking at the output as well and I actually was doing ctrl+f to locate which instances were taking most of the lines, and I was also thinking it was probably <code>is_scalar_tower</code> but I was not sure because still the output file was huge and <code>is_scalar_tower</code> only appears in a small section of it</p>
+
+
+
+<a name="240041706"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240041706" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240041706">(May 24 2021 at 12:05)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference/near/240041313">said</a>:</p>
+<blockquote>
+<p>Unfortunately I am not learning the answer to the problem</p>
+</blockquote>
+<p>As for why is there a bigger issue with the <code>structure</code> command?</p>
+
+
+
+<a name="240041926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240041926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240041926">(May 24 2021 at 12:07)</a>:</h4>
+<p>Also what are the terms <code>?x_i</code> exactly?</p>
+
+
+
+<a name="240042249"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240042249" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240042249">(May 24 2021 at 12:11)</a>:</h4>
+<p>They're variables. Or, because Lean already has things which are called variables, it might be best to call them metavariables. They're terms whose values will be assigned later.</p>
+
+
+
+<a name="240042491"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240042491" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240042491">(May 24 2021 at 12:13)</a>:</h4>
+<p>Ok and then what does <code>failed is_def_eq</code> mean? I mean how does it conclude things are not <code>def_eq</code> if they depend on metavariables that have not been assigned yet?</p>
+
+
+
+<a name="240042736"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240042736" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240042736">(May 24 2021 at 12:15)</a>:</h4>
+<p>Lean knows that <code>mul ?x_1 ?x_2 =?= add ?x_3 ?x_4</code> can't ever be true by definition, if <code>mul</code> is just defined to be a constant and <code>add</code> is defined to be a different constant.</p>
+
+
+
+<a name="240043922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240043922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240043922">(May 24 2021 at 12:27)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference/near/240042736">said</a>:</p>
+<blockquote>
+<p>Lean knows that <code>mul ?x_1 ?x_2 =?= add ?x_3 ?x_4</code> can't ever be true by definition, if <code>mul</code> is just defined to be a constant and <code>add</code> is defined to be a different constant.</p>
+</blockquote>
+<p>Oh I thought this was not our case because the type is <code>is_scalar_tower</code> on both sides but I guess the point here is that <code>is_scalar_tower</code> is a dependent type on other types and it is the other types that are different</p>
+
+
+
+<a name="240044106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240044106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240044106">(May 24 2021 at 12:29)</a>:</h4>
+<p>Yeah it is kind of a miracle then that <code>def tower : is_scalar_tower 𝕜 C^∞⟮I, M; 𝕜⟯ C^∞⟮I, M; 𝕜⟯ := infer_instance</code> is instant... I am very puzzled</p>
+
+
+
+<a name="240044245"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240044245" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240044245">(May 24 2021 at 12:30)</a>:</h4>
+<p>I don't know how definitional equality works but I can quite believe that there is an algorithm which allows there to be holes in the terms which are checked. For example</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="bp">∃</span> <span class="n">n</span><span class="o">,</span> <span class="n">n</span> <span class="bp">=</span> <span class="mi">37</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">existsi</span> <span class="n">_</span><span class="o">,</span>
+  <span class="c">/-</span><span class="cm"></span>
+<span class="cm">  ⊢ ?m_1 = 37</span>
+
+<span class="cm">  ⊢ ℕ</span>
+<span class="cm">  -/</span>
+  <span class="o">{</span> <span class="c1">-- ⊢ ?m_1 = 37</span>
+    <span class="n">refl</span> <span class="o">},</span>
+  <span class="c1">-- done</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="240046117"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240046117" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240046117">(May 24 2021 at 12:49)</a>:</h4>
+<p>Btw on my machine it is still taking a long time (although much better than before) and another instance that is taking very long is <a href="/user_uploads/3121/1dtpKCWQ_3nUmE9q9daAFYay/output.txt">output.txt</a></p>
+
+
+
+<a name="240046262"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240046262" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240046262">(May 24 2021 at 12:51)</a>:</h4>
+<p>I don't know what <code>size_of</code> is, but is there a quick way to get a condensed expression of this type, like disableing <code>pp_all</code> a posteriori? There are too many parentheses for a human...</p>
+
+
+
+<a name="240046493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240046493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240046493">(May 24 2021 at 12:53)</a>:</h4>
+<p>I don't think you're supposed to be messing with <code>has_sizeof</code> -- isn't this some internal thing?</p>
+
+
+
+<a name="240047419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047419">(May 24 2021 at 13:00)</a>:</h4>
+<p>Ok! Can you remind me how you trace time of things?</p>
+
+
+
+<a name="240047483"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047483" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047483">(May 24 2021 at 13:01)</a>:</h4>
+<p><code>set_option profiler true</code></p>
+
+
+
+<a name="240047678"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047678" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047678">(May 24 2021 at 13:02)</a>:</h4>
+<p>But can you read the output directly in visual studio? it tells me 0 messages...</p>
+
+
+
+<a name="240047707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047707">(May 24 2021 at 13:02)</a>:</h4>
+<p>it'll be hidden in All Messages</p>
+
+
+
+<a name="240047732"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047732" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047732">(May 24 2021 at 13:02)</a>:</h4>
+<p>the profiler only works on stuff after the option has been set, and you can click on any blue underline to see output.</p>
+
+
+
+<a name="240047809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240047809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240047809">(May 24 2021 at 13:03)</a>:</h4>
+<p><a href="/user_uploads/3121/weIC9z3xEePx0gKcEUrWwKzO/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/weIC9z3xEePx0gKcEUrWwKzO/image.png" title="image.png"><img src="/user_uploads/3121/weIC9z3xEePx0gKcEUrWwKzO/image.png"></a></div>
+
+
+
+<a name="240048166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048166">(May 24 2021 at 13:06)</a>:</h4>
+<p><a href="/user_uploads/3121/FwikAJfLAhbqfsWrY1nHn4Vm/Immagine-2021-05-24-140614.png">Immagine-2021-05-24-140614.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/FwikAJfLAhbqfsWrY1nHn4Vm/Immagine-2021-05-24-140614.png" title="Immagine-2021-05-24-140614.png"><img src="/user_uploads/3121/FwikAJfLAhbqfsWrY1nHn4Vm/Immagine-2021-05-24-140614.png"></a></div>
+
+
+
+<a name="240048213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048213">(May 24 2021 at 13:07)</a>:</h4>
+<p>Maybe does not work with structures?</p>
+
+
+
+<a name="240048221"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048221" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048221">(May 24 2021 at 13:07)</a>:</h4>
+<p>I'm not sure the profiler runs on structures.</p>
+
+
+
+<a name="240048286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048286">(May 24 2021 at 13:07)</a>:</h4>
+<p>Ok I see thanks!</p>
+
+
+
+<a name="240048354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048354">(May 24 2021 at 13:08)</a>:</h4>
+<p>I have no idea what is happening when that structure is being made, or why it takes so long. We need help. You might want to promote this thread to #general where more experts are reading. Call it something like <code>making new structure is slow</code></p>
+
+
+
+<a name="240048379"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048379" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048379">(May 24 2021 at 13:08)</a>:</h4>
+<p>and just post the MWE</p>
+
+
+
+<a name="240048384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240048384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240048384">(May 24 2021 at 13:08)</a>:</h4>
+<p>and a link to this thread</p>
+
+
+
+<a name="240049449"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240049449" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240049449">(May 24 2021 at 13:17)</a>:</h4>
+<p>Well actually adding</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">sizeof</span> <span class="o">:</span> <span class="n">has_sizeof</span> <span class="o">(</span><span class="n">derivation</span> <span class="bp">𝕜</span> <span class="n">C</span><span class="bp">^∞⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span> <span class="n">C</span><span class="bp">^⊤⟮</span><span class="n">I</span><span class="o">,</span> <span class="n">M</span><span class="bp">;</span> <span class="bp">𝕜⟯</span><span class="o">)</span> <span class="o">:=</span> <span class="n">infer_instance</span>
+<span class="kn">attribute</span> <span class="o">[</span><span class="kd">instance</span><span class="o">,</span> <span class="n">priority</span> <span class="mi">100000</span><span class="o">]</span> <span class="n">sizeof</span>
+</code></pre></div>
+<p>to the <code>namespace instances</code> makes everything super quick</p>
+
+
+
+<a name="240050199"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240050199" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240050199">(May 24 2021 at 13:23)</a>:</h4>
+<p>I don't need to repeat the section <code>namespace instances</code> in every file as long as I import a file where it is included right?</p>
+
+
+
+<a name="240050364"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240050364" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240050364">(May 24 2021 at 13:24)</a>:</h4>
+<p>Those instances are a hack and are not for use in a production environment.</p>
+
+
+
+<a name="240050471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240050471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Nicolò Cavalleri <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240050471">(May 24 2021 at 13:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference/near/240050364">said</a>:</p>
+<blockquote>
+<p>Those instances are a hack and are not for use in a production environment.</p>
+</blockquote>
+<p>You mean I can't publish them to mathlib? Not even if I include everything in a section so to make it local?</p>
+
+
+
+<a name="240052494"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113489-new%20members/topic/Tracing%20time%20of%20type%20class%20inference/near/240052494" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Notification Bot <a href="https://leanprover-community.github.io/archive/stream/113489-new-members/topic/Tracing.20time.20of.20type.20class.20inference.html#240052494">(May 24 2021 at 13:41)</a>:</h4>
+<p>This topic was moved by <span class="user-mention silent" data-user-id="110087">Scott Morrison</span> to <a class="stream-topic" data-stream-id="113488" href="/#narrow/stream/113488-general/topic/Tracing.20time.20of.20type.20class.20inference">#general &gt; Tracing time of type class inference</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,59 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/Custom.20binder.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Custom.20binder.html">Custom binder</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="286904959"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Custom%20binder/near/286904959" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Custom.20binder.html#286904959">(Jun 21 2022 at 12:27)</a>:</h4>
+<p>How to create a syntax rule so that <code>F (a ∈ b), ψ</code> translates to <code>f b (λ a =&gt; ψ)</code> where <code>a</code> appears free in <code>ψ</code>?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Term</span>
+
+<span class="kd">axiom</span> <span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span>
+<span class="kd">axiom</span> <span class="n">X</span> <span class="o">:</span> <span class="n">α</span>
+<span class="kd">axiom</span> <span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">α</span><span class="o">)</span> <span class="bp">→</span> <span class="n">α</span>
+
+<span class="k">#check</span> <span class="n">F</span> <span class="o">(</span><span class="n">a</span> <span class="bp">∈</span> <span class="n">X</span><span class="o">),</span> <span class="n">a</span>
+</code></pre></div>
+<p>And it would be nice if there can be multiple binder parameters, for example:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">F</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="bp">∈</span> <span class="n">A</span><span class="o">)</span> <span class="o">(</span><span class="n">z</span> <span class="bp">∈</span> <span class="n">B</span><span class="o">),</span> <span class="n">ψ</span>
+</code></pre></div>
+<p>should translate to</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">f</span> <span class="n">A</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">A</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">B</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">z</span> <span class="bp">=&gt;</span> <span class="n">ψ</span><span class="o">)))</span>
+</code></pre></div>
+
+
+
+<a name="286905250"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Custom%20binder/near/286905250" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Johnson <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Custom.20binder.html#286905250">(Jun 21 2022 at 12:29)</a>:</h4>
+<p>I tried using <code>explicitBinders</code> like in the definition of <code>∃</code>, but couldn't make it work.</p>
+
+
+
+<a name="286930805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Custom%20binder/near/286930805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Ramon Fernandez Mir <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Custom.20binder.html#286930805">(Jun 21 2022 at 15:28)</a>:</h4>
+<p>Maybe this trick does what you want?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro</span> <span class="s2">"F ("</span> <span class="n">a</span><span class="o">:</span><span class="n">explicitBinders</span> <span class="s2">"∈"</span> <span class="n">b</span><span class="o">:</span><span class="n">term</span> <span class="s2">"),"</span> <span class="n">φ</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">v</span> <span class="bp">←</span> <span class="n">expandExplicitBinders</span> <span class="bp">``</span><span class="n">id</span> <span class="n">a</span> <span class="n">φ</span>
+  <span class="bp">`</span><span class="o">(</span><span class="n">f</span> <span class="bp">$</span><span class="n">b</span> <span class="bp">$</span><span class="n">v</span><span class="o">)</span>
+
+<span class="k">#check</span> <span class="n">F</span> <span class="o">(</span><span class="n">a</span> <span class="bp">∈</span> <span class="n">X</span><span class="o">),</span> <span class="n">a</span> <span class="c1">-- f X (id fun a =&gt; a) : α</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

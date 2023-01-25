@@ -1,0 +1,325 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html">Syntactic discrepancies on comma-separated lists</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="281442403"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281442403" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281442403">(May 06 2022 at 14:00)</a>:</h4>
+<p>Lean 4 is inconsistent in the way it parses comma-separated lists in commands and terms. My<br>
+understanding is that the nominal shape uses <code>manyIndent</code> as in <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Term.lean#L95">structure-instance
+parsing</a><br>
+which allows the following styles:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Pair</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="o">(</span><span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">_</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">fst</span><span class="o">:</span> <span class="n">α</span>
+  <span class="n">snd</span><span class="o">:</span> <span class="n">β</span>
+
+<span class="kd">def</span> <span class="n">noSep</span> <span class="o">:</span> <span class="n">Pair</span> <span class="n">Nat</span> <span class="n">String</span> <span class="o">:=</span> <span class="o">{</span>
+  <span class="n">fst</span> <span class="o">:=</span> <span class="mi">7</span>
+  <span class="n">snd</span> <span class="o">:=</span> <span class="s2">"seven"</span>
+<span class="o">}</span>
+<span class="kd">def</span> <span class="n">commaSep</span> <span class="o">:</span> <span class="n">Pair</span> <span class="n">Nat</span> <span class="n">String</span> <span class="o">:=</span> <span class="o">{</span>
+  <span class="n">fst</span> <span class="o">:=</span> <span class="mi">7</span><span class="o">,</span>
+  <span class="n">snd</span> <span class="o">:=</span> <span class="s2">"seven"</span>
+<span class="o">}</span>
+<span class="kd">def</span> <span class="n">commaSepTrail</span> <span class="o">:</span> <span class="n">Pair</span> <span class="n">Nat</span> <span class="n">String</span> <span class="o">:=</span> <span class="o">{</span>
+  <span class="n">fst</span> <span class="o">:=</span> <span class="mi">7</span><span class="o">,</span>
+  <span class="n">snd</span> <span class="o">:=</span> <span class="s2">"seven"</span><span class="o">,</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>The first and last styles have the nice property that all lines are homogeneous which arguably<br>
+simplifies edits.</p>
+<p>But not all comma-separated lists work this way. In class/structure definitions for instance,<br>
+<code>extends</code> takes a list of classes/types which has to be comma-separated with no trailing comma.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">class</span> <span class="n">Class1</span>
+<span class="kd">class</span> <span class="n">Class2</span>
+
+<span class="kd">class</span> <span class="n">Class3</span>
+<span class="kd">extends</span>
+  <span class="n">Class1</span><span class="o">,</span>
+  <span class="n">Class2</span>
+
+<span class="c1">-- does not compile</span>
+<span class="kd">class</span> <span class="n">Class3</span>
+<span class="kd">extends</span>
+  <span class="n">Class1</span>
+  <span class="n">Class2</span>
+<span class="c1">-- does not compile</span>
+<span class="kd">class</span> <span class="n">Class3</span>
+<span class="kd">extends</span>
+  <span class="n">Class1</span><span class="o">,</span>
+  <span class="n">Class2</span><span class="o">,</span>
+</code></pre></div>
+<p>This is not the only place this happens. The <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L91">parser rule for
+<code>extends</code></a><br>
+uses <code>sepBy1</code>, looking for that in <code>src/Lean/Parser/Command.lean</code> yields the following</p>
+<ul>
+<li><a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L55"><code>.{ &lt;ids&gt; }</code></a></li>
+<li><code>deriving</code>, <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L68">here</a>, <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L79">here</a> and <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L98">here</a></li>
+<li><a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L91"><code>extends</code></a></li>
+<li><a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L118"><code>attribute</code></a></li>
+<li><a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Command.lean#L122"><code>renaming</code></a></li>
+</ul>
+<p><code>sepBy1</code> is used in other <code>src/Lean/Parser/*</code> files but I'm not knowledgeable enough to (easily)<br>
+discern whether having the more flexible list parser would make sense.</p>
+<p>I was wondering whether there is interest in fixing (some of) these discrepancies. I would be glad<br>
+to contribute on this matter if there is interest, although it's not clear to me how involved such a<br>
+contribution would get and how deep an understanding of Lean's internals I would need.</p>
+
+
+
+<a name="281488476"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281488476" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281488476">(May 06 2022 at 20:13)</a>:</h4>
+<p>It would be great to get feedback on this proposal. Some of the examples you provided are great targets for a whitespace sensitivity,  but others are not (e.g., universe parameters <code>.{ &lt;ids&gt; }</code>).<br>
+Regarding the implementation itself, I think this is not a good match for first-time contributors because of staging issues. The person making the change must understand really well the staging mechanism we use to bootstrap Lean.</p>
+
+
+
+<a name="281506101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281506101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281506101">(May 06 2022 at 23:44)</a>:</h4>
+<p>While I'm not sure about adding whitespace sensitivity (which needs individual review), I think that adding an optional final separator to ~everywhere <code>sepBy1</code> is used is a very nice quality of life improvement. That is, <code>rw [a, b]</code> works so <code>rw [a, b,]</code> should also work</p>
+
+
+
+<a name="281506520"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281506520" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281506520">(May 06 2022 at 23:53)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists/near/281506101">said</a>:</p>
+<blockquote>
+<p>That is, <code>rw [a, b]</code> works so <code>rw [a, b,]</code> should also work</p>
+</blockquote>
+<p>I have mixed feeling about it. Seems like another degree of freedom for us to tame new contributors with a formatting rule in mathlib. How do you see it improving UX?</p>
+
+
+
+<a name="281507312"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507312" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507312">(May 07 2022 at 00:07)</a>:</h4>
+<p>It is quite annoying for edit distance stuff. If I have something like </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">rw</span> <span class="o">[</span>
+  <span class="n">foo</span><span class="o">,</span> <span class="n">bar</span><span class="o">,</span> <span class="n">baz</span><span class="o">,</span>
+  <span class="n">qux</span><span class="o">,</span> <span class="n">gla</span>
+<span class="o">]</span>
+</code></pre></div>
+<p>then if I delete <code>gla</code> I have to remove the comma before it too, and if I delete <code>qux</code> then I have to also remove the comma on the previous line. Since it's a syntax error otherwise, I'm not getting any compiler advice in the meantime, so I can't easily remove <code>qux</code> and undo to see the difference between the goal states (this is more important for <code>simp</code> than<code>rw</code> since <code>simp</code> doesn't get mid-tactic goal states). This also increases the number of changed lines for git purposes, which can make reviewing harder (did they also change <code>foo</code> to <code>foo'</code> or something? No, it's just the comma at the end that changed).</p>
+
+
+
+<a name="281507349"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507349" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507349">(May 07 2022 at 00:07)</a>:</h4>
+<p>Rust does this pretty uniformly and I have found it to be an unmitigated good thing</p>
+
+
+
+<a name="281507532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507532">(May 07 2022 at 00:11)</a>:</h4>
+<p>it's also one of the differences between JSON and the JSON dialect that vscode uses in its config files (or actual JS objects) that you will notice if you work with it enough</p>
+
+
+
+<a name="281507604"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507604" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507604">(May 07 2022 at 00:12)</a>:</h4>
+<p>That's a good point. And now that I think about commas, some proofs have methodical commas after every <code>}</code> or tactic and some don't (when the goal is closed). And both are fine</p>
+
+
+
+<a name="281507717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507717">(May 07 2022 at 00:15)</a>:</h4>
+<p>We already have tons and tons of syntactic variations. A formatter will one day lay down the law, but I don't see any reason not to be permissive in the language if it doesn't have negative parsing side effects</p>
+
+
+
+<a name="281507774"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507774" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507774">(May 07 2022 at 00:16)</a>:</h4>
+<p>in any case it doesn't prevent us from having a style guide</p>
+
+
+
+<a name="281507868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281507868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281507868">(May 07 2022 at 00:19)</a>:</h4>
+<p>This is one reason I believe people use the</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">{</span> <span class="n">a</span>
+<span class="o">,</span> <span class="n">b</span>
+<span class="o">,</span> <span class="n">c</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>notation in haskell but I have to say I find this style abhorrent</p>
+
+
+
+<a name="281524021"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281524021" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281524021">(May 07 2022 at 06:45)</a>:</h4>
+<p>I also feel that allowing "unneeded" commas is helpful.</p>
+<p>Besides the <code>rw</code> comments made by Mario, I also find it hard (in Lean 3) to have a comma after every command <em>except the last one</em> when debugging <code>meta</code> code.  For instance, if I want to find which line is problematic in</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="o">[</span><span class="bp">...</span><span class="o">]</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">command1</span><span class="o">,</span>
+   <span class="n">command2</span><span class="o">,</span>
+   <span class="n">command3</span><span class="o">,</span>
+   <span class="n">command4</span>
+</code></pre></div>
+<p>I would like to be able to comment the <code>command</code>s from the bottom up, but I also have to get rid of the previous comma each time.</p>
+<p>I'm not sure if this is the same issue and is probably also affected by my inexperience.</p>
+
+
+
+<a name="281524456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281524456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281524456">(May 07 2022 at 06:58)</a>:</h4>
+<p>that one is not a problem in lean 4 since you don't need the commas anymore</p>
+
+
+
+<a name="281524711"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281524711" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281524711">(May 07 2022 at 07:04)</a>:</h4>
+<p>One more reason to seriously start learning Lean4!</p>
+
+
+
+<a name="281531204"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281531204" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281531204">(May 07 2022 at 09:46)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> 's argument for optional trailing commas is the exact reason I opened this topic, when I first said basically the same thing to <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> privately. (I'm originally a Rustacean myself.)</p>
+
+
+
+<a name="281531286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281531286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281531286">(May 07 2022 at 09:48)</a>:</h4>
+<p>It seems like the whole opt-trail-comma + whitespace thing needs discussion and a more expert contributor to take care of it. But I quite like <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> 's idea of just modifying <code>sepBy1</code> (and potentially others I missed) with an opt-trail-comma, sounds like something I might be able to do</p>
+
+
+
+<a name="281531317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281531317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281531317">(May 07 2022 at 09:49)</a>:</h4>
+<p>my recommendation would be to have a variant of <code>sepBy1</code> that has the optional trailing separator; every use needs to be reviewed</p>
+
+
+
+<a name="281531370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281531370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281531370">(May 07 2022 at 09:50)</a>:</h4>
+<p>Makes sense</p>
+
+
+
+<a name="281531451"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281531451" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281531451">(May 07 2022 at 09:52)</a>:</h4>
+<p>If I understand the contribution workflow correctly, the next step would be to create a detailed RFC issue. Let me know if I should do that</p>
+
+
+
+<a name="281533464"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281533464" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281533464">(May 07 2022 at 10:43)</a>:</h4>
+<p>What if the user writes <code>rw [h hx]</code> when they didn't mean <code>rw [h, hx]</code>? That is, the user wants to apply <code>hx</code> to <code>h</code> but it might be parsed as two different arguments for <code>rw</code>.</p>
+<p>In other words, maybe simply adding an optional comma after the <code>rw</code>/<code>simp</code> arguments and before the <code>]</code> solves this issue</p>
+<p>This would make <code>rw [,]</code> legal but <span aria-label="shrug" class="emoji emoji-1f937" role="img" title="shrug">:shrug:</span></p>
+
+
+
+<a name="281536228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281536228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281536228">(May 07 2022 at 11:44)</a>:</h4>
+<p>Internal commas are not optional. The only way I think that would be okay is if it is using newlines and whitespace sensitivity as separator instead</p>
+
+
+
+<a name="281536270"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281536270" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281536270">(May 07 2022 at 11:45)</a>:</h4>
+<p>The grammar I am thinking of is <code>term,* ","?</code></p>
+
+
+
+<a name="281536318"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281536318" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281536318">(May 07 2022 at 11:46)</a>:</h4>
+<p>although that syntax allows <code>,</code> alone, as you say</p>
+
+
+
+<a name="281536523"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281536523" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281536523">(May 07 2022 at 11:50)</a>:</h4>
+<p>A BNF description would be:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">sepByT</span><span class="o">(</span><span class="n">A</span><span class="o">,</span> <span class="n">B</span><span class="o">)</span> <span class="o">::=</span> <span class="n">A</span><span class="bp">?</span> <span class="bp">|</span> <span class="n">A</span> <span class="n">B</span> <span class="n">sepByT</span><span class="o">(</span><span class="n">A</span><span class="o">,</span> <span class="n">B</span><span class="o">)</span>
+<span class="n">sepBy1T</span><span class="o">(</span><span class="n">A</span><span class="o">,</span> <span class="n">B</span><span class="o">)</span> <span class="o">::=</span> <span class="n">A</span> <span class="bp">|</span> <span class="n">A</span> <span class="n">B</span> <span class="n">sepBy1T</span><span class="o">(</span><span class="n">A</span><span class="o">,</span> <span class="n">B</span><span class="o">)</span><span class="bp">?</span>
+</code></pre></div>
+<p>This also works with newline separation if <code>B</code> is <code>"," | "\n"</code>, although indentation matching doesn't quite work like that</p>
+
+
+
+<a name="281537412"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281537412" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281537412">(May 07 2022 at 12:08)</a>:</h4>
+<p>I just noticed that <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Basic.lean#L1788"><code>sepBy1</code> has an optional argument for optional trailing separator</a></p>
+
+
+
+<a name="281538006"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538006" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538006">(May 07 2022 at 12:23)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> I'm struggling to understand what <code>sepBy1</code> precisely does (looked at <a href="https://github.com/leanprover/lean4/blob/3bdb385c199ebbcc2070f8849647df35c2cc2145/src/Lean/Parser/Basic.lean#L613"><code>sepByFnAux</code></a>, but I don't have a lot of time at this precise moment), but as far as I can tell it parses lists of at least one element, right?</p>
+<p>If that's the case then the grammar is <code>term ("," term)* ","?</code>, so it does not allow <code>,</code> alone. Of course what we're saying here also applies to potentially empty lists, but it seems there's interesting things to improve just by considering calls to <code>sepBy1</code>. Could we maybe take care of these first? It seems to me like a relatively low hanging fruit suited for a first issue</p>
+
+
+
+<a name="281538120"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538120" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538120">(May 07 2022 at 12:25)</a>:</h4>
+<p>Yes, the BNF I just wrote above has two variants, for lists of at least 1 (<code>sepBy1T</code>) and for length 0 or more (<code>sepByT</code>)</p>
+
+
+
+<a name="281538212"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538212" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538212">(May 07 2022 at 12:27)</a>:</h4>
+<p>The first one can also be written <code>sepByT(A, B) ::= (A B)* A?</code> and the second one is <code>sepBy1T(A, B) ::= A (B A)* B?</code> like you say</p>
+
+
+
+<a name="281538290"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538290" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538290">(May 07 2022 at 12:29)</a>:</h4>
+<p>Right my bad, replied too fast</p>
+
+
+
+<a name="281538419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538419">(May 07 2022 at 12:32)</a>:</h4>
+<p>It looks like <code>sepByFn</code> already supports trailing separators</p>
+
+
+
+<a name="281538567"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538567" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538567">(May 07 2022 at 12:36)</a>:</h4>
+<p>In fact, it looks like there is even short syntax for it: <code>term,*,?</code> is what I was calling <code>sepByT</code></p>
+
+
+
+<a name="281538573"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538573" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538573">(May 07 2022 at 12:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists/near/281538419">said</a>:</p>
+<blockquote>
+<p>It looks like <code>sepByFn</code> already supports trailing separators</p>
+</blockquote>
+<p>So do <code>sepBy</code> and <code>sepBy1</code> as I pointed out</p>
+
+
+
+<a name="281538587"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538587" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538587">(May 07 2022 at 12:37)</a>:</h4>
+<p>the slightly longer syntax for that is <code>sepBy(term, ",", ", ", allowTrailingSep)</code></p>
+
+
+
+<a name="281538665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538665">(May 07 2022 at 12:39)</a>:</h4>
+<p>so it seems like there is nothing to do here besides reviewing existing uses of <code>,*</code> to see whether <code>,*,?</code> is better</p>
+
+
+
+<a name="281538749"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntactic%20discrepancies%20on%20comma-separated%20lists/near/281538749" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adrien Champion <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntactic.20discrepancies.20on.20comma-separated.20lists.html#281538749">(May 07 2022 at 12:40)</a>:</h4>
+<p>Yeah that's the low hanging fruit I was thinking of</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

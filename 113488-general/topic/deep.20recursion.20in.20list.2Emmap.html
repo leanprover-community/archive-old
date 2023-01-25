@@ -1,0 +1,156 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html">deep recursion in list.mmap</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="288641920"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288641920" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288641920">(Jul 06 2022 at 09:03)</a>:</h4>
+<p>How am I supposed to write a for loop without hitting a deep recursion issue?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="o">(</span><span class="n">list.iota</span> <span class="mi">10000</span><span class="o">)</span><span class="bp">.</span><span class="n">mmap</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="k">do</span>
+  <span class="o">{</span> <span class="n">io.put_str</span> <span class="o">(</span><span class="n">format</span><span class="bp">!</span><span class="s2">"{i}</span><span class="se">\n</span><span class="s2">"</span><span class="o">)</span><span class="bp">.</span><span class="n">to_string</span> <span class="o">},</span>
+  <span class="n">pure</span> <span class="o">()</span>
+<span class="k">#eval</span> <span class="n">main</span>
+</code></pre></div>
+<p>gives</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">deep</span> <span class="n">recursion</span> <span class="n">was</span> <span class="n">detected</span> <span class="n">at</span> <span class="bp">'</span><span class="n">formatter'</span> <span class="o">(</span><span class="n">potential</span> <span class="n">solution</span><span class="o">:</span> <span class="n">increase</span> <span class="n">stack</span> <span class="n">space</span> <span class="k">in</span> <span class="n">your</span> <span class="n">system</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="288643153"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288643153" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288643153">(Jul 06 2022 at 09:16)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/doc-gen/blob/4939ffb50c0e2c92ec804bfee1decdd770092343/export_json.lean#L92-L95">This comment</a> in doc-gen ran into the same issue:</p>
+<blockquote>
+<p>Using <code>environment.mfold</code> is much cleaner. Unfortunately this led to a segfault, I think because<br>
+of a stack overflow. Converting the environment to a list of declarations and folding over that led<br>
+to "deep recursion detected". Instead, we split that list into 8 smaller lists and process them<br>
+one by one. More investigation is needed.</p>
+</blockquote>
+
+
+
+<a name="288646211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288646211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288646211">(Jul 06 2022 at 09:49)</a>:</h4>
+<p>This seems to help:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- A version of `list.map` for `io` that does not consume the whole stack -/</span>
+<span class="kd">def</span> <span class="n">list.mmap_io</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">io</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">io</span> <span class="o">(</span><span class="n">list</span> <span class="n">β</span><span class="o">)</span> <span class="o">:=</span>
+<span class="k">do</span>
+  <span class="o">(</span><span class="n">_</span><span class="o">,</span> <span class="n">bs</span><span class="o">)</span> <span class="bp">←</span> <span class="n">io.iterate</span> <span class="o">(</span><span class="n">l</span><span class="o">,</span> <span class="o">([]</span> <span class="o">:</span> <span class="n">list</span> <span class="n">β</span><span class="o">))</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">state</span><span class="o">,</span> <span class="k">do</span> <span class="o">{</span>
+    <span class="o">(</span><span class="n">a</span> <span class="o">::</span> <span class="n">as</span><span class="o">,</span> <span class="n">bs</span><span class="o">)</span> <span class="bp">←</span> <span class="n">pure</span> <span class="n">state</span> <span class="bp">|</span> <span class="n">return</span> <span class="n">none</span><span class="o">,</span>
+    <span class="n">b</span> <span class="bp">←</span> <span class="n">f</span> <span class="n">a</span><span class="o">,</span>
+    <span class="n">return</span> <span class="o">(</span><span class="n">some</span> <span class="o">(</span><span class="n">as</span><span class="o">,</span> <span class="n">b</span> <span class="o">::</span> <span class="n">bs</span><span class="o">))</span>
+  <span class="o">}),</span>
+  <span class="n">pure</span> <span class="n">bs</span>
+</code></pre></div>
+<p>Unfortunately I'm not allowed to <code>@[vm_override]</code> that</p>
+
+
+
+<a name="288660622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288660622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288660622">(Jul 06 2022 at 12:15)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/list.mmap'">docs#list.mmap'</a> works</p>
+
+
+
+<a name="288661343"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288661343" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288661343">(Jul 06 2022 at 12:20)</a>:</h4>
+<p>Not for n = 100000 it doesn't</p>
+
+
+
+<a name="288661593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288661593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288661593">(Jul 06 2022 at 12:23)</a>:</h4>
+<p>I would not try to process that big a list then</p>
+
+
+
+<a name="288661727"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288661727" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288661727">(Jul 06 2022 at 12:24)</a>:</h4>
+<p>Yes, this is a very well-known issue in Lean 3. I also hit it badly with LeanCrawler.</p>
+
+
+
+<a name="288668251"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288668251" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288668251">(Jul 06 2022 at 13:17)</a>:</h4>
+<p>Is there a github issue or prior zulip thread that comes to mind?</p>
+
+
+
+<a name="288668293"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288668293" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288668293">(Jul 06 2022 at 13:17)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110032">Reid Barton</span> <a href="#narrow/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap/near/288661593">said</a>:</p>
+<blockquote>
+<p>I would not try to process that big a list then</p>
+</blockquote>
+<p>such long lists originate from <a href="https://leanprover-community.github.io/mathlib_docs/find/environment.get_decls">docs#environment.get_decls</a></p>
+<p>(the application here was <a href="https://github.com/eric-wieser/lean-graded-rings/blob/master/export.lean">exporting symbol information from a git repo</a> to use as <a href="https://github.com/eric-wieser/lean-graded-rings/actions/runs/2622785830">links in LaTeX</a>)</p>
+
+
+
+<a name="288689396"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/288689396" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#288689396">(Jul 06 2022 at 15:38)</a>:</h4>
+<p>Eric, there is probably related info in the thread <a href="#narrow/stream/113488-general/topic/random.20io.20output">https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/random.20io.20output</a></p>
+
+
+
+<a name="289082519"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289082519" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289082519">(Jul 10 2022 at 04:57)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap/near/288668293">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110032">Reid Barton</span> <a href="#narrow/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap/near/288661593">said</a>:</p>
+<blockquote>
+<p>I would not try to process that big a list then</p>
+</blockquote>
+<p>such long lists originate from <a href="https://leanprover-community.github.io/mathlib_docs/find/environment.get_decls">docs#environment.get_decls</a></p>
+</blockquote>
+<p>You should not use <code>get_decls</code> if this is an issue. Instead use <code>environment.fold</code> and just do what you need to do on each decl as it goes by without buffering them all into a list</p>
+
+
+
+<a name="289084351"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289084351" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289084351">(Jul 10 2022 at 05:51)</a>:</h4>
+<p>Doesn't that hit the same problem if I fold over a monad? (I haven't tried)</p>
+
+
+
+<a name="289084594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289084594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289084594">(Jul 10 2022 at 05:58)</a>:</h4>
+<p>No; for example you can call <code>trace</code> on all decls and nothing overflows. Building a list is also something you can do (this is how <code>get_decls</code> works after all), it's just consuming the large list that causes a stack overflow</p>
+
+
+
+<a name="289085576"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289085576" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289085576">(Jul 10 2022 at 06:27)</a>:</h4>
+<p>Wild, thanks for the tip</p>
+
+
+
+<a name="289085588"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289085588" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289085588">(Jul 10 2022 at 06:27)</a>:</h4>
+<p>The <code>list.mmap_io</code> definition above did also solve the problem though</p>
+
+
+
+<a name="289085593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/deep%20recursion%20in%20list.mmap/near/289085593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/deep.20recursion.20in.20list.2Emmap.html#289085593">(Jul 10 2022 at 06:27)</a>:</h4>
+<p>But I guess only in one monad</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,398 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html">Code review for small tactic</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="267536170"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267536170" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267536170">(Jan 11 2022 at 04:47)</a>:</h4>
+<p>I wrote my first small tactic, basically a wrapper for <code>fin_cases</code>, which case splits according to the remainder of a variable <code>n</code> modulo a variable <code>p</code>.  I'd be really glad to get feedback on doing things more efficiently, or more according to convention.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.interactive</span>
+<span class="kn">import</span> <span class="n">tactic.fin_cases</span>
+<span class="kn">import</span> <span class="n">tactic.norm_cast</span>
+<span class="kn">import</span> <span class="n">data.int.modeq</span>
+
+<span class="kd">lemma</span> <span class="n">int.exists_unique_modeq_mem_range</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">b</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">hb</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span>
+  <span class="bp">∃</span> <span class="n">z</span> <span class="bp">∈</span> <span class="n">finset.range</span> <span class="n">b</span><span class="o">,</span> <span class="n">a</span> <span class="bp">≡</span> <span class="n">z</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="n">b</span><span class="o">]</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">obtain</span> <span class="o">⟨</span><span class="n">a₀</span><span class="o">,</span> <span class="n">ha₀</span><span class="o">,</span> <span class="n">ha₀n</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">int.exists_unique_equiv_nat</span> <span class="n">a</span> <span class="o">(</span><span class="kd">by</span> <span class="n">exact_mod_cast</span> <span class="n">hb</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span><span class="o">:</span><span class="n">ℤ</span><span class="o">)</span> <span class="bp">&lt;</span> <span class="n">b</span><span class="o">),</span>
+  <span class="n">norm_cast</span> <span class="n">at</span> <span class="n">ha₀</span><span class="o">,</span>
+  <span class="n">refine</span> <span class="o">⟨</span><span class="n">a₀</span><span class="o">,</span> <span class="n">finset.mem_range.mpr</span> <span class="n">ha₀</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩,</span>
+  <span class="n">apply</span> <span class="n">int.modeq.symm</span><span class="o">,</span>
+  <span class="n">exact</span> <span class="n">ha₀n</span>
+<span class="kd">end</span>
+
+<span class="kn">namespace</span> <span class="n">tactic</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span> <span class="o">(</span><span class="n">n</span> <span class="n">p</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">z</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">nat.zero</span> <span class="o">[],</span>
+   <span class="n">pos</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">has_lt.lt</span> <span class="o">[</span><span class="n">z</span><span class="o">,</span> <span class="n">p</span><span class="o">],</span>
+   <span class="n">assert</span> <span class="bp">`</span><span class="n">h_pos</span> <span class="n">pos</span><span class="o">,</span> <span class="n">tactic.exact_dec_trivial</span><span class="o">,</span> <span class="c1">-- make a proof that `p` is positive</span>
+   <span class="n">hh</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="bp">`</span><span class="n">h_pos</span><span class="o">,</span>
+   <span class="n">w</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">int.exists_unique_modeq_mem_range</span> <span class="o">[</span><span class="n">n</span><span class="o">,</span> <span class="n">p</span><span class="o">,</span> <span class="n">hh</span><span class="o">],</span>
+   <span class="o">[(</span><span class="n">p</span><span class="o">,</span> <span class="o">[</span><span class="n">w_name</span><span class="o">,</span> <span class="n">hw_aux₂</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">w</span> <span class="o">[</span><span class="bp">`</span><span class="n">k</span><span class="o">,</span> <span class="bp">`</span><span class="n">hk_aux</span><span class="o">],</span>
+   <span class="o">[(</span><span class="n">p'</span><span class="o">,</span> <span class="o">[</span><span class="n">hk_name</span><span class="o">,</span> <span class="n">H_name</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">hw_aux₂</span> <span class="o">[</span><span class="bp">`</span><span class="n">hk</span><span class="o">,</span> <span class="bp">`</span><span class="n">H</span><span class="o">],</span>
+   <span class="n">tactic.fin_cases_at</span> <span class="n">none</span> <span class="n">none</span> <span class="n">hk_name</span><span class="o">,</span>
+   <span class="n">all_goals</span> <span class="o">(</span><span class="k">do</span> <span class="n">H'</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="bp">`</span><span class="n">H</span><span class="o">,</span>
+                  <span class="n">junk</span> <span class="bp">←</span> <span class="n">replace_at</span> <span class="n">norm_cast.derive</span> <span class="o">[</span><span class="n">H'</span><span class="o">]</span> <span class="n">ff</span><span class="o">,</span>
+                  <span class="n">pure</span> <span class="o">()),</span>
+   <span class="n">pure</span> <span class="o">()</span>
+
+
+<span class="kn">namespace</span> <span class="n">interactive</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span> <span class="o">(</span><span class="n">n</span> <span class="n">p</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">parser.pexpr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">p'</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="n">p</span><span class="o">,</span>
+   <span class="n">n'</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="n">n</span><span class="o">,</span>
+   <span class="n">tactic.mod_cases</span> <span class="n">n'</span> <span class="n">p'</span>
+
+<span class="kd">end</span> <span class="n">interactive</span>
+<span class="kd">end</span> <span class="n">tactic</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">:</span>  <span class="bp">¬</span> <span class="o">(</span><span class="mi">4</span> <span class="bp">∣</span> <span class="n">n</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">3</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">mod_cases</span> <span class="n">n</span> <span class="mi">4</span><span class="o">,</span>
+
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="267536239"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267536239" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267536239">(Jan 11 2022 at 04:49)</a>:</h4>
+<p>Some questions:</p>
+<ul>
+<li>how can I make the syntax <code>mod_cases n 4 using hn</code>, to name the hypothesis produced?</li>
+<li>how can I protect against bad variable inputs (<code>n</code> not an integer, <code>p</code> not a nat, <code>p</code> not positive)?</li>
+<li>can I do the <code>tactic.cases</code> application more efficiently?</li>
+</ul>
+
+
+
+<a name="267537162"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537162" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537162">(Jan 11 2022 at 05:07)</a>:</h4>
+<p>Since <code>p</code> needs to be a numeral known to the tactic, you can use <code>small_nat</code> to parse it instead of <code>parse pexpr</code></p>
+
+
+
+<a name="267537225"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537225" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537225">(Jan 11 2022 at 05:08)</a>:</h4>
+<p>that will restrict users of the tactic to write numerals, i.e. <code>4</code> not <code>2+2</code> and certainly not <code>k</code>, but that should be fine for this application</p>
+
+
+
+<a name="267537313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537313">(Jan 11 2022 at 05:10)</a>:</h4>
+<p><code>n</code> on the other hand can be a non-numeral expression, so you want to use <code>parse pexpr</code> there. If you put some kind of punctuation or keyword between <code>n</code> and <code>p</code> then you can parse <code>n</code> at low precedence which is probably nicer if <code>n</code> is a composite expression like <code>a + b</code></p>
+
+
+
+<a name="267537358"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537358" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537358">(Jan 11 2022 at 05:11)</a>:</h4>
+<p>The call to <code>mk_app `int.exists_unique_modeq_mem_range</code> will automatically check that <code>n</code> is an integer, but another way to do it is to use <code>i_to_expr ``(%%p : int)</code> instead of <code>to_expr p</code></p>
+
+
+
+<a name="267537710"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537710" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537710">(Jan 11 2022 at 05:19)</a>:</h4>
+<p>To parse an optional <code>using hn</code>, you can use <code>parse (tk "using" *&gt; ident)?</code></p>
+
+
+
+<a name="267537834"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537834" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537834">(Jan 11 2022 at 05:21)</a>:</h4>
+<p>Thanks Mario!  What should I do to protect against the ugly fail if <code>p = 0</code>?</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>exact tactic failed, type mismatch, given expression has type
+  true
+but is expected to have type
+  as_true (0 &lt; 0)
+</code></pre></div>
+
+
+
+<a name="267537933"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267537933" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267537933">(Jan 11 2022 at 05:23)</a>:</h4>
+<p>altogether it looks like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">namespace</span> <span class="n">tactic</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">(</span><span class="n">p'</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">z</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">nat.zero</span> <span class="o">[],</span>
+  <span class="n">p</span> <span class="bp">←</span> <span class="n">expr.of_nat</span> <span class="bp">`</span><span class="o">(</span><span class="n">ℕ</span><span class="o">)</span> <span class="n">p'</span><span class="o">,</span>
+  <span class="n">pos</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">has_lt.lt</span> <span class="o">[</span><span class="n">z</span><span class="o">,</span> <span class="n">p</span><span class="o">],</span>
+  <span class="n">assert</span> <span class="bp">`</span><span class="n">h_pos</span> <span class="n">pos</span><span class="o">,</span> <span class="n">tactic.exact_dec_trivial</span><span class="o">,</span> <span class="c1">-- make a proof that `p` is positive</span>
+  <span class="n">hh</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="bp">`</span><span class="n">h_pos</span><span class="o">,</span>
+  <span class="n">w</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">int.exists_unique_modeq_mem_range</span> <span class="o">[</span><span class="n">n</span><span class="o">,</span> <span class="n">p</span><span class="o">,</span> <span class="n">hh</span><span class="o">],</span>
+  <span class="o">[(</span><span class="n">p</span><span class="o">,</span> <span class="o">[</span><span class="n">w_name</span><span class="o">,</span> <span class="n">hw_aux₂</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">w</span> <span class="o">[</span><span class="bp">`</span><span class="n">k</span><span class="o">,</span> <span class="bp">`</span><span class="n">hk_aux</span><span class="o">],</span>
+  <span class="o">[(</span><span class="n">p'</span><span class="o">,</span> <span class="o">[</span><span class="n">hk_name</span><span class="o">,</span> <span class="n">H_name</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">hw_aux₂</span> <span class="o">[</span><span class="bp">`</span><span class="n">hk</span><span class="o">,</span> <span class="n">H</span><span class="o">],</span>
+  <span class="n">tactic.fin_cases_at</span> <span class="n">none</span> <span class="n">none</span> <span class="n">hk_name</span><span class="o">,</span>
+  <span class="o">()</span> <span class="bp">&lt;$</span> <span class="n">all_goals</span> <span class="o">(</span><span class="k">do</span>
+    <span class="n">H'</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">H</span><span class="o">,</span>
+    <span class="o">()</span> <span class="bp">&lt;$</span> <span class="n">replace_at</span> <span class="n">norm_cast.derive</span> <span class="o">[</span><span class="n">H'</span><span class="o">]</span> <span class="n">ff</span><span class="o">)</span>
+
+
+<span class="kn">namespace</span> <span class="n">interactive</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span>
+  <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">parser.pexpr</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">small_nat</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">parse</span> <span class="o">(</span><span class="n">tk</span> <span class="s2">"using"</span> <span class="bp">*&gt;</span> <span class="n">ident</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">n'</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">),</span>
+   <span class="n">tactic.mod_cases</span> <span class="n">n'</span> <span class="n">p</span> <span class="o">(</span><span class="n">h.get_or_else</span> <span class="bp">`</span><span class="n">H</span><span class="o">)</span>
+
+<span class="kd">end</span> <span class="n">interactive</span>
+<span class="kd">end</span> <span class="n">tactic</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">:</span>  <span class="bp">¬</span> <span class="o">(</span><span class="mi">4</span> <span class="bp">∣</span> <span class="n">n</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">3</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">mod_cases</span> <span class="n">n</span> <span class="mi">4</span> <span class="n">using</span> <span class="n">a</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="267538018"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267538018" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267538018">(Jan 11 2022 at 05:24)</a>:</h4>
+<p>The tactic also puts an unnecessary <code>h_pos</code> in the context; here you only need that expression in order to construct <code>w</code> so there is no need to <code>have</code> it</p>
+
+
+
+<a name="267538057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267538057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267538057">(Jan 11 2022 at 05:25)</a>:</h4>
+<p>You should use <code>norm_num</code> (or rather <code>norm_num.prove_pos</code>) instead of <code>exact_dec_trivial</code> to prove <code>p</code> is positive</p>
+
+
+
+<a name="267538128"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267538128" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267538128">(Jan 11 2022 at 05:26)</a>:</h4>
+<p>Since <code>p'</code> is just a <code>nat</code> here, you can provide a nicer error message with e.g. <code>when (p = 0) (fail "nope")</code></p>
+
+
+
+<a name="267538145"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267538145" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267538145">(Jan 11 2022 at 05:27)</a>:</h4>
+<p>you can even make it a parse error with <code>parse (do n &lt;- small_nat, guard (n != 0), pure n)</code> for the <code>p</code> parameter</p>
+
+
+
+<a name="267538416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267538416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267538416">(Jan 11 2022 at 05:32)</a>:</h4>
+<p>Here's how you would use <code>norm_num</code> to prove <code>0 &lt; p</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">(</span><span class="n">p'</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">z</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">nat.zero</span> <span class="o">[],</span>
+  <span class="n">p</span> <span class="bp">←</span> <span class="n">expr.of_nat</span> <span class="bp">`</span><span class="o">(</span><span class="n">ℕ</span><span class="o">)</span> <span class="n">p'</span><span class="o">,</span>
+  <span class="n">pos</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">has_lt.lt</span> <span class="o">[</span><span class="n">z</span><span class="o">,</span> <span class="n">p</span><span class="o">],</span>
+  <span class="n">ic</span> <span class="bp">←</span> <span class="n">mk_instance_cache</span> <span class="bp">`</span><span class="o">(</span><span class="n">ℕ</span><span class="o">),</span>
+  <span class="o">(</span><span class="n">_</span><span class="o">,</span> <span class="n">hh</span><span class="o">)</span> <span class="bp">←</span> <span class="n">norm_num.prove_pos_nat</span> <span class="n">ic</span> <span class="n">p</span><span class="o">,</span>
+  <span class="n">w</span> <span class="bp">←</span> <span class="n">mk_app</span> <span class="bp">`</span><span class="n">int.exists_unique_modeq_mem_range</span> <span class="o">[</span><span class="n">n</span><span class="o">,</span> <span class="n">p</span><span class="o">,</span> <span class="n">hh</span><span class="o">],</span>
+  <span class="o">[(</span><span class="n">p</span><span class="o">,</span> <span class="o">[</span><span class="n">w_name</span><span class="o">,</span> <span class="n">hw_aux₂</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">w</span> <span class="o">[</span><span class="bp">`</span><span class="n">k</span><span class="o">,</span> <span class="bp">`</span><span class="n">hk_aux</span><span class="o">],</span>
+  <span class="o">[(</span><span class="n">p'</span><span class="o">,</span> <span class="o">[</span><span class="n">hk_name</span><span class="o">,</span> <span class="n">H_name</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">hw_aux₂</span> <span class="o">[</span><span class="bp">`</span><span class="n">hk</span><span class="o">,</span> <span class="n">H</span><span class="o">],</span>
+  <span class="n">tactic.fin_cases_at</span> <span class="n">none</span> <span class="n">none</span> <span class="n">hk_name</span><span class="o">,</span>
+  <span class="o">()</span> <span class="bp">&lt;$</span> <span class="n">all_goals</span> <span class="o">(</span><span class="k">do</span>
+    <span class="n">H'</span> <span class="bp">←</span> <span class="n">get_local</span> <span class="n">H</span><span class="o">,</span>
+    <span class="o">()</span> <span class="bp">&lt;$</span> <span class="n">replace_at</span> <span class="n">norm_cast.derive</span> <span class="o">[</span><span class="n">H'</span><span class="o">]</span> <span class="n">ff</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="267540401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267540401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267540401">(Jan 11 2022 at 06:12)</a>:</h4>
+<p>Thank you!  That <code>_</code> trick is nice, I see I can do</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="o">[(</span><span class="n">_</span><span class="o">,</span> <span class="o">[</span><span class="n">_</span><span class="o">,</span> <span class="n">hw_aux₂</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">w</span> <span class="o">[</span><span class="bp">`</span><span class="n">k</span><span class="o">,</span> <span class="bp">`</span><span class="n">hk_aux</span><span class="o">],</span>
+  <span class="o">[(</span><span class="n">_</span><span class="o">,</span> <span class="o">[</span><span class="n">hk_name</span><span class="o">,</span> <span class="n">_</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">hw_aux₂</span> <span class="o">[</span><span class="bp">`</span><span class="n">hk</span><span class="o">,</span> <span class="n">H</span><span class="o">],</span>
+</code></pre></div>
+<p>later as well.  I also didn't know how about <code>norm_num.prove_pos_nat</code> to extract a proof of positivity.</p>
+<p>Is there a way to get <code>(0:ℕ)</code> faster than <code>z ← mk_app </code>nat.zero []`?</p>
+<p>Is there a way to combine the two <code>tactic.cases</code>?</p>
+
+
+
+<a name="267540431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267540431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267540431">(Jan 11 2022 at 06:12)</a>:</h4>
+<p>And I also couldn't see where to slot in the</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">parse</span> <span class="o">(</span><span class="k">do</span> <span class="n">n</span> <span class="bp">&lt;-</span> <span class="n">small_nat</span><span class="o">,</span> <span class="n">guard</span> <span class="o">(</span><span class="n">n</span> <span class="bp">!=</span> <span class="mi">0</span><span class="o">),</span> <span class="n">pure</span> <span class="n">n</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="267541078"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541078" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541078">(Jan 11 2022 at 06:22)</a>:</h4>
+<p>For <code>(0:nat)</code> specifically (i.e. you know the type in advance so no typeclass search is needed), you can just use <code>let zero := `(0:nat)</code></p>
+
+
+
+<a name="267541166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541166">(Jan 11 2022 at 06:24)</a>:</h4>
+<p>Re: combining cases, not really, although you can craft your lemma as an induction principle so that you don't need the <code>cases</code></p>
+
+
+
+<a name="267541169"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541169" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541169">(Jan 11 2022 at 06:24)</a>:</h4>
+<p>Also, do I understand correctly that I ought to use <code>get_unused_name</code> to ensure that the cases don't accidentally receive names that already exist in context?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="n">A₁</span> <span class="bp">←</span> <span class="n">get_unused_name</span><span class="o">,</span>
+  <span class="n">A₂</span> <span class="bp">←</span> <span class="n">get_unused_name</span><span class="o">,</span>
+  <span class="o">[(</span><span class="n">_</span><span class="o">,</span> <span class="o">[</span><span class="n">_</span><span class="o">,</span> <span class="n">hw</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">w</span><span class="o">,</span>
+  <span class="o">[(</span><span class="n">_</span><span class="o">,</span> <span class="o">[</span><span class="n">hk</span><span class="o">,</span> <span class="n">_</span><span class="o">])]</span> <span class="bp">←</span> <span class="n">tactic.cases</span> <span class="n">hw</span> <span class="o">[</span><span class="n">A₁</span><span class="o">,</span> <span class="n">A₂</span><span class="o">],</span>
+</code></pre></div>
+
+
+
+<a name="267541179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541179">(Jan 11 2022 at 06:24)</a>:</h4>
+<p><code>rcases</code> just calls <code>cases</code> repeatedly</p>
+
+
+
+<a name="267541229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541229">(Jan 11 2022 at 06:25)</a>:</h4>
+<p>You usually shouldn't have to worry about that. You only need to provide names if you are routing some names provided by the user</p>
+
+
+
+<a name="267541310"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267541310" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267541310">(Jan 11 2022 at 06:26)</a>:</h4>
+<p>you can just use  <code> `_</code> for everything you don't want to name</p>
+
+
+
+<a name="267545333"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267545333" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267545333">(Jan 11 2022 at 07:24)</a>:</h4>
+<p>It's a shame that <code>fin_cases</code> doesn't have a lower level interface to save some computation here. I didn't take a deep look at what <code>fin_cases</code> is doing, but here's a version that performs significantly better and skips <code>cases</code> and such:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.interactive</span>
+<span class="kn">import</span> <span class="n">tactic.fin_cases</span>
+<span class="kn">import</span> <span class="n">tactic.norm_cast</span>
+<span class="kn">import</span> <span class="n">data.int.modeq</span>
+
+<span class="kn">namespace</span> <span class="n">int</span>
+
+<span class="c1">-- these should exist in data.int.modeq (in preference to the exists version?)</span>
+<span class="kd">def</span> <span class="n">sigma_unique_equiv</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">{</span><span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">hb</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="o">{</span><span class="n">z</span> <span class="o">:</span> <span class="n">ℤ</span> <span class="bp">//</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">z</span> <span class="bp">∧</span> <span class="n">z</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">∧</span> <span class="n">z</span> <span class="bp">≡</span> <span class="n">a</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="n">b</span><span class="o">]}</span> <span class="o">:=</span>
+<span class="o">⟨</span> <span class="n">a</span> <span class="bp">%</span> <span class="n">b</span><span class="o">,</span> <span class="n">mod_nonneg</span> <span class="n">_</span> <span class="o">(</span><span class="n">ne_of_gt</span> <span class="n">hb</span><span class="o">),</span>
+  <span class="k">have</span> <span class="n">a</span> <span class="bp">%</span> <span class="n">b</span> <span class="bp">&lt;</span> <span class="bp">|</span><span class="n">b</span><span class="bp">|</span><span class="o">,</span> <span class="k">from</span> <span class="n">mod_lt</span> <span class="n">_</span> <span class="o">(</span><span class="n">ne_of_gt</span> <span class="n">hb</span><span class="o">),</span>
+  <span class="kd">by</span> <span class="n">rwa</span> <span class="n">abs_of_pos</span> <span class="n">hb</span> <span class="n">at</span> <span class="n">this</span><span class="o">,</span>
+  <span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">modeq</span><span class="o">]</span> <span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">sigma_unique_equiv_nat</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">{</span><span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">hb</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">b</span><span class="o">)</span> <span class="o">:</span> <span class="o">{</span><span class="n">z</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">//</span> <span class="bp">↑</span><span class="n">z</span> <span class="bp">&lt;</span> <span class="n">b</span> <span class="bp">∧</span> <span class="bp">↑</span><span class="n">z</span> <span class="bp">≡</span> <span class="n">a</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="n">b</span><span class="o">]}</span> <span class="o">:=</span>
+<span class="k">let</span> <span class="o">⟨</span><span class="n">z</span><span class="o">,</span> <span class="n">hz1</span><span class="o">,</span> <span class="n">hz2</span><span class="o">,</span> <span class="n">hz3</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">sigma_unique_equiv</span> <span class="n">a</span> <span class="n">hb</span> <span class="k">in</span>
+<span class="o">⟨</span><span class="n">z.nat_abs</span><span class="o">,</span> <span class="kd">by</span> <span class="n">split</span><span class="bp">;</span> <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span><span class="n">of_nat_eq_coe</span><span class="o">,</span> <span class="n">of_nat_nat_abs_eq_of_nonneg</span> <span class="n">hz1</span><span class="o">]</span><span class="bp">;</span> <span class="n">assumption</span><span class="o">⟩</span>
+
+<span class="kd">end</span> <span class="n">int</span>
+
+<span class="kn">namespace</span> <span class="n">tactic</span>
+
+<span class="kd">def</span> <span class="n">on_mod_cases</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="n">lb</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∀</span> <span class="n">z</span><span class="o">,</span> <span class="n">lb</span> <span class="bp">≤</span> <span class="n">z</span> <span class="bp">→</span> <span class="n">z</span> <span class="bp">&lt;</span> <span class="n">n</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">≡</span> <span class="n">z</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="n">n</span><span class="o">]</span> <span class="bp">→</span> <span class="n">p</span>
+
+<span class="kd">lemma</span> <span class="n">on_mod_cases_start</span> <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">hn</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">&lt;</span> <span class="n">n</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">on_mod_cases</span> <span class="n">n</span> <span class="n">a</span> <span class="mi">0</span> <span class="n">p</span><span class="o">)</span> <span class="o">:</span> <span class="n">p</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">obtain</span> <span class="o">⟨</span><span class="n">a₀</span><span class="o">,</span> <span class="n">ha₀</span><span class="o">,</span> <span class="n">ha₀n</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">int.sigma_unique_equiv_nat</span> <span class="n">a</span> <span class="o">(</span><span class="kd">by</span> <span class="n">exact_mod_cast</span> <span class="n">hn</span> <span class="o">:</span> <span class="o">(</span><span class="mi">0</span><span class="o">:</span><span class="n">ℤ</span><span class="o">)</span> <span class="bp">&lt;</span> <span class="n">n</span><span class="o">),</span>
+  <span class="n">exact</span> <span class="n">H</span> <span class="n">a₀</span> <span class="o">(</span><span class="kd">by</span> <span class="n">simp</span><span class="o">)</span> <span class="o">(</span><span class="kd">by</span> <span class="n">simp</span> <span class="o">[</span><span class="n">ha₀</span><span class="o">])</span> <span class="n">ha₀n.symm</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">on_mod_cases_stop</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="n">n'</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">n'</span> <span class="bp">=</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">on_mod_cases</span> <span class="n">n</span> <span class="n">a</span> <span class="n">n'</span> <span class="n">p</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">z</span> <span class="n">h₁</span> <span class="n">h₂</span><span class="o">,</span> <span class="o">(</span><span class="n">not_lt_of_le</span> <span class="n">h₁</span> <span class="bp">$</span> <span class="n">h.symm</span> <span class="bp">▸</span> <span class="n">h₂</span><span class="o">)</span><span class="bp">.</span><span class="n">elim</span>
+
+<span class="kd">lemma</span> <span class="n">on_mod_cases_succ</span> <span class="o">{</span><span class="n">p</span> <span class="o">:</span> <span class="kt">Sort</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">}</span> <span class="o">{</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">bc</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">+</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">c</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">≡</span> <span class="n">b</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="n">n</span><span class="o">]</span> <span class="bp">→</span> <span class="n">p</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">on_mod_cases</span> <span class="n">n</span> <span class="n">a</span> <span class="n">c</span> <span class="n">p</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">on_mod_cases</span> <span class="n">n</span> <span class="n">a</span> <span class="n">b</span> <span class="n">p</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">z</span> <span class="n">h₁</span> <span class="n">h₂</span> <span class="n">hm</span><span class="o">,</span> <span class="k">if</span> <span class="n">he</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">z</span> <span class="k">then</span> <span class="n">h</span> <span class="o">(</span><span class="n">he.symm</span> <span class="bp">▸</span> <span class="n">hm</span><span class="o">)</span> <span class="k">else</span>
+  <span class="n">H</span> <span class="n">z</span> <span class="o">(</span><span class="n">bc</span> <span class="bp">▸</span> <span class="n">lt_of_le_of_ne</span> <span class="n">h₁</span> <span class="n">he</span><span class="o">)</span> <span class="n">h₂</span> <span class="n">hm</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">prove_mod_cases</span> <span class="o">(</span><span class="n">u</span> <span class="o">:</span> <span class="n">level</span><span class="o">)</span> <span class="o">(</span><span class="n">p</span> <span class="n">n</span> <span class="n">a</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">(</span><span class="n">nn</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">instance_cache</span> <span class="bp">→</span> <span class="n">instance_cache</span> <span class="bp">→</span> <span class="n">expr</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">list</span> <span class="n">expr</span> <span class="bp">×</span> <span class="n">expr</span><span class="o">)</span>
+<span class="bp">|</span> <span class="n">zc</span> <span class="n">nc</span> <span class="n">b</span> <span class="n">nb</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">nn</span> <span class="bp">≤</span> <span class="n">nb</span> <span class="k">then</span> <span class="k">do</span>
+    <span class="o">(</span><span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">pr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">norm_num.prove_nat_uncast</span> <span class="n">zc</span> <span class="n">nc</span> <span class="n">b</span><span class="o">,</span>
+    <span class="n">pure</span> <span class="o">([],</span> <span class="n">pr</span><span class="o">)</span>
+  <span class="k">else</span> <span class="k">do</span>
+    <span class="o">(</span><span class="n">zc</span><span class="o">,</span> <span class="n">c</span><span class="o">,</span> <span class="n">bc</span><span class="o">)</span> <span class="bp">←</span> <span class="n">norm_num.prove_succ'</span> <span class="n">zc</span> <span class="n">b</span><span class="o">,</span>
+    <span class="n">g</span> <span class="bp">←</span> <span class="n">to_expr_strict</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">a</span> <span class="bp">≡</span> <span class="bp">%%</span><span class="n">b</span> <span class="o">[</span><span class="n">ZMOD</span> <span class="o">(</span><span class="bp">%%</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)]</span> <span class="bp">→</span> <span class="bp">%%</span><span class="n">p</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">mk_meta_var</span><span class="o">,</span>
+    <span class="o">(</span><span class="n">gs</span><span class="o">,</span> <span class="n">pr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">prove_mod_cases</span> <span class="n">zc</span> <span class="n">nc</span> <span class="n">c</span> <span class="o">(</span><span class="n">nb</span><span class="bp">+</span><span class="mi">1</span><span class="o">),</span>
+    <span class="n">pure</span> <span class="o">(</span><span class="n">g</span><span class="o">::</span><span class="n">gs</span><span class="o">,</span> <span class="o">(</span><span class="n">expr.const</span> <span class="bp">``</span><span class="n">on_mod_cases_succ</span> <span class="o">[</span><span class="n">u</span><span class="o">])</span><span class="bp">.</span><span class="n">mk_app</span> <span class="o">[</span><span class="n">p</span><span class="o">,</span> <span class="n">n</span><span class="o">,</span> <span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">,</span> <span class="n">c</span><span class="o">,</span> <span class="n">bc</span><span class="o">,</span> <span class="n">g</span><span class="o">,</span> <span class="n">pr</span><span class="o">])</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">(</span><span class="n">nn</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">name</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">focus1</span> <span class="bp">$</span> <span class="k">do</span>
+  <span class="n">p</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+  <span class="n">zc</span> <span class="bp">←</span> <span class="n">mk_instance_cache</span> <span class="bp">`</span><span class="o">(</span><span class="n">ℤ</span><span class="o">),</span>
+  <span class="n">nc</span> <span class="bp">←</span> <span class="n">mk_instance_cache</span> <span class="bp">`</span><span class="o">(</span><span class="n">ℕ</span><span class="o">),</span>
+  <span class="o">(</span><span class="n">nc</span><span class="o">,</span> <span class="n">n</span><span class="o">)</span> <span class="bp">←</span> <span class="n">nc.of_nat</span> <span class="n">nn</span><span class="o">,</span>
+  <span class="o">(</span><span class="n">nc</span><span class="o">,</span> <span class="n">hn</span><span class="o">)</span> <span class="bp">←</span> <span class="n">norm_num.prove_pos_nat</span> <span class="n">nc</span> <span class="n">n</span><span class="o">,</span>
+  <span class="n">refine</span> <span class="bp">``</span><span class="o">(</span><span class="n">on_mod_cases_start</span> <span class="n">_</span> <span class="bp">%%</span><span class="n">a</span> <span class="bp">%%</span><span class="n">n</span> <span class="bp">%%</span><span class="n">hn</span> <span class="n">_</span><span class="o">),</span>
+  <span class="n">expr.sort</span> <span class="n">u</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">p</span> <span class="bp">|</span> <span class="n">failure</span><span class="o">,</span>
+  <span class="o">(</span><span class="n">gs</span><span class="o">,</span> <span class="n">pr</span><span class="o">)</span> <span class="bp">←</span> <span class="n">try_for</span> <span class="mi">1000</span> <span class="o">(</span><span class="n">prove_mod_cases</span> <span class="n">u</span> <span class="n">p</span> <span class="n">n</span> <span class="n">a</span> <span class="n">nn</span> <span class="n">zc</span> <span class="n">nc</span> <span class="bp">`</span><span class="o">(</span><span class="mi">0</span><span class="o">:</span><span class="n">ℤ</span><span class="o">)</span> <span class="mi">0</span><span class="o">),</span>
+  <span class="n">exact</span> <span class="n">pr</span><span class="o">,</span>
+  <span class="n">set_goals</span> <span class="n">gs</span><span class="o">,</span>
+  <span class="o">()</span> <span class="bp">&lt;$</span> <span class="n">all_goals</span> <span class="o">(</span><span class="n">intro</span> <span class="n">H</span><span class="o">)</span>
+
+<span class="kn">namespace</span> <span class="n">interactive</span>
+<span class="n">setup_tactic_parser</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">mod_cases</span>
+  <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">parser.pexpr</span><span class="o">)</span>
+  <span class="o">(</span><span class="n">p</span> <span class="o">:</span> <span class="n">parse</span> <span class="o">(</span><span class="k">do</span> <span class="n">n</span> <span class="bp">←</span> <span class="n">small_nat</span><span class="o">,</span> <span class="n">guard</span> <span class="o">(</span><span class="n">n</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">),</span> <span class="n">pure</span> <span class="n">n</span><span class="o">))</span>
+  <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">parse</span> <span class="o">(</span><span class="n">tk</span> <span class="s2">"using"</span> <span class="bp">*&gt;</span> <span class="n">ident</span><span class="o">)</span><span class="bp">?</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="k">do</span> <span class="n">n'</span> <span class="bp">←</span> <span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">),</span>
+   <span class="n">tactic.mod_cases</span> <span class="n">n'</span> <span class="n">p</span> <span class="o">(</span><span class="n">h.get_or_else</span> <span class="bp">`</span><span class="n">H</span><span class="o">)</span>
+
+<span class="kd">end</span> <span class="n">interactive</span>
+<span class="kd">end</span> <span class="n">tactic</span>
+
+<span class="kd">example</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">)</span> <span class="o">:</span>  <span class="bp">¬</span> <span class="o">(</span><span class="mi">4</span> <span class="bp">∣</span> <span class="n">n</span> <span class="bp">^</span> <span class="mi">2</span> <span class="bp">-</span> <span class="mi">3</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">mod_cases</span> <span class="n">n</span> <span class="mi">100</span> <span class="n">using</span> <span class="n">a</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="267545387"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267545387" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267545387">(Jan 11 2022 at 07:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="260507">@Heather Macbeth</span></p>
+
+
+
+<a name="267605647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267605647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267605647">(Jan 11 2022 at 16:20)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> This is very interesting, I will study it!  But also, perhaps you could PR it? :). Much better than I came up with.</p>
+
+
+
+<a name="267606015"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267606015" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267606015">(Jan 11 2022 at 16:22)</a>:</h4>
+<p>Also, I was going to mention that <code>using h</code> is not a conventional way to ask for a name in a tactic; I would suggest <code>h : </code> instead, or perhaps <code>with h</code></p>
+
+
+
+<a name="267606110"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267606110" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267606110">(Jan 11 2022 at 16:23)</a>:</h4>
+<p>there aren't too many tactics using <code>using</code>, but those that do expect an expression after it</p>
+
+
+
+<a name="267637075"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/Code%20review%20for%20small%20tactic/near/267637075" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/Code.20review.20for.20small.20tactic.html#267637075">(Jan 11 2022 at 20:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/239415-metaprogramming-.2F.20tactics/topic/Code.20review.20for.20small.20tactic/near/267606110">said</a>:</p>
+<blockquote>
+<p>there aren't too many tactics using <code>using</code>, but those that do expect an expression after it</p>
+</blockquote>
+<p>Indeed, I realised later and changed to <code>with</code> in my local version!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

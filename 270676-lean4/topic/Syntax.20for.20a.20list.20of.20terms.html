@@ -1,0 +1,83 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html">Syntax for a list of terms</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="299929630"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntax%20for%20a%20list%20of%20terms/near/299929630" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html#299929630">(Sep 21 2022 at 11:02)</a>:</h4>
+<p>I would like to write a tactic which takes a list of expressions, and I think it makes sense for the caller to actually write the list notation.</p>
+<p>That is, I would like the caller to write something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">my_fancy_tac</span> <span class="n">using</span> <span class="o">[</span><span class="mi">37</span><span class="o">,</span> <span class="s2">"foo"</span><span class="o">,</span> <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">]]</span>
+</code></pre></div>
+<p>I would then like to obtain the <code>List Expr</code> obtained elaborating each of these.</p>
+<p>I could do just by asking for a single <code>term</code> at the <code>Syntax</code> level, elaborating that, then decomposing the resulting <code>Expr</code> object to see if it represents a <code>List</code>. But would it be better to express this all at <code>Syntax</code> level? If so, how would I do so?</p>
+
+
+
+<a name="299929768"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntax%20for%20a%20list%20of%20terms/near/299929768" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html#299929768">(Sep 21 2022 at 11:03)</a>:</h4>
+<p>I'm not sure here whether I ought to avoid mucking about with <code>Expr</code>s, or avoid rewriting a <code>List</code> parser.</p>
+
+
+
+<a name="299929882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntax%20for%20a%20list%20of%20terms/near/299929882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html#299929882">(Sep 21 2022 at 11:04)</a>:</h4>
+<p>e.g. the "single <code>term</code>" method perhaps looks like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">syntax</span> <span class="s2">"my_fancy_tac"</span> <span class="s2">"using"</span> <span class="n">term</span> <span class="o">:</span> <span class="n">tactic</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">Expr_to_List_Expr</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">List</span> <span class="n">Expr</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="k">match</span> <span class="n">e.getAppFnArgs</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="o">(</span><span class="bp">`</span><span class="n">List.cons</span><span class="o">,</span> <span class="bp">#</span><span class="o">[</span><span class="n">_</span><span class="o">,</span> <span class="n">h</span><span class="o">,</span> <span class="n">t</span><span class="o">])</span> <span class="bp">=&gt;</span> <span class="n">h</span> <span class="o">::</span> <span class="o">(</span><span class="n">Expr_to_List_Expr</span> <span class="n">t</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="o">[]</span>
+
+<span class="n">elab_rules</span> <span class="o">:</span> <span class="n">tactic</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">my_fancy_tac</span> <span class="n">using</span> <span class="bp">$</span><span class="n">t</span><span class="o">:</span><span class="n">term</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">Lean.Elab.Term.elabTerm</span> <span class="n">t</span> <span class="n">none</span>
+    <span class="k">let</span> <span class="n">l</span> <span class="o">:=</span> <span class="n">Expr_to_List_Expr</span> <span class="n">e</span>
+    <span class="n">for</span> <span class="n">f</span> <span class="k">in</span> <span class="n">l</span> <span class="k">do</span>
+      <span class="n">logInfo</span> <span class="n">f</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">my_fancy_tac</span> <span class="n">using</span> <span class="o">[</span><span class="mi">37</span><span class="o">,</span><span class="mi">57</span><span class="o">]</span> <span class="c1">-- Prints 37 then 57.</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+
+
+
+<a name="299974868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Syntax%20for%20a%20list%20of%20terms/near/299974868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Syntax.20for.20a.20list.20of.20terms.html#299974868">(Sep 21 2022 at 14:56)</a>:</h4>
+<p>What about this?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">syntax</span> <span class="s2">"my_fancy_tac"</span> <span class="s2">"using"</span> <span class="s2">"["</span> <span class="n">term</span><span class="o">,</span><span class="bp">*</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">tactic</span>
+
+<span class="n">elab_rules</span> <span class="o">:</span> <span class="n">tactic</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">tactic</span><span class="bp">|</span> <span class="n">my_fancy_tac</span> <span class="n">using</span> <span class="o">[</span> <span class="bp">$</span><span class="n">ts</span><span class="o">:</span><span class="n">term</span><span class="o">,</span><span class="bp">*</span> <span class="o">])</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">es</span> <span class="bp">←</span> <span class="n">ts.getElems.mapM</span> <span class="o">(</span><span class="n">Lean.Elab.Term.elabTerm</span> <span class="bp">·</span> <span class="n">none</span><span class="o">)</span>
+    <span class="n">for</span> <span class="n">f</span> <span class="k">in</span> <span class="n">es</span> <span class="k">do</span>
+      <span class="n">logInfo</span> <span class="n">f</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">True</span> <span class="o">:=</span> <span class="kd">by</span>
+  <span class="n">my_fancy_tac</span> <span class="n">using</span> <span class="o">[</span><span class="mi">37</span><span class="o">,</span> <span class="s2">"foo"</span><span class="o">,</span>  <span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="mi">2</span><span class="o">]]</span>
+  <span class="n">trivial</span>
+</code></pre></div>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

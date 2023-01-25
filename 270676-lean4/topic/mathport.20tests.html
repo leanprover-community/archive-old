@@ -1,0 +1,291 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/mathport.20tests.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html">mathport tests</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="259955258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259955258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259955258">(Nov 02 2021 at 05:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span>, in <a href="https://github.com/leanprover/mathport/commit/fd2a137ac23d133ed674ca885f77a3959b211952">fd2a137</a> you added the targets</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">test</span><span class="bp">-</span><span class="n">leanbin</span><span class="o">:</span>
+    <span class="n">cd</span> <span class="n">Test</span><span class="bp">/</span><span class="n">ImportLean</span> <span class="bp">&amp;&amp;</span> <span class="n">rm</span> <span class="bp">-</span><span class="n">rf</span> <span class="n">build</span> <span class="bp">&amp;&amp;</span> <span class="n">lake</span> <span class="n">build</span>
+
+<span class="n">test</span><span class="bp">-</span><span class="n">mathbin</span><span class="o">:</span>
+    <span class="n">cd</span> <span class="n">Test</span><span class="bp">/</span><span class="n">ImportMathbin</span> <span class="bp">&amp;&amp;</span> <span class="n">rm</span> <span class="bp">-</span><span class="n">rf</span> <span class="n">build</span> <span class="bp">&amp;&amp;</span> <span class="n">lake</span> <span class="n">build</span>
+</code></pre></div>
+<p>to the Makefile. While these work (for <code>test-mathbin</code>, I needed to change <code>Test/ImportMathbin</code> to <code>Test/ImportMathlib</code>: I'll PR this shortly), they do something that I think is a bit strange: they check out new copies of <code>mathport</code> and <code>mathlib</code>, rather than using the existing ones. </p>
+<p>I <em>think</em> this may be a problem with <code>lake</code>: it's ignoring the <code>src</code> fields of the transitive dependencies. Does that seem correct to you? If so I'll make a <code>lake</code> issue.</p>
+
+
+
+<a name="259962418"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259962418" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259962418">(Nov 02 2021 at 07:53)</a>:</h4>
+<p><span class="user-mention" data-user-id="110087">@Scott Morrison</span> This is expected behavior for Lake. Lake hoists deep dependencies into the top-level <code>lean_packages</code> directory. Note that this is standard behavior for package managers (e.g, Yarn/NPM do the same thing). This means if you build packages from two different root directories (e.g., <code>Test/ImportLean</code> and <code>Test/ImportMathbin</code>) you will get 2 different <code>lean_packages</code> directories each with their own copies.</p>
+
+
+
+<a name="259962521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259962521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259962521">(Nov 02 2021 at 07:54)</a>:</h4>
+<p>I am also considering doing the same for <code>build</code> directory (i.e., hoisting all dependency builds into the top-level <code>build</code> directory). This would also not be unique to Lake (e.g., Nix does it as well with its <code>results</code> directory).</p>
+
+
+
+<a name="259963013"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259963013" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259963013">(Nov 02 2021 at 08:00)</a>:</h4>
+<p>Yes, using a single build directory is common (though Nix' input-addressed store is different enough that it's not a good comparison I think). It might be painful in the case of Lean when rebuilding e.g. mathlib as a dependency, though I suppose a local dependency to mathlib is not that common.</p>
+
+
+
+<a name="259963109"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259963109" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259963109">(Nov 02 2021 at 08:02)</a>:</h4>
+<p>I'm not sure I understand the source copy issue yet: is it a semantic difference or "merely" a redundant directory copy? Either way, I'm relatively sure Cargo doesn't do that.</p>
+
+
+
+<a name="259963787"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259963787" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259963787">(Nov 02 2021 at 08:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/259963109">said</a>:</p>
+<blockquote>
+<p>I'm not sure I understand the source copy issue yet: is it a semantic difference or "merely" a redundant directory copy? Either way, I'm relatively sure Cargo doesn't do that.</p>
+</blockquote>
+<p>The asserted problem (I believe) is that, in the script above, lake is being run from first in<code>Test/ImportLean</code> and then in <code>Test/Importbin</code>. Thus, it creates a <code>lean_packages</code> directory in each directory with a copy of <code>mathport</code> and <code>mathlib</code> as both packages depend on them instead of a single top-level <code>lean_packages</code> directory with said dependencies.</p>
+
+
+
+<a name="259963968"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259963968" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259963968">(Nov 02 2021 at 08:13)</a>:</h4>
+<p>So there should be no semantic difference to not copying at least</p>
+
+
+
+<a name="259964103"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964103" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964103">(Nov 02 2021 at 08:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> I'm sorry, but I don't know what you mean by "no semantic difference to not copying"?</p>
+
+
+
+<a name="259964384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964384">(Nov 02 2021 at 08:18)</a>:</h4>
+<p>I mean, an alternative implementation that does not copy the source directory but builds into the target directory straight from the original source is perfectly imaginable, no? But the build result should be the same in both implementations.</p>
+
+
+
+<a name="259964673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964673">(Nov 02 2021 at 08:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> this is about remote dependencies, not local dependencies. There is no source directory until the dependency is resolved. The question is whether that dependency should be resolved into the <code>lean_packages</code> directory of the  package itself or its dependent package (i.e., the top-level package). As far as I am aware, most package managers resolve it into the packages folder of the top-level package (for de-duplication reasons). I know Yarn and NPM do this, and  I think Cargo does too?</p>
+
+
+
+<a name="259964732"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964732" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964732">(Nov 02 2021 at 08:23)</a>:</h4>
+<p>I see, I misunderstood Scott's <code>src</code> reference then</p>
+
+
+
+<a name="259964850"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964850" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964850">(Nov 02 2021 at 08:25)</a>:</h4>
+<p>Cargo has a user-local cache of remote Git repos for even more deduplication</p>
+
+
+
+<a name="259964926"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259964926" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259964926">(Nov 02 2021 at 08:26)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> how does that work? What if two packages depend on the same Git repo but different tags/branches?</p>
+
+
+
+<a name="259965054"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965054" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965054">(Nov 02 2021 at 08:28)</a>:</h4>
+<p>It looks like it creates a separate <code>&lt;crate&gt;-&lt;commit&gt;</code> directory in the cache for each checkout</p>
+
+
+
+<a name="259965089"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965089" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965089">(Nov 02 2021 at 08:29)</a>:</h4>
+<p>ah, so the cache works at a commit level not a repo level</p>
+
+
+
+<a name="259965115"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965115" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965115">(Nov 02 2021 at 08:29)</a>:</h4>
+<p>we could do that too as well</p>
+
+
+
+<a name="259965180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965180">(Nov 02 2021 at 08:30)</a>:</h4>
+<p>(i.e., stick the cache in some specific subdirectory of the toolchain)</p>
+
+
+
+<a name="259965229"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965229" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965229">(Nov 02 2021 at 08:30)</a>:</h4>
+<p>Both, I think (clone vs checkout). There's a bit more information in the docs for this external tool: <a href="https://github.com/matthiaskrgr/cargo-cache#show-the-largest-items-in-the-cargo-home">https://github.com/matthiaskrgr/cargo-cache#show-the-largest-items-in-the-cargo-home</a></p>
+
+
+
+<a name="259965349"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965349" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965349">(Nov 02 2021 at 08:32)</a>:</h4>
+<p>And <code>~/.cargo/bin</code> is where globally (well, user-locally) installed executables go</p>
+
+
+
+<a name="259965499"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259965499" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259965499">(Nov 02 2021 at 08:34)</a>:</h4>
+<p>Which of course is not at all according to the XDG Base Directory Specification :)</p>
+
+
+
+<a name="259993867"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259993867" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259993867">(Nov 02 2021 at 13:20)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/259955258">said</a>:</p>
+<blockquote>
+<p>I needed to change <code>Test/ImportMathbin</code> to <code>Test/ImportMathlib</code>: I'll PR this shortly)</p>
+</blockquote>
+<p>Thanks. I had only tested it locally for Lean. I hit this issue on my remote machine yesterday when trying to re-run the full pipeline, but I forgot to push the fix.</p>
+
+
+
+<a name="259994283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259994283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259994283">(Nov 02 2021 at 13:24)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/259955258">said</a>:</p>
+<blockquote>
+<p>they do something that I think is a bit strange: they check out new copies of <code>mathport</code> and <code>mathlib</code>, rather than using the existing ones. </p>
+</blockquote>
+<p>FWIW I intended this to be the lightest-weight-possible way of using mathbin, so a new package could just depend on it directly on its own. Lake-caching aside, we could change the behavior by removing <a href="https://github.com/leanprover/mathport/blob/master/Lib4/leanbin/lakefile.lean#L11">https://github.com/leanprover/mathport/blob/master/Lib4/leanbin/lakefile.lean#L11</a> and making it the importing-package's responsibility to add a dependency to their mathport/mathlib.</p>
+
+
+
+<a name="259999554"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/259999554" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#259999554">(Nov 02 2021 at 14:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/259994283">said</a>:</p>
+<blockquote>
+<p>we could change the behavior by removing <a href="https://github.com/leanprover/mathport/blob/master/Lib4/leanbin/lakefile.lean#L11">https://github.com/leanprover/mathport/blob/master/Lib4/leanbin/lakefile.lean#L11</a> and making it the importing-package's responsibility to add a dependency to their mathport/mathlib.</p>
+</blockquote>
+<p>How would that help?</p>
+
+
+
+<a name="260022781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260022781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260022781">(Nov 02 2021 at 16:38)</a>:</h4>
+<p>It might not help, but it would allow the user to make mathport a local dependency instead of a git dependency (without introducing a constraint on the placement of the <code>Lib4</code> directory).</p>
+
+
+
+<a name="260030307"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260030307" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260030307">(Nov 02 2021 at 17:31)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> I still don't understand how it being a local dependency would be better. Maybe this would be another good topic for our discussion.</p>
+
+
+
+<a name="260483419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260483419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260483419">(Nov 06 2021 at 01:23)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span>, while fixing the build in Lake I think it figured out what you meant by having mathport be a local dependency for Leanbin/Mathbin, etc. I had previously misunderstand what you were saying. It would be a great idea for Leanbin/Mathbin to just refer to the top-level mathport as local dependency. </p>
+<p>For example, the dependency could be specified like so:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code> <span class="o">{</span>
+    <span class="n">name</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">mathport</span>
+    <span class="n">src</span> <span class="o">:=</span> <span class="n">Source.path</span> <span class="o">(</span><span class="n">FilePath.mk</span> <span class="s2">".."</span> <span class="bp">/</span> <span class="s2">".."</span><span class="o">)</span>
+ <span class="o">}</span>
+</code></pre></div>
+<p>A user could still depend on just one of the libraries via the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code> <span class="o">{</span>
+    <span class="n">name</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">leanbin</span>
+    <span class="n">src</span> <span class="o">:=</span> <span class="n">Source.git</span> <span class="s2">"https://github.com/leanprover/mathport.git"</span> <span class="s2">"master"</span>
+    <span class="n">dir</span> <span class="o">:=</span> <span class="n">FilePath.mk</span> <span class="s2">"Lib4"</span> <span class="bp">/</span> <span class="s2">"leanbin"</span>
+ <span class="o">}</span>
+</code></pre></div>
+
+
+
+<a name="260671664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260671664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260671664">(Nov 08 2021 at 15:25)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> Now I am confused :) Since <a href="https://github.com/leanprover-community/mathlib4/commit/b0c3952f590d4b2e301d2ffe13bb815856fff1e5">https://github.com/leanprover-community/mathlib4/commit/b0c3952f590d4b2e301d2ffe13bb815856fff1e5</a> we can get rid of the mathport dependency entirely. I thought the plan was to have a repo for <code>mathbin</code> with a lakefile that downloads the <code>.olean</code>s from a GitHub CI, and that can be depended on trivially by a downstream project. If so, it seems it would be good if that downstream project didn't need to add a not-directly-used <code>mathlib4</code> dependency just to avoid import errors.</p>
+
+
+
+<a name="260710257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260710257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260710257">(Nov 08 2021 at 19:59)</a>:</h4>
+<p><span class="user-mention" data-user-id="230999">@Daniel Selsam</span> ah, if the idea to have a separate repo for mathbin, then sure that works as well (and is probably much better)</p>
+
+
+
+<a name="260710927"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260710927" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260710927">(Nov 08 2021 at 20:04)</a>:</h4>
+<p>Curiously, I thought this was <em>your</em> idea :) Either way, here is a hacky PoC for leanbin: </p>
+<ul>
+<li><a href="https://github.com/dselsam/leanbin">https://github.com/dselsam/leanbin</a></li>
+<li><a href="https://github.com/dselsam/test-import-leanbin">https://github.com/dselsam/test-import-leanbin</a></li>
+</ul>
+
+
+
+<a name="260771822"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260771822" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260771822">(Nov 09 2021 at 09:22)</a>:</h4>
+<p>Okay, now that <code>lean --tlean</code> doesn't use &gt;64gb, I've got continuous integration for <code>mathport</code> working, and uploading some <code>.tar.gz</code> files. These are currently at <a href="https://github.com/semorrison/mathport/releases">https://github.com/semorrison/mathport/releases</a>. This is generated by the <code>CI</code> branch of mathport.</p>
+<p>Next steps, I think:</p>
+<ol>
+<li>move <code>mathport</code> from <code>dselsam</code> to <code>leanprover-community</code></li>
+<li>tell one or more of the existing hosted runners for <code>mathlib</code> CI that they should also do CI for <code>mathport</code></li>
+<li>currently CI posts the artifacts to a release just called <code>nightly</code>. Presumably this should be <code>nightly-YYYY-MM-DD</code></li>
+<li><span class="user-mention" data-user-id="230999">@Daniel Selsam</span>'s <code>leanbin</code> repository should pick up the artifacts generated by <code>CI</code>.</li>
+</ol>
+<p>(1. is necessary for 2.)</p>
+
+
+
+<a name="260771903"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260771903" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260771903">(Nov 09 2021 at 09:23)</a>:</h4>
+<p>Further on point 3. Should CI run nightly? Or on every push to <code>mathport</code>? Or both?</p>
+
+
+
+<a name="260774002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260774002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260774002">(Nov 09 2021 at 09:44)</a>:</h4>
+<p>AFAICT it pulls the latest mathlib revision, so it makes sense to run it at least nightly.  We can always switch to a shorter intervals as the port picks up speed.</p>
+
+
+
+<a name="260774164"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260774164" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260774164">(Nov 09 2021 at 09:46)</a>:</h4>
+<p>I think <code>nightly-YYYY-MM-DD</code> (or even <code>nightly-YYYY-MM-DD-HH</code>) is a good idea.  We want to be able to look back at historic releases.</p>
+
+
+
+<a name="260807653"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260807653" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260807653">(Nov 09 2021 at 14:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/260771822">said</a>:</p>
+<blockquote>
+<ol>
+<li>move <code>mathport</code> from <code>dselsam</code> to <code>leanprover-community</code></li>
+</ol>
+</blockquote>
+<p>The main mathport is <a href="https://github.com/leanprover/mathport">https://github.com/leanprover/mathport</a> (the <code>dselsam</code> one is just a one-off fork from yesterday to experiment with releases). I don't have auth to move it to <code>leanprover-community</code> but I give my blessing to whoever does.</p>
+
+
+
+<a name="260812258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%20tests/near/260812258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.20tests.html#260812258">(Nov 09 2021 at 15:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110087">Scott Morrison</span> <a href="#narrow/stream/270676-lean4/topic/mathport.20tests/near/260771822">said</a>:</p>
+<blockquote>
+<ol start="4">
+<li><span class="user-mention silent" data-user-id="230999">Daniel Selsam</span>'s <code>leanbin</code> repository should pick up the artifacts generated by <code>CI</code>.</li>
+</ol>
+</blockquote>
+<p>This part should be easy. Lake may be adding relevant features for this soon, but for now we can just tweak <a href="https://github.com/dselsam/leanbin/blob/master/lakefile.lean#L4-L5">https://github.com/dselsam/leanbin/blob/master/lakefile.lean#L4-L5</a></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

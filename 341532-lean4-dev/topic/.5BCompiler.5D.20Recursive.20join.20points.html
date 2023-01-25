@@ -1,0 +1,173 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/index.html">lean4 dev</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html">[Compiler] Recursive join points</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="303343071"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303343071" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303343071">(Oct 11 2022 at 00:27)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span> and <span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> , we briefly discussed recursive join points a few weeks back as something we would want to introduce at some point. I assume that this means we don't have TCO yet in LCNF then.</p>
+<p>For instance:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">partial</span> <span class="kd">def</span> <span class="n">countdown</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Unit</span> <span class="o">:=</span>
+  <span class="k">if</span><span class="o">(</span> <span class="n">x</span> <span class="bp">&lt;=</span> <span class="mi">0</span> <span class="o">)</span> <span class="k">then</span> <span class="o">()</span> <span class="k">else</span> <span class="n">countdown</span> <span class="o">(</span><span class="n">x</span> <span class="bp">-</span> <span class="mi">1</span><span class="o">)</span>
+
+<span class="c1">-- [Compiler.result] size: 9</span>
+<span class="c1">--     def countdown x : PUnit :=</span>
+<span class="c1">--       let _x.1 := 0</span>
+<span class="c1">--       let _x.2 := Nat.decLe x _x.1</span>
+<span class="c1">--       cases _x.2 : PUnit</span>
+<span class="c1">--       | Bool.false =&gt;</span>
+<span class="c1">--         let _x.3 := 1</span>
+<span class="c1">--         let _x.4 := Nat.sub x _x.3</span>
+<span class="c1">--         let _x.5 := countdown _x.4</span>
+<span class="c1">--         _x.5</span>
+<span class="c1">--       | Bool.true =&gt;</span>
+<span class="c1">--         let _x.6 := PUnit.unit</span>
+<span class="c1">--         _x.6</span>
+</code></pre></div>
+<p>I am assuming this would be more or less what we would be looking for in terms of basic tail-recursion:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="c1">-- [Compiler.result] size: 9</span>
+<span class="c1">--     def countdown x : PUnit :=</span>
+<span class="c1">--       let _x.1 := 0</span>
+<span class="c1">--       let _x.2 := Nat.decLe x _x.1</span>
+<span class="c1">--       jp rec _jp.1 _y.1 :=</span>
+<span class="c1">--         cases _x.2 : PUnit</span>
+<span class="c1">--         | Bool.false =&gt;</span>
+<span class="c1">--           let _x.3 := 1</span>
+<span class="c1">--           let _x.4 := Nat.sub x _x.3</span>
+<span class="c1">--           let _x.5 := goto _jp.1 _x.4</span>
+<span class="c1">--           _x.5</span>
+<span class="c1">--         | Bool.true =&gt;</span>
+<span class="c1">--           let _x.6 := PUnit.unit</span>
+<span class="c1">--           _x.6</span>
+</code></pre></div>
+<p>Is this part of the short term plan?</p>
+
+
+
+<a name="303344646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303344646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303344646">(Oct 11 2022 at 00:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="463095">@Yuri de Wit</span>  We don't have recursive join points in LCNF. Only top-level functions are recursive, and tail calls are eliminated when emit code.</p>
+
+
+
+<a name="303344762"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303344762" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303344762">(Oct 11 2022 at 00:51)</a>:</h4>
+<p>To see join points in action consider this example</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.Compiler.result</span> <span class="n">true</span>
+<span class="kd">def</span> <span class="n">f</span> <span class="o">(</span><span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="o">:</span> <span class="n">Bool</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">aux</span> <span class="o">(</span><span class="n">z</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:=</span> <span class="n">z</span> <span class="bp">*</span> <span class="n">z</span> <span class="bp">+</span> <span class="n">z</span> <span class="bp">*</span> <span class="n">x</span> <span class="bp">+</span> <span class="n">z</span> <span class="bp">*</span> <span class="n">y</span>
+  <span class="k">if</span> <span class="n">a</span> <span class="bp">∧</span> <span class="n">b</span> <span class="bp">∧</span> <span class="n">c</span> <span class="bp">∨</span> <span class="n">d</span> <span class="k">then</span>
+    <span class="n">x</span> <span class="bp">+</span> <span class="n">aux</span> <span class="n">y</span> <span class="bp">+</span> <span class="n">y</span> <span class="bp">+</span> <span class="n">x</span><span class="bp">*</span><span class="n">x</span> <span class="bp">+</span> <span class="n">x</span><span class="bp">*</span><span class="n">y</span>
+  <span class="k">else</span> <span class="k">if</span> <span class="n">a</span> <span class="bp">∨</span> <span class="n">b</span> <span class="bp">∨</span> <span class="n">c</span> <span class="k">then</span>
+    <span class="n">y</span> <span class="bp">+</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">aux</span> <span class="n">x</span> <span class="bp">*</span> <span class="n">x</span>
+  <span class="k">else</span>
+    <span class="n">aux</span> <span class="n">x</span>
+</code></pre></div>
+<p>The LCNF code for it is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="kd">def</span> <span class="n">f._lambda_0</span> <span class="n">x</span> <span class="n">y</span> <span class="n">z</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+      <span class="k">let</span> <span class="n">_x.1</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">z</span> <span class="n">z</span>
+      <span class="k">let</span> <span class="n">_x.2</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">z</span> <span class="n">x</span>
+      <span class="k">let</span> <span class="n">_x.3</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">_x.1</span> <span class="n">_x.2</span>
+      <span class="k">let</span> <span class="n">_x.4</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">z</span> <span class="n">y</span>
+      <span class="k">let</span> <span class="n">_x.5</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">_x.3</span> <span class="n">_x.4</span>
+      <span class="n">_x.5</span>
+
+    <span class="kd">def</span> <span class="n">f</span> <span class="n">a</span> <span class="n">b</span> <span class="n">c</span> <span class="n">d</span> <span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+      <span class="n">jp</span> <span class="n">_jp.1</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+        <span class="k">let</span> <span class="n">_x.2</span> <span class="o">:=</span> <span class="n">f._lambda_0</span> <span class="n">x</span> <span class="n">y</span> <span class="n">y</span>
+        <span class="k">let</span> <span class="n">_x.3</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">x</span> <span class="n">_x.2</span>
+        <span class="k">let</span> <span class="n">_x.4</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">_x.3</span> <span class="n">y</span>
+        <span class="k">let</span> <span class="n">_x.5</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">x</span> <span class="n">x</span>
+        <span class="k">let</span> <span class="n">_x.6</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">_x.4</span> <span class="n">_x.5</span>
+        <span class="k">let</span> <span class="n">_x.7</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">x</span> <span class="n">y</span>
+        <span class="k">let</span> <span class="n">_x.8</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">_x.6</span> <span class="n">_x.7</span>
+        <span class="n">_x.8</span>
+      <span class="n">jp</span> <span class="n">_jp.9</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+        <span class="k">let</span> <span class="n">_x.10</span> <span class="o">:=</span> <span class="n">f._lambda_0</span> <span class="n">x</span> <span class="n">y</span> <span class="n">x</span>
+        <span class="k">let</span> <span class="n">_x.11</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">x</span> <span class="n">_x.10</span>
+        <span class="k">let</span> <span class="n">_x.12</span> <span class="o">:=</span> <span class="n">Nat.mul</span> <span class="n">_x.11</span> <span class="n">x</span>
+        <span class="k">let</span> <span class="n">_x.13</span> <span class="o">:=</span> <span class="n">Nat.add</span> <span class="n">y</span> <span class="n">_x.12</span>
+        <span class="n">_x.13</span>
+      <span class="n">jp</span> <span class="n">_jp.14</span> <span class="n">_y.15</span> <span class="n">_y.16</span> <span class="n">_y.17</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span>
+        <span class="n">cases</span> <span class="n">d</span> <span class="o">:</span> <span class="n">Nat</span>
+        <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+          <span class="n">cases</span> <span class="n">_y.16</span> <span class="o">:</span> <span class="n">Nat</span>
+          <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+            <span class="n">cases</span> <span class="n">_y.15</span> <span class="o">:</span> <span class="n">Nat</span>
+            <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+              <span class="n">cases</span> <span class="n">_y.17</span> <span class="o">:</span> <span class="n">Nat</span>
+              <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+                <span class="k">let</span> <span class="n">_x.18</span> <span class="o">:=</span> <span class="n">f._lambda_0</span> <span class="n">x</span> <span class="n">y</span> <span class="n">x</span>
+                <span class="n">_x.18</span>
+              <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+                <span class="n">goto</span> <span class="n">_jp.9</span>
+            <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+              <span class="n">goto</span> <span class="n">_jp.9</span>
+          <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+            <span class="n">goto</span> <span class="n">_jp.9</span>
+        <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+          <span class="n">goto</span> <span class="n">_jp.1</span>
+      <span class="n">cases</span> <span class="n">a</span> <span class="o">:</span> <span class="n">Nat</span>
+      <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+        <span class="n">goto</span> <span class="n">_jp.14</span> <span class="n">b</span> <span class="n">a</span> <span class="n">c</span>
+      <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+        <span class="n">cases</span> <span class="n">b</span> <span class="o">:</span> <span class="n">Nat</span>
+        <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+          <span class="n">goto</span> <span class="n">_jp.14</span> <span class="n">b</span> <span class="n">a</span> <span class="n">c</span>
+        <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+          <span class="n">cases</span> <span class="n">c</span> <span class="o">:</span> <span class="n">Nat</span>
+          <span class="bp">|</span> <span class="n">Bool.false</span> <span class="bp">=&gt;</span>
+            <span class="n">goto</span> <span class="n">_jp.14</span> <span class="n">b</span> <span class="n">a</span> <span class="n">c</span>
+          <span class="bp">|</span> <span class="n">Bool.true</span> <span class="bp">=&gt;</span>
+            <span class="n">goto</span> <span class="n">_jp.1</span>
+</code></pre></div>
+
+
+
+<a name="303345034"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303345034" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303345034">(Oct 11 2022 at 00:55)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112857">Leonardo de Moura</span> <a href="#narrow/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points/near/303344646">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="463095">Yuri de Wit</span>  We don't have recursive join points in LCNF. Only top-level functions are recursive, and tail calls are eliminated when emit code.</p>
+</blockquote>
+<p>I see. So not really represented explicitly in LCNF.</p>
+<p>There reason I got here was to try a dummy pass to find Tail Recustion Module Cons (TRMc) patterns in LCNF (as an exercise with potential future value). I then realized I wasn't 100% sure how we were representing tail calls in LCNF.</p>
+
+
+
+<a name="303345283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303345283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yuri de Wit <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303345283">(Oct 11 2022 at 00:58)</a>:</h4>
+<p>Thanks for the example. This part is clear to me, I think.</p>
+
+
+
+<a name="303365306"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303365306" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303365306">(Oct 11 2022 at 06:10)</a>:</h4>
+<p>I already have a mechanism in the find join point pass for detecting tail calls to local functions. Basically LCNF has a tail call if we have</p>
+<p>let x := f a b c<br>
+x</p>
+<p>Somewhere in the code</p>
+
+
+
+<a name="303382149"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/341532-lean4%20dev/topic/%5BCompiler%5D%20Recursive%20join%20points/near/303382149" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/341532-lean4-dev/topic/.5BCompiler.5D.20Recursive.20join.20points.html#303382149">(Oct 11 2022 at 08:35)</a>:</h4>
+<p>This is also documented at <a href="https://arxiv.org/pdf/1908.05647.pdf#page=7">https://arxiv.org/pdf/1908.05647.pdf#page=7</a>, which as the paper introducing the old IR is still relevant I think because the corresponding LCNF phases will not look ~that~ different</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

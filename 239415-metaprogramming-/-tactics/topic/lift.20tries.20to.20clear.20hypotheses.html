@@ -1,0 +1,106 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html">lift tries to clear hypotheses</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="314759019"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314759019" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314759019">(Dec 08 2022 at 19:53)</a>:</h4>
+<p>Would it be possible to make <code>lift</code> not fail if it cannot clear an hypothesis? It is still useful even if the lifting condition hypothesis appears in another hypothesis.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">data.set.finite</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">s</span> <span class="o">:</span> <span class="n">set</span> <span class="n">α</span><span class="o">}</span> <span class="o">(</span><span class="n">hs</span> <span class="o">:</span> <span class="n">s.finite</span><span class="o">)</span> <span class="o">:</span> <span class="n">hs.to_finset</span> <span class="bp">=</span> <span class="bp">∅</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">lift</span> <span class="n">s</span> <span class="n">to</span> <span class="n">finset</span> <span class="n">α</span> <span class="n">using</span> <span class="n">hs</span><span class="o">,</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">clear tactic failed, target type depends on 'hs'</span>
+<span class="cm">state:</span>
+<span class="cm">α : Type ?,</span>
+<span class="cm">s : finset α,</span>
+<span class="cm">hs : ↑s.finite</span>
+<span class="cm">⊢ hs.to_finset = ∅</span>
+<span class="cm">-/</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="314759176"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314759176" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314759176">(Dec 08 2022 at 19:54)</a>:</h4>
+<p>Of course, I can just do <code>lift s to finset α using id hs</code> but we might as well fix it to the source.</p>
+
+
+
+<a name="314791584"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314791584" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314791584">(Dec 08 2022 at 23:24)</a>:</h4>
+<p>If you replace these two lines</p>
+<p><a href="https://github.com/leanprover-community/mathlib/blob/10b4e499f43088dd3bb7b5796184ad5216648ab1/src/tactic/lift.lean#L135-L136">https://github.com/leanprover-community/mathlib/blob/10b4e499f43088dd3bb7b5796184ad5216648ab1/src/tactic/lift.lean#L135-L136</a><br>
+namely</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="k">if</span> <span class="n">h_prf_nm</span> <span class="o">:</span> <span class="n">prf_nm.is_some</span> <span class="bp">∧</span> <span class="n">n.nth</span> <span class="mi">2</span> <span class="bp">≠</span> <span class="n">prf_nm</span> <span class="k">then</span>
+    <span class="n">get_local</span> <span class="o">(</span><span class="n">option.get</span> <span class="n">h_prf_nm.1</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">clear</span> <span class="k">else</span> <span class="n">skip</span><span class="o">,</span>
+</code></pre></div>
+<p>with</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>    <span class="n">new</span> <span class="bp">←</span> <span class="n">get_unused_name</span><span class="o">,</span>
+    <span class="k">if</span> <span class="n">n.nth</span> <span class="mi">2</span> <span class="bp">≠</span> <span class="n">prf_nm</span> <span class="k">then</span> <span class="n">get_local</span> <span class="o">(</span><span class="n">option.get_or_else</span> <span class="n">prf_nm</span> <span class="n">new</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">clear</span> <span class="bp">&lt;|&gt;</span> <span class="n">skip</span> <span class="k">else</span> <span class="n">skip</span><span class="o">,</span>
+</code></pre></div>
+<p>you probably obtain the behaviour that you want.  I tested it in your case and also on this example with smaller imports that compiles faster:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.lift</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">n</span><span class="o">)</span> <span class="o">:=</span> <span class="n">h</span> <span class="bp">=</span> <span class="n">h</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℤ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="mi">0</span> <span class="bp">≤</span> <span class="n">n</span><span class="o">)</span> <span class="o">:</span> <span class="n">foo</span> <span class="n">h</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">lift</span> <span class="n">n</span> <span class="n">to</span> <span class="n">ℕ</span> <span class="n">using</span> <span class="n">h</span><span class="o">,</span>  <span class="c1">--  now succeeds</span>
+  <span class="n">unfold</span> <span class="n">foo</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>I am not too happy with the "new" name and admittedly the proposal above checks less than what it did earlier, but since the alternative was skipping anyway, it may be ok...</p>
+
+
+
+<a name="314792935"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314792935" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314792935">(Dec 08 2022 at 23:36)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/17869">#17869</a>, to see if anything else breaks and if anyone else has comments!</p>
+<p><del>I made the removal of the issue with <code>clear</code> slightly more robust as well.</del><br>
+EDIT: I changed the previous message to reflect the slightly tighter change.</p>
+
+
+
+<a name="314793918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314793918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314793918">(Dec 08 2022 at 23:46)</a>:</h4>
+<p>Note that this already works if you use <code>lift s to finset α using hs with _ _ hs</code></p>
+
+
+
+<a name="314794009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314794009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314794009">(Dec 08 2022 at 23:47)</a>:</h4>
+<p><span class="user-mention" data-user-id="321459">@Damiano Testa</span> can you port <code>lift</code> to mathlib 4? Right now any changes to lean 3 tactics are just making the port process harder.</p>
+
+
+
+<a name="314794123"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314794123" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314794123">(Dec 08 2022 at 23:48)</a>:</h4>
+<p>Kevin, I am going to seriously start with helping the porting process starting from next week: tomorrow is the last day of term and I am very short on time for a few more hours!</p>
+
+
+
+<a name="314797027"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/lift%20tries%20to%20clear%20hypotheses/near/314797027" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/lift.20tries.20to.20clear.20hypotheses.html#314797027">(Dec 09 2022 at 00:16)</a>:</h4>
+<p>There is actually a PR open: <a href="https://github.com/leanprover-community/mathlib4/pull/723">https://github.com/leanprover-community/mathlib4/pull/723</a> by Yury, that is badly overdue for a review.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

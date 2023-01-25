@@ -1,0 +1,142 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/index.html">metaprogramming / tactics</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html">error tolerant string parsing</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="235584166"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235584166" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235584166">(Apr 21 2021 at 21:19)</a>:</h4>
+<p>What I'm really trying to do is rewrite the following code to be error tolerant. Some strings in my input will fail to parse and currently if any string fails to parse the whole tactic fails.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">system.io</span>
+<span class="kn">import</span> <span class="n">data.list</span>
+<span class="kn">import</span> <span class="n">all</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">parse_texpr_with_univs</span> <span class="o">(</span><span class="n">univs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">string</span><span class="o">):</span> <span class="n">lean.parser</span> <span class="n">pexpr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="c1">-- add all universe names in the list as universe levels</span>
+  <span class="n">univs.mmap</span> <span class="bp">$</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span><span class="o">,</span> <span class="n">lean.parser.add_local_level</span> <span class="n">s</span><span class="o">),</span>
+  <span class="c1">-- parse the buffer as a pexpr</span>
+  <span class="n">interactive.types.texpr</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">parse_string</span> <span class="o">(</span><span class="n">univs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">string</span><span class="o">)</span> <span class="o">(</span><span class="n">proof</span> <span class="o">:</span> <span class="n">string</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">pexpr</span> <span class="o">:=</span> <span class="n">lean.parser.run_with_input</span> <span class="o">(</span><span class="n">parse_texpr_with_univs</span> <span class="n">univs</span><span class="o">)</span> <span class="n">proof</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">process</span> <span class="o">(</span><span class="n">proofs</span> <span class="o">:</span> <span class="n">list</span> <span class="n">string</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span> <span class="o">{</span>
+    <span class="k">let</span> <span class="n">univs</span> <span class="o">:=</span> <span class="o">[</span><span class="s2">"u_1001"</span><span class="o">,</span> <span class="s2">"u_1002"</span><span class="o">,</span> <span class="s2">"u_1003"</span><span class="o">,</span> <span class="s2">"u_1004"</span><span class="o">,</span> <span class="s2">"u_1005"</span><span class="o">,</span> <span class="s2">"u_1006"</span><span class="o">],</span>
+    <span class="n">pexprs</span> <span class="bp">&lt;-</span> <span class="n">proofs.traverse</span> <span class="o">(</span><span class="n">parse_string</span> <span class="n">univs</span><span class="o">),</span>
+    <span class="n">exprs</span> <span class="bp">&lt;-</span> <span class="n">pexprs.traverse</span> <span class="n">tactic.to_expr</span><span class="o">,</span>
+    <span class="n">theorems</span> <span class="bp">&lt;-</span> <span class="n">exprs.traverse</span> <span class="n">tactic.infer_type</span><span class="o">,</span>
+    <span class="n">tactic.trace</span> <span class="n">theorems.length</span><span class="o">,</span>
+    <span class="n">tactic.trace</span> <span class="n">theorems</span>
+  <span class="o">}</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">io</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span> <span class="o">{</span>
+    <span class="k">let</span> <span class="n">proofs</span> <span class="o">:=</span>
+    <span class="o">[</span><span class="s2">"this one should fail"</span><span class="o">,</span>
+    <span class="s2">"λ {α : Sort u_1001} {β : Sort u_1002} {f : α → β} {g : β → α} (h : @function.right_inverse.{u_1002 u_1001} β α f g),</span>
+<span class="s2">    @funext.{u_1001 u_1001} α (λ (x : α), α) (@function.comp.{u_1001 u_1002 u_1001} α β α g f) (@id.{u_1001} α) h"</span><span class="o">],</span>
+    <span class="n">io.run_tactic</span> <span class="bp">$</span> <span class="n">process</span> <span class="n">proofs</span>
+<span class="o">}</span>
+</code></pre></div>
+<p>An idea I came up with was to rewrite traverse to take a second function that filters out strings that don't parse. </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">traverse'</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span> <span class="bp">→</span> <span class="kt">Type</span> <span class="n">v</span><span class="o">}</span> <span class="o">[</span><span class="n">applicative</span> <span class="n">F</span><span class="o">]</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">F</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="o">(</span><span class="n">α</span> <span class="bp">→</span> <span class="n">F</span> <span class="n">β</span><span class="o">)</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">bool</span><span class="o">):</span>
+  <span class="n">list</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">F</span> <span class="o">(</span><span class="n">list</span> <span class="n">β</span><span class="o">)</span>
+<span class="bp">|</span> <span class="o">[]</span> <span class="o">:=</span> <span class="n">pure</span> <span class="o">[]</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">x</span> <span class="o">::</span> <span class="n">xs</span><span class="o">)</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">g</span> <span class="n">f</span> <span class="n">x</span> <span class="k">then</span> <span class="n">list.cons</span> <span class="bp">&lt;$&gt;</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">&lt;*&gt;</span> <span class="n">traverse'</span> <span class="n">xs</span> <span class="k">else</span> <span class="n">traverse'</span> <span class="n">xs</span>
+</code></pre></div>
+<p>Hence why I'm trying to write that function <code>can_parse</code> above.  However, I suspect there is a better way...</p>
+
+
+
+<a name="235584980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235584980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235584980">(Apr 21 2021 at 21:25)</a>:</h4>
+<p>Well, the tactic monad is more than maybe, so I guess having a tactic success checker would be complicated (I am not sure if Lean can be "hacked" to do that).</p>
+
+
+
+<a name="235585428"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235585428" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235585428">(Apr 21 2021 at 21:28)</a>:</h4>
+<p>On the other hand, if you just want to filter out errors, you don't need purely functional code, do you?</p>
+
+
+
+<a name="235588146"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235588146" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235588146">(Apr 21 2021 at 21:50)</a>:</h4>
+<p>Is this what you essentially want?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">mmap_valid</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">list</span> <span class="n">β</span><span class="o">)</span>
+<span class="o">:=</span> <span class="k">do</span>
+  <span class="n">res</span> <span class="bp">←</span> <span class="n">list.mmap</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="o">(</span><span class="k">do</span> <span class="n">y</span> <span class="bp">←</span> <span class="n">f</span> <span class="n">x</span><span class="o">,</span> <span class="n">return</span> <span class="o">(</span><span class="n">some</span> <span class="n">y</span><span class="o">))</span> <span class="bp">&lt;|&gt;</span> <span class="n">return</span> <span class="n">none</span><span class="o">)</span> <span class="n">l</span><span class="o">,</span>
+  <span class="n">return</span> <span class="o">(</span><span class="n">list.filter_map</span> <span class="n">id</span> <span class="n">res</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="235588994"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235588994" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235588994">(Apr 21 2021 at 21:58)</a>:</h4>
+<p>That should be a function which works like <code>list.mmap</code>, never fails, and skips elements on which <code>f</code> fails.</p>
+
+
+
+<a name="235589739"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235589739" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235589739">(Apr 21 2021 at 22:04)</a>:</h4>
+<p>By the way, the same written with monadic symbols instead of <code>do</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">meta</span> <span class="kd">def</span> <span class="n">mmap_valid</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">tactic</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">l</span> <span class="o">:</span> <span class="n">list</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="o">(</span><span class="n">list</span> <span class="n">β</span><span class="o">)</span>
+<span class="o">:=</span> <span class="n">list.filter_map</span> <span class="n">id</span> <span class="bp">&lt;$&gt;</span> <span class="n">list.mmap</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="o">(</span><span class="n">some</span> <span class="bp">&lt;$&gt;</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">return</span> <span class="n">none</span><span class="o">)</span> <span class="n">l</span>
+</code></pre></div>
+
+
+
+<a name="235604905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235604905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Palermo <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235604905">(Apr 22 2021 at 00:57)</a>:</h4>
+<p><span class="user-mention" data-user-id="133339">@Miroslav Olšák</span> That's exactly what I needed. Thanks!</p>
+
+
+
+<a name="235605300"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235605300" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235605300">(Apr 22 2021 at 01:03)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.successes">docs#tactic.successes</a></p>
+
+
+
+<a name="235605347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235605347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235605347">(Apr 22 2021 at 01:03)</a>:</h4>
+<p>or <a href="https://leanprover-community.github.io/mathlib_docs/find/try_all">docs#try_all</a> depending on if you need to keep or reset the state</p>
+
+
+
+<a name="235605402"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235605402" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235605402">(Apr 22 2021 at 01:04)</a>:</h4>
+<p>This is for interactive tactics, might work for you still</p>
+
+
+
+<a name="235605423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235605423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235605423">(Apr 22 2021 at 01:04)</a>:</h4>
+<p>And of course, <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.try">docs#tactic.try</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/tactic.try_core">docs#tactic.try_core</a></p>
+
+
+
+<a name="235638548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235638548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Miroslav Olšák <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235638548">(Apr 22 2021 at 08:25)</a>:</h4>
+<p><span aria-label="smile" class="emoji emoji-1f642" role="img" title="smile">:smile:</span> I expected there would be library functions for this, I just don't know how to search for them.</p>
+
+
+
+<a name="235638619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/239415-metaprogramming%20/%20tactics/topic/error%20tolerant%20string%20parsing/near/235638619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/239415-metaprogramming-/-tactics/topic/error.20tolerant.20string.20parsing.html#235638619">(Apr 22 2021 at 08:25)</a>:</h4>
+<p><a class="stream" data-stream-id="217875" href="/#narrow/stream/217875-Is-there-code-for-X.3F">#Is there code for X?</a> + well-chosen thread title</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

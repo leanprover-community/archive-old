@@ -1,0 +1,430 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/doc-gen4.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html">doc-gen4</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="254294684"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254294684" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254294684">(Sep 21 2021 at 23:43)</a>:</h4>
+<p>I'd be interested in writing a tool like <a href="https://github.com/leanprover-community/doc-gen">doc-gen</a> for Lean 4 since this seems rather important to me, especially considering Lean 4 wants to be more of a general purpose language as well where you'd definitely want to have a nice way to explore documentation. </p>
+<p>Now I've never messed with the lean compiler itself before and the original doc-gen mentions some PR that added additional APIs so they could actually access the docstrings so I'm wondering whether APIs like this already exist/whether there is a plan for them to exist.</p>
+
+
+
+<a name="254294815"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254294815" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254294815">(Sep 21 2021 at 23:45)</a>:</h4>
+<p>In Lean 4, doc comments are a first class part of the syntax, so you can directly extract it from a declaration source.</p>
+
+
+
+<a name="254294865"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254294865" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254294865">(Sep 21 2021 at 23:45)</a>:</h4>
+<p>In fact,  a documentation generator for Lean 4 would likely only need to analyze the <code>Syntax</code> of a Lean file and not even worry about the elaborator or the compiler.</p>
+
+
+
+<a name="254294951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254294951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254294951">(Sep 21 2021 at 23:46)</a>:</h4>
+<p>With the one caveat of likely needed to extract said syntax first from the elaboration <code>Environment</code>.</p>
+
+
+
+<a name="254295553"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254295553" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254295553">(Sep 21 2021 at 23:54)</a>:</h4>
+<p>I'll try to do some digging regarding both of those types tomorrow then, thanks for the pointers!</p>
+
+
+
+<a name="254296953"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254296953" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254296953">(Sep 22 2021 at 00:10)</a>:</h4>
+<p>I quickly whipped up this example which reads a file, elaborates it, and prints the doc string of a declaration:</p>
+<p><strong>Foo.lean</strong></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="sd">/-- Some comment -/</span>
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">:=</span> <span class="mi">0</span>
+</code></pre></div>
+<p><strong>Main.lean</strong></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">System</span>
+
+<span class="n">abbrev</span> <span class="n">EnvM</span> <span class="o">:=</span> <span class="n">StateM</span> <span class="n">Environment</span>
+
+<span class="kd">def</span> <span class="n">EnvM.run'</span> <span class="o">(</span><span class="n">env</span> <span class="o">:</span> <span class="n">Environment</span><span class="o">)</span> <span class="o">(</span><span class="n">self</span> <span class="o">:</span> <span class="n">EnvM</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span> <span class="n">StateT.run'</span> <span class="n">self</span> <span class="n">env</span> <span class="bp">|&gt;.</span><span class="n">run</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">MonadEnv</span> <span class="n">EnvM</span> <span class="n">where</span>
+  <span class="n">getEnv</span> <span class="o">:=</span> <span class="n">get</span>
+  <span class="n">modifyEnv</span> <span class="o">:=</span> <span class="n">modify</span>
+
+<span class="kd">def</span> <span class="n">printDocString</span> <span class="o">(</span><span class="n">declName</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">path</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">PUnit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">opts</span> <span class="o">:=</span> <span class="n">Options.empty</span>
+  <span class="k">let</span> <span class="n">mainModuleName</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">main</span>
+  <span class="k">let</span> <span class="n">input</span> <span class="bp">←</span> <span class="n">IO.FS.readFile</span> <span class="n">path</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">env</span><span class="o">,</span> <span class="n">ok</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Elab.runFrontend</span> <span class="n">input</span> <span class="n">opts</span> <span class="n">path.toString</span> <span class="n">mainModuleName</span>
+  <span class="n">unless</span> <span class="n">ok</span> <span class="k">do</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="s2">"could not elaborate file"</span>
+  <span class="k">match</span> <span class="n">EnvM.run'</span> <span class="n">env</span> <span class="bp">&lt;|</span> <span class="n">findDocString</span><span class="bp">?</span> <span class="n">declName</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">docStr</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">docStr</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"no doc string found for '{declName}'"</span>
+
+<span class="k">#eval</span> <span class="n">printDocString</span> <span class="bp">`</span><span class="n">foo</span> <span class="s2">"Foo.lean"</span> <span class="c1">-- prints "Some comment"</span>
+</code></pre></div>
+
+
+
+<a name="254297607"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254297607" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254297607">(Sep 22 2021 at 00:19)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> / <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span>,  could <a href="https://github.com/leanprover/lean4/blob/245d36147e879a485e6dcbc383cbf2f4dc0ecd5f/src/Lean/DocString.lean#L10"><code>docStringExt</code></a> be made public or, alternatively, could we get a <code>findDocString?</code> variant that operates on a explicitly specified <code>Environment</code>?</p>
+
+
+
+<a name="254298542"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254298542" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254298542">(Sep 22 2021 at 00:30)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I just pushed the change.</p>
+
+
+
+<a name="254301093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254301093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254301093">(Sep 22 2021 at 01:09)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>  Thanks! This also reminded me of a code style question I had been meaning to ask for a while: why are functions like <code>findDocString?</code>/<code>getMainModuleDoc</code> (and other <code>env</code> getters) not added to the <code>Environment</code> namespace so they can be used with dot notation?</p>
+
+
+
+<a name="254302124"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254302124" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254302124">(Sep 22 2021 at 01:26)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> It is what it is. We are focusing now on missing features, bugs, and porting Mathlib.<br>
+After we finish the porting, we can discuss these issues and try to make the API more consistent.</p>
+
+
+
+<a name="254313221"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254313221" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254313221">(Sep 22 2021 at 04:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span> Note that <span class="user-mention" data-user-id="284160">@Eric Rodriguez</span> has been working on a Lean 3 port of Alectryon: <a href="https://www.ma.imperial.ac.uk/~buzzard/xena/alectryon/">https://www.ma.imperial.ac.uk/~buzzard/xena/alectryon/</a> and <a href="https://www.ma.imperial.ac.uk/~buzzard/xena/alectryon/plain.lean.html">https://www.ma.imperial.ac.uk/~buzzard/xena/alectryon/plain.lean.html</a><br>
+I think Eric can provide a lot more details than I can.</p>
+<p>It would be great if a doc-gen tool for Lean 4 could have dedicated support for goal states and the "interactive" nature of Lean.</p>
+
+
+
+<a name="254345172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254345172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254345172">(Sep 22 2021 at 10:21)</a>:</h4>
+<p>Oh that looks really cool as well! I'll keep it in the back of my head for sure for when the regular doc-gen stuff is working.</p>
+
+
+
+<a name="254680556"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254680556" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254680556">(Sep 24 2021 at 10:10)</a>:</h4>
+<p>Sorry, just say this! I'm hoping that Alectryon for lean4 can become a defacto alternative for doc-gen, as it should be able to do everything we want, and some more nice stuff (say, custom rendererers for things like commutative diagrams in docstrings or even in the code, and as Johan mentioned interactive features). I haven't started looking at lean4 too deeply yet, but it seems a lot easier to work with than Lean3 in this regard so I have high hopes</p>
+
+
+
+<a name="254682800"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254682800" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254682800">(Sep 24 2021 at 10:30)</a>:</h4>
+<p>I'll definitely try to have a look at it (however I'm rather a beginner with regular programming in Lean so that might take some time). And while the thing about the defacto alternative might surely be right for mathematical purposes Lean 4 is also supposed to be used by regular programmers and those want explorable documentation as is provided by doc-gen so I think a fusion of both is the correct way to go here.</p>
+
+
+
+<a name="254684401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254684401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254684401">(Sep 24 2021 at 10:46)</a>:</h4>
+<p><span class="user-mention" data-user-id="284160">@Eric Rodriguez</span>, I'm actually a bit surprised that you're trying to produce documentation that captures the intermediate goal states of proofs. At least for Lean3 where we have lean-in-a-browser, isn't just linking to a live lean session in every way superior?</p>
+
+
+
+<a name="254684683"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254684683" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254684683">(Sep 24 2021 at 10:48)</a>:</h4>
+<p>I mean, that's just how Alectryon is set up. I think it's got its advantages and disadvantages; for beginners, it makes it clearer where the bigger changes are; also, it will load far faster than the browser Lean/gitpod, and there's cool things that you can do that you couldn't do with the live setup (e.g. replace some <code>Prop</code>s in the tactic state with MathJax'd versions). However, there are many times I wish I had the flexibility of the server, too.</p>
+
+
+
+<a name="254690419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254690419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254690419">(Sep 24 2021 at 11:45)</a>:</h4>
+<p>My understanding of Alectryon was that its primary goal was for exploring proofs, whereas doc-gen's primary goal is for exploring lemma statements. Am I underestimating the scope of Alectryon?</p>
+
+
+
+<a name="254690539"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254690539" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254690539">(Sep 24 2021 at 11:46)</a>:</h4>
+<p>It's not too tough to extend it; put the proof in a spoiler bracket to indeed allow that, and format the docs with the other nice formatting tools that we have available to act as docs</p>
+
+
+
+<a name="254690759"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254690759" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254690759">(Sep 24 2021 at 11:48)</a>:</h4>
+<p>I'm not too sure what's up with the full demo, but this is an example that hasn't been too far processed (in Coq, mind): <a href="https://alectryon-paper.github.io/bench/stdlib/theories/Lists/List.html">https://alectryon-paper.github.io/bench/stdlib/theories/Lists/List.html</a></p>
+
+
+
+<a name="254690937"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254690937" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254690937">(Sep 24 2021 at 11:50)</a>:</h4>
+<p>Extending that to better docstrings and generating a doc-gen-like-stub doesn't seem too far out of reach</p>
+
+
+
+<a name="254693206"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254693206" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254693206">(Sep 24 2021 at 12:10)</a>:</h4>
+<p>I think it would be really nice to have something like Alectryon reading on Lean file and produce both doc-gen like documentation and fully interactive online file (including widgets) with a seamless transition.</p>
+
+
+
+<a name="254704622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254704622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254704622">(Sep 24 2021 at 13:36)</a>:</h4>
+<p>Eric I think your summer project funding runs out at the end of Sept so looks like you have a lot to do ;-)</p>
+
+
+
+<a name="254704984"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/254704984" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#254704984">(Sep 24 2021 at 13:38)</a>:</h4>
+<p>I do have a lot to do:) Exciting times!</p>
+
+
+
+<a name="260070442"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260070442" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260070442">(Nov 02 2021 at 23:11)</a>:</h4>
+<p>Hey @Mac, I tried your code on the latest master bits, but it is not compiling, can you help me out?</p>
+<p><a href="/user_uploads/3121/-9nhyDEvKcDWRPHPKbplWtEp/image.png">image.png</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/-9nhyDEvKcDWRPHPKbplWtEp/image.png" title="image.png"><img src="/user_uploads/3121/-9nhyDEvKcDWRPHPKbplWtEp/image.png"></a></div>
+
+
+
+<a name="260070852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260070852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260070852">(Nov 02 2021 at 23:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="434989">@Chris Lovett</span>  Leo kindly improved the API so the following simpler example now works:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">System</span>
+
+<span class="kd">def</span> <span class="n">printDocString</span> <span class="o">(</span><span class="n">declName</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">path</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">PUnit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">opts</span> <span class="o">:=</span> <span class="n">Options.empty</span>
+  <span class="k">let</span> <span class="n">mainModuleName</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">main</span>
+  <span class="k">let</span> <span class="n">input</span> <span class="bp">←</span> <span class="n">IO.FS.readFile</span> <span class="n">path</span>
+  <span class="k">let</span> <span class="o">(</span><span class="n">env</span><span class="o">,</span> <span class="n">ok</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Elab.runFrontend</span> <span class="n">input</span> <span class="n">opts</span> <span class="n">path.toString</span> <span class="n">mainModuleName</span>
+  <span class="n">unless</span> <span class="n">ok</span> <span class="k">do</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="s2">"could not elaborate file"</span>
+  <span class="k">match</span> <span class="n">findDocString</span><span class="bp">?</span> <span class="n">env</span> <span class="n">declName</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="n">some</span> <span class="n">docStr</span> <span class="bp">=&gt;</span> <span class="n">IO.println</span> <span class="n">docStr</span>
+  <span class="bp">|</span> <span class="n">none</span> <span class="bp">=&gt;</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"no doc string found for '{declName}'"</span>
+
+<span class="k">#eval</span> <span class="n">printDocString</span> <span class="bp">`</span><span class="n">foo</span> <span class="s2">"Foo.lean"</span> <span class="c1">-- prints "Some comment"</span>
+</code></pre></div>
+
+
+
+<a name="260075780"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260075780" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260075780">(Nov 03 2021 at 00:17)</a>:</h4>
+<p>Thanks that works, and I figured out a slight variation that checks the name is actually defined:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">printDocString</span> <span class="o">(</span><span class="n">declName</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">(</span><span class="n">path</span> <span class="o">:</span> <span class="n">FilePath</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">PUnit</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">opts</span> <span class="o">:=</span> <span class="n">Options.empty</span>
+    <span class="k">let</span> <span class="n">mainModuleName</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">main</span>
+    <span class="k">let</span> <span class="n">input</span> <span class="bp">←</span> <span class="n">IO.FS.readFile</span> <span class="n">path</span>
+    <span class="k">let</span> <span class="o">(</span><span class="n">env</span><span class="o">,</span> <span class="n">ok</span><span class="o">)</span> <span class="bp">←</span> <span class="n">Elab.runFrontend</span> <span class="n">input</span> <span class="n">opts</span> <span class="n">path.toString</span> <span class="n">mainModuleName</span>
+    <span class="n">unless</span> <span class="n">ok</span> <span class="k">do</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="s2">"could not elaborate file"</span>
+    <span class="k">if</span> <span class="n">env.contains</span> <span class="n">declName</span> <span class="k">then</span>
+      <span class="k">let</span> <span class="n">comment</span> <span class="o">:=</span> <span class="o">(</span><span class="n">findDocString</span><span class="bp">?</span> <span class="n">env</span> <span class="n">declName</span><span class="o">)</span>
+      <span class="n">IO.println</span> <span class="n">comment</span>
+    <span class="k">else</span> <span class="n">throw</span> <span class="bp">&lt;|</span> <span class="n">IO.userError</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"symbol '{declName}' not found"</span>
+</code></pre></div>
+<p>I don't really care if the comment is 'none' - I care more than the symbol is not defined...</p>
+
+
+
+<a name="260078227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260078227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260078227">(Nov 03 2021 at 00:57)</a>:</h4>
+<p>hey <span class="user-mention" data-user-id="315577">@Mac</span>  one more newby question, how do I get this getEnv to work for a version that looks up Lean defined doc comments?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">findLeanDocString</span> <span class="o">(</span><span class="n">declName</span> <span class="o">:</span> <span class="n">Name</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">String</span> <span class="o">:=</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">env</span> <span class="bp">←</span> <span class="n">getEnv</span>
+    <span class="k">if</span> <span class="n">env.contains</span> <span class="n">declName</span> <span class="k">then</span>
+      <span class="k">let</span> <span class="n">comment</span> <span class="o">:=</span> <span class="o">(</span><span class="n">findDocString</span><span class="bp">?</span> <span class="n">env</span> <span class="n">declName</span><span class="o">)</span>
+      <span class="n">return</span> <span class="n">comment.get</span><span class="bp">!</span>
+    <span class="k">else</span>
+      <span class="n">return</span> <span class="s2">""</span>
+</code></pre></div>
+<p>Not sure what to do about the error <code>failed to synthesize instance  MonadEnv IO</code>  I see similar code containing <code>let e ← getEnv</code> all over the place in Lean sources so I'm not sure why it isn't working here...</p>
+
+
+
+<a name="260078631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260078631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260078631">(Nov 03 2021 at 01:03)</a>:</h4>
+<p>Never mind, found the missing magic, I needed to add <code>MetaM</code> to the return types...</p>
+
+
+
+<a name="260079467"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260079467" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260079467">(Nov 03 2021 at 01:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="434989">@Chris Lovett</span> while that does work, that is doing something very different -- that is checking the environment of the running Lean interpreter instead, of as the example is doing, checking the environment of a newly elaborated file.</p>
+
+
+
+<a name="260079869"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260079869" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Chris Lovett <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260079869">(Nov 03 2021 at 01:24)</a>:</h4>
+<p>Right, that's what I want in this case, build lean.exe, then run this program using that new build and dump all the docs for that version of lean, that way I don't have to go searching for .lean source files.</p>
+
+
+
+<a name="260185331"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260185331" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260185331">(Nov 03 2021 at 19:31)</a>:</h4>
+<p>Also since some people voiced interest in alectryon like visualization for lean4 proofs, I found this on Github today: <a href="https://github.com/insightmind/LeanInk">https://github.com/insightmind/LeanInk</a></p>
+<p>CC <span class="user-mention" data-user-id="110031">@Patrick Massot</span> <span class="user-mention" data-user-id="284160">@Eric Rodriguez</span> <span class="user-mention" data-user-id="112680">@Johan Commelin</span></p>
+
+
+
+<a name="260185557"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260185557" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260185557">(Nov 03 2021 at 19:32)</a>:</h4>
+<p>Cool! <span class="user-mention" data-user-id="451040">@Niklas Bülow</span> are you working with Sebastian?</p>
+
+
+
+<a name="260185593"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260185593" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260185593">(Nov 03 2021 at 19:33)</a>:</h4>
+<p>Yeah sebastian is commenting in the issues, they definitely know of each other.</p>
+
+
+
+<a name="260190956"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260190956" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260190956">(Nov 03 2021 at 20:11)</a>:</h4>
+<p>Yes, this work was mentioned before but the repo wasn't mentioned I think</p>
+
+
+
+<a name="260196616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260196616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260196616">(Nov 03 2021 at 20:58)</a>:</h4>
+<p>It wasn't there before :)</p>
+
+
+
+<a name="260198021"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260198021" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260198021">(Nov 03 2021 at 21:10)</a>:</h4>
+<p>And how long did you believe you could hide it? <span aria-label="smiling devil" class="emoji emoji-1f608" role="img" title="smiling devil">:smiling_devil:</span></p>
+
+
+
+<a name="260198181"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260198181" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260198181">(Nov 03 2021 at 21:11)</a>:</h4>
+<p>I loved the alias "insightmind" :)</p>
+
+
+
+<a name="260207345"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/260207345" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Niklas Bülow <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#260207345">(Nov 03 2021 at 22:41)</a>:</h4>
+<p>Thx, yeah LeanInk is basically a Lean 4 driver (written in Lean 4) for Alectryon. You'll still be using Alectryon directly to generate the webpages, etc. but Alectryon will use the driver to get some information about the Lean code. I'll be doing the project as my bachelor thesis, so Sebastian will support me on my way there. Our first goal is to get Lean 4 near feature-parity compared to Alectryon's Coq support.  Afterward, we'll try to hopefully take advantage of some Lean 4 features to make it even more capable. So if you have some suggestions for features you'd like to see, feel free to share them with us.  PS.: About hiding xD, Github Actions is just a lot more affordable when we're not trying to hide it  <span aria-label="wink" class="emoji emoji-1f609" role="img" title="wink">:wink:</span></p>
+
+
+
+<a name="264461313"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264461313" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264461313">(Dec 10 2021 at 15:17)</a>:</h4>
+<p>Does anyone know if it is possible to make <a href="https://readthedocs.org/">Read the Docs</a> compatible with generic documentation generators (like <code>doc-gen4</code>) or is it committed to Python?</p>
+<p>Edit: it's compatible with <a href="https://docs.readthedocs.io/en/stable/intro/getting-started-with-mkdocs.html">MkDocs</a> but then I don't know if it's possible to write plugins that would allow MkDocs to process other languages <span aria-label="thinking" class="emoji emoji-1f914" role="img" title="thinking">:thinking:</span></p>
+
+
+
+<a name="264464665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264464665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264464665">(Dec 10 2021 at 15:41)</a>:</h4>
+<p>Read the Docs is meant as a website to show documentation generated by Sphinx or just plain restructured text (for example the Linux kernel docs are hosted this way). You would probably have to hack Lean support into Sphinx in order to make this work, I don't really know how painful this would be.</p>
+<p>Besides since Lean 4 is a fully fledged programming language on its own I don't think we have to rely on something like Read the Docs etc. I'm currently porting over the jinja2 templates from the original doc-gen to this JSX like syntax proposed over here <a href="https://github.com/leanprover/lean4/pull/723/files">https://github.com/leanprover/lean4/pull/723/files</a> (fetching information from the compiler is already sort of working in the fork over here <a href="https://github.com/hargoniX/doc-gen4">https://github.com/hargoniX/doc-gen4</a>).</p>
+
+
+
+<a name="264465413"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264465413" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264465413">(Dec 10 2021 at 15:47)</a>:</h4>
+<p>I wrote a POC of using sphinx for Lean.</p>
+
+
+
+<a name="264465428"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264465428" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264465428">(Dec 10 2021 at 15:47)</a>:</h4>
+<p>But I haven't touched it in months.</p>
+
+
+
+<a name="264465460"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264465460" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264465460">(Dec 10 2021 at 15:47)</a>:</h4>
+<p>It's here <a href="https://github.com/Julian/sphinxcontrib-lean/">https://github.com/Julian/sphinxcontrib-lean/</a> and Lean3 obviously</p>
+
+
+
+<a name="264465521"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264465521" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Julian Berman <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264465521">(Dec 10 2021 at 15:48)</a>:</h4>
+<p>You can see a result of it here: <a href="https://lean-across-the-board.readthedocs.io/en/latest/">https://lean-across-the-board.readthedocs.io/en/latest/</a></p>
+
+
+
+<a name="264465827"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264465827" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264465827">(Dec 10 2021 at 15:50)</a>:</h4>
+<p>I was thinking more about the easiness of hosting and synchronization that Read the Docs allows. I mean, it is a business with adds and stuff, which allows them to keep the repo hooks online</p>
+
+
+
+<a name="264466464"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/264466464" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Arthur Paulino <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#264466464">(Dec 10 2021 at 15:54)</a>:</h4>
+<p>Julian, that was pretty rad <span aria-label="+1" class="emoji emoji-1f44d" role="img" title="+1">:+1:</span></p>
+
+
+
+<a name="313683293"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313683293" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313683293">(Dec 03 2022 at 13:06)</a>:</h4>
+<p>doc-gen4 won't build with nightly-2022-12-03 (due to changes in Lake; <code>recBuildLocalModules</code> has been <a href="https://github.com/leanprover/lake/commit/003b3a1fd75aab39bc30847a91815ce72676e3cb#diff-a60e6cc2a6f22f13d93406d5cbf48f5e0092552a5ad28c75ca370a3f451f9d5cL13">removed</a>)</p>
+
+
+
+<a name="313683354"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313683354" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313683354">(Dec 03 2022 at 13:07)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span></p>
+
+
+
+<a name="313683405"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313683405" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313683405">(Dec 03 2022 at 13:07)</a>:</h4>
+<p>I fixed it just yesterday /o\</p>
+
+
+
+<a name="313684469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313684469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313684469">(Dec 03 2022 at 13:15)</a>:</h4>
+<p>Sorry, just checking --- you mean you fixed something else, right? It's not compiling for me.</p>
+
+
+
+<a name="313684732"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313684732" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313684732">(Dec 03 2022 at 13:16)</a>:</h4>
+<p>Yeah yeah I made it compatible with 11-30 yesterday. There was a relatively calm phase now because Mac didn't work much on Lake but when he does you can usually expect stuff to break on a daily or weekly basis until it eventually stabilizes</p>
+
+
+
+<a name="313685665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313685665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313685665">(Dec 03 2022 at 13:23)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I'm not quite sure how to fix this here? </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code>  <span class="k">let</span> <span class="n">moduleJobs</span> <span class="bp">←</span> <span class="n">BuildJob.mixArray</span> <span class="bp">&lt;|</span> <span class="bp">←</span> <span class="n">lib.recBuildLocalModules</span> <span class="bp">#</span><span class="o">[</span><span class="bp">`</span><span class="n">docs</span><span class="o">]</span>
+</code></pre></div>
+<p>I'm guessing i want something along the lines of what you are doing in <code>LeanLib.recBuildStatic</code> but specifically tailored to the <code>docs</code> module facet?</p>
+
+
+
+<a name="313710126"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313710126" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313710126">(Dec 03 2022 at 16:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="395550">@Henrik Böving</span> Oo! I forgot doc-gen4 was using <code>recBuildLocalModules</code>. Yeah, you got the idea right. With the new API the code would be:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">let</span> <span class="n">mods</span> <span class="bp">←</span> <span class="n">lib.modules.fetch</span>
+<span class="k">let</span> <span class="n">moduleJobs</span> <span class="bp">←</span> <span class="n">BuildJob.mixArray</span> <span class="bp">&lt;|</span> <span class="bp">←</span> <span class="n">mods.mapM</span> <span class="o">(</span><span class="n">fetch</span> <span class="bp">&lt;|</span> <span class="bp">·.</span><span class="n">facet</span> <span class="bp">`</span><span class="n">docs</span><span class="o">)</span>
+</code></pre></div>
+<p>The change was made to increase performance, so hopefully you might see a bit of a gain in doc-gen4 as well!</p>
+
+
+
+<a name="313710159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313710159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313710159">(Dec 03 2022 at 16:35)</a>:</h4>
+<p>We shall see that right away!</p>
+
+
+
+<a name="313711987"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/doc-gen4/near/313711987" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/doc-gen4.html#313711987">(Dec 03 2022 at 16:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="110087">@Scott Morrison</span> builds now</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

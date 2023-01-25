@@ -1,0 +1,168 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/type.20class.20inference.20issues.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html">type class inference issues</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="158624456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/158624456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#158624456">(Feb 15 2019 at 15:57)</a>:</h4>
+<p>I have been struggling with type class inference lately. The two main issues are<br>
+(1) The error <code>maximum class-instance resolution depth has been reached</code><br>
+(2) In some cases (which are hard to reproduce in minimal examples) I get incredibly long elaboration times (10-30 seconds for a single definition), and I suspect this is completely caused by type class inference (the eventual error I often get is that the type-class max depth is reached).</p>
+<p>Problem 1 can be easily solved by setting the <code>class.instance_max_depth</code> option higher. Problem 2 makes this solution for problem 1 not that attractive, if type class inference then takes even longer.</p>
+<p>I have some concrete and some open-ended questions:<br>
+Q.1 What does <code>instance_max_depth</code> exactly mean? Does it mean the depth/height of the search tree, or the total number of instances in the solution? For example, in the following example I have to set the depth to 125, with 124 it fails:</p>
+<div class="codehilite"><pre><span></span>import ring_theory.algebra linear_algebra.tensor_product
+
+variables {R : Type*} [comm_ring R]
+variables {M : Type*} {N : Type*} [ring M] [ring N]
+variables [algebra R M] [algebra R N]
+
+local notation M ` ⊗[`:100 R `] ` N:100 := tensor_product R M N
+
+namespace tensor_product
+set_option class.instance_max_depth 125
+
+protected def mul : M ⊗[R] N →ₗ[R] M ⊗[R] N →ₗ[R] M ⊗[R] N :=
+begin
+  refine tensor_product.lift ⟨λ m, ⟨λ n, _, _, _⟩, _, _⟩,
+  all_goals { sorry }
+end
+</pre></div>
+
+
+<p>Q.2 Does the option <code>trace.class_instances</code> show the complete trace or does Lean/VSCode truncate the trace somewhere? In traces where I get the max-depth reached error, the highest depth I can find is typically <code>(11)</code> or <code>(12)</code><br>
+Q.3 In the trace, I see the same type class search over and over again (in a single definition). Is the caching of type class instances failing me, or is something else going on?<br>
+Q.4 What are type-class best practices? Do I want to add instances to short-circuit the type class inference? For example, in the example above, if I add the following local instances I don't have to increase the max depth at all:</p>
+<div class="codehilite"><pre><span></span>protected def add_comm_group&#39; : add_comm_group (M ⊗[R] N) := by apply_instance
+protected def module&#39; : module R (M ⊗[R] N) := by apply_instance
+local attribute [instance, priority 2000] tensor_product.add_comm_group&#39; tensor_product.module&#39;
+protected def lmap_add_comm_group : add_comm_group (M ⊗[R] N →ₗ[R] M ⊗[R] N) := by apply_instance
+protected def lmap_module : module R (M ⊗[R] N →ₗ[R] M ⊗[R] N) := by apply_instance
+local attribute [instance, priority 2000]
+  tensor_product.lmap_add_comm_group tensor_product.lmap_module
+</pre></div>
+
+
+<p>Are there other tips/tricks to keep type-class inference happy/under control?</p>
+
+
+
+<a name="158653876"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/158653876" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#158653876">(Feb 15 2019 at 22:06)</a>:</h4>
+<p>PS: The reason for the example in Q.1 is that I'm surprised I would need to go to depth 100+.</p>
+
+
+
+<a name="158653999"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/158653999" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#158653999">(Feb 15 2019 at 22:08)</a>:</h4>
+<p>I just had another problem with type class inference. <br>
+I have an instance (with <code>pp.all true</code>):</p>
+<div class="codehilite"><pre><span></span>_inst_3 : @is_ring_hom.{u_1 u_2} α β (@comm_ring.to_ring.{u_1} α _inst_1) (@comm_ring.to_ring.{u_2} β _inst_2) f
+</pre></div>
+
+
+<p>But the trace shows that this instance does not unify with its own type, even with <code>pp.all</code> true.</p>
+<div class="codehilite"><pre><span></span>[class_instances] (0) ?x_9 : @is_ring_hom.{u_1 u_2} α β (@comm_ring.to_ring.{u_1} α _inst_1) (@comm_ring.to_ring.{u_2} β _inst_2) f := _inst_3
+failed is_def_eq
+</pre></div>
+
+
+<p>The error occurs here:<br>
+<a href="https://github.com/fpvandoorn/formalabstracts/blob/is_ring_hom/src/ring_theory/basic.lean#L28" target="_blank" title="https://github.com/fpvandoorn/formalabstracts/blob/is_ring_hom/src/ring_theory/basic.lean#L28">https://github.com/fpvandoorn/formalabstracts/blob/is_ring_hom/src/ring_theory/basic.lean#L28</a></p>
+
+
+
+<a name="276937942"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276937942" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276937942">(Mar 28 2022 at 22:18)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.order.ring</span>
+
+<span class="kd">def</span> <span class="n">foo</span> <span class="o">(</span><span class="n">α</span><span class="o">)</span> <span class="o">[</span><span class="n">has_lt</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">decidable_rel</span> <span class="o">((</span><span class="bp">&lt;</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="kt">Prop</span><span class="o">)]</span> <span class="o">:=</span> <span class="mi">123</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">R</span><span class="o">}</span> <span class="o">[</span><span class="n">linear_ordered_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">:=</span> <span class="n">foo</span> <span class="n">R</span> <span class="c1">--error</span>
+
+<span class="kd">example</span> <span class="o">{</span><span class="n">R</span><span class="o">}</span> <span class="o">[</span><span class="n">h</span> <span class="o">:</span> <span class="n">linear_ordered_semiring</span> <span class="n">R</span><span class="o">]</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">refine</span> <span class="bp">@</span><span class="n">foo</span> <span class="n">R</span> <span class="n">_</span> <span class="o">(</span><span class="k">show</span> <span class="n">_</span><span class="o">,</span> <span class="k">from</span> <span class="n">_</span><span class="o">),</span>
+  <span class="n">exact</span> <span class="o">(</span><span class="n">infer_instance</span> <span class="o">:</span> <span class="n">linear_order</span> <span class="n">R</span><span class="o">)</span><span class="bp">.</span><span class="mi">10</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>what the hell is going on here?! it doesn't seem to be a diamond</p>
+
+
+
+<a name="276938080"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276938080" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276938080">(Mar 28 2022 at 22:20)</a>:</h4>
+<p>(I never even considered that numeric dot notation supported double digits)</p>
+
+
+
+<a name="276938104"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276938104" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276938104">(Mar 28 2022 at 22:20)</a>:</h4>
+<p>What's the error message?</p>
+
+
+
+<a name="276938248"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276938248" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276938248">(Mar 28 2022 at 22:22)</a>:</h4>
+<p>it just cannot find the instance</p>
+
+
+
+<a name="276938397"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276938397" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Rodriguez <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276938397">(Mar 28 2022 at 22:24)</a>:</h4>
+<p>it seens that <code>linear_ordered_semiring.decidable_lt</code> isn't an instance, but the <code>linear_order</code> version is and ther'es also clearly a <code>linear_order</code> instance, so it should be able to find it</p>
+
+
+
+<a name="276981575"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276981575" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276981575">(Mar 29 2022 at 09:56)</a>:</h4>
+<p>If I enable <code>trace.class_instances</code>, then first of all it looks like <code>linear_order.decidable_lt</code> is not considered an instance. So I add that attribute and get the following trace:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="o">[</span><span class="n">class_instances</span><span class="o">]</span> <span class="o">(</span><span class="mi">0</span><span class="o">)</span> <span class="bp">?</span><span class="n">x_0</span> <span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">decidable</span> <span class="o">(</span><span class="n">a</span> <span class="bp">&lt;</span> <span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">@</span><span class="n">linear_order.decidable_lt</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_2</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_3</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_4</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span>
+<span class="n">failed</span> <span class="n">is_def_eq</span>
+<span class="bp">...</span>
+</code></pre></div>
+
+
+
+<a name="276981930"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276981930" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276981930">(Mar 29 2022 at 09:59)</a>:</h4>
+<p>Looks like it's struggling with the problem:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">@</span><span class="n">preorder.to_has_lt</span> <span class="n">R</span>
+  <span class="o">(</span><span class="bp">@</span><span class="n">partial_order.to_preorder</span> <span class="n">R</span>
+     <span class="o">(</span><span class="bp">@</span><span class="n">ordered_cancel_add_comm_monoid.to_partial_order</span> <span class="n">R</span>
+        <span class="o">(</span><span class="bp">@</span><span class="n">ordered_semiring.to_ordered_cancel_add_comm_monoid</span> <span class="n">R</span> <span class="o">(</span><span class="bp">@</span><span class="n">linear_ordered_semiring.to_ordered_semiring</span> <span class="n">R</span> <span class="n">h</span><span class="o">))))</span> <span class="bp">=?=</span> <span class="bp">@</span><span class="n">preorder.to_has_lt</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span>
+  <span class="o">(</span><span class="bp">@</span><span class="n">partial_order.to_preorder</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span>
+     <span class="o">(</span><span class="bp">@</span><span class="n">partial_order.mk</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">linear_order.le</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_2</span> <span class="n">a</span> <span class="n">b</span><span class="o">))</span> <span class="o">(</span><span class="bp">@</span><span class="n">linear_order.lt</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_1</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span> <span class="o">(</span><span class="bp">?</span><span class="n">x_2</span> <span class="n">a</span> <span class="n">b</span><span class="o">))</span> <span class="n">_</span> <span class="n">_</span>
+        <span class="n">_</span>
+        <span class="n">_</span><span class="o">))</span>
+</code></pre></div>
+
+
+
+<a name="276982206"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276982206" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276982206">(Mar 29 2022 at 10:02)</a>:</h4>
+<p><code>?x_2 a b</code> should be inferred as the <code>linear_order</code> instance deriving from <code>h : linear_ordered_semiring R</code>, but apparently it's just being treated as opaque and never inferred.</p>
+
+
+
+<a name="276982283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/type%20class%20inference%20issues/near/276982283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Anne Baanen <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/type.20class.20inference.20issues.html#276982283">(Mar 29 2022 at 10:03)</a>:</h4>
+<p>Maybe this is the "pi instance bug" we've seen before with finsupp?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

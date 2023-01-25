@@ -1,0 +1,67 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html">noncomputable/irrelevant fields</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="224354416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224354416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224354416">(Jan 28 2021 at 16:45)</a>:</h4>
+<p>Has there been consideration of a feature like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">x</span> <span class="o">:</span> <span class="n">Int</span>
+  <span class="kd">noncomputable</span> <span class="n">y</span> <span class="o">:</span> <span class="n">Int</span>
+</code></pre></div>
+<p>meaning</p>
+<ul>
+<li><code>Foo.y</code> becomes noncomputable</li>
+<li><code>Foo.mk x y</code> is computable as soon as <code>x</code> is</li>
+<li>A <code>Foo</code> does not store the value <code>y</code> at runtime</li>
+</ul>
+<p>It's possible to emulate this with a <a href="https://leanprover-community.github.io/mathlib_docs/data/erased.html#erased"><code>Erased</code></a> type, but at the cost of some definitional equalities.</p>
+
+
+
+<a name="224355634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224355634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224355634">(Jan 28 2021 at 16:47)</a>:</h4>
+<p>(I just noticed that <code>erased.out</code> isn't marked <code>noncomputable</code> in the doc gen. We should probably do something about that)</p>
+
+
+
+<a name="224355945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224355945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224355945">(Jan 28 2021 at 16:49)</a>:</h4>
+<p>What is the type of <code>Foo.mk</code>? Is it possible to define a function with the same computability behavior as the proposed <code>Foo.mk</code> constructor?</p>
+
+
+
+<a name="224356262"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224356262" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224356262">(Jan 28 2021 at 16:51)</a>:</h4>
+<p>It might be easier to actually have an <code>Erased</code> type constructor. It can't really be a type alias because then the VM could confuse <code>A</code> and <code>Erased A</code> if a lean function abuses the defeq</p>
+
+
+
+<a name="224357778"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224357778" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Reid Barton <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224357778">(Jan 28 2021 at 17:00)</a>:</h4>
+<p>Right, I don't know how Lean determines which parts of the program are runtime relevant, but if it's based entirely on type information, then a special <code>structure Erased A where val : A</code> which gets erased would already be helpful</p>
+
+
+
+<a name="224360188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/noncomputable/irrelevant%20fields/near/224360188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/noncomputable.2Firrelevant.20fields.html#224360188">(Jan 28 2021 at 17:16)</a>:</h4>
+<p>The key function for this seems to be <a href="https://github.com/leanprover/lean4/blob/master/src/library/compiler/util.cpp#L401-L414">https://github.com/leanprover/lean4/blob/master/src/library/compiler/util.cpp#L401-L414</a> . I can't find any function along these lines in lean, although there is <code>Arg.irrelevant</code> and <code>IRType.irrelevant</code> for tracking it</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

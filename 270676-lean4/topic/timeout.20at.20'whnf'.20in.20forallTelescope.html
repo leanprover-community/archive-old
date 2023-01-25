@@ -1,0 +1,106 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html">timeout at 'whnf' in forallTelescope</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="268703407"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/timeout%20at%20%27whnf%27%20in%20forallTelescope/near/268703407" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html#268703407">(Jan 20 2022 at 14:54)</a>:</h4>
+<p>I get the following error when running <code>forallTelescope</code>.</p>
+<div class="codehilite" data-code-language="Text only"><pre><span></span><code>uncaught exception: (deterministic) timeout at 'whnf', maximum number of heartbeats (50000) has been reached (use 'set_option maxHeartbeats &lt;num&gt;' to set the limit)
+</code></pre></div>
+<p>I am a bit confused about this, I thought that <code>forallTelescope</code> doesn't reduce the expression at all, as opposed to <code>forallTelescopeReducing</code>.</p>
+<p>I can reproduce this when I run <code>forallTelescope</code> on all declarations of <code>mathlib3port</code> (current commit - <code>9b3a383</code>). Here is my code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span> <span class="n">Core</span>
+<span class="c1">-- you need to clone and `lake build` mathlib3port in the right directory to run this</span>
+<span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">strs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">UInt32</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="bp">←</span> <span class="k">do</span>
+    <span class="n">initSearchPath</span> <span class="o">(</span><span class="bp">←</span> <span class="n">Lean.findSysroot</span><span class="bp">?</span><span class="o">)</span> <span class="o">[</span><span class="s2">"../mathlib3port/build/lib"</span><span class="o">,</span>
+      <span class="s2">"../mathlib3port/lean_packages/lean3port/build/lib/"</span><span class="o">,</span>
+      <span class="s2">"../mathlib3port/lean_packages/mathlib/build/lib/"</span><span class="o">]</span>
+    <span class="n">importModules</span> <span class="o">[{</span><span class="n">module</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Mathbin</span><span class="o">}]</span> <span class="o">{}</span>
+  <span class="k">let</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">CoreM.toIO</span> <span class="o">(</span><span class="n">MetaM.run'</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">decls</span> <span class="bp">←</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="kd">constants</span><span class="bp">.</span><span class="n">map₁.toArray.map</span> <span class="o">(</span><span class="bp">·.</span><span class="mi">1</span><span class="o">)</span>
+    <span class="n">decls.forM</span> <span class="bp">λ</span> <span class="n">nm</span> <span class="bp">=&gt;</span> <span class="k">if</span> <span class="bp">!</span><span class="n">nm.isInternal</span> <span class="k">then</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">info</span> <span class="bp">←</span> <span class="n">getConstInfo</span> <span class="n">nm</span>
+      <span class="k">let</span> <span class="n">isprop</span> <span class="bp">←</span> <span class="n">forallTelescope</span> <span class="n">info.type</span> <span class="bp">$</span> <span class="bp">λ</span> <span class="n">_</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e.isProp</span>
+      <span class="n">IO.println</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{nm}: {isprop}"</span>
+    <span class="k">else</span> <span class="n">return</span> <span class="o">()</span>
+    <span class="o">)</span> <span class="o">{}</span> <span class="o">{</span><span class="n">env</span> <span class="o">:=</span> <span class="n">env</span><span class="o">}</span>
+  <span class="n">return</span> <span class="mi">0</span>
+</code></pre></div>
+<p>Note: when I replace <code>forallTelescope</code> by a structural recursion on the expression, I don't get an error.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Meta</span> <span class="n">Core</span>
+
+<span class="kn">namespace</span> <span class="n">Lean.Expr</span>
+
+<span class="kd">def</span> <span class="n">piCodomain</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Expr</span>
+<span class="bp">|</span> <span class="n">forallE</span> <span class="n">n</span> <span class="n">t</span> <span class="n">b</span> <span class="n">d</span> <span class="bp">=&gt;</span> <span class="n">piCodomain</span> <span class="n">b</span>
+<span class="bp">|</span> <span class="n">e</span> <span class="bp">=&gt;</span> <span class="n">e</span>
+
+<span class="kd">end</span> <span class="n">Lean.Expr</span>
+
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">(</span><span class="n">strs</span> <span class="o">:</span> <span class="n">List</span> <span class="n">String</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">UInt32</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">env</span> <span class="bp">←</span> <span class="k">do</span>
+    <span class="n">initSearchPath</span> <span class="o">(</span><span class="bp">←</span> <span class="n">Lean.findSysroot</span><span class="bp">?</span><span class="o">)</span> <span class="o">[</span><span class="s2">"../mathlib3port/build/lib"</span><span class="o">,</span>
+      <span class="s2">"../mathlib3port/lean_packages/lean3port/build/lib/"</span><span class="o">,</span>
+      <span class="s2">"../mathlib3port/lean_packages/mathlib/build/lib/"</span><span class="o">]</span>
+    <span class="n">importModules</span> <span class="o">[{</span><span class="n">module</span> <span class="o">:=</span> <span class="bp">`</span><span class="n">Mathbin</span><span class="o">}]</span> <span class="o">{}</span>
+  <span class="k">let</span> <span class="n">_</span> <span class="bp">←</span> <span class="n">CoreM.toIO</span> <span class="o">(</span><span class="n">MetaM.run'</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">decls</span> <span class="bp">←</span> <span class="o">(</span><span class="bp">←</span> <span class="n">getEnv</span><span class="o">)</span><span class="bp">.</span><span class="kd">constants</span><span class="bp">.</span><span class="n">map₁.toArray.map</span> <span class="o">(</span><span class="bp">·.</span><span class="mi">1</span><span class="o">)</span>
+    <span class="n">decls.forM</span> <span class="bp">λ</span> <span class="n">nm</span> <span class="bp">=&gt;</span> <span class="k">if</span> <span class="bp">!</span><span class="n">nm.isInternal</span> <span class="k">then</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">info</span> <span class="bp">←</span> <span class="n">getConstInfo</span> <span class="n">nm</span>
+      <span class="k">let</span> <span class="n">isprop</span> <span class="bp">←</span> <span class="n">info.type.piCodomain.isProp</span>
+      <span class="n">IO.println</span> <span class="n">s</span><span class="bp">!</span><span class="s2">"{nm}: {isprop}"</span>
+    <span class="k">else</span> <span class="n">return</span> <span class="o">()</span>
+    <span class="o">)</span> <span class="o">{}</span> <span class="o">{</span><span class="n">env</span> <span class="o">:=</span> <span class="n">env</span><span class="o">}</span>
+  <span class="n">return</span> <span class="mi">0</span>
+</code></pre></div>
+<p>Is this the expected behavior (for complicated enough expressions)?</p>
+
+
+
+<a name="268705377"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/timeout%20at%20%27whnf%27%20in%20forallTelescope/near/268705377" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html#268705377">(Jan 20 2022 at 15:06)</a>:</h4>
+<p><code>forallTelescope</code> may need to reduce domains to check for type classes. Which should be cheap, but it might accumulate.</p>
+
+
+
+<a name="268705758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/timeout%20at%20%27whnf%27%20in%20forallTelescope/near/268705758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html#268705758">(Jan 20 2022 at 15:08)</a>:</h4>
+<p>The heartbeat limit is mostly for interactive use, you can set it to some higher number (or 0) in the <code>CoreM.toIO</code> call</p>
+
+
+
+<a name="268707924"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/timeout%20at%20%27whnf%27%20in%20forallTelescope/near/268707924" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html#268707924">(Jan 20 2022 at 15:21)</a>:</h4>
+<p>Thanks! Both of those options indeed solve the problem. <br>
+I didn't know that the number of heartbeats was for the whole <code>CoreM.toIO</code> call instead of each <code>whnf</code> call individually.</p>
+
+
+
+<a name="268708327"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/timeout%20at%20%27whnf%27%20in%20forallTelescope/near/268708327" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/timeout.20at.20'whnf'.20in.20forallTelescope.html#268708327">(Jan 20 2022 at 15:23)</a>:</h4>
+<p>I believe it's because <code>whnf</code> is regarded as a helper function to be used in larger modules that define a "heartbeat scope". For example TC resolution is a scope.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

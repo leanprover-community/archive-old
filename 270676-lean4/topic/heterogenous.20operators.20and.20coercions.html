@@ -1,0 +1,79 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html">heterogenous operators and coercions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="244805619"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244805619" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Deniz Aydin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244805619">(Jul 03 2021 at 13:33)</a>:</h4>
+<p>While porting files on ints, I ran into confusing behaviour that led me to finding out about the new heterogenous operators.</p>
+<p>The issue stemmed from the fact that there are multiple ways lean can express <code>a+n</code>. <a href="https://github.com/leanprover-community/lean/blob/0bbad25ba6f428618e25399850f78dc5efcef9b0/library/init/data/int/order.lean#L38">One lemma</a> in the original file has the hypothesis <code>{a b : ℤ} {n : ℕ} (h : b - a = n)</code>, and <a href="https://github.com/leanprover-community/lean/blob/0bbad25ba6f428618e25399850f78dc5efcef9b0/library/init/data/int/order.lean#L44">the next</a> has the seemingly equivalent <code>{a b : ℤ} {n : ℕ} (h : a + n = b)</code>. In lean4, the first gets translated into <code>h : b - a = ofNat n</code>and the second becomes <code>h : a + n = b</code>, where <code>+</code> here is the sneaky heterogenous kind causing the rewrite of <code>add_comm</code> to fail. Looking at how they're defined anyone would expect rearranging one to give you an identical hypothesis to the other. </p>
+<p>What made this especially confusing to me was that neither of these behaviours is what would happen in lean3, which IIRC would insert a coercion arrow in front of n in both cases. Since coercion arrows are hidden by default in lean4 I assumed that this is what was happening and what I saw as <code>h : a + n = b</code> was actually <code>h : a + ↑n = b</code>. After all, how else can you add an int and a nat? This thinking led me to infuriating errors before I realised what was wrong:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">tactic</span> <span class="bp">'</span><span class="n">rewrite'</span> <span class="n">failed</span><span class="o">,</span> <span class="n">did</span> <span class="n">not</span> <span class="n">find</span> <span class="kd">instance</span> <span class="n">of</span> <span class="n">the</span> <span class="n">pattern</span> <span class="k">in</span> <span class="n">the</span> <span class="n">target</span> <span class="n">expression</span>
+  <span class="bp">-</span><span class="n">a</span> <span class="bp">+</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">n</span><span class="o">)</span>
+<span class="n">a</span> <span class="n">b</span> <span class="o">:</span> <span class="n">ℤ</span>
+<span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span>
+<span class="n">h</span> <span class="o">:</span> <span class="n">a</span> <span class="bp">+</span> <span class="n">n</span> <span class="bp">=</span> <span class="n">b</span>
+<span class="bp">⊢</span> <span class="bp">-</span><span class="n">a</span> <span class="bp">+</span> <span class="o">(</span><span class="n">a</span> <span class="bp">+</span> <span class="n">n</span><span class="o">)</span> <span class="bp">=</span> <span class="n">ofNat</span> <span class="n">n</span>
+</code></pre></div>
+<p>To work around this I now make sure to use explicit coercion arrows wherever possible and enable showing coercions in the pretty printer (which I also struggled with as <code>set_option pp.coercions true</code> does the opposite of what the name suggests and should probably be renamed).</p>
+<p>While having heterogenous operators (especially hMul) seem very useful, I suggest removing <a href="https://github.com/leanprover/lean4/blob/67bffa7de0add25b9e17e8ca13e2c4d202688012/src/Init/Coe.lean#L151">these instances</a> for generating them from coercions. Users shouldn't have to worry about whether it's the operators that are being silently coerced or their inputs.</p>
+
+
+
+<a name="244807211"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244807211" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244807211">(Jul 03 2021 at 14:03)</a>:</h4>
+<p>I've warned of this problem before: <a href="https://github.com/leanprover/lean4/issues/433#issuecomment-831928888">https://github.com/leanprover/lean4/issues/433#issuecomment-831928888</a><br>
+I completely agree with you that these instances should be removed.</p>
+
+
+
+<a name="244807466"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244807466" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244807466">(Jul 03 2021 at 14:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="364484">Deniz Aydin</span> <a href="#narrow/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions/near/244805619">said</a>:</p>
+<blockquote>
+<p>Since coercion arrows are hidden by default in lean4</p>
+</blockquote>
+<p>Coercions are actually not hidden at all (except for these few problematic instances), they are even unfolded into the concrete coercion functions (instead of the generic arrow) which I like very much.</p>
+
+
+
+<a name="244810929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244810929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Deniz Aydin <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244810929">(Jul 03 2021 at 15:20)</a>:</h4>
+<p>Interesting, so does this mean that I should be expressing statements about coercions from Nat to Int using <code>Int.ofNat</code> instead of <code>↑</code> since that's now the default way lean translates statements like <code>(a : Int) = (n : Nat)</code>?<br>
+That does make it clear what's being coerced to what but I'm not sure I prefer it since it's a lot of boilerplate on what would otherwise be statements that read very naturally.</p>
+
+
+
+<a name="244811573"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244811573" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244811573">(Jul 03 2021 at 15:38)</a>:</h4>
+<p>If you want to hide the Int.ofNat function, that's a 5 line delaboration function. We can even put it scoped in a namespace, so that you can enable it only when you want.</p>
+
+
+
+<a name="244811801"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244811801" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244811801">(Jul 03 2021 at 15:45)</a>:</h4>
+<p>Is there a way that, when one declares a coercion, the corresponding function automatically gets a special treatment in pretty-printing, and is represented by <code>↑</code> there?</p>
+
+
+
+<a name="244811908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/heterogenous%20operators%20and%20coercions/near/244811908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/heterogenous.20operators.20and.20coercions.html#244811908">(Jul 03 2021 at 15:48)</a>:</h4>
+<p>You can write a macro that does both at once, declare the coercion and hide the function.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

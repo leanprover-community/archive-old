@@ -1,0 +1,802 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/index.html">graph theory</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html">Cayley graphs (again)</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="308556911"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308556911" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308556911">(Nov 08 2022 at 10:31)</a>:</h4>
+<p>Hey, i've decided it is time I get some version of Cayley graphs merged.<br>
+The approach I settled with is to define graphs as soon as you have a <code>smul</code> and a subset of the "action" set, and then get Schreier graphs for free as given by the action of a group on a set, and similarly Cayley graphs for the self action.<br>
+As of now, i've got the following:</p>
+<p>I'd like to have a basic "core" that I can merge and can nice enough to be reusable and extendable.<br>
+I'm therefore asking for preliminary feedback: is this an acceptable way to do Cayley/Schreier graphs? What would the minimal set of results needed here look like?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">combinatorics.simple_graph.basic</span>
+<span class="kn">import</span> <span class="n">combinatorics.simple_graph.subgraph</span>
+<span class="kn">import</span> <span class="n">combinatorics.simple_graph.connectivity</span>
+<span class="kn">import</span> <span class="n">data.list</span>
+<span class="kn">import</span> <span class="n">group_theory.group_action.group</span>
+<span class="kn">import</span> <span class="n">group_theory.subgroup.basic</span>
+<span class="kn">import</span> <span class="n">group_theory.coset</span>
+<span class="kn">import</span> <span class="n">group_theory.quotient_group</span>
+<span class="kn">import</span> <span class="n">group_theory.group_action.quotient</span>
+
+<span class="kn">open</span> <span class="n">function</span>
+
+<span class="kd">universes</span> <span class="n">u</span> <span class="n">v</span> <span class="n">w</span>
+
+<span class="kn">namespace</span> <span class="n">simple_graph</span>
+
+<span class="kn">section</span> <span class="n">defs</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_smul</span> <span class="n">M</span> <span class="n">X</span><span class="o">]</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="n">set</span> <span class="n">M</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">schreier_graph.adj_gen</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">X</span> <span class="bp">→</span> <span class="kt">Prop</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">S</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">schreier_graph.adj_gen</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">m.val</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)</span>
+
+<span class="kd">lemma</span> <span class="n">schreier_graph.adj_gen_iff</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span> <span class="n">schreier_graph.adj_gen</span> <span class="n">X</span> <span class="n">S</span> <span class="n">x</span> <span class="n">y</span> <span class="bp">↔</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">S</span><span class="o">),</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">m.val</span> <span class="bp">•</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span> <span class="n">x</span><span class="o">⟩,</span> <span class="n">exact</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="n">constructor</span><span class="o">,</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">schreier_graph</span> <span class="o">:</span> <span class="n">simple_graph</span> <span class="n">X</span> <span class="o">:=</span> <span class="n">simple_graph.from_rel</span> <span class="o">(</span><span class="n">schreier_graph.adj_gen</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span>
+
+<span class="kd">end</span> <span class="n">defs</span>
+
+<span class="kn">namespace</span> <span class="n">schreier_graph</span>
+
+<span class="kn">section</span> <span class="n">basic</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_smul</span> <span class="n">M</span> <span class="n">X</span><span class="o">]</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="n">set</span> <span class="n">M</span><span class="o">)</span>
+
+<span class="kd">lemma</span> <span class="n">mono</span> <span class="o">{</span><span class="n">S</span><span class="o">}</span> <span class="o">{</span><span class="n">T</span> <span class="o">:</span> <span class="n">set</span> <span class="n">M</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">S</span> <span class="bp">≤</span> <span class="n">T</span><span class="o">)</span> <span class="o">:</span> <span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span> <span class="bp">≤</span> <span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">T</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">apply</span> <span class="n">simple_graph.from_rel_mono</span><span class="o">,</span>
+  <span class="n">rintros</span> <span class="n">_</span> <span class="n">_</span> <span class="o">⟨⟨</span><span class="n">m</span><span class="o">,</span> <span class="n">mS</span><span class="o">⟩,</span> <span class="n">x</span><span class="o">⟩,</span>
+  <span class="n">exact</span> <span class="n">adj_gen.mk</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span> <span class="n">h</span> <span class="n">mS</span><span class="o">⟩</span> <span class="n">x</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">adj_iff</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span> <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">adj</span> <span class="n">x</span> <span class="n">y</span> <span class="bp">↔</span> <span class="o">(</span><span class="n">x</span> <span class="bp">≠</span> <span class="n">y</span> <span class="bp">∧</span> <span class="bp">∃</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">,</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">∨</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">schreier_graph</span><span class="o">,</span> <span class="n">adj_gen_iff</span><span class="o">,</span> <span class="n">from_rel_adj</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">set_coe.exists</span><span class="o">],</span>
+  <span class="n">congr'</span><span class="o">,</span> <span class="n">ext</span><span class="o">,</span> <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">rintros</span> <span class="o">(⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩</span><span class="bp">|</span><span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩),</span> <span class="n">exact</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">or.inl</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="n">exact</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">or.inr</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">rintros</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,(</span><span class="n">rfl</span><span class="bp">|</span><span class="n">rfl</span><span class="o">)⟩,</span> <span class="n">exact</span> <span class="n">or.inl</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩,</span> <span class="n">exact</span> <span class="n">or.inr</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩,</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">neighbor_set_eq</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">neighbor_set</span> <span class="n">x</span> <span class="bp">=</span> <span class="o">{</span><span class="n">y</span> <span class="bp">|</span> <span class="n">x</span> <span class="bp">≠</span> <span class="n">y</span> <span class="bp">∧</span> <span class="bp">∃</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">,</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="bp">∨</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span><span class="o">}</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="o">{</span> <span class="n">dsimp</span> <span class="o">[</span><span class="n">neighbor_set</span><span class="o">,</span> <span class="n">set_of</span><span class="o">],</span> <span class="n">ext</span><span class="o">,</span> <span class="n">rw</span> <span class="n">adj_iff</span><span class="o">,</span> <span class="o">}</span>
+
+<span class="kd">lemma</span> <span class="n">neighbor_set_eq'</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">neighbor_set</span> <span class="n">x</span>
+<span class="bp">=</span> <span class="o">{</span><span class="n">y</span> <span class="bp">|</span> <span class="n">x</span> <span class="bp">≠</span> <span class="n">y</span><span class="o">}</span> <span class="bp">∩</span> <span class="o">({</span><span class="n">y</span> <span class="bp">|</span> <span class="bp">∃</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">,</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span><span class="o">}</span> <span class="bp">∪</span> <span class="o">{</span><span class="n">y</span> <span class="bp">|</span> <span class="bp">∃</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">,</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span><span class="o">})</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">schreier_graph</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">exists_prop</span><span class="o">],</span> <span class="n">ext</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mem_neighbor_set</span><span class="o">,</span> <span class="n">set.mem_inter_iff</span><span class="o">,</span> <span class="n">set.mem_set_of_eq</span><span class="o">,</span> <span class="n">set.mem_union</span><span class="o">,</span>
+             <span class="n">simple_graph.from_rel_adj</span><span class="o">,</span> <span class="n">adj_gen_iff</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">set_coe.exists</span><span class="o">,</span> <span class="n">exists_prop</span><span class="o">,</span>
+             <span class="n">and.congr_right_iff</span><span class="o">],</span>
+  <span class="n">rintro</span><span class="o">,</span> <span class="n">congr'</span><span class="bp">;</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">tauto</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">basic</span>
+
+<span class="kn">section</span> <span class="n">group_action</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">G</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">group</span> <span class="n">G</span><span class="o">]</span> <span class="o">[</span><span class="n">mul_action</span> <span class="n">G</span> <span class="n">X</span><span class="o">]</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="n">set</span> <span class="n">G</span><span class="o">)</span>
+
+<span class="kd">lemma</span> <span class="n">eq_add_inverses_remove_one</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="bp">$</span> <span class="o">(</span><span class="n">S</span> <span class="bp">∪</span> <span class="o">(</span><span class="n">set.image</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="o">:</span> <span class="n">G</span><span class="o">,</span> <span class="n">x</span> <span class="bp">⁻¹</span><span class="o">)</span> <span class="n">S</span><span class="o">))</span> <span class="bp">\</span> <span class="o">{(</span><span class="mi">1</span> <span class="o">:</span> <span class="n">G</span><span class="o">)})</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">ext</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">adj_iff</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">exists_prop</span><span class="o">,</span> <span class="n">set.mem_diff</span><span class="o">,</span> <span class="n">set.mem_union</span><span class="o">,</span> <span class="n">set.mem_image</span><span class="o">,</span>
+             <span class="n">set.mem_singleton_iff</span><span class="o">,</span> <span class="n">and.congr_right_iff</span><span class="o">],</span>
+  <span class="n">rintro</span> <span class="n">ne</span><span class="o">,</span> <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,</span><span class="n">mS</span><span class="o">,(</span><span class="n">l</span><span class="bp">|</span><span class="n">r</span><span class="o">)⟩,</span>
+    <span class="o">{</span> <span class="n">use</span> <span class="o">[</span><span class="n">m</span><span class="o">,</span><span class="n">mS</span><span class="o">],</span> <span class="n">rintro</span> <span class="n">rfl</span><span class="o">,</span> <span class="n">simp</span> <span class="o">[</span><span class="n">one_smul</span><span class="o">]</span> <span class="n">at</span> <span class="n">l</span><span class="o">,</span> <span class="n">exact</span> <span class="n">ne</span> <span class="n">l</span><span class="o">,</span> <span class="n">left</span><span class="o">,</span> <span class="n">exact</span> <span class="n">l</span><span class="o">,</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">use</span> <span class="o">[</span><span class="n">m</span><span class="o">,</span><span class="n">mS</span><span class="o">],</span> <span class="n">rintro</span> <span class="n">rfl</span><span class="o">,</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">one_smul</span><span class="o">]</span> <span class="n">at</span> <span class="n">r</span><span class="o">,</span> <span class="n">exact</span> <span class="n">ne</span> <span class="n">r.symm</span><span class="o">,</span> <span class="n">right</span><span class="o">,</span> <span class="n">exact</span> <span class="n">r</span><span class="o">},</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">rintros</span> <span class="o">⟨</span><span class="n">m</span><span class="o">,⟨⟨(</span><span class="n">mS</span><span class="bp">|</span><span class="o">⟨</span><span class="n">n</span><span class="o">,</span><span class="n">nS</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩),</span><span class="n">b</span><span class="o">⟩,</span><span class="n">e</span><span class="o">⟩⟩,</span>
+    <span class="o">{</span> <span class="n">use</span> <span class="o">[</span><span class="n">m</span><span class="o">,</span><span class="n">mS</span><span class="o">,</span><span class="n">e</span><span class="o">],</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">use</span> <span class="o">[</span><span class="n">n</span><span class="o">,</span><span class="n">nS</span><span class="o">],</span> <span class="n">rw</span> <span class="o">[</span><span class="n">inv_smul_eq_iff</span><span class="o">,</span> <span class="n">inv_smul_eq_iff</span><span class="o">]</span> <span class="n">at</span> <span class="n">e</span><span class="o">,</span> <span class="n">tauto</span><span class="o">,</span> <span class="o">},</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">reachable_iff</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">reachable</span> <span class="n">x</span> <span class="n">y</span> <span class="bp">↔</span> <span class="bp">∃</span> <span class="n">g</span> <span class="bp">∈</span> <span class="o">(</span><span class="n">subgroup.closure</span> <span class="n">S</span><span class="o">),</span> <span class="n">g</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨</span><span class="n">w</span><span class="o">⟩,</span>
+    <span class="n">induction</span> <span class="n">w</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">exact</span> <span class="o">⟨</span><span class="mi">1</span><span class="o">,</span> <span class="n">subgroup.one_mem</span> <span class="n">_</span><span class="o">,</span> <span class="n">one_smul</span> <span class="n">_</span> <span class="n">w</span><span class="o">⟩,</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">obtain</span> <span class="o">⟨</span><span class="n">g</span><span class="o">,</span><span class="n">gS</span><span class="o">,</span><span class="n">rfl</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">w_ih</span><span class="o">,</span>
+      <span class="n">rw</span> <span class="n">adj_iff</span> <span class="n">at</span> <span class="n">w_h</span><span class="o">,</span>
+      <span class="n">rcases</span> <span class="n">w_h</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">ne</span><span class="o">,⟨</span><span class="n">m</span><span class="o">,</span><span class="n">h</span><span class="o">,(</span><span class="n">rfl</span><span class="bp">|</span><span class="n">rfl</span><span class="o">)⟩⟩,</span>
+      <span class="o">{</span> <span class="n">refine</span> <span class="o">⟨</span><span class="n">g</span><span class="bp">*</span><span class="n">m</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">mul_smul</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span><span class="o">⟩,</span>
+        <span class="n">exact</span> <span class="o">(</span><span class="n">subgroup.closure</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">mul_mem</span> <span class="n">gS</span> <span class="o">(</span><span class="n">subgroup.subset_closure</span> <span class="n">h</span><span class="o">),</span> <span class="o">},</span>
+      <span class="o">{</span> <span class="n">refine</span> <span class="o">⟨</span><span class="n">g</span> <span class="bp">*</span> <span class="n">m</span> <span class="bp">⁻¹</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩,</span> <span class="n">rotate</span><span class="o">,</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mul_smul</span><span class="o">,</span> <span class="n">inv_smul_eq_iff</span><span class="o">,</span> <span class="n">smul_left_cancel_iff</span><span class="o">],</span>
+        <span class="n">exact</span> <span class="o">(</span><span class="n">subgroup.closure</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">mul_mem</span> <span class="n">gS</span>
+          <span class="o">((</span><span class="n">subgroup.closure</span> <span class="n">S</span><span class="o">)</span><span class="bp">.</span><span class="n">inv_mem</span> <span class="bp">$</span> <span class="n">subgroup.subset_closure</span> <span class="n">h</span><span class="o">),</span> <span class="o">},</span> <span class="o">},</span> <span class="o">},</span>
+  <span class="o">{</span> <span class="n">rintro</span> <span class="o">⟨</span><span class="n">g</span><span class="o">,</span> <span class="n">gS</span><span class="o">,</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="n">revert</span> <span class="n">x</span><span class="o">,</span>
+    <span class="n">apply</span> <span class="n">subgroup.closure_induction</span> <span class="n">gS</span><span class="o">,</span>
+    <span class="o">{</span> <span class="n">rintro</span> <span class="n">g</span> <span class="n">gS</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">by_cases</span> <span class="n">h'</span> <span class="o">:</span> <span class="n">g</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">x</span><span class="o">,</span>
+      <span class="o">{</span> <span class="n">rw</span> <span class="n">h'</span><span class="o">,</span> <span class="o">},</span>
+      <span class="o">{</span> <span class="n">constructor</span><span class="o">,</span>
+        <span class="n">apply</span> <span class="n">adj.to_walk</span><span class="o">,</span>
+        <span class="n">rw</span> <span class="n">adj_iff</span><span class="o">,</span> <span class="n">refine</span> <span class="o">⟨</span><span class="n">ne.symm</span> <span class="n">h'</span><span class="o">,</span> <span class="n">g</span><span class="o">,</span> <span class="n">gS</span><span class="o">,</span> <span class="n">or.inl</span> <span class="n">rfl</span><span class="o">⟩,</span> <span class="o">},</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">rintro</span> <span class="n">x</span><span class="o">,</span> <span class="n">simp</span><span class="o">,</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">rintro</span> <span class="n">g₁</span> <span class="n">g₂</span> <span class="n">xg₁</span> <span class="n">xg₂</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">mul_smul</span><span class="o">],</span>
+      <span class="n">apply</span> <span class="n">reachable.trans</span> <span class="o">(</span><span class="bp">@</span><span class="n">xg₂</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="bp">@</span><span class="n">xg₁</span> <span class="o">(</span><span class="n">g₂</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)),</span> <span class="o">},</span>
+    <span class="o">{</span> <span class="n">rintro</span> <span class="n">g</span> <span class="n">xg</span> <span class="n">x</span><span class="o">,</span>
+      <span class="n">apply</span> <span class="n">reachable.symm</span><span class="o">,</span>
+      <span class="n">convert</span> <span class="bp">@</span><span class="n">xg</span> <span class="o">(</span><span class="n">g</span> <span class="bp">⁻¹</span> <span class="bp">•</span> <span class="n">x</span><span class="o">),</span>
+      <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">smul_inv_smul</span><span class="o">],</span> <span class="o">},</span> <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">abbreviation</span> <span class="n">schreier_coset_graph</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">subgroup</span> <span class="n">G</span><span class="o">)</span> <span class="o">:=</span> <span class="n">schreier_graph</span> <span class="o">(</span><span class="n">G</span> <span class="bp">⧸</span> <span class="n">H</span><span class="o">)</span> <span class="n">S</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">equiv_coset_graph_of_pretransitive</span> <span class="o">[</span><span class="n">mul_action.is_pretransitive</span> <span class="n">G</span> <span class="n">X</span><span class="o">]</span> <span class="o">(</span><span class="n">x₀</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">schreier_coset_graph</span> <span class="n">S</span> <span class="o">(</span><span class="n">mul_action.stabilizer</span> <span class="n">G</span> <span class="n">x₀</span><span class="o">)</span> <span class="bp">≃</span><span class="n">g</span> <span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">to_equiv</span>     <span class="o">:=</span> <span class="o">(</span><span class="n">mul_action.equiv_quotient_stabilizer</span> <span class="n">G</span> <span class="n">x₀</span><span class="o">)</span><span class="bp">.</span><span class="n">symm</span><span class="o">,</span>
+  <span class="n">map_rel_iff'</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">y</span><span class="o">,</span> <span class="kd">by</span>
+  <span class="o">{</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">adj_iff</span><span class="o">,</span> <span class="n">mul_action.equiv_quotient_stabilizer</span><span class="o">,</span> <span class="n">equiv.symm_symm</span><span class="o">,</span>
+               <span class="n">equiv.of_bijective_apply</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">exists_prop</span><span class="o">,</span>
+               <span class="bp">←</span><span class="n">mul_action.of_quotient_stabilizer_smul</span><span class="o">],</span>
+    <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">injective.eq_iff</span> <span class="o">(</span><span class="n">mul_action.injective_of_quotient_stabilizer</span> <span class="n">G</span> <span class="n">x₀</span><span class="o">)],</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="kd">instance</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">h</span> <span class="o">:</span> <span class="n">fintype</span> <span class="n">S</span><span class="o">]</span> <span class="o">:</span> <span class="n">locally_finite</span> <span class="o">(</span><span class="n">schreier_graph</span> <span class="n">X</span> <span class="n">S</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rintro</span> <span class="n">x</span><span class="o">,</span> <span class="n">rw</span> <span class="n">neighbor_set_eq'</span><span class="o">,</span>
+  <span class="n">haveI</span> <span class="o">:</span> <span class="n">fintype</span> <span class="bp">↥</span><span class="o">{</span><span class="n">y</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">|</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">G</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">),</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span> <span class="bp">=</span> <span class="n">y</span><span class="o">},</span> <span class="kd">by</span>
+  <span class="o">{</span> <span class="n">convert</span> <span class="n">set.fintype_image</span> <span class="n">S</span> <span class="o">(</span><span class="bp">•</span><span class="n">x</span><span class="o">),</span>
+    <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">exists_prop</span><span class="o">],</span> <span class="o">},</span>
+  <span class="n">haveI</span> <span class="o">:</span> <span class="n">fintype</span> <span class="bp">↥</span><span class="o">{</span><span class="n">y</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">|</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">G</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">m</span> <span class="bp">∈</span> <span class="n">S</span><span class="o">),</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">y</span> <span class="bp">=</span> <span class="n">x</span><span class="o">},</span> <span class="kd">by</span>
+  <span class="o">{</span> <span class="n">simp_rw</span> <span class="o">[</span><span class="bp">←</span><span class="n">eq_inv_smul_iff</span><span class="o">],</span>
+    <span class="n">convert</span> <span class="n">set.fintype_image</span> <span class="n">S</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">g</span><span class="o">,</span> <span class="n">g</span><span class="bp">⁻¹•</span><span class="n">x</span><span class="o">),</span>
+    <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">exists_prop</span><span class="o">],</span>
+    <span class="n">ext</span><span class="o">,</span> <span class="n">congr'</span><span class="o">,</span> <span class="n">ext</span><span class="o">,</span> <span class="n">tauto</span><span class="o">,</span> <span class="o">},</span>
+  <span class="n">apply_instance</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">abbreviation</span> <span class="n">cayley_graph</span> <span class="o">:=</span> <span class="n">schreier_graph</span> <span class="n">G</span> <span class="n">S</span>
+
+<span class="kd">def</span> <span class="n">as_automorphism</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">G</span><span class="o">)</span> <span class="o">:</span> <span class="o">(</span><span class="n">cayley_graph</span> <span class="n">S</span> <span class="bp">≃</span><span class="n">g</span> <span class="n">cayley_graph</span> <span class="n">S</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">to_equiv</span> <span class="o">:=</span> <span class="n">equiv.mul_right</span> <span class="o">(</span><span class="n">g</span><span class="bp">⁻¹</span><span class="o">),</span>
+  <span class="n">map_rel_iff'</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a</span> <span class="n">b</span><span class="o">,</span> <span class="kd">by</span>
+  <span class="o">{</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">adj_iff</span><span class="o">,</span> <span class="n">equiv.coe_mul_right</span><span class="o">,</span> <span class="n">ne.def</span><span class="o">,</span> <span class="n">mul_left_inj</span><span class="o">,</span> <span class="n">smul_eq_mul</span><span class="o">,</span> <span class="n">exists_prop</span><span class="o">,</span>
+               <span class="n">and.congr_right_iff</span><span class="o">],</span>
+    <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="bp">←</span><span class="n">mul_assoc</span><span class="o">,</span> <span class="n">injective.eq_iff</span> <span class="o">(</span><span class="n">group.mul_right_bijective</span> <span class="o">(</span><span class="n">g</span><span class="bp">⁻¹</span><span class="o">))</span><span class="bp">.</span><span class="n">left</span><span class="o">],</span>
+    <span class="n">exact</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">iff.rfl</span><span class="o">,</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">as_automorphism_group</span> <span class="o">:</span> <span class="n">G</span> <span class="bp">→*</span> <span class="o">(</span><span class="n">cayley_graph</span> <span class="n">S</span> <span class="bp">≃</span><span class="n">g</span> <span class="n">cayley_graph</span> <span class="n">S</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="n">as_automorphism</span> <span class="n">S</span><span class="o">,</span>
+  <span class="n">map_one'</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">dsimp</span> <span class="o">[</span><span class="n">as_automorphism</span><span class="o">],</span> <span class="n">ext</span><span class="o">,</span> <span class="n">simp</span><span class="o">,</span> <span class="o">},</span>
+  <span class="n">map_mul'</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">g</span> <span class="n">g'</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">dsimp</span> <span class="o">[</span><span class="n">as_automorphism</span><span class="o">],</span> <span class="n">ext</span><span class="o">,</span> <span class="n">simp</span><span class="o">,</span> <span class="o">}</span> <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">injective_as_automorphism_group</span> <span class="o">:</span> <span class="n">function.injective</span> <span class="o">(</span><span class="n">as_automorphism_group</span> <span class="n">S</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rintro</span> <span class="n">g</span> <span class="n">g'</span> <span class="n">h</span><span class="o">,</span>
+  <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">as_automorphism_group</span><span class="o">,</span> <span class="n">as_automorphism</span><span class="o">,</span> <span class="n">equiv.mul_right</span><span class="o">,</span> <span class="n">to_units</span><span class="o">,</span> <span class="n">units.mul_right</span><span class="o">,</span>
+             <span class="n">inv_inv</span><span class="o">,</span> <span class="n">units.inv_mk</span><span class="o">,</span> <span class="n">units.coe_mk</span><span class="o">,</span> <span class="n">mul_equiv.coe_mk</span><span class="o">,</span> <span class="n">monoid_hom.coe_mk</span><span class="o">]</span> <span class="n">at</span> <span class="n">h</span><span class="o">,</span>
+  <span class="n">simpa</span> <span class="n">using</span> <span class="n">congr_fun</span> <span class="n">h.left</span> <span class="mi">1</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">group_action</span>
+
+<span class="kd">end</span> <span class="n">schreier_graph</span>
+
+<span class="kd">end</span> <span class="n">simple_graph</span>
+</code></pre></div>
+
+
+
+<a name="308557172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557172">(Nov 08 2022 at 10:33)</a>:</h4>
+<p>Do you not want to use markings from <a href="https://github.com/leanprover-community/mathlib/tree/geometric_group_theory">branch#geometric_group_theory</a>?</p>
+
+
+
+<a name="308557314"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557314" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557314">(Nov 08 2022 at 10:34)</a>:</h4>
+<p>Well, what I don't really like with markings is that they are assumed surjective</p>
+
+
+
+<a name="308557634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557634">(Nov 08 2022 at 10:36)</a>:</h4>
+<p>My thought process was mostly like: there hasn't been much life on this <code>marking</code> code, and my understanding was that perhaps the GGT aspect should start with something even more general than markings, but I'm not sure exactly how to proceed. So instead of wait for it to happen, I should just work out a good enough "combinatorial" version of Cayley graphs that actually gets somewhere.</p>
+
+
+
+<a name="308557669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557669">(Nov 08 2022 at 10:37)</a>:</h4>
+<p>Also, this one covers Schreier graphs, which is also useful and not "natively" covered by markings I believe.</p>
+
+
+
+<a name="308557698"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557698" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557698">(Nov 08 2022 at 10:37)</a>:</h4>
+<p>Okay sure</p>
+
+
+
+<a name="308557868"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308557868" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308557868">(Nov 08 2022 at 10:38)</a>:</h4>
+<p>I mean, I shared my progress here exactly to discuss this kind of thing, so I'm open to some other path if there is a reasonable argument for it.</p>
+
+
+
+<a name="308576302"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308576302" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308576302">(Nov 08 2022 at 12:42)</a>:</h4>
+<p>I suspect simple graphs are not the right data structure for Schreier graphs. They're fine for connectivity relations and for graph metrics, but, for example, you're not able to represent the fact that walks in a Schierer graph correspond to words in the given generating set (and you also have to artificially remove loops).</p>
+<p>I suspect we want a type of multigraphs with directed labeled edges for this -- this at least matches the definitions of Schreier and Cayley graphs that I know. There are some facts about automorphism groups of Schreier graphs that don't appear to be true when they are turned into simple graphs.</p>
+
+
+
+<a name="308577809"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308577809" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308577809">(Nov 08 2022 at 12:52)</a>:</h4>
+<p>mmh, yeah, that's a good point. For Cayley graphs and GGT, I think having <code>simple_graph</code>s is good enough since all we care about is the metric, really. But you're probably right about Schreier graphs: in this case the labelling is quite more important in general. <br>
+Well, let me reimplement it all on top of quivers then ?</p>
+
+
+
+<a name="308578910"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308578910" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308578910">(Nov 08 2022 at 12:59)</a>:</h4>
+<p>There's another fact about Schreier graphs, which is that if you have a finitely presented group G with a finitely normally generated subgroup H, then you can "compute" the Schreier graph for G acting on H by iteratively considering Scheier graphs associated to sequences of subgroups of H generated by finite unions of conjugates of the generating set, and these Scheier graphs converge to the true one in the sense that the vertices eventually stabilize (for each vertex, there is some step after which it will never be identified with another vertex). I wonder in which setting this is easiest to formalize? (Btw, I'm describing the Todd-Coxeter algorithm)</p>
+
+
+
+<a name="308579627"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308579627" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308579627">(Nov 08 2022 at 13:03)</a>:</h4>
+<p>I wonder what the best way to encode Cayley graphs as quivers would be. You'd want your quiver automorphisms to respect edge labelings, right?</p>
+
+
+
+<a name="308580031"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308580031" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308580031">(Nov 08 2022 at 13:05)</a>:</h4>
+<p>Yeah, that seems the most natural way to do it. I was thinking this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">section</span> <span class="n">defs</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_smul</span> <span class="n">M</span> <span class="n">X</span><span class="o">]</span> <span class="o">{</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">ι</span> <span class="o">:</span> <span class="n">S</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">schreier_graph.arrow</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">X</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">S</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">schreier_graph.arrow</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">ι</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">quiver</span> <span class="n">X</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">schreier_graph.arrow</span> <span class="n">X</span> <span class="n">ι</span><span class="o">⟩</span>
+
+<span class="kd">end</span> <span class="n">defs</span>
+</code></pre></div>
+
+
+
+<a name="308580064"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308580064" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308580064">(Nov 08 2022 at 13:05)</a>:</h4>
+<p><del>wait, scratch my inductive</del> oh no, let's keep it</p>
+
+
+
+<a name="308584020"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308584020" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308584020">(Nov 08 2022 at 13:06)</a>:</h4>
+<p>by the way, I was wondering if we could add infix notation for prefunctors and their composition</p>
+
+
+
+<a name="308584437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308584437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308584437">(Nov 08 2022 at 13:09)</a>:</h4>
+<p>Do we then define a special type of prefunctor that sends an <code>mk m _</code> to an <code>mk m _</code>?</p>
+<p>I think the sort of formal result that tests whether these are the correct notion of a schreier graph is if they are somehow equivalent to G-sets. So morphisms of G-sets &lt;-&gt; morphisms of Scheier graphs for G, if I've got this right.</p>
+
+
+
+<a name="308584744"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308584744" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308584744">(Nov 08 2022 at 13:10)</a>:</h4>
+<p>ah, I'm stupid, you're right, the coloring is kind of forgotten when building the quiver. let me think</p>
+
+
+
+<a name="308585641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308585641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308585641">(Nov 08 2022 at 13:16)</a>:</h4>
+<p>well, I guess the most natural way is to add <code>color {x y} : x --&gt; y -&gt; S</code> no?</p>
+
+
+
+<a name="308586555"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308586555" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308586555">(Nov 08 2022 at 13:22)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">colored_quiver</span> <span class="o">(</span><span class="n">V</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="kd">extends</span> <span class="o">(</span><span class="n">quiver</span> <span class="n">V</span><span class="o">)</span>  <span class="o">:=</span>
+<span class="o">(</span><span class="n">coloring</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">X</span> <span class="n">Y</span><span class="o">,</span> <span class="o">(</span><span class="n">to_quiver.hom</span> <span class="n">X</span> <span class="n">Y</span><span class="o">)</span> <span class="bp">→</span> <span class="n">S</span><span class="o">)</span>
+</code></pre></div>
+<p>what about this?</p>
+
+
+
+<a name="308586966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308586966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308586966">(Nov 08 2022 at 13:24)</a>:</h4>
+<p>I guess that sort of thing might work (except it'd be a class), though you'd still have to go and make sure you have color-preserving quiver homomorphisms</p>
+
+
+
+<a name="308587014"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308587014" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308587014">(Nov 08 2022 at 13:24)</a>:</h4>
+<p>Another possibility is to start developing the theory of labeled digraphs</p>
+
+
+
+<a name="308587039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308587039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308587039">(Nov 08 2022 at 13:24)</a>:</h4>
+<p>Here's a very small start:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">labeled_digraph</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">arrows</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">set</span> <span class="n">S</span><span class="o">)</span>
+
+<span class="kn">namespace</span> <span class="n">labeled_digraph</span>
+
+<span class="sd">/-- Label-preserving graph homomorphism. -/</span>
+<span class="kn">protected</span> <span class="kd">structure</span> <span class="n">hom</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">{</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">G</span> <span class="o">:</span> <span class="n">labeled_digraph</span> <span class="n">α</span> <span class="n">S</span><span class="o">)</span> <span class="o">(</span><span class="n">G'</span> <span class="o">:</span> <span class="n">labeled_digraph</span> <span class="n">β</span> <span class="n">S</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">map_vert</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+<span class="o">(</span><span class="n">map_arrow</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="n">y</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="bp">∈</span> <span class="n">G.arrows</span> <span class="n">x</span> <span class="n">y</span><span class="o">),</span> <span class="n">s</span> <span class="bp">∈</span> <span class="n">G'.arrows</span> <span class="o">(</span><span class="n">map_vert</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">map_vert</span> <span class="n">y</span><span class="o">))</span>
+
+<span class="kd">notation</span> <span class="o">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">labeled_digraph.hom</span><span class="o">)</span> <span class="n">G</span> <span class="bp">`</span> <span class="bp">→</span><span class="n">g</span> <span class="bp">`</span> <span class="n">G'</span> <span class="o">:=</span> <span class="n">hom</span> <span class="n">G</span> <span class="n">G'</span>
+
+<span class="kd">end</span> <span class="n">labeled_digraph</span>
+</code></pre></div>
+
+
+
+<a name="308587291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308587291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308587291">(Nov 08 2022 at 13:26)</a>:</h4>
+<p>That's nice indeed. I'm just kind of saddened by the possibility to have one more graph-like definition (making it 3, and 4 if the directed graph PR of Yael gets merged)</p>
+
+
+
+<a name="308587637"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308587637" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308587637">(Nov 08 2022 at 13:28)</a>:</h4>
+<p>Honestly, for me it's more about settling down on one convention and actually getting at least one definition of cayley graphs in, and I figure we might as well cover schreier graphs in the same stroke</p>
+
+
+
+<a name="308588370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588370">(Nov 08 2022 at 13:32)</a>:</h4>
+<p>What do you think are the fundamental theorems that can test whether it's the right definition?</p>
+
+
+
+<a name="308588565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588565">(Nov 08 2022 at 13:33)</a>:</h4>
+<p>Given what I know about GGT, when groups act on graphs they're mostly simple graphs, so having a <code>simple_graph.schreier_graph</code> and a <code>simple_graph.cayley_graph</code> might not be so crazy, even if they're not <em>the</em> correct notions</p>
+
+
+
+<a name="308588712"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588712" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588712">(Nov 08 2022 at 13:34)</a>:</h4>
+<p>but I think it's important that definitions be proved by theorems</p>
+
+
+
+<a name="308588782"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588782" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588782">(Nov 08 2022 at 13:34)</a>:</h4>
+<p>yeah, mostly for cayley graphs I agree. But say <a href="https://www.semanticscholar.org/paper/Stallings-Foldings-and-Subgroups-of-Free-Groups-Kapovich-Myasnikov/480a69f59749d1aebcf50d060f0ec4bc887f560d">this</a> might be nice to formalize for instance, and here the labelling is very important..</p>
+
+
+
+<a name="308588829"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588829" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588829">(Nov 08 2022 at 13:35)</a>:</h4>
+<p>I think you were spot on with the remark that forgetting labels and loops is kind of losing everything for schreier graphs.</p>
+
+
+
+<a name="308588889"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588889" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588889">(Nov 08 2022 at 13:35)</a>:</h4>
+<p>Yeah, I had Stallings foldings in mind earlier (not that I know much about their theory -- I've been to enough seminar talks about outer space)</p>
+
+
+
+<a name="308588921"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308588921" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308588921">(Nov 08 2022 at 13:35)</a>:</h4>
+<p>and e.g. the fact that a group is free iff it acts freely on a tree (iirc) needs to remember loops too I guess.</p>
+
+
+
+<a name="308589052"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589052" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589052">(Nov 08 2022 at 13:36)</a>:</h4>
+<p>or, more basic, the cayley graph of a group is a tree iff the generators generate it freely</p>
+
+
+
+<a name="308589162"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589162" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589162">(Nov 08 2022 at 13:37)</a>:</h4>
+<p>I think I remember in "Office hours with a geometric group theorist" that they work with simple graphs, subdividing edges of graphs as necessary</p>
+
+
+
+<a name="308589233"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589233" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589233">(Nov 08 2022 at 13:37)</a>:</h4>
+<p>without orientation you lose info about involutions, and without labelling you get that your group is not the full automorphism group of the graph, but just embeds in it.</p>
+
+
+
+<a name="308589267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589267">(Nov 08 2022 at 13:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/252551-graph-theory/topic/Cayley.20graphs.20.28again.29/near/308589162">said</a>:</p>
+<blockquote>
+<p>I think I remember in "Office hours with a geometric group theorist" that they work with simple graphs, subdividing edges of graphs as necessary</p>
+</blockquote>
+<p>but that's kind of a hack, isn't it?</p>
+
+
+
+<a name="308589291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589291">(Nov 08 2022 at 13:37)</a>:</h4>
+<p>now you've convinced me :)</p>
+
+
+
+<a name="308589446"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589446" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589446">(Nov 08 2022 at 13:38)</a>:</h4>
+<p>I guess it's like: if you take your cayley/schreier graphs to contain the full orientation+labelling information, you can always simply get the underlying <code>simple_graph</code> and everything you need should translate easily</p>
+
+
+
+<a name="308589457"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308589457" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308589457">(Nov 08 2022 at 13:38)</a>:</h4>
+<p>I think it's sort of like working with simplicial complexes (where simplices are identified with vertex subsets), how you need to do barycentric subdivisions to ensure different properties. Though I sometimes feel like this is a hack, since I like delta complexes (like in Hatcher's algebraic topology book)</p>
+
+
+
+<a name="308590322"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308590322" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308590322">(Nov 08 2022 at 13:44)</a>:</h4>
+<p>sounds right, yeah</p>
+
+
+
+<a name="308591147"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308591147" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308591147">(Nov 08 2022 at 13:49)</a>:</h4>
+<p>mmh, it's not so easy to map from <code>prefunctor</code> to <code>simple_graph.hom</code> because of the adjacency thing</p>
+
+
+
+<a name="308591326"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308591326" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308591326">(Nov 08 2022 at 13:50)</a>:</h4>
+<p>but I'm not sure this is such a big deal: we don't have to deal with graph morphisms that much on the <code>simple_graph</code> side</p>
+
+
+
+<a name="308593062"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308593062" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308593062">(Nov 08 2022 at 13:59)</a>:</h4>
+<p>So, to me, it makes sense to go first with the "full information" version, either based on quivers or on digraphs as you proposed.</p>
+
+
+
+<a name="308599094"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308599094" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308599094">(Nov 08 2022 at 14:29)</a>:</h4>
+<p>or, yeah, we could just try and push the dumb "geometric" approach and see how far this takes us</p>
+
+
+
+<a name="308613582"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308613582" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308613582">(Nov 08 2022 at 15:37)</a>:</h4>
+<p>Any idea why lean can't find the correct instance at the <code>bijective_color</code> line?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">combinatorics.quiver.basic</span>
+<span class="kn">import</span> <span class="n">group_theory.group_action.basic</span>
+
+
+<span class="kn">open</span> <span class="n">function</span>
+
+<span class="kd">universes</span> <span class="n">u</span> <span class="n">v</span> <span class="n">w</span>
+
+<span class="kn">namespace</span> <span class="n">quiver</span>
+
+<span class="kn">section</span> <span class="n">defs</span>
+
+<span class="kd">class</span> <span class="n">colored_quiver</span> <span class="o">(</span><span class="n">V</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">(</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="kd">extends</span> <span class="o">(</span><span class="n">quiver</span> <span class="n">V</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">color</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">⦃</span><span class="n">x</span> <span class="n">y</span><span class="o">⦄,</span> <span class="o">(</span><span class="n">hom</span> <span class="n">x</span> <span class="n">y</span><span class="o">)</span> <span class="bp">→</span> <span class="n">S</span><span class="o">)</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">V</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span> <span class="o">{</span><span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">has_smul</span> <span class="n">M</span> <span class="n">V</span><span class="o">]</span> <span class="o">{</span><span class="n">S</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">(</span><span class="n">ι</span> <span class="o">:</span> <span class="n">S</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span>
+
+<span class="kd">inductive</span> <span class="n">schreier_graph.arrow</span> <span class="o">:</span> <span class="n">V</span> <span class="bp">→</span> <span class="n">V</span> <span class="bp">→</span> <span class="kt">Sort</span><span class="bp">*</span>
+<span class="bp">|</span> <span class="n">mk</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">S</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">:</span> <span class="n">schreier_graph.arrow</span> <span class="o">(</span><span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">ι</span> <span class="n">m</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="n">schreier_graph_colored_quiver</span> <span class="o">:</span> <span class="n">colored_quiver</span> <span class="n">V</span> <span class="n">S</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">hom</span> <span class="o">:=</span> <span class="n">schreier_graph.arrow</span> <span class="n">V</span> <span class="n">ι</span><span class="o">,</span>
+  <span class="n">color</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span><span class="n">apply</span> <span class="n">schreier_graph.arrow.rec</span><span class="o">,</span> <span class="n">exact</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span> <span class="n">v</span><span class="o">,</span> <span class="n">s</span><span class="o">)}</span> <span class="o">}</span>
+
+
+<span class="kd">set_option</span> <span class="n">trace.class_instances</span> <span class="n">true</span>
+<span class="kd">lemma</span> <span class="n">bijective_color</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span> <span class="o">:</span> <span class="n">V</span><span class="o">}</span> <span class="o">:</span> <span class="n">function.bijective</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">⟶</span> <span class="n">y</span><span class="o">),</span> <span class="n">colored_quiver.color</span> <span class="n">a</span><span class="o">)</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">end</span> <span class="n">defs</span>
+
+<span class="kd">end</span> <span class="n">quiver</span>
+</code></pre></div>
+
+
+
+<a name="308614719"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308614719" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308614719">(Nov 08 2022 at 15:42)</a>:</h4>
+<p>It looks like you're missing <code>[colored_quiver V S]</code> in the arguments</p>
+
+
+
+<a name="308615045"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615045" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615045">(Nov 08 2022 at 15:44)</a>:</h4>
+<p>but why doesn't it get it from the instance  just above?</p>
+
+
+
+<a name="308615190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615190">(Nov 08 2022 at 15:45)</a>:</h4>
+<p>Oh, right. I think it's because it can't infer <code>S</code> from the <code>x --&gt; y</code> expression</p>
+
+
+
+<a name="308615307"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615307" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615307">(Nov 08 2022 at 15:46)</a>:</h4>
+<p>ah, let me try, thanks!</p>
+
+
+
+<a name="308615311"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615311" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615311">(Nov 08 2022 at 15:46)</a>:</h4>
+<p>If you think you'll only use a single <code>S</code> for a given <code>V</code> (and use term tagging tricks to change <code>S</code> when you need to), then you can safely make <code>S</code> an <code>out_param</code> in the <code>class</code>.</p>
+
+
+
+<a name="308615479"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615479" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615479">(Nov 08 2022 at 15:46)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">colored_prefunctor</span> <span class="o">{</span><span class="n">V</span> <span class="n">S</span> <span class="n">V'</span> <span class="n">S'</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">colored_quiver</span> <span class="n">V</span> <span class="n">S</span><span class="o">]</span> <span class="o">[</span><span class="n">colored_quiver</span> <span class="n">V'</span> <span class="n">S'</span><span class="o">]</span>
+  <span class="o">(</span><span class="n">σ</span> <span class="o">:</span> <span class="n">S</span> <span class="bp">→</span> <span class="n">S'</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">V'</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">color</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">⟶</span> <span class="n">y</span><span class="o">),</span> <span class="n">σ</span> <span class="o">(</span><span class="n">color</span> <span class="n">f</span><span class="o">)</span> <span class="bp">=</span> <span class="n">color</span> <span class="o">(</span><span class="n">map</span> <span class="n">f</span><span class="o">))</span>
+</code></pre></div>
+<p>Is it worth having a map of labelling as a parameter?</p>
+
+
+
+<a name="308615574"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615574" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615574">(Nov 08 2022 at 15:47)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/252551-graph-theory/topic/Cayley.20graphs.20.28again.29/near/308615311">said</a>:</p>
+<blockquote>
+<p>If you think you'll only use a single <code>S</code> for a given <code>V</code> (and use term tagging tricks to change <code>S</code> when you need to), then you can safely make <code>S</code> an <code>out_param</code> in the <code>class</code>.</p>
+</blockquote>
+<p>huh, that's above my technical expertise I fear!</p>
+
+
+
+<a name="308615917"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308615917" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308615917">(Nov 08 2022 at 15:48)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461830">Rémi Bottinelli</span> <a href="#narrow/stream/252551-graph-theory/topic/Cayley.20graphs.20.28again.29/near/308615479">said</a>:</p>
+<blockquote>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">colored_prefunctor</span> <span class="o">{</span><span class="n">V</span> <span class="n">S</span> <span class="n">V'</span> <span class="n">S'</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">colored_quiver</span> <span class="n">V</span> <span class="n">S</span><span class="o">]</span> <span class="o">[</span><span class="n">colored_quiver</span> <span class="n">V'</span> <span class="n">S'</span><span class="o">]</span>
+  <span class="o">(</span><span class="n">σ</span> <span class="o">:</span> <span class="n">S</span> <span class="bp">→</span> <span class="n">S'</span><span class="o">)</span> <span class="kd">extends</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">V'</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">color</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">{</span><span class="n">x</span> <span class="n">y</span><span class="o">}</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">x</span> <span class="bp">⟶</span> <span class="n">y</span><span class="o">),</span> <span class="n">σ</span> <span class="o">(</span><span class="n">color</span> <span class="n">f</span><span class="o">)</span> <span class="bp">=</span> <span class="n">color</span> <span class="o">(</span><span class="n">map</span> <span class="n">f</span><span class="o">))</span>
+</code></pre></div>
+<p>Is it worth having a map of labelling as a parameter?</p>
+</blockquote>
+<p>Maybe I shouldn't rush with this. In your opinion, what should the way forward with this look like?</p>
+
+
+
+<a name="308617144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308617144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308617144">(Nov 08 2022 at 15:54)</a>:</h4>
+<p>I guess we have the following options:</p>
+<ul>
+<li>
+<p><code>simple_graph</code> for Cayley graphs, and potentially also for Schreier graphs, although it doesn't make as much sense.<br>
+  The upside is that it's quite easy to setup, and <code>simple_graph</code> has plenty of API to make things work. It should also cover everything we need for the "coarse" aspect of GGT.</p>
+</li>
+<li>
+<p><code>quiver</code>-based Schreier and Cayley graphs. Here the API is quite thin in comparison, but on the theoretical side, we stay close to what we really "think of" as Cayley and Schreier graphs, and, modulo glue code, we should be able to translate to <code>simple_graph</code>s. <br>
+  I guess basing this on quivers has a potential advantage that it may actually help getting a better API around those? more lemmas and stuff.</p>
+</li>
+<li>
+<p>A new primitive, which allows not having to deal with the idiosyncracies of either encodings, but then you also have to redo most everything from scratch.</p>
+</li>
+</ul>
+
+
+
+<a name="308645039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308645039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308645039">(Nov 08 2022 at 18:19)</a>:</h4>
+<p>Actually,  your <code>labelled_digraph</code> doesn't allow for multiple arrows with same label between the same endpoints, does it?</p>
+
+
+
+<a name="308660347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308660347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308660347">(Nov 08 2022 at 19:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="306601">Kyle Miller</span> <a href="#narrow/stream/252551-graph-theory/topic/Cayley.20graphs.20.28again.29/near/308588565">said</a>:</p>
+<blockquote>
+<p>Given what I know about GGT, when groups act on graphs they're mostly simple graphs, so having a <code>simple_graph.schreier_graph</code> and a <code>simple_graph.cayley_graph</code> might not be so crazy, even if they're not <em>the</em> correct notions</p>
+</blockquote>
+<p>Even if they act on simple graphs, the quotient is often not simple!</p>
+
+
+
+<a name="308661515"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308661515" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308661515">(Nov 08 2022 at 19:45)</a>:</h4>
+<p>Also, what about defining the Cayley graphof G with generating set S is as a quiver that comes with a covering map to the quiver that has a single vertex and on edge for each element of S? Then G is the group of automorphisms of this covering map (I think it's a natural way to encode the coloring, and  it's personally how I think about Cayley graphs).</p>
+
+
+
+<a name="308723227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308723227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308723227">(Nov 09 2022 at 06:16)</a>:</h4>
+<p>I guess the advantage of this definition is that we don't even have to define any new kind of structure, in theory.</p>
+
+
+
+<a name="308760215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308760215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308760215">(Nov 09 2022 at 10:45)</a>:</h4>
+<p>Mmh, the quiver approach is much less fun to implement. The type dependences make everything quite a bit more painful</p>
+
+
+
+<a name="308816493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308816493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308816493">(Nov 09 2022 at 15:52)</a>:</h4>
+<p>I agree and I think that's the biggest issue with <code>quiver</code>. After making that comment I tried to see if I could define covering maps for quivers, and I quickly ran into issues of of the type "I want to prove that an edge from a to c is equal to an edge from b to c, where a is equal (but not definitionally) to b, so the two edges don't live in defeq types".</p>
+
+
+
+<a name="308816881"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308816881" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308816881">(Nov 09 2022 at 15:54)</a>:</h4>
+<p>That's why I like the approach of <a href="https://github.com/leanprover-community/mathlib/pull/16100">#16100</a>, where we have a single type for all of the edges. It has the disadvantage of introducing a new type and thus requiring duplication of a lot of quiver API, but I feel like it's probably the best way to do multigraphs.</p>
+
+
+
+<a name="308820944"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308820944" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308820944">(Nov 09 2022 at 16:15)</a>:</h4>
+<p>Well, in this case at least we'd need to remove the involution. I'd be kind of sad to have to drop quivers, since that means a pretty big split, but maybe that's the best way… I'll work on this Schreier graph stuff a bit more using quivers and see how it fares</p>
+
+
+
+<a name="308823988"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308823988" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308823988">(Nov 09 2022 at 16:31)</a>:</h4>
+<p>Would defining something like <a href="https://leanprover-community.github.io/mathlib_docs/find/simple_graph.walk.copy">docs#simple_graph.walk.copy</a> to move edges along some equalities help?</p>
+
+
+
+<a name="308824125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308824125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308824125">(Nov 09 2022 at 16:31)</a>:</h4>
+<p>As far as I know, quivers don't have this (yet) because once you get to category theory you can make do with composition with identities associated to equalities -- but quivers don't have composition of arrows so this trick doesn't work.</p>
+
+
+
+<a name="308826297"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308826297" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308826297">(Nov 09 2022 at 16:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461830">Rémi Bottinelli</span> <a href="#narrow/stream/252551-graph-theory/topic/Cayley.20graphs.20.28again.29/near/308820944">said</a>:</p>
+<blockquote>
+<p>Well, in this case at least we'd need to remove the involution. I'd be kind of sad to have to drop quivers, since that means a pretty big split, but maybe that's the best way… I'll work on this Schreier graph stuff a bit more using quivers and see how it fares</p>
+</blockquote>
+<p>Yes, we could have a directed version and an undirected version extending it with the involution added.</p>
+
+
+
+<a name="308845107"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308845107" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308845107">(Nov 09 2022 at 18:24)</a>:</h4>
+<p>Might try the <code>copy</code> trick, though I'm not sure I've needed it until now (well, I haven't been aware of its need, rather <span aria-label="wink" class="emoji emoji-1f609" role="img" title="wink">:wink:</span> ).</p>
+
+
+
+<a name="308871393"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308871393" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Labelle <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308871393">(Nov 09 2022 at 20:51)</a>:</h4>
+<p>For the record, here's an example of a "non-defeq types" issue that arises when trying to define covering maps. I think it would be solved by <code>copy</code>, but this feels very hacky, it would be nicer if all edges had the same type. </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">combinatorics.quiver.path</span>
+
+<span class="kd">universes</span> <span class="n">v</span> <span class="n">v₁</span> <span class="n">v₂</span> <span class="n">u</span> <span class="n">u₁</span> <span class="n">u₂</span>
+
+<span class="kn">open</span> <span class="n">function</span> <span class="n">quiver</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">V</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₁</span><span class="o">}</span> <span class="o">{</span><span class="n">W</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u₂</span><span class="o">}</span> <span class="o">[</span><span class="n">quiver.</span><span class="o">{</span><span class="n">v₁</span><span class="bp">+</span><span class="mi">1</span><span class="o">}</span> <span class="n">V</span><span class="o">]</span> <span class="o">[</span><span class="n">quiver.</span><span class="o">{</span><span class="n">v₂</span><span class="bp">+</span><span class="mi">1</span><span class="o">}</span> <span class="n">W</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">in_link</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">Σ</span> <span class="n">w</span> <span class="o">:</span> <span class="n">V</span><span class="o">,</span> <span class="n">w</span> <span class="bp">⟶</span> <span class="n">v</span>
+<span class="kd">def</span> <span class="n">out_link</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">Σ</span> <span class="n">w</span> <span class="o">:</span> <span class="n">V</span><span class="o">,</span> <span class="n">v</span> <span class="bp">⟶</span> <span class="n">w</span>
+
+<span class="kd">def</span> <span class="n">in_link_map</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">in_link</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">in_link</span> <span class="o">(</span><span class="n">F.obj</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="o">⟨</span><span class="n">F.obj</span> <span class="n">e.1</span><span class="o">,</span> <span class="n">F.map</span> <span class="n">e.2</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">out_link_map</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link</span> <span class="n">v</span> <span class="bp">→</span> <span class="n">out_link</span> <span class="o">(</span><span class="n">F.obj</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">λ</span> <span class="n">e</span><span class="o">,</span> <span class="o">⟨</span><span class="n">F.obj</span> <span class="n">e.1</span><span class="o">,</span> <span class="n">F.map</span> <span class="n">e.2</span><span class="o">⟩</span>
+
+<span class="kd">class</span> <span class="n">is_covering_map</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">W</span><span class="o">)</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">in_link_map_bijective</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">v</span><span class="o">,</span> <span class="n">bijective</span> <span class="o">(</span><span class="n">in_link_map</span> <span class="n">F</span> <span class="n">v</span><span class="o">))</span>
+<span class="o">(</span><span class="n">out_link_map_bijective</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">v</span><span class="o">,</span> <span class="n">bijective</span> <span class="o">(</span><span class="n">out_link_map</span> <span class="n">F</span> <span class="n">v</span><span class="o">))</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">F</span> <span class="o">:</span> <span class="n">prefunctor</span> <span class="n">V</span> <span class="n">W</span><span class="o">)</span> <span class="o">[</span><span class="n">is_covering_map</span> <span class="n">F</span><span class="o">]</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">lift_edge</span> <span class="o">(</span><span class="n">w</span> <span class="o">:</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">hv</span> <span class="o">:</span> <span class="n">F.obj</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">w</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link</span> <span class="n">w</span> <span class="bp">→</span> <span class="n">out_link</span> <span class="n">v</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="bp">←</span><span class="n">hv</span><span class="o">,</span> <span class="n">intro</span> <span class="n">e</span><span class="o">,</span>
+  <span class="n">exact</span> <span class="n">surj_inv</span> <span class="o">(</span><span class="n">is_covering_map.out_link_map_bijective</span> <span class="n">v</span><span class="o">)</span><span class="bp">.</span><span class="mi">2</span> <span class="n">e</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="c1">-- Lean doesn't accept this statement since the RHS has type `out_link w` while the LHS</span>
+<span class="c1">-- has type `out_link (F.obj v)`.</span>
+<span class="kd">lemma</span> <span class="n">map_lift_edge</span> <span class="o">(</span><span class="n">w</span> <span class="o">:</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">hv</span> <span class="o">:</span> <span class="n">F.obj</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">w</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link_map</span> <span class="n">F</span> <span class="n">v</span> <span class="o">(</span><span class="n">lift_edge</span> <span class="n">F</span> <span class="n">w</span> <span class="n">v</span> <span class="n">hv</span> <span class="n">e</span><span class="o">)</span> <span class="bp">=</span> <span class="n">e</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+
+
+
+<a name="308926754"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308926754" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308926754">(Nov 10 2022 at 06:21)</a>:</h4>
+<p>This one is one <code>rec</code> away from typechecking:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">map_lift_edge</span> <span class="o">(</span><span class="n">w</span> <span class="o">:</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">hv</span> <span class="o">:</span> <span class="n">F.obj</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">w</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link_map</span> <span class="n">F</span> <span class="n">v</span> <span class="o">(</span><span class="n">lift_edge</span> <span class="n">F</span> <span class="n">w</span> <span class="n">v</span> <span class="n">hv</span> <span class="n">e</span><span class="o">)</span> <span class="bp">=</span> <span class="n">hv.symm.rec_on</span> <span class="n">e</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+<p>and the copy trick should work, or maybe rephrasing as</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">lemma</span> <span class="n">map_lift_edge'</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="bp">$</span> <span class="n">F.obj</span> <span class="n">v</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link_map</span> <span class="n">F</span> <span class="n">v</span> <span class="o">(</span><span class="n">lift_edge</span> <span class="n">F</span> <span class="o">(</span><span class="n">F.obj</span> <span class="n">v</span><span class="o">)</span> <span class="n">v</span> <span class="n">rfl</span> <span class="n">e</span><span class="o">)</span> <span class="bp">=</span> <span class="n">e</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+<p>?</p>
+
+
+
+<a name="308931949"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308931949" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308931949">(Nov 10 2022 at 07:21)</a>:</h4>
+<p>Ah, and actually, the covering approach provides an example of the argument that working with quivers will improve their api and benefit other sides of mathlib: Covering of groupoids are quite useful (I vaguely started <a href="https://github.com/bottine/mathlib/blob/bottine/groupoid_dev/src/category_theory/groupoid/covering.lean">there</a> but then turned to other things). If we had a good api around coverings and lifting of paths in quivers, etc, it would make working with covering of groupoids that much easier.</p>
+
+
+
+<a name="308932305"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308932305" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308932305">(Nov 10 2022 at 07:25)</a>:</h4>
+<p>Maybe before starting Schreier/Cayley graphs, we'd need some preliminary work on overhauling the quiver code, adding the notion of forests, reduced paths, <code>copy</code>, covering, etc, and only start with Schreier/Cayley graphs then</p>
+
+
+
+<a name="308946856"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308946856" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308946856">(Nov 10 2022 at 09:16)</a>:</h4>
+<p><span class="user-mention" data-user-id="329754">@Antoine Labelle</span> Using your example, here's how <code>cast</code> (a better name for <code>copy</code>) could work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">out_link.cast</span> <span class="o">{</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">}</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">v</span><span class="o">)</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">v</span> <span class="o">:=</span>
+<span class="n">eq.rec</span> <span class="n">e</span> <span class="n">h</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">out_link.cast_rfl</span> <span class="o">{</span><span class="n">u</span> <span class="o">:</span> <span class="n">V</span><span class="o">}</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">u</span><span class="o">)</span> <span class="o">:</span> <span class="n">e.cast</span> <span class="n">rfl</span> <span class="bp">=</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">rfl</span>
+
+<span class="kd">@[simp]</span> <span class="kd">lemma</span> <span class="n">out_link.cast_cast</span> <span class="o">{</span><span class="n">u</span> <span class="n">v</span> <span class="n">w</span> <span class="o">:</span> <span class="n">V</span><span class="o">}</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">hu</span> <span class="o">:</span> <span class="n">u</span> <span class="bp">=</span> <span class="n">v</span><span class="o">)</span> <span class="o">(</span><span class="n">hv</span> <span class="o">:</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">w</span><span class="o">)</span> <span class="o">:</span>
+  <span class="o">(</span><span class="n">e.cast</span> <span class="n">hu</span><span class="o">)</span><span class="bp">.</span><span class="n">cast</span> <span class="n">hv</span> <span class="bp">=</span> <span class="n">e.cast</span> <span class="o">(</span><span class="n">hu.trans</span> <span class="n">hv</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">subst_vars</span><span class="o">,</span> <span class="n">refl</span> <span class="o">}</span>
+
+<span class="kd">lemma</span> <span class="n">map_lift_edge</span> <span class="o">(</span><span class="n">w</span> <span class="o">:</span> <span class="n">W</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">hv</span> <span class="o">:</span> <span class="n">F.obj</span> <span class="n">v</span> <span class="bp">=</span> <span class="n">w</span><span class="o">)</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">out_link</span> <span class="n">w</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">out_link_map</span> <span class="n">F</span> <span class="n">v</span> <span class="o">(</span><span class="n">lift_edge</span> <span class="n">F</span> <span class="n">w</span> <span class="n">v</span> <span class="n">hv</span> <span class="n">e</span><span class="o">)</span> <span class="bp">=</span> <span class="n">e.cast</span> <span class="n">hv.symm</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">subst</span> <span class="n">hv</span><span class="o">,</span>
+  <span class="n">exact</span> <span class="n">surj_inv_eq</span> <span class="o">(</span><span class="n">is_covering_map.out_link_map_bijective</span> <span class="n">v</span><span class="o">)</span><span class="bp">.</span><span class="mi">2</span> <span class="n">e</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="308947109"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308947109" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308947109">(Nov 10 2022 at 09:18)</a>:</h4>
+<p>I think this "cast pattern" should be considered to be a design pattern for working with dependent types. It provides a consistent interface for how you do rewrites on indices, which otherwise can get unweidly if you have unrestricted <code>eq.rec</code>s in your expressions.</p>
+
+
+
+<a name="308947773"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/308947773" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Miller <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#308947773">(Nov 10 2022 at 09:22)</a>:</h4>
+<p>It might feel hacky because in category theory this is "evil" (you are not supposed to talk about equalities of objects, only isomorphisms), however quivers and graphs do not have isomorphisms, and maps between graphs (prefunctors) quickly reveal this to be an issue.</p>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/simple_graph.walk.map_eq_of_eq">docs#simple_graph.walk.map_eq_of_eq</a> is the type of lemma that revealed the need for an index cast</p>
+
+
+
+<a name="313953179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/252551-graph%20theory/topic/Cayley%20graphs%20%28again%29/near/313953179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Rémi Bottinelli <a href="https://leanprover-community.github.io/archive/stream/252551-graph-theory/topic/Cayley.20graphs.20(again).html#313953179">(Dec 05 2022 at 12:34)</a>:</h4>
+<p>Hey, so we've defined <a href="https://github.com/bottine/mathlib/blob/bb0f7d97b526ddbf98369a166c79285d467c09a1/src/combinatorics/quiver/covering.lean">coverings of quivers here</a> and the goal is to define Schreier graphs as quivers + a covering onto a bouquet.</p>
+<p>After some discussions, I'm not sure whether we should bundle it as a struct containing the quiver and the covering, or just have the covering floating vaguely in the context. Similarly, we'll want to talk about covering morphisms and the automorphism group of Cayley graphs (probably), and it's becoming unclear the amount of bundling we should choose. A more basic question already leading to this is: how to define isomorphisms of quivers?</p>
+<p>What do people with more experience with this kind of things think?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

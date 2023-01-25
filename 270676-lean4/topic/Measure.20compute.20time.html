@@ -1,0 +1,101 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Measure.20compute.20time.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html">Measure compute time</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="292248183"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292248183" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292248183">(Aug 06 2022 at 10:58)</a>:</h4>
+<p>How to measure the time of pure computation? I can use <code>IO.monoMsNow</code> to get the current time but I need to ensure the computation is done between two calls to the <code>IO.monoMsNow</code> function.</p>
+<p>The best I come up with is a "black box" API (<code>α → IO α</code>), like so:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[noinline]</span> <span class="n">opaque</span> <span class="n">blackBox</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">IO</span> <span class="n">α</span> <span class="o">:=</span> <span class="n">pure</span>
+
+<span class="kd">def</span> <span class="n">compute</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="gr">sorry</span> <span class="c1">-- expensive computation</span>
+
+<span class="kd">def</span> <span class="n">func</span> <span class="o">(</span><span class="n">input</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">startTime</span> <span class="bp">←</span> <span class="n">IO.monoMsNow</span>
+  <span class="k">let</span> <span class="n">input</span> <span class="bp">←</span> <span class="n">blackBox</span> <span class="n">input</span>
+  <span class="k">let</span> <span class="n">output</span> <span class="bp">←</span> <span class="n">blackBox</span> <span class="bp">$</span> <span class="n">compute</span> <span class="n">input</span>
+  <span class="k">let</span> <span class="n">endTime</span> <span class="bp">←</span> <span class="n">IO.monoMsNow</span>
+  <span class="n">println</span><span class="bp">!</span> <span class="s2">"time: {endTime - startTime}"</span>
+  <span class="n">return</span> <span class="n">output</span>
+</code></pre></div>
+<p>But it relies on the behavior that <code>blackBox</code> is not inlined.</p>
+<p>Maybe it doesn't much make sense if <code>α</code> is a singleton type.</p>
+
+
+
+<a name="292249561"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292249561" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Henrik Böving <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292249561">(Aug 06 2022 at 11:32)</a>:</h4>
+<p>You want <a href="https://leanprover-community.github.io/mathlib4_docs/find/?pattern=timeit#doc">docs4#timeit</a>, if it's a pure computation you can just <code>Function.comp pure yourFunction</code></p>
+
+
+
+<a name="292250965"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292250965" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292250965">(Aug 06 2022 at 12:04)</a>:</h4>
+<p>Unfortunately, <code>timeit</code> doesn't work:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">computeFib</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">Id.run</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="o">(</span><span class="mi">0</span><span class="o">,</span> <span class="mi">1</span><span class="o">)</span>
+  <span class="n">for</span> <span class="n">_</span> <span class="k">in</span> <span class="o">[</span><span class="mi">1</span><span class="o">:</span><span class="n">n</span><span class="o">]</span> <span class="k">do</span>
+    <span class="o">(</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">)</span> <span class="o">:=</span> <span class="o">((</span><span class="n">a</span> <span class="bp">+</span> <span class="n">b</span><span class="o">)</span> <span class="bp">%</span> <span class="mi">10000</span><span class="o">,</span> <span class="n">a</span><span class="o">)</span>
+  <span class="n">return</span> <span class="n">a</span>
+
+<span class="kd">def</span> <span class="n">main</span> <span class="o">:</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">input</span> <span class="o">:=</span> <span class="o">(</span><span class="bp">←</span> <span class="o">(</span><span class="bp">←</span> <span class="n">IO.getStdin</span><span class="o">)</span><span class="bp">.</span><span class="n">getLine</span><span class="o">)</span><span class="bp">.</span><span class="n">trim.toNat</span><span class="bp">!</span>
+  <span class="k">let</span> <span class="n">output</span> <span class="bp">←</span> <span class="n">timeit</span> <span class="s2">"time"</span> <span class="k">do</span>
+    <span class="n">return</span> <span class="n">computeFib</span> <span class="n">input</span>
+  <span class="n">println</span><span class="bp">!</span> <span class="s2">"{output}"</span>
+</code></pre></div>
+<p>And input <code>100000000</code>. The result is <code>time 0.00021ms</code> even though it is actually taking 1s.</p>
+<p>I guess this is because <code>computeFib input</code> can be computed before <code>timeit</code> starts.<br>
+Thus, to make computation happen inside the <code>timeit</code> block, I need to get <code>input</code> inside the <code>timeit</code> block. However, that means the time it takes to input (waiting for user input) will be counted for the time.</p>
+<p>Also, I want to more flexible output than the fixed <code>timeout</code> output.</p>
+
+
+
+<a name="292251973"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292251973" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292251973">(Aug 06 2022 at 12:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="347012">pcpthm</span> <a href="#narrow/stream/270676-lean4/topic/Measure.20compute.20time/near/292248183">said</a>:</p>
+<blockquote>
+<p>But it relies on the behavior that <code>blackBox</code> is not inlined.</p>
+</blockquote>
+<p>What's the problem with that? It's not really different from <a href="https://doc.rust-lang.org/std/hint/fn.black_box.html">https://doc.rust-lang.org/std/hint/fn.black_box.html</a></p>
+
+
+
+<a name="292252685"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292252685" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292252685">(Aug 06 2022 at 12:43)</a>:</h4>
+<p>A concern was even if Lean doesn't inline a function, an C compiler will inline the function later. But thinking about that, the C compiler is usually not reordering statements, so it is okay I guess.</p>
+<p>I guess, in the end, because computation time is not something semantic, probably there is no way to truly ensure something like this.</p>
+
+
+
+<a name="292252881"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Measure%20compute%20time/near/292252881" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> pcpthm <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Measure.20compute.20time.html#292252881">(Aug 06 2022 at 12:48)</a>:</h4>
+<p>Like, even if <code>blackBox</code> was truly opaque, a hypothetical transformation of code:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">do</span> <span class="n">blackBox</span> <span class="o">(</span><span class="n">compute</span> <span class="o">(</span><span class="bp">&lt;-</span> <span class="n">blackBox</span> <span class="n">input</span><span class="o">))</span>
+</code></pre></div>
+<p>to</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">let</span> <span class="n">precomputedFor0</span> <span class="o">:=</span> <span class="n">compute</span> <span class="mi">0</span>
+<span class="k">do</span> <span class="k">match</span> <span class="bp">&lt;-</span> <span class="n">blackBox</span> <span class="n">input</span> <span class="k">with</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="n">blackBox</span> <span class="n">precomputedFor0</span>
+  <span class="bp">|</span> <span class="n">input</span> <span class="bp">=&gt;</span> <span class="n">blackBox</span> <span class="o">(</span><span class="n">compute</span> <span class="n">input</span><span class="o">)</span>
+</code></pre></div>
+<p>is valid and the computation time will be bogus.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

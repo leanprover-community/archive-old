@@ -1,0 +1,161 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/144837-PR-reviews/topic/.2312329.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/index.html">PR reviews</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html">#12329</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="275083452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275083452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275083452">(Mar 12 2022 at 07:48)</a>:</h4>
+<p>The "export as low-level text file" step of CI is failing on <a href="https://github.com/leanprover-community/mathlib/pull/12329">#12329</a> at the moment, with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">Run</span> <span class="n">lean</span> <span class="c1">--recursive --export=mathlib.txt src/</span>
+<span class="bp">&lt;</span><span class="n">unknown</span><span class="bp">&gt;</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span><span class="mi">1</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">unknown</span> <span class="n">declaration</span> <span class="bp">'</span><span class="n">_private.259063493.pseudo_metric_space.dist_nonneg''</span>
+<span class="n">Error</span><span class="o">:</span> <span class="n">Process</span> <span class="n">completed</span> <span class="k">with</span> <span class="n">exit</span> <span class="n">code</span> <span class="mi">1</span><span class="bp">.</span>
+</code></pre></div>
+
+
+
+<a name="275083728"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275083728" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275083728">(Mar 12 2022 at 07:57)</a>:</h4>
+<p>There's a thread about this in the <a class="stream" data-stream-id="113538" href="/#narrow/stream/113538-CI">#CI</a>  stream. Long story short we don't know what it is but merging master into the branch usually fixes it</p>
+
+
+
+<a name="275086845"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275086845" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275086845">(Mar 12 2022 at 09:16)</a>:</h4>
+<p>It even made it into the faq, right?</p>
+
+
+
+<a name="275190781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275190781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275190781">(Mar 14 2022 at 03:31)</a>:</h4>
+<p>There are two parts to this.</p>
+<p>1) The hashes used to invalidate <code>.olean</code> files seem to be transitive hashes of the source files, while private lemmas' hidden names contain "random" (that is, not a function of the source file) numbers (like the <code>259063493</code> above). So if you have a file <code>X.lean</code> with a private theorem whose prefixed name somehow leaks to <code>Y.olean</code>, then as soon as you delete <code>X.olean</code> you're doomed: Lean will think it's fine to use <code>Y.olean</code> because the source hashes have not changed, but it won't find the theorem anymore because a different execution will result in a different private "namespace" number. </p>
+<p>You can reproduce this on master: Fetch the olean cache, delete <code>src/topology/metric_space/basic.olean</code> and run <code>lean --recursive --export=mathlib.txt src/</code>. There are a number of oleans (which you can find by grepping) that reference <code>pseudo_metric_space.dist_nonneg'</code>, and Lean will happily use those oleans and fail to find the private theorem. I guess the reference leaks becuse <code>pseudo_metric_space</code> (<code>src/topology/metric_space/basic.lean</code>) is public data that references the private theorem.</p>
+<p>2) But how would you reach such a state? I don't know. In CI, <code>dc010f4</code> was fine because both oleans were generated on March 3rd. On <code>cc254c8</code>, <code>src/topology/metric_space/basic.olean</code> was regenerated on March 11th but some of the downstream files (such as <code>src/topology/metric_space/gluing.olean</code>) stayed unmodified, still referencing the "previous" random number. This is certainly possible (if the build was interrupted due to an error, say) but presumably some source changed to cause <code>basic.olean</code> to be rebuilt. This would get reflected in the transitive hash used in <code>gluing.olean</code>, so Lean definitely should NOT be using <code>gluing.olean</code> until it gets regenerated.  However, it kept being reused for several commits until master was merged and I have no explanation for that.</p>
+<p>(It's possible that I am overly-analyzing this and we're just getting a collision for the transitive source hash. But I am not sure how to check this.)</p>
+
+
+
+<a name="275191437"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275191437" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275191437">(Mar 14 2022 at 03:48)</a>:</h4>
+<p>I guess merging this with <a href="#narrow/stream/113538-CI/topic/unknown.20declaration.20.60_private.60">https://leanprover.zulipchat.com/#narrow/stream/113538-CI/topic/unknown.20declaration.20.60_private.60</a> (the thread mentioned by Alex) would be better, sorry for splitting the discussion.</p>
+
+
+
+<a name="275194002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275194002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275194002">(Mar 14 2022 at 04:54)</a>:</h4>
+<p><span class="user-mention" data-user-id="325367">@Mauricio Collares</span> Wow! Thanks for debugging this!</p>
+
+
+
+<a name="275199000"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275199000" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Scott Morrison <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275199000">(Mar 14 2022 at 06:47)</a>:</h4>
+<p>Unfortunately I have a case of this problem that has survived three merges with master. :-( <a href="https://github.com/leanprover-community/mathlib/pull/12638">#12638</a>.</p>
+
+
+
+<a name="275203490"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275203490" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275203490">(Mar 14 2022 at 08:06)</a>:</h4>
+<p>Would it make sense to remove <code>private</code> stuff and add doc-strings to them mentioning that they are "private"?  After all, <code>private lemmas</code> are still valid lemmas and someone else might find them useful in a different file...</p>
+
+
+
+<a name="275203524"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275203524" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275203524">(Mar 14 2022 at 08:07)</a>:</h4>
+<p>This is the typical approach in mathlib.</p>
+
+
+
+<a name="275203563"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275203563" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275203563">(Mar 14 2022 at 08:07)</a>:</h4>
+<p>And I think this bug is a very good motivation for replace the prefix <code>private </code> by a suffix <code>_aux</code> to the name.</p>
+
+
+
+<a name="275203590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275203590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Damiano Testa <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275203590">(Mar 14 2022 at 08:08)</a>:</h4>
+<p>Ok, thanks!  I did not know, but also did not like <code>private</code> stuff innately.</p>
+
+
+
+<a name="275209258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275209258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275209258">(Mar 14 2022 at 09:12)</a>:</h4>
+<p>Rebasing on master is likely to be more effective than merging</p>
+
+
+
+<a name="275223901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275223901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275223901">(Mar 14 2022 at 11:39)</a>:</h4>
+<blockquote>
+<p>So if you have a file X.lean with a private theorem whose prefixed name somehow leaks to Y.olean, then as soon as you delete X.olean you're doomed: Lean will think it's fine to use Y.olean because the source hashes have not changed, but it won't find the theorem anymore because a different execution will result in a different private "namespace" number.</p>
+</blockquote>
+<p>Thank you for debugging this <span class="user-mention" data-user-id="325367">@Mauricio Collares</span>!  I believe I know what's going on: Lean mixes the current file name into the hash for the private name, and this file name contains the full path to mathlib, which is going to be different on the build server and your local machine.  <a href="https://github.com/leanprover-community/lean/pull/699">lean#699</a></p>
+
+
+
+<a name="275225520"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275225520" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275225520">(Mar 14 2022 at 11:59)</a>:</h4>
+<p>Did you get a repro from this <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> ? I tried the same idea a while back by moving folders around on my machine to change the path, but couldn't reproduce the same error that way.</p>
+
+
+
+<a name="275225719"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275225719" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275225719">(Mar 14 2022 at 12:00)</a>:</h4>
+<p>Yes, Mauricio's pointer to <code>metric_space.basic</code> made it very easy to repro.  Just insert this line after <code>dist_nonneg'</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="k">#eval</span> <span class="n">tactic.to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="bp">@</span><span class="n">pseudo_metric_space.dist_nonneg'</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">tactic.trace</span> <span class="bp">∘</span> <span class="n">expr.const_name</span>
+</code></pre></div>
+<p>And then move <code>mathlib</code> to say <code>mathlib2</code>.</p>
+
+
+
+<a name="275227616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275227616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Alex J. Best <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275227616">(Mar 14 2022 at 12:21)</a>:</h4>
+<p>Nice! Wonder why that never worked for me <span aria-label="joy" class="emoji emoji-1f602" role="img" title="joy">:joy:</span>. Either way it's great that this is fixed!</p>
+
+
+
+<a name="275251039"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275251039" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275251039">(Mar 14 2022 at 15:21)</a>:</h4>
+<p>Many thanks <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span> for finding the root cause and for the fix!</p>
+<p>I just verified that the second part of the issue (<code>src/topology/metric_space/gluing.olean</code> not being regenerated) is just due to a hash collision. <code>gluing.lean</code> depends on <code>src/topology/metric_space/isometry.lean</code>, which gets recompiled: the transitive hash for <code>isometry.lean</code> goes from <code>67093251</code> to <code>4093625091</code>. Unfortunately, this does not cause <code>gluing.lean</code> to be recompiled because <code>hash(1854980923U, 67093251U) == hash(1854980923U, 4093625091U)</code>, <code>1854980923</code> being the combined hash of <code>gluing.lean</code> and the transitive hash of its only other dependency, <code>lean/library/init/default.lean</code>.</p>
+
+
+
+<a name="275253150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275253150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275253150">(Mar 14 2022 at 15:34)</a>:</h4>
+<p>Is changing the olean format to use 64-bit hashes more trouble than it's worth?</p>
+
+
+
+<a name="275265028"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275265028" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275265028">(Mar 14 2022 at 16:49)</a>:</h4>
+<p>Better late than never.  <a href="https://github.com/leanprover-community/lean/pull/700">lean#700</a></p>
+
+
+
+<a name="275268861"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275268861" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mauricio Collares <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275268861">(Mar 14 2022 at 17:15)</a>:</h4>
+<p>Thanks again <span class="user-mention" data-user-id="110043">@Gabriel Ebner</span>! Also, since <span class="user-mention" data-user-id="485520">@Kyle Huey</span> now seems to be here, I should also thank him for increasing the Pernosco memory limits so I could debug this there :) Figuring that the problem involved <code>gluing.lean</code> took less than five seconds, since on Pernosco you can double click on the debuggee output and go straight to the exact execution context from when that line was printed.</p>
+
+
+
+<a name="275271024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/144837-PR%20reviews/topic/%2312329/near/275271024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kyle Huey <a href="https://leanprover-community.github.io/archive/stream/144837-PR-reviews/topic/.2312329.html#275271024">(Mar 14 2022 at 17:31)</a>:</h4>
+<p>5 seconds is pretty great!</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

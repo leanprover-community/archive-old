@@ -1,0 +1,222 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/mathport.3Asunfold.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html">mathport:sunfold</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="231160951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231160951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231160951">(Mar 20 2021 at 17:56)</a>:</h4>
+<p>Here is a weird issue: the following theorem typechecks in the kernel but cannot be elaborated:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean3Lib.init.data.nat.lemmas</span>
+
+<span class="kd">theorem</span> <span class="n">Mathlib.nat.sub_one_alt</span> <span class="o">(</span><span class="n">n</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">n</span> <span class="bp">-</span> <span class="mi">1</span> <span class="bp">=</span> <span class="n">nat.pred</span> <span class="n">n</span> <span class="o">:=</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>The issue is that <code>nat.pred._sunfold</code> is generated in lean3 and auto-ported, and the smart-unfolding in lean4 finds it. In lean4, non-recursive functions don't generate <code>_sunfold</code> definitions, and smart-unfolding seems to work differently though I did not investigate the differences yet. Note: this example works if smart-unfolding is disabled.</p>
+<p>I think this is a pretty sketchy proof anyway. It would be better to do induction on <code>n</code> than to rely on two non-simplifying recursor applications being equal. So, I am tempted to ignore the issue.</p>
+
+
+
+<a name="231166174"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231166174" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231166174">(Mar 20 2021 at 19:23)</a>:</h4>
+<p>I don't find this definition to be odd at all. <code>nat.sub</code> is defined as:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">protected</span> <span class="kd">def</span> <span class="n">sub</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="mi">0</span>     <span class="o">:=</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="n">a</span> <span class="o">(</span><span class="n">b</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">pred</span> <span class="o">(</span><span class="n">sub</span> <span class="n">a</span> <span class="n">b</span><span class="o">)</span>
+</code></pre></div>
+<p>This is a definition by recursion on the second argument (I would have left <code>a</code> out of the recursion entirely, as in</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">protected</span> <span class="kd">def</span> <span class="n">sub</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">ℕ</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℕ</span> <span class="bp">→</span> <span class="n">ℕ</span>
+<span class="bp">|</span> <span class="mi">0</span>     <span class="o">:=</span> <span class="n">a</span>
+<span class="bp">|</span> <span class="o">(</span><span class="n">b</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">pred</span> <span class="o">(</span><span class="n">sub</span> <span class="n">b</span><span class="o">)</span>
+</code></pre></div>
+<p>but at least in this case it should come out the same either way), so if you insert <code>1</code> for <code>b</code> then this reduces to <code>pred (sub a 0) = pred a</code>. The first argument is never cased on so it is very reasonable to expect this defeq.</p>
+
+
+
+<a name="231166314"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231166314" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231166314">(Mar 20 2021 at 19:25)</a>:</h4>
+<p>I actually haven't heard of <code>foo._sunfold</code> before. It's not directly referenced by <code>nat.pred</code> or any theorems, so I'm not sure what its role is. It appears to be a copy of <code>nat.pred._main</code>.</p>
+
+
+
+<a name="231167179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231167179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231167179">(Mar 20 2021 at 19:43)</a>:</h4>
+<p>It is related to "smart-unfolding", which is a trick to avoid incomprehensible messes when unfolding recursive definitions. Here is an example in lean3: <a href="https://github.com/leanprover-community/lean/blob/master/src/library/type_context.h#L443-L457">https://github.com/leanprover-community/lean/blob/master/src/library/type_context.h#L443-L457</a></p>
+<p>Note: it is only used as a heuristic by the unifier, and does not appear in any actual theorems/proofs.</p>
+
+
+
+<a name="231167246"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231167246" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231167246">(Mar 20 2021 at 19:44)</a>:</h4>
+<p>One issue here is that lean3 produces these <code>_sunfold</code> even for non-recursive functions, whereas lean4 assumes it will only exist for recursive functions, and so doesn't fall back on regular unfolding when the <code>_sunfold</code> exists and the major premise is not a constructor.</p>
+
+
+
+<a name="231168456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168456">(Mar 20 2021 at 20:06)</a>:</h4>
+<p>I don't see why this would cause a unification error though. It sounds like this should only affect unfolding in the middle of a proof; anything it comes up with should be defeq to the real thing, so a proof by <code>rfl</code> shouldn't cause any problems because there's only one thing to do</p>
+
+
+
+<a name="231168594"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168594" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168594">(Mar 20 2021 at 20:09)</a>:</h4>
+<p>in lean4, when smart-unfolding with an <code>_sunfold</code>, it <em>does not unfold at all</em> unless whnf-ing would return an <code>idRhs</code> application. so here it tries smart-unfolding, gets something besides an <code>idRhs</code> application (since the major premise is a local constant) and rolls back.</p>
+
+
+
+<a name="231168606"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168606" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168606">(Mar 20 2021 at 20:09)</a>:</h4>
+<p>the major premise should not be a local constant though</p>
+
+
+
+<a name="231168609"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168609" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168609">(Mar 20 2021 at 20:09)</a>:</h4>
+<p>the major premise here is <code>1</code></p>
+
+
+
+<a name="231168798"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168798" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168798">(Mar 20 2021 at 20:13)</a>:</h4>
+<p>Oh wait, <code>nat.pred._sunfold</code>? We shouldn't be unfolding <code>nat.pred</code> in this proof at all</p>
+
+
+
+<a name="231168843"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168843" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168843">(Mar 20 2021 at 20:14)</a>:</h4>
+<p>We do need <code>nat.sub._sunfold</code> but that's a recursive function so according to you that should work in lean 4</p>
+
+
+
+<a name="231168874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231168874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231168874">(Mar 20 2021 at 20:15)</a>:</h4>
+<p>Wow there are so many layers to this issue. We are aligning <code>nat.sub</code> -&gt; <code>Nat.sub</code>, but not <code>nat.pred</code> -&gt; <code>Nat.pred</code>. The latter two are def-eq, which is why we can align the <code>sub</code>s. But now we try to unify <code>nat.pred n =?= Nat.pred (Nat.sub n 0)</code> and <code>nat.pred</code> won't unfold because of the <code>_sunfold</code> issue.</p>
+
+
+
+<a name="231169003"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231169003" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231169003">(Mar 20 2021 at 20:17)</a>:</h4>
+<p>I see. I think this means that definitions by the equation compiler have to be aligned if they are to be treated as defeq, because unapplied equation compiler definitions are effectively constants</p>
+
+
+
+<a name="231169220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231169220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231169220">(Mar 20 2021 at 20:21)</a>:</h4>
+<p>This specific issue will go away now that I added <code>nat.pred -&gt; Nat.pred</code> to the align list. We might preempt many others by having lean3 no longer produce these <code>_sunfold</code> lemmas for non-recursive functions. Also, it might be a good idea to do a more careful pass accumulating other things to align.</p>
+
+
+
+<a name="231170125"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231170125" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231170125">(Mar 20 2021 at 20:39)</a>:</h4>
+<p>Even if we removed the <code>_sunfold</code> lemmas, it still seems like good practice to not try unifying distinct equation compiler definitions anyway, they are giant behemoths and anything that relies on such unfolding will be slow and brittle wrt changes in the actual compilation strategy</p>
+
+
+
+<a name="231170197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231170197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231170197">(Mar 20 2021 at 20:41)</a>:</h4>
+<p>Are they really giant behemoths for non-recursive functions?</p>
+
+
+
+<a name="231170382"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231170382" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231170382">(Mar 20 2021 at 20:45)</a>:</h4>
+<p>They can be, if there are lots of nested matches or a match on <code>n+5</code> or something; but my main point is that we want to isolate the equation compiler's output from the user-level equations as much as possible in order to allow for more flexibility in compilation</p>
+
+
+
+<a name="231170498"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231170498" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231170498">(Mar 20 2021 at 20:46)</a>:</h4>
+<p>For example, if you pattern match on two <code>option A</code>'s and give four equations for the cases it shouldn't be observable which one was matched first</p>
+
+
+
+<a name="231415485"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231415485" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231415485">(Mar 23 2021 at 02:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/mathport.3Asunfold/near/231169003">said</a>:</p>
+<blockquote>
+<p>I see. I think this means that definitions by the equation compiler have to be aligned if they are to be treated as defeq, because unapplied equation compiler definitions are effectively constants</p>
+</blockquote>
+<p>Lean4's equation compiler does not produce the same definitions. Here is Lean3:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">temp.pred</span> <span class="o">:</span> <span class="n">nat</span> <span class="bp">→</span> <span class="n">nat</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="o">:=</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="o">(</span><span class="n">n</span><span class="bp">+</span><span class="mi">1</span><span class="o">)</span> <span class="o">:=</span> <span class="n">n</span>
+
+<span class="k">#print</span> <span class="n">temp.pred</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def temp.pred : ℕ → ℕ :=</span>
+<span class="cm">temp.pred._main</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>and here is Lean4:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">Temp.pred</span> <span class="o">:</span> <span class="n">Nat</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="mi">0</span> <span class="bp">=&gt;</span> <span class="mi">0</span>
+  <span class="bp">|</span> <span class="n">n</span><span class="bp">+</span><span class="mi">1</span> <span class="bp">=&gt;</span> <span class="n">n</span>
+
+<span class="k">#print</span> <span class="n">Temp.pred</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def Temp.pred : Nat → Nat :=</span>
+<span class="cm">fun (x : Nat) =&gt;</span>
+<span class="cm">  match x with</span>
+<span class="cm">  | 0 =&gt; 0</span>
+<span class="cm">  | Nat.succ n =&gt; n</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>If we align <code>temp.pred</code> -&gt; <code>Temp.pred</code>, the old definition <code>temp.pred._main</code> should be orphaned, which is fine.</p>
+
+
+
+<a name="231447445"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231447445" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231447445">(Mar 23 2021 at 10:20)</a>:</h4>
+<p>The definition produced by the Lean 4 elaborator is actually very similar to the Lean 3 one (except for the extra main redirection).  It's just that the new pretty-printer is much better at hiding the ugly details:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">pp.all</span> <span class="n">true</span> <span class="k">in</span> <span class="k">#print</span> <span class="n">Temp.pred</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def Temp.pred : Nat → Nat :=</span>
+<span class="cm">fun x =&gt; Temp.pred.match_1.{1} (fun x =&gt; Nat) x (fun _ =&gt; @OfNat.ofNat.{0} Nat 0 (instOfNatNat 0)) fun n =&gt; n</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="231502549"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231502549" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231502549">(Mar 23 2021 at 16:42)</a>:</h4>
+<p>Thanks, I forgot that the matches were sugar for aux definitions. But still, if we align <code>foo3</code> -&gt; <code>foo4</code>, <code>foo3._main</code> should be orphaned and so there is no need to align it to anything.</p>
+
+
+
+<a name="231504139"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231504139" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231504139">(Mar 23 2021 at 16:51)</a>:</h4>
+<p>It's possible that foo3._main occurs in a proof.</p>
+
+
+
+<a name="231509830"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231509830" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231509830">(Mar 23 2021 at 17:25)</a>:</h4>
+<p>Yes, what I wrote about is not quite right, since I forgot that the lean3 equation lemmas are defined to be the <code>_main</code> equation lemmas. This is why I already had to map e.g. <code>nat.add._main</code> -&gt; <code>Nat.add</code>. Do you see any reason why that wouldn't work in general? Specifically, if <code>foo3</code> -&gt; <code>foo4</code> and <code>foo3._main</code> exists, then <code>foo3._main</code> -&gt; <code>foo4</code> (rather than aligning the <code>_main</code> to a aux match decl inside <code>foo4</code>).</p>
+
+
+
+<a name="231511165"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231511165" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231511165">(Mar 23 2021 at 17:33)</a>:</h4>
+<p>For non-mutual definitions, <code>foo3</code> and <code>foo3._main</code> should be interchangeable.  So I'd try to map both <code>foo3</code> and <code>foo3._main</code> to <code>foo4</code>.</p>
+
+
+
+<a name="231511225"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/mathport%3Asunfold/near/231511225" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/mathport.3Asunfold.html#231511225">(Mar 23 2021 at 17:34)</a>:</h4>
+<p>Which is exactly what you've proposed.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

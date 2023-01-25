@@ -1,0 +1,149 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/113488-general/topic/to_expr.20mystery.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/113488-general/index.html">general</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html">to_expr mystery</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="196757568"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196757568" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196757568">(May 07 2020 at 11:31)</a>:</h4>
+<p>Hello, I discovered a behaviour of <code>tactic.to_expr</code>, pexpr quotations and antiquotations which puzzles me:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">set_option</span> <span class="n">pp</span><span class="bp">.</span><span class="n">all</span> <span class="n">true</span>
+
+<span class="n">meta</span> <span class="n">def</span> <span class="n">tactic</span><span class="bp">.</span><span class="n">interactive</span><span class="bp">.</span><span class="n">quotation_test</span> <span class="o">(</span><span class="n">px</span> <span class="o">:</span> <span class="n">interactive</span><span class="bp">.</span><span class="n">parse</span> <span class="o">((</span><span class="n">lean</span><span class="bp">.</span><span class="n">parser</span><span class="bp">.</span><span class="n">tk</span> <span class="s2">&quot;from&quot;</span><span class="o">)</span> <span class="bp">&gt;&gt;</span> <span class="n">interactive</span><span class="bp">.</span><span class="n">types</span><span class="bp">.</span><span class="n">texpr</span><span class="o">))</span> <span class="o">(</span><span class="n">pf</span> <span class="o">:</span> <span class="n">interactive</span><span class="bp">.</span><span class="n">parse</span> <span class="o">((</span><span class="n">lean</span><span class="bp">.</span><span class="n">parser</span><span class="bp">.</span><span class="n">tk</span> <span class="s2">&quot;with&quot;</span><span class="o">)</span> <span class="bp">&gt;&gt;</span> <span class="n">interactive</span><span class="bp">.</span><span class="n">types</span><span class="bp">.</span><span class="n">texpr</span><span class="o">))</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span>
+<span class="n">do</span> <span class="n">x</span> <span class="err">←</span> <span class="n">tactic</span><span class="bp">.</span><span class="n">i_to_expr</span> <span class="n">px</span><span class="o">,</span>
+   <span class="n">f</span> <span class="err">←</span> <span class="n">tactic</span><span class="bp">.</span><span class="n">i_to_expr</span> <span class="n">pf</span><span class="o">,</span>
+   <span class="n">f&#39;</span> <span class="err">←</span> <span class="n">tactic</span><span class="bp">.</span><span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">id</span> <span class="err">%%</span><span class="n">f</span><span class="o">),</span>
+   <span class="n">tactic</span><span class="bp">.</span><span class="n">trace</span> <span class="n">f&#39;</span><span class="o">,</span>    <span class="c1">-- outputs: @id.{1} (nat → nat) nat.succ</span>
+   <span class="c1">-- uncomment these lines to get an error two lines above</span>
+<span class="c1">--    x&#39; ← tactic.to_expr ``(%%f&#39; %%x),</span>
+<span class="c1">--    tactic.trace x&#39;,</span>
+   <span class="n">return</span> <span class="o">()</span>
+
+<span class="kn">example</span> <span class="o">:</span> <span class="n">true</span> <span class="o">:=</span>
+<span class="k">begin</span>
+  <span class="n">quotation_test</span> <span class="k">from</span> <span class="mi">0</span> <span class="k">with</span> <span class="n">nat</span><span class="bp">.</span><span class="n">succ</span><span class="o">,</span>
+  <span class="n">trivial</span>
+<span class="kn">end</span>
+</code></pre></div>
+
+
+<p>Uncommenting the indicated lines gives <code>type mismatch at application:  @id.{1} ?m_1 (nat → nat)</code>, that is a different interpretation of  <code>id %%f</code> in which apparently the correctly inferred implicit argument <code>nat  → nat</code> is taken as the first explicit argument.</p>
+<p>I admit that I do not have a good understanding of Lean's quotation magic, but if <code>to_expr</code> were a pure function only depending on its argument and the main goal as indicated in the documentation, I think this should not happen.<br>
+Documentation:</p>
+<div class="codehilite"><pre><span></span><code><span class="c">/-</span><span class="cm">- Elaborate the given quoted expression with respect to the current main goal.</span>
+<span class="cm">    If `allow_mvars` is tt, then metavariables are tolerated and become new goals if `subgoals` is tt. -/</span>
+<span class="n">meta</span> <span class="kn">constant</span> <span class="n">to_expr</span> <span class="o">(</span><span class="n">q</span> <span class="o">:</span> <span class="n">pexpr</span><span class="o">)</span> <span class="o">(</span><span class="n">allow_mvars</span> <span class="o">:=</span> <span class="n">tt</span><span class="o">)</span> <span class="o">(</span><span class="n">subgoals</span> <span class="o">:=</span> <span class="n">tt</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">expr</span>
+</code></pre></div>
+
+
+
+<a name="196758227"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196758227" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196758227">(May 07 2020 at 11:38)</a>:</h4>
+<p>Even if the error points at the first expression, it is most likely raised when elaborating the second expression (after the first one was inserted into it)</p>
+
+
+
+<a name="196758388"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196758388" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196758388">(May 07 2020 at 11:40)</a>:</h4>
+<p>You might have hit an edge case of inserting <code>expr</code>s into <code>pexpr</code>s. The robust solution is to try and avoiding doing that.</p>
+
+
+
+<a name="196759422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196759422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196759422">(May 07 2020 at 11:52)</a>:</h4>
+<p>Thank you. Yes, I can also build the term manually without help by the elaborator.<br>
+But I thought inserting <code>expr</code>s into <code>pexpr</code>s was the way to go?<br>
+In the Tactic Paper it says: "What makes pre-expressions especially useful is that they can contain antiquotations, namely, values of type expr that should be inserted when a metaprogram is executed." (p. 8)</p>
+
+
+
+<a name="196759486"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196759486" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196759486">(May 07 2020 at 11:53)</a>:</h4>
+<p>I mean "A Metaprgramming Framework for Formal Verification" by Tactic paper</p>
+
+
+
+<a name="196759932"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196759932" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196759932">(May 07 2020 at 11:59)</a>:</h4>
+<p>at least <code>to_expr</code> and a certain <code>pexpr</code>was used there as well</p>
+
+
+
+<a name="196760119"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760119" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760119">(May 07 2020 at 12:01)</a>:</h4>
+<p>Antiquoting atomic <code>expr</code>s as in the paper example is definitely safe. It could be that specifically using them in function call position is problematic, since elaboration of applications is pretty involved. Using them as arguments should be fine.</p>
+
+
+
+<a name="196760215"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760215" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760215">(May 07 2020 at 12:02)</a>:</h4>
+<p><code>pexpr.subst</code>however seems to have disappeared</p>
+
+
+
+<a name="196760241"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760241" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760241">(May 07 2020 at 12:02)</a>:</h4>
+<p>The C++ Lean code embeds terms into preterms only in a few specific cases, so any usages not covered by that might be brittle</p>
+
+
+
+<a name="196760293"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760293" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760293">(May 07 2020 at 12:03)</a>:</h4>
+<p>yes, all variants without the antiquotation in function position i could think of worked</p>
+
+
+
+<a name="196760295"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760295" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760295">(May 07 2020 at 12:03)</a>:</h4>
+<p>I think it has been generalized to <code>expr.subst</code></p>
+
+
+
+<a name="196760304"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760304" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760304">(May 07 2020 at 12:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="210057">Fabian Glöckle</span> <a href="#narrow/stream/113488-general/topic/to_expr.20mystery/near/196760215" title="#narrow/stream/113488-general/topic/to_expr.20mystery/near/196760215">said</a>:</p>
+<blockquote>
+<p><code>pexpr.subst</code>however seems to have disappeared</p>
+</blockquote>
+<p>It's now called <code>expr.subst</code>.</p>
+
+
+
+<a name="196760350"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760350" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760350">(May 07 2020 at 12:03)</a>:</h4>
+<p>ah, thanks</p>
+
+
+
+<a name="196760506"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760506" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760506">(May 07 2020 at 12:05)</a>:</h4>
+<p>Okay, let's leave it there, no antiquotations of expr in pexpr in function position. Thanks you two!</p>
+
+
+
+<a name="196760633"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760633" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760633">(May 07 2020 at 12:07)</a>:</h4>
+<p>Lean 4 doesn't support embedding terms (<code>Expr</code>) into preterms (<code>Syntax</code>) since it doesn't need that anymore itself, so it will be interesting to see how that influences tactic writing. It's of course possible to implement such an embedding manually, just not in constant time.</p>
+
+
+
+<a name="196760832"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/113488-general/topic/to_expr%20mystery/near/196760832" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Fabian Glöckle <a href="https://leanprover-community.github.io/archive/stream/113488-general/topic/to_expr.20mystery.html#196760832">(May 07 2020 at 12:09)</a>:</h4>
+<p>I think in tactic writing, <code>pexpr</code>s are mainly used to access the power of the elaborator and skip implicit arguments when building terms. If Lean 4 has another mechanism for that, it will work just as well</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

@@ -1,0 +1,81 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html">Integrating with reference counting in C++</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="241923934"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241923934" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241923934">(Jun 08 2021 at 14:01)</a>:</h4>
+<p>I have a slightly vague question: I'm trying to build a foreign function interface for a substantial C++ library based on the example here: <a href="https://github.com/leanprover/lean4/tree/master/tests/compiler/foreign">https://github.com/leanprover/lean4/tree/master/tests/compiler/foreign</a> and the lean-llvm project that I've found. The C++ library itself uses reference counting to keep track of allocated objects and ideally I would like to find a way to integrate that with the reference counting mechanism in Lean, is that something that is easily possible in the moment or would that require modifications to Lean itself?</p>
+
+
+
+<a name="241927872"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241927872" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241927872">(Jun 08 2021 at 14:27)</a>:</h4>
+<p><span class="user-mention" data-user-id="130511">@Christian Pehle</span> It's pretty straightforward.  There is not -- as far as I know -- a way to reuse the existing reference count, but <code>register_external_object_class</code>, <code>alloc_external</code> and <code>external_class</code>/<code>external_data</code> should provide you with the functionality you need.<br>
+Folks at Galois wrote <a href="https://github.com/GaloisInc/lean-llvm/blob/master/src/llvm_exports.cpp#L84-L121">Lean 4 LLVM bindings</a> that use these classes if you want example code.</p>
+
+
+
+<a name="241953185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241953185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241953185">(Jun 08 2021 at 17:08)</a>:</h4>
+<p>Yes, I've seen these examples (also the Galois ones). I have now some initial code that seems to work. Is the annotation @&amp; documented somewhere? What I understood from reading the source code is that on the C side this requires a b_lean_obj_arg as opposed to a lean_object. I get a segmentation fault if I invoke two different functions on the same object, but not if I invoke either one of them, I suspect this is because I'm misunderstanding the semantics.</p>
+
+
+
+<a name="241957908"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241957908" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241957908">(Jun 08 2021 at 17:38)</a>:</h4>
+<p>If I am not mistaken <code>@&amp;</code> parameter means 'pass-by-reference' instead of  'pass-by-value'. That is, when an object to a non -<code>@&amp;</code> parameter  is a copy owned by the function and thus it should free it (decrement its reference counter) when it is done with it. I <code>@&amp;</code> is instead owned by the caller and thus the callee should not free it (unless it makes a new copy of the object by increment its reference counter).</p>
+
+
+
+<a name="241963389"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241963389" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241963389">(Jun 08 2021 at 18:18)</a>:</h4>
+<p><span class="user-mention" data-user-id="130511">@Christian Pehle</span> If I recall correctly, <code>@&amp;</code> are used for "borrowed references".  The semantics are described in <a href="https://arxiv.org/abs/1908.05647">this paper</a>.  Essentially, the caller does not increment the reference count when passing it into the function, so if you store the object anywhere, you need to increment the reference count</p>
+
+
+
+<a name="241965596"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241965596" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241965596">(Jun 08 2021 at 18:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="110994">@Joe Hendrix</span>, <span class="user-mention" data-user-id="315577">@Mac</span>  thanks, I've also found <a href="https://github.com/leanprover/lean4/blob/995136d46b7dc42c6175ef7f62d9e0e501e1eaf5/src/include/lean/lean.h#L128-L158">https://github.com/leanprover/lean4/blob/995136d46b7dc42c6175ef7f62d9e0e501e1eaf5/src/include/lean/lean.h#L128-L158</a>, I still haven't quite wrapped my head around how this interacts with the reference counting of the C++ library. I guess @$ basically controls whether or when? the finalise function is called.</p>
+
+
+
+<a name="241981891"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/241981891" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#241981891">(Jun 08 2021 at 20:33)</a>:</h4>
+<p><code>external_object</code> will keep the memory management separate, so you will have one Lean and one C++ reference counter. You store ownership of the C++ value in the external_object and release it in finalise, it really doesn't matter if that is a unique or shared C++ pointer or other resource.</p>
+
+
+
+<a name="242043882"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/242043882" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#242043882">(Jun 09 2021 at 10:25)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B/near/241981891">said</a>:</p>
+<blockquote>
+<p><code>external_object</code> will keep the memory management separate, so you will have one Lean and one C++ reference counter. You store ownership of the C++ value in the external_object and release it in finalise, it really doesn't matter if that is a unique or shared C++ pointer or other resource.</p>
+</blockquote>
+<p>Just to clarify finalise is called when the Lean reference count goes to zero? I think I've figured out a way to keep the C++ invariants intact, by basically constructing/deconstructing an intrusive ptr, my initial motivation was to somehow shift / merge the reference counting work entirely with the one done by Lean, since you seem to be doing some intelligent tracking / elimination of reference count operations.</p>
+
+
+
+<a name="242108530"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Integrating%20with%20reference%20counting%20in%20C%2B%2B/near/242108530" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Joe Hendrix <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Integrating.20with.20reference.20counting.20in.20C.2B.2B.html#242108530">(Jun 09 2021 at 18:21)</a>:</h4>
+<p>Yes, finalize is called when the Lean external object goes to zero.</p>
+<p>The approach I've taken with objects having a reference count is just to treat the Lean object as holding a single reference to the external reference regardless of how many Lean references there are to the Lean object.<br>
+This should typically be ok unless the external object is inspecting it's own reference count and doing destructive updates when it thinks it's reference count is one.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

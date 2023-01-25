@@ -1,0 +1,207 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/simp.20guard.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html">simp guard</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="308019220"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308019220" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308019220">(Nov 04 2022 at 18:07)</a>:</h4>
+<p>I have a simplifier theorem that applies to itself, which is bad, but it happens only if one of the arguments is inferred to be identity function.</p>
+<p>I would like to write a simp guard that prevents application of a theorem if one of the arguments is particular expression. I think I know how to do this, I'm more asking if this is a good idea or not?</p>
+<hr>
+<p>Particular example - differentiation of function composition:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">variable</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">γ</span> <span class="n">δ</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">D</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="o">:=</span> <span class="gr">sorry</span>
+
+<span class="kd">theorem</span> <span class="n">D_comp</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+  <span class="o">:</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">))</span> <span class="bp">=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=&gt;</span> <span class="n">D</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">D</span> <span class="n">g</span> <span class="n">x</span> <span class="n">dx</span><span class="o">)</span> <span class="o">:=</span> <span class="gr">sorry</span>
+</code></pre></div>
+<p>The <code>D</code> function is differential function, taking a function and returning its differential. The problem with <code>D_comp</code> is that if <code>f</code> has an additional argument then simplifier fails to use this theorem.</p>
+<p>Therefore I have an additional theorem:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">D_comp_parm</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">δ</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">δ</span><span class="o">)</span>
+  <span class="o">:</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="n">d</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=&gt;</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">D</span> <span class="n">g</span> <span class="n">x</span> <span class="n">dx</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">simp</span> <span class="o">[</span><span class="n">D_comp</span><span class="o">]</span> <span class="c1">-- fails to unify</span>
+  <span class="n">apply</span> <span class="n">D_comp</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="n">g</span> <span class="c1">-- we have to specify `f` explicitly</span>
+</code></pre></div>
+<p>However, this theorem has a problem as it applies to itself.</p>
+<p>This demonstrates the behavior:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">δ</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">δ</span><span class="o">)</span>
+  <span class="o">:</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="n">d</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=&gt;</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">D</span> <span class="n">g</span> <span class="n">x</span> <span class="n">dx</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="c1">-- simp [D_comp_parm] -- timeout as D_comp_parm applies to itself</span>
+
+  <span class="c1">-- Fails to solve the goal as it applies the theorem to rhs too with `g = id`</span>
+  <span class="c1">-- This behavior is undesirable</span>
+  <span class="n">simp</span> <span class="o">(</span><span class="n">config</span> <span class="o">:=</span> <span class="o">{</span><span class="n">singlePass</span> <span class="o">:=</span> <span class="n">true</span><span class="o">})</span> <span class="n">only</span> <span class="o">[</span><span class="n">D_comp_parm</span><span class="o">]</span>
+
+  <span class="c1">-- force the application of the theorem only to the lhs</span>
+  <span class="n">conv</span> <span class="bp">=&gt;</span>
+    <span class="n">lhs</span>
+    <span class="n">simp</span> <span class="o">(</span><span class="n">config</span> <span class="o">:=</span> <span class="o">{</span><span class="n">singlePass</span> <span class="o">:=</span> <span class="n">true</span><span class="o">})</span> <span class="n">only</span> <span class="o">[</span><span class="n">D_comp_parm</span><span class="o">]</span>
+
+  <span class="n">done</span>
+</code></pre></div>
+<p>My idea is to create a new attribute <code>simp_guard</code> that would be used as:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp, simp_guard g id]</span>
+<span class="kd">theorem</span> <span class="n">D_comp_parm</span>
+   <span class="bp">...</span>
+</code></pre></div>
+<p>which would prevent applying this theorem if <code>g</code> unifies to <code>id</code>.</p>
+<hr>
+<p>How to implement this? </p>
+<p>I believe this can be done in <a href="https://github.com/leanprover/lean4/blob/999b61007cbae0cad15172fcad5cffba43c13488/src/Lean/Meta/Tactic/Simp/Rewrite.lean#L22"><code>synthesizeArgs</code></a> function. Using the <code>thmId : Origin</code> I can get the theorem's declaration name thus I should be able to check if the theorem has the <code>simp_guard</code> attribute and do the appropriate checks.</p>
+<p>So the question is: Is this a good idea? Would anyone else use this? Is there a better way to achieve similar behavior?</p>
+
+
+
+<a name="308027188"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308027188" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308027188">(Nov 04 2022 at 18:43)</a>:</h4>
+<p>Is there a simp-normal form for <code>D</code> applications? Maybe this is somewhere that a dedicated tactic for reducing <code>D</code> applications would be better?</p>
+
+
+
+<a name="308036976"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308036976" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308036976">(Nov 04 2022 at 19:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="407274">James Gallicchio</span> <a href="#narrow/stream/270676-lean4/topic/simp.20guard/near/308027188">said</a>:</p>
+<blockquote>
+<p>Is there a simp-normal form for <code>D</code> applications?</p>
+</blockquote>
+<p>What does "simp-normal form" exactly mean? I have only a vague idea and thus not sure how to answer this.</p>
+<p><span class="user-mention silent" data-user-id="407274">James Gallicchio</span> <a href="#narrow/stream/270676-lean4/topic/simp.20guard/near/308027188">said</a>:</p>
+<blockquote>
+<p>Maybe this is somewhere that a dedicated tactic for reducing <code>D</code> applications would be better?</p>
+</blockquote>
+<p>Yes I will slowly build a custom tactic for it but at its core it is has to behave a lot like the simplifier. Instead of reimplementing simplifier myself I want to slowly modify the existing one into tactic I want.</p>
+
+
+
+<a name="308041332"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308041332" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308041332">(Nov 04 2022 at 20:14)</a>:</h4>
+<p>Sometimes there is more than one way to coerce a term into another term. For example if a term f of some complicated type (like a ring homomorphism) can be coerced to a function, then you might find that <code>f.1</code>, <code>f.to_fun</code>, and <code>⇑f</code> are all ways of making that coercion. If we had lemmas in mathlib about all three of those ways it would be horrible, so we typically choose one of them to be the "<code>simp</code> normal form" (for example let's choose <code>⇑f</code>) and then we might write <code>simp</code> lemmas of the form <code>f.1 = ⇑f</code> and <code>f.to_fun = ⇑f</code>, so that the simplifier is always pushing towards the form we chose, and then (for example if f is a ring homomorphism) lemmas like <code>⇑f (a + b) = ⇑f a + ⇑f b</code> will be found by <code>simp</code> even if for whatever reason your goal ended up having <code>f.1 (a + b)</code> in. That's my understanding of <code>simp</code> normal form anyway. Is it in the glossary? I never remember how this works. <a href="https://leanprover-community.github.io/glossary.html#simp_normal_form">glossary#simp_normal_form</a> ?</p>
+
+
+
+<a name="308041436"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308041436" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308041436">(Nov 04 2022 at 20:15)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/glossary.html#simp-normal-form">glossary#simp-normal-form</a> apparently (although it's mostly a broken link :-/ )</p>
+
+
+
+<a name="308042859"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308042859" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308042859">(Nov 04 2022 at 20:24)</a>:</h4>
+<p>Makes sense, remember seeing stuff like this in mathlib.</p>
+<p>However, I still unsure what would that mean for <code>D</code> as it involves functions and you can create whatever shenanigans with lambdas.</p>
+
+
+
+<a name="308043474"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308043474" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308043474">(Nov 04 2022 at 20:28)</a>:</h4>
+<p>Is it possible to avoid this entirely by just flipping function argument order as needed?</p>
+
+
+
+<a name="308043580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308043580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308043580">(Nov 04 2022 at 20:29)</a>:</h4>
+<p>(Maybe you could even quite literally have a simp lemma do that flipping, and consider the expression simp-normalized only if it's eta reduced or something)</p>
+
+
+
+<a name="308044918"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308044918" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308044918">(Nov 04 2022 at 20:37)</a>:</h4>
+<p>I do not know how to write such lemma.</p>
+
+
+
+<a name="308045532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308045532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308045532">(Nov 04 2022 at 20:41)</a>:</h4>
+<p>Maybe something like this?</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">swap</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">x</span>
+<span class="kd">@[simp]</span>
+<span class="kd">theorem</span> <span class="n">D_norm_parm</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">δ</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">δ</span><span class="o">)</span> <span class="o">:</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="bp">=</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">swap</span> <span class="n">f</span> <span class="n">d</span> <span class="n">y</span><span class="o">)</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rfl</span>
+</code></pre></div>
+<p>But then <code>(D fun x =&gt; f (g x) d)</code> simplifies to <code>(D fun y =&gt; swap (fun y =&gt; f (g y)) d y)</code> and how do you deal with that?</p>
+
+
+
+<a name="308045765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308045765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308045765">(Nov 04 2022 at 20:43)</a>:</h4>
+<p>Do you have some examples of <code>f</code>?</p>
+
+
+
+<a name="308046101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308046101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308046101">(Nov 04 2022 at 20:45)</a>:</h4>
+<p>I don't know, it can be whatever for example <code>arctan2</code></p>
+
+
+
+<a name="308046137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308046137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308046137">(Nov 04 2022 at 20:45)</a>:</h4>
+<p>It can also be <code>Function.comp</code></p>
+
+
+
+<a name="308063156"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308063156" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> James Gallicchio <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308063156">(Nov 04 2022 at 22:47)</a>:</h4>
+<p>and the idea with like arctan2 is you want to be differentiating by the first arg instead of the second and then you have the <code>D fun x =&gt; arctan (g x) y</code>?</p>
+
+
+
+<a name="308092613"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308092613" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308092613">(Nov 05 2022 at 05:27)</a>:</h4>
+<p>exactly</p>
+
+
+
+<a name="308443709"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308443709" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308443709">(Nov 07 2022 at 18:03)</a>:</h4>
+<p>If anyone is interested, I have managed to get the simplified guard working.</p>
+<p>So you can now write a theorem like this:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[simp_guard g (λ (x : α) =&gt; x)]</span>
+<span class="kd">theorem</span> <span class="n">D_comp_parm</span> <span class="o">{</span><span class="n">α</span> <span class="n">β</span> <span class="n">γ</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span>
+  <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">β</span> <span class="bp">→</span> <span class="n">δ</span> <span class="bp">→</span> <span class="n">γ</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span> <span class="o">(</span><span class="n">d</span> <span class="o">:</span> <span class="n">δ</span><span class="o">)</span>
+  <span class="o">:</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">x</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="n">d</span><span class="o">)</span> <span class="bp">=</span> <span class="bp">λ</span> <span class="n">x</span> <span class="n">dx</span> <span class="bp">=&gt;</span> <span class="n">D</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="o">(</span><span class="n">g</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">D</span> <span class="n">g</span> <span class="n">x</span> <span class="n">dx</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">by</span>
+  <span class="n">apply</span> <span class="n">D_comp</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span> <span class="bp">=&gt;</span> <span class="n">f</span> <span class="n">y</span> <span class="n">d</span><span class="o">)</span> <span class="n">g</span>
+</code></pre></div>
+<p>where the <code>@[simp_guard g (λ (x : α) =&gt; x)]</code> says:</p>
+<blockquote>
+<p>If the theorem is used as simp theorem and <code>g</code> unifies to <code>λ (x : α) =&gt; x</code> then do not apply the theorem</p>
+</blockquote>
+<p>Code pointers: <br>
+definition of <code>simp_guard</code></p>
+
+
+
+<a name="308444860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308444860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308444860">(Nov 07 2022 at 18:11)</a>:</h4>
+<p>The only unfortunate thing is that lsp is having trouble with <code>α</code> in <code>@[simp_guard g (λ (x : α) =&gt; x)]</code>. Asking for "Go to definition" on <code>α</code> gives an error <code>LSP :: Not found for: α</code></p>
+
+
+
+<a name="308444983"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/simp%20guard/near/308444983" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/simp.20guard.html#308444983">(Nov 07 2022 at 18:11)</a>:</h4>
+<p>And I'm a bit unsure how to handle metavaribles, one appears if you write the simp guard as <code>@[simp_guard g (λ x =&gt; x)]</code></p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

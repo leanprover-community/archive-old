@@ -1,0 +1,632 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/C.20FFI.20export.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html">C FFI export</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="290645376"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645376" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645376">(Jul 24 2022 at 02:09)</a>:</h4>
+<p>Hello! I am implementing an LCF-style kernel for a proof checker, and came up with what I think is a somewhat interesting design:</p>
+<ul>
+<li>Implement the kernel in Lean 4, and prove soundness and other fun properties</li>
+<li>Export the syntax tree and validated constructors via C FFI; this entire API is simply typed so should be easy to use safely</li>
+<li>Wrap the C FFI in a nice clean Rust API, and publish the result as a Rust library; the rest of the prover will then use the kernel via the Rust API, which we know to be bug free due to the Lean formalization</li>
+</ul>
+<p>Unfortunately, I have no idea how I would go about exposing the necessary functions and/or data types (may actually want the term/derivation data structures to be opaque, owned by Lean and only accessed via exposed API functions) to C. Is there a way, in particular, to say take a function <code>myFunc: Term -&gt; Term</code> and expose it to C?</p>
+
+
+
+<a name="290645579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645579">(Jul 24 2022 at 02:14)</a>:</h4>
+<p>I'm guessing I need to use <code>@[export]</code> from <a href="https://leanprover.github.io/lean4/doc/dev/ffi.html">https://leanprover.github.io/lean4/doc/dev/ffi.html</a>, but I'm a bit confused with how to package/link things nicely with Rust</p>
+
+
+
+<a name="290645613"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645613" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645613">(Jul 24 2022 at 02:15)</a>:</h4>
+<p>You can tag a definition <code>@[export your_c_name]</code> to give it said symbol name in the compiled object.</p>
+
+
+
+<a name="290645621"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645621" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645621">(Jul 24 2022 at 02:15)</a>:</h4>
+<p>Oops beat me to it.</p>
+
+
+
+<a name="290645763"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645763" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645763">(Jul 24 2022 at 02:19)</a>:</h4>
+<p>When you build a Lean package you get object files (and can build a static library for library via <code>lake build Lib:static</code>). Just link the built static library / object file of the module containing the <code>@[export]</code> symbol with your Rust code to make the symbol available. Then, in Rust, declare it as you would any other foreign language symbol.</p>
+
+
+
+<a name="290645853"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290645853" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290645853">(Jul 24 2022 at 02:20)</a>:</h4>
+<p>e.g., via <code>extern { fn your_c_name ... }</code></p>
+
+
+
+<a name="290646468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290646468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290646468">(Jul 24 2022 at 02:33)</a>:</h4>
+<p>You will also likely to create an opaque type corresponding to Lean's <code>lean_object</code> type via e.g. :</p>
+<div class="codehilite" data-code-language="Rust"><pre><span></span><code><span class="cp">#[repr(C)]</span><span class="w"> </span><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">LeanObject</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_private</span>: <span class="p">[</span><span class="kt">u8</span><span class="p">;</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Then you can do:</p>
+<div class="codehilite" data-code-language="Rust"><pre><span></span><code><span class="k">extern</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w"> </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">my_func</span><span class="p">(</span><span class="n">term</span>: <span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">LeanObject</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">LeanObject</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>To reference your Lean function defined like so:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">@[export my_func]</span> <span class="kd">def</span> <span class="n">myFunc</span><span class="o">:</span> <span class="n">Term</span> <span class="bp">-&gt;</span> <span class="n">Term</span>
+</code></pre></div>
+<p><strong>Note:</strong> I do not know much Rust, but I believe this is how it works on that side.</p>
+
+
+
+<a name="290691874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290691874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290691874">(Jul 24 2022 at 17:46)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> sounds good! I was thinking of actually making a separate crate for re-usable Lean-Rust bindings too (basically, wrapping up lean.h in Rust), as that doesn't seem to exist yet and I'll have to write them anyways.</p>
+
+
+
+<a name="290691880"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290691880" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290691880">(Jul 24 2022 at 17:46)</a>:</h4>
+<p>Any name suggestions?</p>
+
+
+
+<a name="290704093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290704093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290704093">(Jul 24 2022 at 22:50)</a>:</h4>
+<p>Also question: what's the thread safety of the functions in <code>lean.h</code>?</p>
+
+
+
+<a name="290704101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290704101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290704101">(Jul 24 2022 at 22:50)</a>:</h4>
+<p>Are all the compiled functions in a Lean program thread safe?</p>
+
+
+
+<a name="290706208"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290706208" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290706208">(Jul 24 2022 at 23:45)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461231">Jad Ghalayini</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/290704101">said</a>:</p>
+<blockquote>
+<p>Are all the compiled functions in a Lean program thread safe?</p>
+</blockquote>
+<p>No and yes. Lots of the Lean code itself is not thread safe. However, the basic representations used to build functions (e.g., the allocator) are. That is, if a user makes sure to write thread safe code (e.g., parallel Tasks don't perform IO actions that can deadlock -- like waiting on each other), the under the hood parts of Lean (like memory management, etc.) are generally thread safe. One noteworthy exception I know of at the moment is <a href="https://github.com/leanprover/lean4/issues/1282">#1282</a> -- <code>IO.Process.spawn</code> with different environments is not thread safe.</p>
+
+
+
+<a name="290710854"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290710854" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290710854">(Jul 25 2022 at 01:46)</a>:</h4>
+<p>Wait, what do you mean by thread safe? Because deadlocking is thread safe, just bad. I meant undefined behavior</p>
+
+
+
+<a name="290716805"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290716805" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290716805">(Jul 25 2022 at 03:49)</a>:</h4>
+<p>I would generally not consider deadlocking to be thread safe (though, looking further, whether or not thread safe includes or excludes deadlocks seems debatable). However, to clarify, there are many functions in the Lean core which will can break if multiple threads run them simultanously (like my <code>IO.Proccess.spawn</code> example above). One import example is setting up an Lean environment, which is very much not thread safe (as <a href="https://github.com/leanprover/lean4/blob/a62949c49b4f631624fe33315f04b738f0cce349/src/Lean/ImportingFlag.lean#L35-L45">this comment highlights</a>).</p>
+
+
+
+<a name="290767330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290767330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290767330">(Jul 25 2022 at 14:40)</a>:</h4>
+<blockquote>
+<p>However, to clarify, there are many functions in the Lean core which will can break if multiple threads run them simultanously</p>
+</blockquote>
+<p>Just to clarify, the only thing that's definitely not expected to be thread-safe is setting up an environment for imported modules.  But you're not supposed to do that more than once in a single process anyhow (since it modifies global variables).</p>
+<p>Accessing <code>IO.Ref</code>s from multiple threads is merely a bad idea, but not really unsafe.  Just be aware that <code>IO.Ref</code> uses busy-waiting if another thread calls <code>modify</code>, so keep those modify functions short.  If you're only using <code>get</code> and <code>set</code>, they're just atomic references.</p>
+<p>The process spawning issue is a bug.  Feel free to submit a fix, you're one of the few people here with a windows machine.</p>
+
+
+
+<a name="290769670"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290769670" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290769670">(Jul 25 2022 at 14:56)</a>:</h4>
+<p>Coming back to <code>lean.h</code>, the short answer is that all functions should be thread-safe as long as you give them Lean objects marked as multi-threaded (<code>lean_mark_mt</code>).</p>
+
+
+
+<a name="290783608"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290783608" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290783608">(Jul 25 2022 at 16:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I guess when I was daying unsafe I meant precisely the Rust semantics of the word, since I want to wrtie a Rust wrapper</p>
+
+
+
+<a name="290783635"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290783635" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290783635">(Jul 25 2022 at 16:22)</a>:</h4>
+<p>And in Rust deadlock is safe haha</p>
+
+
+
+<a name="290783837"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290783837" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290783837">(Jul 25 2022 at 16:24)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> I'm about 70% of the way through translating <code>lean.h</code> to Rust, and on the way I came across some interesting design decisions</p>
+
+
+
+<a name="290783905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290783905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290783905">(Jul 25 2022 at 16:24)</a>:</h4>
+<p>I also found that a lot of things that were not implemeneted with atomics should have been relaxed reads afaict</p>
+
+
+
+<a name="290783923"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290783923" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290783923">(Jul 25 2022 at 16:25)</a>:</h4>
+<p>You know who I can ask about this?</p>
+
+
+
+<a name="290784048"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290784048" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290784048">(Jul 25 2022 at 16:25)</a>:</h4>
+<p>You can ask this stream :)</p>
+
+
+
+<a name="290824992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290824992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290824992">(Jul 25 2022 at 22:06)</a>:</h4>
+<p>Is there plan for proper FFI support (feature parity with libffi)?</p>
+
+
+
+<a name="290842164"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842164" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842164">(Jul 26 2022 at 02:17)</a>:</h4>
+<p><span class="user-mention" data-user-id="515610">@Locria Cyber</span> could you elaborate?</p>
+
+
+
+<a name="290842657"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842657" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842657">(Jul 26 2022 at 02:26)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/290784048">said</a>:</p>
+<blockquote>
+<p>You can ask this stream :)</p>
+</blockquote>
+<p>Well, for one, all the reference count operations on the hot path, e.g. checking if something is single-threaded, do not use relaxed atomics, but rather just directly test for equality. I recognize I'm being a typical pedantic Rust stickler but aren't potentially racy accesses like that UB?</p>
+
+
+
+<a name="290842669"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842669" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842669">(Jul 26 2022 at 02:26)</a>:</h4>
+<p>In my Rust wrapper anyways I used relaxed atomic loads for the checks; I still don't understand why we even need a separate single-threaded case at all though</p>
+
+
+
+<a name="290842761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842761">(Jul 26 2022 at 02:28)</a>:</h4>
+<p>In particular, the array-tricks used with mutation of arrays having only one reference can be implemented in a multi-threaded context with only a bit (1 atomic operation) of overhead; this would then avoid having to ever mark things multi-threaded while probably giving comparable performance</p>
+
+
+
+<a name="290842767"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842767" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842767">(Jul 26 2022 at 02:28)</a>:</h4>
+<p>Has benchmarking shown this is inadequate?</p>
+
+
+
+<a name="290842784"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290842784" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290842784">(Jul 26 2022 at 02:28)</a>:</h4>
+<p>Or is there other functionality that depends on the ST/MT distinction?</p>
+
+
+
+<a name="290855072"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290855072" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290855072">(Jul 26 2022 at 06:49)</a>:</h4>
+<p>The prime motivation of the MT bit is making single-threaded RC ops fast, see Section 7.2 of <a href="https://arxiv.org/pdf/1908.05647.pdf">https://arxiv.org/pdf/1908.05647.pdf</a></p>
+
+
+
+<a name="290855134"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290855134" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290855134">(Jul 26 2022 at 06:50)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="515610">Locria Cyber</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/290824992">said</a>:</p>
+<blockquote>
+<p>Is there plan for proper FFI support (feature parity with libffi)?</p>
+</blockquote>
+<p>No plans, only a wish</p>
+
+
+
+<a name="290856254"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290856254" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290856254">(Jul 26 2022 at 07:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> that's very interesting; I'm pleasantly surprised it's actually faster. One thing I noticed however is that multithreaded values are never recognized as unique; I think it should be relatively simple to add support for this though, but not sure if any problems would come up in practice.</p>
+
+
+
+<a name="290938639"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290938639" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290938639">(Jul 26 2022 at 18:44)</a>:</h4>
+<p>I tried to bind libffi with lean. It seem feasible. I may need help on <code>lean_object*</code>.</p>
+
+
+
+<a name="290938842"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290938842" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290938842">(Jul 26 2022 at 18:46)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461231">Jad Ghalayini</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/290783837">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> I'm about 70% of the way through translating <code>lean.h</code> to Rust, and on the way I came across some interesting design decisions</p>
+</blockquote>
+<p>I probably should use Rust to bind libffi. What do you think?</p>
+
+
+
+<a name="290939058"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290939058" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290939058">(Jul 26 2022 at 18:48)</a>:</h4>
+<p><span class="user-mention" data-user-id="461231">@Jad Ghalayini</span>  I'd like see a link to that source code (Rust interface).</p>
+
+
+
+<a name="290980641"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290980641" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290980641">(Jul 27 2022 at 02:34)</a>:</h4>
+<p>It's on <a href="http://crates.io">crates.io</a>!</p>
+
+
+
+<a name="290980646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290980646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290980646">(Jul 27 2022 at 02:34)</a>:</h4>
+<p>lean-sys</p>
+
+
+
+<a name="290980654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290980654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290980654">(Jul 27 2022 at 02:34)</a>:</h4>
+<p>Just a translation of lean.h to Rust</p>
+
+
+
+<a name="290980702"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/290980702" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#290980702">(Jul 27 2022 at 02:35)</a>:</h4>
+<p><span class="user-mention" data-user-id="515610">@Locria Cyber</span> would be happy to try to extend it to add libffi support</p>
+
+
+
+<a name="291114223"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291114223" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tom <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291114223">(Jul 27 2022 at 21:41)</a>:</h4>
+<p><span class="user-mention" data-user-id="461231">@Jad Ghalayini</span> What do you mean by </p>
+<blockquote>
+<p>Well, for one, all the reference count operations on the hot path, e.g. checking if something is single-threaded, do not use relaxed atomics, but rather just directly test for equality. I recognize I'm being a typical pedantic Rust stickler but aren't potentially racy accesses like that UB?</p>
+</blockquote>
+<p>C++ has a fairly-well defined memory model and if not explicitly specified (e.g. as a relaxed read) the default behavior is to fall back to sequential consistency (which is obviously stronger), so I assume I'm misunderstanding your statement.  How would the access be racy/lead to UB?  Could you please point me at an example C++ file?</p>
+<p>As for the hot path comment, what arch are you running on?  Seems most of time marking reads as relaxed hardly matters unless you're on some more exotic arch which doesn't implement MESI.</p>
+
+
+
+<a name="291133258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291133258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291133258">(Jul 28 2022 at 02:20)</a>:</h4>
+<p><span class="user-mention" data-user-id="515083">@Tom</span> yes, a relaxed read to an atomic variable defaults to sequential consistency; but the reference count used is <em>not</em> marked atomic. It's just an i32</p>
+
+
+
+<a name="291133267"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291133267" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291133267">(Jul 28 2022 at 02:20)</a>:</h4>
+<p>Also this is in lean.h so it's actually being called from C code, but the memory models don't disagree here</p>
+
+
+
+<a name="291156749"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291156749" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291156749">(Jul 28 2022 at 08:56)</a>:</h4>
+<p>Well, this is the core of a language runtime. So rules around UB might get a little... relaxed at times. Effectively, if it's impossible for the compiler or any reasonable hardware implementation to screw up, we might just have to live with it.</p>
+
+
+
+<a name="291156989"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291156989" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291156989">(Jul 28 2022 at 08:59)</a>:</h4>
+<p>Here the basic proposition not supported by the C/C++ memory models is that a nonatomic write (no larger than the word size, in particular) to a location where the old and new value agree on a particular bit cannot be observed concurrently to change that bit.</p>
+
+
+
+<a name="291170781"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291170781" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291170781">(Jul 28 2022 at 11:47)</a>:</h4>
+<p>I don't see why this can't be a relaxed atomic write. It should yield the same assembly</p>
+
+
+
+<a name="291171035"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291171035" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291171035">(Jul 28 2022 at 11:50)</a>:</h4>
+<p>Your basic proposition is certainly not valid in the C/C++ spec, so it can be miscompiled. Basically, the compiler can see a nonatomic write as evidence that it is the only writer to that location which makes it legal to insert other writes to that location, inline the results of reads and writes, and so on which is not what you want</p>
+
+
+
+<a name="291173427"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291173427" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291173427">(Jul 28 2022 at 12:11)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/291170781">said</a>:</p>
+<blockquote>
+<p>I don't see why this can't be a relaxed atomic write. It should yield the same assembly</p>
+</blockquote>
+<p>That's not true without further changes <a href="https://godbolt.org/z/fjK91aEYc">https://godbolt.org/z/fjK91aEYc</a></p>
+
+
+
+<a name="291184580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291184580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291184580">(Jul 28 2022 at 13:53)</a>:</h4>
+<p>Ah, I was assuming you didn't actually have data races, but this code is defending against exactly that. I assume <code>lean_is_st</code> means "is single-threaded"? So there isn't actually a race to change this <code>m_rc</code> variable because in multithreaded mode it's always 0?</p>
+
+
+
+<a name="291186002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291186002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291186002">(Jul 28 2022 at 14:03)</a>:</h4>
+<p>It's also a bit sketchy but this yields the equivalent assembly:</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="k">static</span><span class="w"> </span><span class="kr">inline</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="nf">lean_is_st2</span><span class="p">(</span><span class="n">lean_object2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">atomic_load_explicit</span><span class="p">(</span><span class="o">&amp;</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">m_rc</span><span class="p">,</span><span class="w"> </span><span class="n">memory_order_relaxed</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">lean_inc_ref2</span><span class="p">(</span><span class="n">lean_object2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lean_is_st2</span><span class="p">(</span><span class="n">o</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="o">&amp;</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">m_rc</span><span class="p">)</span><span class="o">++</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>In C++20 you can use <code>atomic_ref</code> to do non-atomic operations on atomic objects, but AFAIK this is the best you can do in C11</p>
+
+
+
+<a name="291186228"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291186228" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291186228">(Jul 28 2022 at 14:05)</a>:</h4>
+<p>in this particular case you can also just manually inline the function instead of relying on the compiler to do a sketchy optimization on your behalf</p>
+<div class="codehilite" data-code-language="C"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">lean_inc_ref2</span><span class="p">(</span><span class="n">lean_object2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">atomic_load_explicit</span><span class="p">(</span><span class="o">&amp;</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">m_rc</span><span class="p">,</span><span class="w"> </span><span class="n">memory_order_relaxed</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rc</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">atomic_store_explicit</span><span class="p">(</span><span class="o">&amp;</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">m_rc</span><span class="p">,</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">memory_order_relaxed</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+
+
+<a name="291202129"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291202129" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291202129">(Jul 28 2022 at 14:39)</a>:</h4>
+<p>Yeah, either of these would probably fine. It reminds me a bit of the non-transitivity of defeq issue - we know it's not optimal and there may even be a simple fix, but the practical impact is likely zero. So let's maybe wait a bit more.</p>
+
+
+
+<a name="291234426"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291234426" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291234426">(Jul 28 2022 at 18:41)</a>:</h4>
+<p>I was really surprised that nontransitivity of defeq doesn't ruin the party more often (or indeed ever, as far as I can see). We've now done a substantial bunch of mathematics in Lean and I don't ever recall it getting in the way (perhaps because we often care less about defeq than about good <code>simp</code> lemmas).</p>
+
+
+
+<a name="291244673"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291244673" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291244673">(Jul 28 2022 at 20:03)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/291202129">said</a>:</p>
+<blockquote>
+<p>Yeah, either of these would probably fine. It reminds me a bit of the non-transitivity of defeq issue - we know it's not optimal and there may even be a simple fix, but the practical impact is likely zero. So let's maybe wait a bit more.</p>
+</blockquote>
+<p>I couldn't agree more. I agree that impact is likely zero. We currently don't even have resources to review a PR with this kind of change that affects a critical part of the system.<br>
+It is great to see all the enthusiasm. BTW, I'd like to remind everybody that we have a list of "help wanted" issues, they are great for first-time contributors. <br>
+<a href="https://github.com/leanprover/lean4/labels/help%20wanted">https://github.com/leanprover/lean4/labels/help%20wanted</a></p>
+
+
+
+<a name="291281757"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291281757" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291281757">(Jul 29 2022 at 04:10)</a>:</h4>
+<p>Btw <span class="user-mention" data-user-id="110049">@Mario Carneiro</span> your code is basically what I put in my Rust lean-sys</p>
+
+
+
+<a name="291281761"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291281761" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291281761">(Jul 29 2022 at 04:10)</a>:</h4>
+<p>Whwt can I say I'm very pedantic about UB hahaha</p>
+
+
+
+<a name="291310556"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291310556" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291310556">(Jul 29 2022 at 11:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461231">Jad Ghalayini</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/290980702">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="515610">Locria Cyber</span> would be happy to try to extend it to add libffi support</p>
+</blockquote>
+<p>I mean to use lean-sys and bind ffi (Rust crate) with lean, so lean can use ffi.</p>
+
+
+
+<a name="291311106"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291311106" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291311106">(Jul 29 2022 at 11:46)</a>:</h4>
+<p>it's a pain that Lean doesn't expose Nat -&gt; C<br>
+all <code>nat_to_intxxxx</code> is modulo</p>
+
+
+
+<a name="291312395"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291312395" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291312395">(Jul 29 2022 at 12:02)</a>:</h4>
+<p>I found maybe a bug in <code>tests/compiler/foreign/myfuns.cpp</code></p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">lean_object</span> <span class="bp">*</span> <span class="n">lean_S_update_global</span><span class="o">(</span><span class="n">b_lean_obj_arg</span> <span class="n">s</span><span class="o">,</span> <span class="n">lean_object</span> <span class="bp">/*</span> <span class="n">w</span> <span class="bp">*/</span><span class="o">)</span>
+</code></pre></div>
+<p>world object is <code>lean_object*</code></p>
+
+
+
+<a name="291312456"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291312456" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291312456">(Jul 29 2022 at 12:03)</a>:</h4>
+<p>I think the world object is borrowed?</p>
+
+
+
+<a name="291312826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291312826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291312826">(Jul 29 2022 at 12:07)</a>:</h4>
+<p>It's just the tagged pointer <code>0x1</code>, so it's neither really. But that signature is incorrect, right.</p>
+
+
+
+<a name="291313046"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291313046" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291313046">(Jul 29 2022 at 12:10)</a>:</h4>
+<p>also, Int64 isn't generated as int64_t in C</p>
+
+
+
+<a name="291313453"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291313453" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291313453">(Jul 29 2022 at 12:15)</a>:</h4>
+<p>There is no Int64 in the stdlib?</p>
+
+
+
+<a name="291313749"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291313749" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291313749">(Jul 29 2022 at 12:18)</a>:</h4>
+<p>I mean FFI. It is generated as <code>lean_object *</code> with <code>@[extern "xxx"]</code></p>
+
+
+
+<a name="291313986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291313986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291313986">(Jul 29 2022 at 12:21)</a>:</h4>
+<p>How do I use static library with lake?</p>
+
+
+
+<a name="291313997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291313997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291313997">(Jul 29 2022 at 12:21)</a>:</h4>
+<p>The Lake's readme is vague</p>
+
+
+
+<a name="291327665"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291327665" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291327665">(Jul 29 2022 at 13:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="461231">@Jad Ghalayini</span> <br>
+Your <code>lean_alloc_ctor</code> leaks memory</p>
+
+
+
+<a name="291328687"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291328687" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291328687">(Jul 29 2022 at 13:47)</a>:</h4>
+<p>no, it's my fault of using Rust &amp;str as C string</p>
+
+
+
+<a name="291330384"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291330384" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291330384">(Jul 29 2022 at 14:01)</a>:</h4>
+<p><a href="https://github.com/locriacyber/lean-sys-example">https://github.com/locriacyber/lean-sys-example</a><br>
+Here's an example I made</p>
+
+
+
+<a name="291347620"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291347620" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291347620">(Jul 29 2022 at 16:20)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="515610">Locria Cyber</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/291313986">said</a>:</p>
+<blockquote>
+<p>How do I use static library with lake?</p>
+</blockquote>
+<p>Does the <a href="https://github.com/leanprover/lake/blob/dcf8e1fc406acfd4dbbfd691f4ecf76966fae407/examples/ffi/lib/lakefile.lean">FFI example</a> help?</p>
+
+
+
+<a name="291347661"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/291347661" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#291347661">(Jul 29 2022 at 16:20)</a>:</h4>
+<p>I already figured it out</p>
+
+
+
+<a name="292636675"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292636675" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292636675">(Aug 09 2022 at 18:48)</a>:</h4>
+<p><span class="user-mention" data-user-id="461231">@Jad Ghalayini</span> I made a pull request on Gitlab on lean-sys for some fixes</p>
+
+
+
+<a name="292636952"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292636952" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292636952">(Aug 09 2022 at 18:50)</a>:</h4>
+<p>Turns out there is no need for libffi if I can link the C/Rust library.</p>
+
+
+
+<a name="292636985"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292636985" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292636985">(Aug 09 2022 at 18:50)</a>:</h4>
+<p>at runtime, libffi may be needed</p>
+
+
+
+<a name="292637041"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637041" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637041">(Aug 09 2022 at 18:50)</a>:</h4>
+<p>although some glue code in C is enough</p>
+
+
+
+<a name="292637458"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637458" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637458">(Aug 09 2022 at 18:53)</a>:</h4>
+<p>Merged!</p>
+
+
+
+<a name="292637487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637487">(Aug 09 2022 at 18:53)</a>:</h4>
+<p><span class="user-mention" data-user-id="515610">@Locria Cyber</span> would you like to be added as a maintainer</p>
+
+
+
+<a name="292637532"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637532" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637532">(Aug 09 2022 at 18:53)</a>:</h4>
+<p>I plan to extend the library significantly with some higher-level safe wrappers later</p>
+
+
+
+<a name="292637616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637616">(Aug 09 2022 at 18:54)</a>:</h4>
+<p>Tell me if you're interested!</p>
+
+
+
+<a name="292637652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637652">(Aug 09 2022 at 18:54)</a>:</h4>
+<p>Also I'm curious what exactly you need libffi for</p>
+
+
+
+<a name="292637706"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292637706" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292637706">(Aug 09 2022 at 18:54)</a>:</h4>
+<p>I plan to be making very heavy use if Lean FFI in my PhD as proposed (see <a href="http://gitlab.com/tekne/phd-proposal">gitlab.com/tekne/phd-proposal</a>) and would be happy to collaborate!</p>
+
+
+
+<a name="292666466"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/292666466" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Tomas Skrivan <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#292666466">(Aug 09 2022 at 22:15)</a>:</h4>
+<p>Do you a pdf of the proposal? I'm not very good at reading raw TeX.</p>
+
+
+
+<a name="293702964"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/293702964" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#293702964">(Aug 16 2022 at 12:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="461231">Jad Ghalayini</span> <a href="#narrow/stream/270676-lean4/topic/C.20FFI.20export/near/292637487">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="515610">Locria Cyber</span> would you like to be added as a maintainer</p>
+</blockquote>
+<p>ok</p>
+
+
+
+<a name="293703074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/293703074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#293703074">(Aug 16 2022 at 12:10)</a>:</h4>
+<p>libffi is for runtime loading of dynamic library</p>
+
+
+
+<a name="293703200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/293703200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#293703200">(Aug 16 2022 at 12:11)</a>:</h4>
+<p>at runtime</p>
+<ul>
+<li>loading dynamic library</li>
+<li>make the function's type/ABI</li>
+<li>call it</li>
+</ul>
+
+
+
+<a name="293703348"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/293703348" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#293703348">(Aug 16 2022 at 12:12)</a>:</h4>
+<p>This is not really necessary, since in most FFI usage, you know the function types you want to call.<br>
+e.g. <code>void puts(char*);</code></p>
+
+
+
+<a name="293703857"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/C%20FFI%20export/near/293703857" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Locria Cyber <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/C.20FFI.20export.html#293703857">(Aug 16 2022 at 12:16)</a>:</h4>
+<p><a href="https://gitlab.com/tekne/phd-proposal/-/blob/main/figures/rvsdg.pdf">https://gitlab.com/tekne/phd-proposal/-/blob/main/figures/rvsdg.pdf</a><br>
+<span aria-label="rolling on the floor laughing" class="emoji emoji-1f923" role="img" title="rolling on the floor laughing">:rolling_on_the_floor_laughing:</span> why this RVSDG seems very similar to a language/notation I made</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

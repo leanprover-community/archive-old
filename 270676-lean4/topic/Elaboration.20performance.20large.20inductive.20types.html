@@ -1,0 +1,123 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html">Elaboration performance large inductive types</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="252096799"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252096799" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252096799">(Sep 05 2021 at 19:32)</a>:</h4>
+<p>I'm autogenerating bindings for libclang and ran into a performance cliff for elaboration of inductive types: Elaboration of a inductive datatype with ~150 constructors takes &gt; 30 seconds. The CXCursorKind enum of libclang has 271 entries alone. Is that a known problem?</p>
+
+
+
+<a name="252100808"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252100808" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252100808">(Sep 05 2021 at 20:45)</a>:</h4>
+<p>Try with <code>set_option genInjectivity false</code></p>
+
+
+
+<a name="252111386"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252111386" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252111386">(Sep 06 2021 at 00:10)</a>:</h4>
+<p>I added the command <code>enum</code> for declaring big enumeration types. It is just a macro based on <code>Fin</code>.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">enum</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="bp">|</span> <span class="n">b</span> <span class="bp">|</span> <span class="n">c</span>
+
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">Foo.a</span> <span class="bp">=&gt;</span> <span class="mi">10</span>
+  <span class="bp">|</span> <span class="n">Foo.b</span> <span class="bp">=&gt;</span> <span class="mi">20</span>
+  <span class="bp">|</span> <span class="n">Foo.c</span> <span class="bp">=&gt;</span> <span class="mi">35</span>
+
+<span class="k">#check</span> <span class="n">Foo.a</span> <span class="bp">==</span> <span class="n">Foo.b</span> <span class="c1">-- false</span>
+
+<span class="k">#eval</span> <span class="n">Foo.b</span> <span class="c1">-- Foo.b</span>
+</code></pre></div>
+<p><code>Foo</code> in the example above is defined as</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">when</span>
+  <span class="n">val</span> <span class="o">:</span> <span class="n">Fin</span> <span class="mi">3</span>
+</code></pre></div>
+<p><span class="user-mention" data-user-id="130511">@Christian Pehle</span> Your example with 271 entries can be elaborated in 0.3s on my machine. Most of the time is spent on the <code>Repr</code> instance that is automatically generated. I am currently generating it eagerly because <code>deriving instance Repr for Foo</code> would generate an instance that produces values such as <code>{ val := 0 }</code> instead of <code>Foo.a</code>.</p>
+
+
+
+<a name="252113341"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252113341" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252113341">(Sep 06 2021 at 00:49)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> since <code>enum</code> is a wrapper around <code>Fin</code>, doesn't that mean the resulting type is no longer unboxed?</p>
+
+
+
+<a name="252113562"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252113562" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252113562">(Sep 06 2021 at 00:53)</a>:</h4>
+<p><span class="user-mention" data-user-id="130511">@Christian Pehle</span>  this may  be important to your use case, as you may no longer be able to directly pass the <code>enum</code> type directly to the Clang bindings (if you were doing so).</p>
+
+
+
+<a name="252113846"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252113846" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252113846">(Sep 06 2021 at 00:58)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span>  Yes, the compiler currently compiles <code>Fin n</code> as <code>Nat</code> even when <code>n</code> is known at compilation time and small. However, this is not an obstacle for invoking the clang API. <span class="user-mention" data-user-id="130511">@Christian Pehle</span>  can use <code>lean_unbox</code> to convert the enum into a C scalar value.</p>
+
+
+
+<a name="252114200"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252114200" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252114200">(Sep 06 2021 at 01:04)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>  true! Just wanted to point out that potential pitfall for <span class="user-mention" data-user-id="130511">@Christian Pehle</span>.</p>
+
+
+
+<a name="252114401"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252114401" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252114401">(Sep 06 2021 at 01:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> If this becomes too annoying in practice, I can modify the <code>enum</code> macro, and use</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">when</span>
+  <span class="n">val</span> <span class="o">:</span> <span class="n">UInt32</span>
+  <span class="n">h</span> <span class="o">:</span> <span class="n">val</span> <span class="bp">&lt;</span> <span class="mi">3</span>
+</code></pre></div>
+
+
+
+<a name="252115611"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252115611" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252115611">(Sep 06 2021 at 01:34)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span> I wonder if such an approach would also allow for the numeric mapping to be specified in the the <code>enum</code>. A lot of enums in C/C++ libraries have specific encodings for their enum fields (e.g., <code>CallingConv</code> in LLVM), which would be nice to reflect in Lean.  That was a key feature of the <a href="https://github.com/tydeu/lean4-papyrus/blob/master/Papyrus/IR/CallingConvention.lean"><code>enum</code> macro</a> I had previously written for Papyrus (though that one was not type safe).</p>
+
+
+
+<a name="252118954"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252118954" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252118954">(Sep 06 2021 at 02:32)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> It seems your macro doesn't cover exhaustiveness. That is, it will fail at</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">enum</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="bp">|</span> <span class="n">a</span> <span class="bp">|</span> <span class="n">b</span> <span class="bp">|</span> <span class="n">c</span>
+
+<span class="kd">def</span> <span class="n">f</span> <span class="o">:</span> <span class="n">Foo</span> <span class="bp">→</span> <span class="n">Nat</span>
+  <span class="bp">|</span> <span class="n">Foo.a</span> <span class="bp">=&gt;</span> <span class="mi">10</span>
+  <span class="bp">|</span> <span class="n">Foo.b</span> <span class="bp">=&gt;</span> <span class="mi">20</span>
+  <span class="bp">|</span> <span class="n">Foo.c</span> <span class="bp">=&gt;</span> <span class="mi">35</span>
+</code></pre></div>
+<p>It is feasible to extend your macro to support exhaustiveness, but this is the kind of work I am not looking forward to. For example, a big disjuction would be too inefficient. I think your macro is useful for interfacing with C APIs, we could call it <code>c-enum</code> or something like that.</p>
+
+
+
+<a name="252119847"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252119847" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252119847">(Sep 06 2021 at 02:47)</a>:</h4>
+<p><span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>  yeah, that was sort of what I was alluding to when I said the macro was "not type safe".  And, admittedly, making it support exhaustivity was something I was not looking forward to either <span aria-label="laughing" class="emoji emoji-1f606" role="img" title="laughing">:laughing:</span>. </p>
+<p>In fact, it is why I have only used it for <code>CallingConvention</code> and not many of the other LLVM enums with explicit values  (e.g., <a href="https://github.com/tydeu/lean4-papyrus/blob/9db28867f476c78024f4858753b37d53cb5a4432/Papyrus/ExecutionEngineRef.lean#L7-L48"><code>EngineKind</code></a>), because unlike them, <code>CallingConvention</code> is not actually an exhaustive enum in LLVM (extensions can define their own additional calling conventions within its range). Thus, in the particular case if <code>CallingConvetion</code>, the lack of exhaustivity was a feature not a bug.</p>
+
+
+
+<a name="252150256"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Elaboration%20performance%20large%20inductive%20types/near/252150256" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Christian Pehle <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Elaboration.20performance.20large.20inductive.20types.html#252150256">(Sep 06 2021 at 09:31)</a>:</h4>
+<p>This is great <span class="user-mention" data-user-id="112857">@Leonardo de Moura</span>! For automatic code generation the use of Nat is not much of a problem, I think. It might make sense to let the user optionally decide the encoding type and even values of the enum alternatives, just like in C++. Together with the unbox trivial unparameterised structure feature this would eliminate some of the boilerplate on the C++ side. (Edit: I just saw that this is what <span class="user-mention" data-user-id="315577">@Mac</span> has done).</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

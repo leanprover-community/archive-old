@@ -1,0 +1,632 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/116395-maths/topic/Formalizing.20conformal.20maps.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/index.html">maths</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html">Formalizing conformal maps</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="246428735"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246428735" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246428735">(Jul 19 2021 at 08:31)</a>:</h4>
+<p>Hello, I have written some codes for conformal maps between inner product spaces, which was previously discussed <a href="#narrow/stream/116395-maths/topic/Conformal.20maps">here</a>. My code is available <a href="https://github.com/justadzr/Lean_2021/blob/complex-diff/src/conformal.lean">here</a>, which is still a rough draft. The proofs and style were modified once, according to some very valuable comments from <span class="user-mention" data-user-id="110031">@Patrick Massot</span>  provided by Prof. Buzzard.  I am extremely grateful for any suggestion. Some of the relatively trivial lemmas might be redundant but I was unable to find the appropriate alternatives in mathlib. <a href="https://github.com/justadzr/Lean_2021/blob/complex-diff/src/conformal'.lean">Here</a> is a file with shorter proofs but less compact statements.</p>
+<p>Also, do we need partial derivatives to formalize Liouville's theorem on C^4 conformal mappings between Euclidean spaces?</p>
+<p>Thanks in advance.</p>
+
+
+
+<a name="246432120"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432120" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Oliver Nash <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432120">(Jul 19 2021 at 09:10)</a>:</h4>
+<p>I have only glanced at this but it looks really great! If you are wondering what to do next, I suggest you carve off a small piece and turn it into a PR.</p>
+
+
+
+<a name="246432185"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432185" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432185">(Jul 19 2021 at 09:11)</a>:</h4>
+<p>I played with some of the first 150 lines. Your code is really good! In the comments below I show you some more tips.</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.matrix.notation</span>
+<span class="kn">import</span> <span class="n">analysis.complex.basic</span>
+<span class="kn">import</span> <span class="n">geometry.manifold.charted_space</span>
+<span class="kn">import</span> <span class="n">analysis.normed_space.inner_product</span>
+<span class="kn">import</span> <span class="n">linear_algebra.matrix.to_linear_equiv</span>
+<span class="kn">import</span> <span class="n">geometry.euclidean.basic</span>
+<span class="kn">import</span> <span class="n">analysis.complex.isometry</span>
+<span class="kn">import</span> <span class="n">analysis.normed_space.finite_dimension</span>
+
+<span class="kd">noncomputable theory</span>
+
+<span class="c1">-- I personally like to have section names which are "obviously not namespaces"</span>
+<span class="c1">-- so that when I see `end conformal_API` I will know it's not the end of a namespace</span>
+
+<span class="kn">section</span> <span class="n">conformal_API</span>
+
+<span class="kd">def</span> <span class="n">is_conformal_map</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+<span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∃</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">lie</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃ₗᵢ</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">),</span> <span class="bp">⇑</span><span class="n">f'</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span><span class="o">,</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">lie</span>
+
+<span class="kd">def</span> <span class="n">conformal_at</span>
+<span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span>
+<span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∃</span> <span class="o">(</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">),</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'</span> <span class="n">x</span> <span class="bp">∧</span> <span class="n">is_conformal_map</span> <span class="n">f'</span>
+
+<span class="c1">-- let's make an API for `conformal_at` before we start on `conformal`.</span>
+<span class="c1">-- Let's do it in a namespace and set up variables for that namespace.</span>
+
+<span class="kn">namespace</span> <span class="n">conformal_at</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+  <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Z</span><span class="o">]</span>
+
+<span class="c1">-- save some time by opening these</span>
+<span class="kn">open</span> <span class="n">linear_isometry_equiv</span> <span class="n">continuous_linear_map</span>
+
+<span class="kd">theorem</span> <span class="n">differentiable_at</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">differentiable_at</span> <span class="n">ℝ</span> <span class="n">f</span> <span class="n">x</span> <span class="o">:=</span> <span class="k">let</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">h</span> <span class="k">in</span> <span class="n">h₁.differentiable_at</span>
+
+<span class="c1">-- I can use `refl` now instead of `linear_isometry_equiv.refl`</span>
+<span class="kd">theorem</span> <span class="n">id</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">id</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="o">⟨</span><span class="n">id</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="n">has_fderiv_at_id</span> <span class="n">_</span><span class="o">,</span> <span class="mi">1</span><span class="o">,</span> <span class="n">one_ne_zero</span><span class="o">,</span> <span class="n">refl</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">simp</span><span class="o">⟩</span>
+
+<span class="kd">theorem</span> <span class="n">const_smul</span> <span class="o">{</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x'</span><span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">x'</span><span class="o">)</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="c1">-- no `by apply` needed</span>
+<span class="o">⟨</span><span class="n">c</span> <span class="bp">•</span> <span class="n">continuous_linear_map.id</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="n">has_fderiv_at.const_smul</span> <span class="o">(</span><span class="n">has_fderiv_at_id</span> <span class="n">x</span><span class="o">)</span> <span class="n">c</span><span class="o">,</span> <span class="n">c</span><span class="o">,</span> <span class="n">h</span><span class="o">,</span> <span class="n">refl</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">simp</span><span class="o">⟩</span>
+
+<span class="c1">-- putting conformal_at f x before the colon means you can `rintro` everything</span>
+<span class="kd">theorem</span> <span class="n">comp</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span>
+  <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">→</span> <span class="n">conformal_at</span> <span class="n">g</span> <span class="o">(</span><span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">→</span> <span class="n">conformal_at</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rintro</span> <span class="o">⟨</span><span class="n">f'</span><span class="o">,</span> <span class="n">hf₁</span><span class="o">,</span> <span class="n">cf</span><span class="o">,</span> <span class="n">hcf</span><span class="o">,</span> <span class="n">lief</span><span class="o">,</span> <span class="n">hf₂</span><span class="o">⟩</span> <span class="o">⟨</span><span class="n">g'</span><span class="o">,</span> <span class="n">hg₁</span><span class="o">,</span> <span class="n">cg</span><span class="o">,</span> <span class="n">hcg</span><span class="o">,</span> <span class="n">lieg</span><span class="o">,</span> <span class="n">hg₂</span><span class="o">⟩,</span>
+  <span class="c1">-- ⟨ ⟩ can be used for `exists` too, no need for `use`</span>
+  <span class="n">exact</span> <span class="o">⟨</span><span class="n">g'.comp</span> <span class="n">f'</span><span class="o">,</span> <span class="n">has_fderiv_at.comp</span> <span class="n">x</span> <span class="n">hg₁</span> <span class="n">hf₁</span><span class="o">,</span> <span class="n">cg</span> <span class="bp">*</span> <span class="n">cf</span><span class="o">,</span> <span class="n">mul_ne_zero</span> <span class="n">hcg</span> <span class="n">hcf</span><span class="o">,</span> <span class="n">lief.trans</span> <span class="n">lieg</span><span class="o">,</span>
+  <span class="c1">-- let `simp` do all the work. You don't need `simp only` if you can close the goal.</span>
+    <span class="kd">by</span> <span class="o">{</span><span class="n">ext</span><span class="o">,</span> <span class="n">simp</span> <span class="o">[</span><span class="n">coe_comp'</span> <span class="n">f'</span> <span class="n">g'</span><span class="o">,</span> <span class="n">hf₂</span><span class="o">,</span> <span class="n">hg₂</span><span class="o">,</span> <span class="n">smul_smul</span> <span class="n">cg</span> <span class="n">cf</span><span class="o">]</span> <span class="o">}⟩,</span>
+<span class="kd">end</span>
+
+<span class="kd">theorem</span> <span class="n">_root_.conformal_at_iff</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">↔</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">&gt;</span> <span class="mi">0</span><span class="o">),</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="bp">*</span> <span class="o">(</span><span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="c1">-- intros + rcases = rintros</span>
+    <span class="n">rintros</span> <span class="o">⟨</span><span class="n">f₁</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">lie</span><span class="o">,</span> <span class="n">h₂</span><span class="o">⟩,</span>
+    <span class="c1">-- `use` and `intros` can be put together with `refine`. Note: also use `c₁ * c₁` not `c₁^2`, then you don't need `pow_two` later.</span>
+    <span class="n">refine</span> <span class="o">⟨</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">mul_self_pos</span> <span class="n">hc₁</span><span class="o">,</span> <span class="bp">λ</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩,</span>
+    <span class="c1">-- dot notation `f'.coe_coe` is much more brief than `continuous_linear_equiv.coe_coe f'`</span>
+    <span class="c1">-- Also -- make `simp` do the work. You don't need to rewrite and then simp; simp does rewrites for you.</span>
+    <span class="n">simp</span> <span class="o">[</span><span class="bp">←</span> <span class="n">f'.coe_coe</span><span class="o">,</span> <span class="bp">←</span> <span class="n">f'.coe_def_rev</span><span class="o">,</span> <span class="n">has_fderiv_at.unique</span> <span class="n">h</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">h₂</span><span class="o">,</span> <span class="n">inner_map_map</span><span class="o">,</span> <span class="n">real_inner_smul_left</span><span class="o">,</span>
+      <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="n">mul_assoc</span><span class="o">]</span> <span class="o">},</span>
+  <span class="o">{</span><span class="n">rintro</span> <span class="o">⟨</span><span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">huv</span><span class="o">⟩,</span>
+    <span class="k">let</span> <span class="n">c</span> <span class="o">:=</span> <span class="n">real.sqrt</span> <span class="n">c₁</span><span class="bp">⁻¹</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">w</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span><span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">c</span><span class="o">]</span> <span class="n">at</span> <span class="n">w</span><span class="bp">;</span>
+      <span class="n">exact</span> <span class="o">(</span><span class="n">real.sqrt_ne_zero'.mpr</span> <span class="bp">$</span> <span class="n">inv_pos.mpr</span> <span class="n">hc₁</span><span class="o">)</span> <span class="n">w</span><span class="o">},</span>
+    <span class="k">let</span> <span class="n">c_map</span> <span class="o">:=</span> <span class="n">linear_equiv.smul_of_ne_zero</span> <span class="n">ℝ</span> <span class="n">Y</span> <span class="n">c</span> <span class="n">hc</span><span class="o">,</span>
+    <span class="k">let</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="n">f'.to_linear_equiv.trans</span> <span class="n">c_map</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">minor</span> <span class="o">:</span> <span class="bp">⇑</span><span class="n">f₁</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">Y</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">f'</span> <span class="o">:=</span> <span class="n">rfl</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">minor'</span> <span class="o">:</span> <span class="bp">⇑</span><span class="n">f'</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">Y</span><span class="o">),</span> <span class="n">c</span><span class="bp">⁻¹</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">minor</span><span class="o">,</span> <span class="n">function.comp_apply</span><span class="o">,</span> <span class="n">function.comp_apply</span><span class="o">,</span>
+          <span class="n">smul_smul</span><span class="o">,</span> <span class="n">inv_mul_cancel</span> <span class="n">hc</span><span class="o">,</span> <span class="n">one_smul</span><span class="o">],</span>
+    <span class="k">have</span> <span class="n">key</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f₁</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f₁</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="kd">by</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">minor</span><span class="o">,</span> <span class="n">function.comp_app</span><span class="o">,</span> <span class="n">function.comp_app</span><span class="o">,</span> <span class="n">real_inner_smul_left</span><span class="o">,</span>
+          <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="n">huv</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span>
+          <span class="n">real.mul_self_sqrt</span> <span class="bp">$</span> <span class="n">le_of_lt</span> <span class="bp">$</span> <span class="n">inv_pos.mpr</span> <span class="n">hc₁</span><span class="o">,</span>
+          <span class="n">inv_mul_cancel</span> <span class="bp">$</span> <span class="n">ne_of_gt</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">one_mul</span><span class="o">],</span>
+    <span class="n">exact</span> <span class="o">⟨</span><span class="n">f'.to_continuous_linear_map</span><span class="o">,</span> <span class="o">⟨</span><span class="n">h</span><span class="o">,</span> <span class="n">c</span><span class="bp">⁻¹</span><span class="o">,</span> <span class="n">inv_ne_zero</span> <span class="n">hc</span><span class="o">,</span> <span class="n">f₁.isometry_of_inner</span> <span class="n">key</span><span class="o">,</span> <span class="n">minor'</span><span class="o">⟩⟩,</span>
+  <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">char_fun</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℝ</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">choose</span> <span class="n">c</span> <span class="n">hc</span> <span class="n">huv</span> <span class="n">using</span> <span class="o">(</span><span class="n">conformal_at_iff</span> <span class="n">h</span><span class="o">)</span><span class="bp">.</span><span class="n">mp</span> <span class="n">H</span><span class="bp">;</span> <span class="n">exact</span> <span class="n">c</span>
+
+<span class="kd">theorem</span> <span class="n">_root_.conformal_at_preserves_angle</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">inner_product_geometry.angle</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner_product_geometry.angle</span> <span class="n">u</span> <span class="n">v</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="c1">-- don't begin a proof with `intros u v`, just put them before the colon</span>
+  <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">inner_product_geometry.angle</span><span class="o">},</span>
+  <span class="k">suffices</span> <span class="n">new</span> <span class="o">:</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">f'</span> <span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">f'</span> <span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">),</span>
+  <span class="o">{</span> <span class="n">rw</span> <span class="n">new</span><span class="o">,</span> <span class="o">},</span>
+  <span class="o">{</span>
+    <span class="n">rcases</span> <span class="n">H</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">f₁</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">lie</span><span class="o">,</span> <span class="n">h₂</span><span class="o">⟩,</span>
+    <span class="k">have</span> <span class="n">minor</span> <span class="o">:</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">w</span><span class="o">,</span> <span class="n">hc₁</span> <span class="o">(</span><span class="n">norm_eq_zero.mp</span> <span class="n">w</span><span class="o">),</span>
+    <span class="k">have</span> <span class="o">:</span> <span class="n">f'.to_continuous_linear_map</span> <span class="bp">=</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="n">has_fderiv_at.unique</span> <span class="n">h</span> <span class="n">h₁</span><span class="o">,</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">continuous_linear_equiv.coe_coe</span> <span class="n">f'</span><span class="o">,</span> <span class="bp">←</span> <span class="n">continuous_linear_equiv.coe_def_rev</span> <span class="n">f'</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">inner_product_angle.def</span><span class="o">},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">this</span><span class="o">,</span> <span class="n">h₂</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">function.comp_apply</span><span class="o">},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">real_inner_smul_left</span><span class="o">,</span> <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span> <span class="n">linear_isometry_equiv.inner_map_map</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="o">[</span><span class="n">norm_smul</span><span class="o">,</span> <span class="n">linear_isometry_equiv.norm_map</span><span class="o">]},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">],</span>
+    <span class="n">exact</span> <span class="k">calc</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span>
+            <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mul_comm</span><span class="o">,</span> <span class="n">mul_assoc</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="n">abs</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">abs</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">real.norm_eq_abs</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">pow_two</span><span class="o">,</span> <span class="bp">←</span> <span class="n">sq_abs</span><span class="o">,</span> <span class="n">pow_two</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)))</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mul_assoc</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">))</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="n">mul_div_mul_left</span> <span class="n">_</span> <span class="n">_</span> <span class="n">hc₁</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="n">mul_div_mul_left</span> <span class="n">_</span> <span class="n">_</span> <span class="n">hc₁</span><span class="o">,</span>
+  <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">conformal_at</span>
+
+<span class="kd">def</span> <span class="n">conformal</span>
+<span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span>
+<span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span>
+
+<span class="kn">namespace</span> <span class="n">conformal</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Z</span><span class="o">]</span>
+
+<span class="kd">theorem</span> <span class="n">differentiable</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">f</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">differentiable</span> <span class="n">ℝ</span> <span class="n">f</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="o">(</span><span class="n">h</span> <span class="n">x</span><span class="o">)</span><span class="bp">.</span><span class="n">differentiable_at</span>
+
+<span class="kd">theorem</span> <span class="n">id</span> <span class="o">:</span> <span class="n">conformal</span> <span class="o">(</span><span class="n">id</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.id</span> <span class="n">x</span>
+
+<span class="kd">theorem</span> <span class="n">const_smul</span> <span class="o">{</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.const_smul</span> <span class="n">h</span> <span class="n">x</span>
+
+<span class="kd">theorem</span> <span class="n">comp</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">}</span> <span class="o">(</span><span class="n">hf</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">f</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">g</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.comp</span> <span class="o">(</span><span class="n">hf</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">(</span><span class="n">f</span> <span class="n">x</span><span class="o">))</span>
+
+<span class="kd">end</span> <span class="n">conformal</span>
+
+<span class="kd">end</span> <span class="n">conformal_API</span>
+</code></pre></div>
+
+
+
+<a name="246432193"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432193" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Oliver Nash <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432193">(Jul 19 2021 at 09:11)</a>:</h4>
+<p>You might be surprised at how much dicussion just a few lines of new code can generate when under review so the smaller the PR, the better. As I say, I have only glanced but <a href="https://github.com/justadzr/Lean_2021/blob/5ed65e21aaa1225d34dc2bf886596039336d11d0/src/conformal.lean#L13-L136">this much</a> looks like a possible first PR.</p>
+
+
+
+<a name="246432431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432431">(Jul 19 2021 at 09:14)</a>:</h4>
+<p>The way dot notation works is that if <code>f'</code> has type <code>X ≃L[ℝ] Y</code> then of course this is just notation, and <code>f'</code> really has type <code>continuous_linear_equiv blah blah blah...</code> so <code>f'.coe_coe</code> is shorthand for <code>continuous_linear_equiv.coe_coe f'</code>.</p>
+
+
+
+<a name="246432482"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432482" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432482">(Jul 19 2021 at 09:15)</a>:</h4>
+<p>Oh cool, Oliver's suggestion is pretty much exactly what I just read through :-) Consider that to be your first review!</p>
+
+
+
+<a name="246432484"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432484" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432484">(Jul 19 2021 at 09:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246432185">said</a>:</p>
+<blockquote>
+<p>I played with some of the first 150 lines. Your code is really good! In the comments below I show you some more tips.</p>
+<p><div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic</span>
+<span class="kn">import</span> <span class="n">data.matrix.notation</span>
+<span class="kn">import</span> <span class="n">analysis.complex.basic</span>
+<span class="kn">import</span> <span class="n">geometry.manifold.charted_space</span>
+<span class="kn">import</span> <span class="n">analysis.normed_space.inner_product</span>
+<span class="kn">import</span> <span class="n">linear_algebra.matrix.to_linear_equiv</span>
+<span class="kn">import</span> <span class="n">geometry.euclidean.basic</span>
+<span class="kn">import</span> <span class="n">analysis.complex.isometry</span>
+<span class="kn">import</span> <span class="n">analysis.normed_space.finite_dimension</span>
+
+<span class="kd">noncomputable theory</span>
+
+<span class="c1">-- I personally like to have section names which are "obviously not namespaces"</span>
+<span class="c1">-- so that when I see `end conformal_API` I will know it's not the end of a namespace</span>
+
+<span class="kn">section</span> <span class="n">conformal_API</span>
+
+<span class="kd">def</span> <span class="n">is_conformal_map</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+<span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">(</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∃</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">lie</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃ₗᵢ</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">),</span> <span class="bp">⇑</span><span class="n">f'</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">y</span><span class="o">,</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">lie</span>
+
+<span class="kd">def</span> <span class="n">conformal_at</span>
+<span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span>
+<span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span>
+<span class="bp">∃</span> <span class="o">(</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">),</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'</span> <span class="n">x</span> <span class="bp">∧</span> <span class="n">is_conformal_map</span> <span class="n">f'</span>
+
+<span class="c1">-- let's make an API for `conformal_at` before we start on `conformal`.</span>
+<span class="c1">-- Let's do it in a namespace and set up variables for that namespace.</span>
+
+<span class="kn">namespace</span> <span class="n">conformal_at</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span>
+  <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Z</span><span class="o">]</span>
+
+<span class="c1">-- save some time by opening these</span>
+<span class="kn">open</span> <span class="n">linear_isometry_equiv</span> <span class="n">continuous_linear_map</span>
+
+<span class="kd">theorem</span> <span class="n">differentiable_at</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">differentiable_at</span> <span class="n">ℝ</span> <span class="n">f</span> <span class="n">x</span> <span class="o">:=</span> <span class="k">let</span> <span class="o">⟨</span><span class="n">_</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩</span> <span class="o">:=</span> <span class="n">h</span> <span class="k">in</span> <span class="n">h₁.differentiable_at</span>
+
+<span class="c1">-- I can use `refl` now instead of `linear_isometry_equiv.refl`</span>
+<span class="kd">theorem</span> <span class="n">id</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">id</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="o">⟨</span><span class="n">id</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="n">has_fderiv_at_id</span> <span class="n">_</span><span class="o">,</span> <span class="mi">1</span><span class="o">,</span> <span class="n">one_ne_zero</span><span class="o">,</span> <span class="n">refl</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">simp</span><span class="o">⟩</span>
+
+<span class="kd">theorem</span> <span class="n">const_smul</span> <span class="o">{</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x'</span><span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">x'</span><span class="o">)</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="c1">-- no `by apply` needed</span>
+<span class="o">⟨</span><span class="n">c</span> <span class="bp">•</span> <span class="n">continuous_linear_map.id</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="n">has_fderiv_at.const_smul</span> <span class="o">(</span><span class="n">has_fderiv_at_id</span> <span class="n">x</span><span class="o">)</span> <span class="n">c</span><span class="o">,</span> <span class="n">c</span><span class="o">,</span> <span class="n">h</span><span class="o">,</span> <span class="n">refl</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">,</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span> <span class="n">simp</span><span class="o">⟩</span>
+
+<span class="c1">-- putting conformal_at f x before the colon means you can `rintro` everything</span>
+<span class="kd">theorem</span> <span class="n">comp</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">:</span>
+  <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">→</span> <span class="n">conformal_at</span> <span class="n">g</span> <span class="o">(</span><span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="bp">→</span> <span class="n">conformal_at</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">)</span> <span class="n">x</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rintro</span> <span class="o">⟨</span><span class="n">f'</span><span class="o">,</span> <span class="n">hf₁</span><span class="o">,</span> <span class="n">cf</span><span class="o">,</span> <span class="n">hcf</span><span class="o">,</span> <span class="n">lief</span><span class="o">,</span> <span class="n">hf₂</span><span class="o">⟩</span> <span class="o">⟨</span><span class="n">g'</span><span class="o">,</span> <span class="n">hg₁</span><span class="o">,</span> <span class="n">cg</span><span class="o">,</span> <span class="n">hcg</span><span class="o">,</span> <span class="n">lieg</span><span class="o">,</span> <span class="n">hg₂</span><span class="o">⟩,</span>
+  <span class="c1">-- ⟨ ⟩ can be used for `exists` too, no need for `use`</span>
+  <span class="n">exact</span> <span class="o">⟨</span><span class="n">g'.comp</span> <span class="n">f'</span><span class="o">,</span> <span class="n">has_fderiv_at.comp</span> <span class="n">x</span> <span class="n">hg₁</span> <span class="n">hf₁</span><span class="o">,</span> <span class="n">cg</span> <span class="bp">*</span> <span class="n">cf</span><span class="o">,</span> <span class="n">mul_ne_zero</span> <span class="n">hcg</span> <span class="n">hcf</span><span class="o">,</span> <span class="n">lief.trans</span> <span class="n">lieg</span><span class="o">,</span>
+  <span class="c1">-- let `simp` do all the work. You don't need `simp only` if you can close the goal.</span>
+    <span class="kd">by</span> <span class="o">{</span><span class="n">ext</span><span class="o">,</span> <span class="n">simp</span> <span class="o">[</span><span class="n">coe_comp'</span> <span class="n">f'</span> <span class="n">g'</span><span class="o">,</span> <span class="n">hf₂</span><span class="o">,</span> <span class="n">hg₂</span><span class="o">,</span> <span class="n">smul_smul</span> <span class="n">cg</span> <span class="n">cf</span><span class="o">]</span> <span class="o">}⟩,</span>
+<span class="kd">end</span>
+
+<span class="kd">theorem</span> <span class="n">_root_.conformal_at_iff</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span> <span class="bp">↔</span> <span class="bp">∃</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="o">(</span><span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">&gt;</span> <span class="mi">0</span><span class="o">),</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="o">(</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">)</span> <span class="bp">*</span> <span class="o">(</span><span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">split</span><span class="o">,</span>
+  <span class="o">{</span> <span class="c1">-- intros + rcases = rintros</span>
+    <span class="n">rintros</span> <span class="o">⟨</span><span class="n">f₁</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">lie</span><span class="o">,</span> <span class="n">h₂</span><span class="o">⟩,</span>
+    <span class="c1">-- `use` and `intros` can be put together with `refine`. Note: also use `c₁ * c₁` not `c₁^2`, then you don't need `pow_two` later.</span>
+    <span class="n">refine</span> <span class="o">⟨</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">mul_self_pos</span> <span class="n">hc₁</span><span class="o">,</span> <span class="bp">λ</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="n">_</span><span class="o">⟩,</span>
+    <span class="c1">-- dot notation `f'.coe_coe` is much more brief than `continuous_linear_equiv.coe_coe f'`</span>
+    <span class="c1">-- Also -- make `simp` do the work. You don't need to rewrite and then simp; simp does rewrites for you.</span>
+    <span class="n">simp</span> <span class="o">[</span><span class="bp">←</span> <span class="n">f'.coe_coe</span><span class="o">,</span> <span class="bp">←</span> <span class="n">f'.coe_def_rev</span><span class="o">,</span> <span class="n">has_fderiv_at.unique</span> <span class="n">h</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">h₂</span><span class="o">,</span> <span class="n">inner_map_map</span><span class="o">,</span> <span class="n">real_inner_smul_left</span><span class="o">,</span>
+      <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="n">mul_assoc</span><span class="o">]</span> <span class="o">},</span>
+  <span class="o">{</span><span class="n">rintro</span> <span class="o">⟨</span><span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">huv</span><span class="o">⟩,</span>
+    <span class="k">let</span> <span class="n">c</span> <span class="o">:=</span> <span class="n">real.sqrt</span> <span class="n">c₁</span><span class="bp">⁻¹</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">hc</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">w</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span><span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">c</span><span class="o">]</span> <span class="n">at</span> <span class="n">w</span><span class="bp">;</span>
+      <span class="n">exact</span> <span class="o">(</span><span class="n">real.sqrt_ne_zero'.mpr</span> <span class="bp">$</span> <span class="n">inv_pos.mpr</span> <span class="n">hc₁</span><span class="o">)</span> <span class="n">w</span><span class="o">},</span>
+    <span class="k">let</span> <span class="n">c_map</span> <span class="o">:=</span> <span class="n">linear_equiv.smul_of_ne_zero</span> <span class="n">ℝ</span> <span class="n">Y</span> <span class="n">c</span> <span class="n">hc</span><span class="o">,</span>
+    <span class="k">let</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="n">f'.to_linear_equiv.trans</span> <span class="n">c_map</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">minor</span> <span class="o">:</span> <span class="bp">⇑</span><span class="n">f₁</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">Y</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">f'</span> <span class="o">:=</span> <span class="n">rfl</span><span class="o">,</span>
+    <span class="k">have</span> <span class="n">minor'</span> <span class="o">:</span> <span class="bp">⇑</span><span class="n">f'</span> <span class="bp">=</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">y</span> <span class="o">:</span> <span class="n">Y</span><span class="o">),</span> <span class="n">c</span><span class="bp">⁻¹</span> <span class="bp">•</span> <span class="n">y</span><span class="o">)</span> <span class="bp">∘</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">ext</span><span class="bp">;</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">minor</span><span class="o">,</span> <span class="n">function.comp_apply</span><span class="o">,</span> <span class="n">function.comp_apply</span><span class="o">,</span>
+          <span class="n">smul_smul</span><span class="o">,</span> <span class="n">inv_mul_cancel</span> <span class="n">hc</span><span class="o">,</span> <span class="n">one_smul</span><span class="o">],</span>
+    <span class="k">have</span> <span class="n">key</span> <span class="o">:</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f₁</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f₁</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="kd">by</span>
+      <span class="n">rw</span> <span class="o">[</span><span class="n">minor</span><span class="o">,</span> <span class="n">function.comp_app</span><span class="o">,</span> <span class="n">function.comp_app</span><span class="o">,</span> <span class="n">real_inner_smul_left</span><span class="o">,</span>
+          <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="n">huv</span> <span class="n">u</span> <span class="n">v</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span>
+          <span class="n">real.mul_self_sqrt</span> <span class="bp">$</span> <span class="n">le_of_lt</span> <span class="bp">$</span> <span class="n">inv_pos.mpr</span> <span class="n">hc₁</span><span class="o">,</span>
+          <span class="n">inv_mul_cancel</span> <span class="bp">$</span> <span class="n">ne_of_gt</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">one_mul</span><span class="o">],</span>
+    <span class="n">exact</span> <span class="o">⟨</span><span class="n">f'.to_continuous_linear_map</span><span class="o">,</span> <span class="o">⟨</span><span class="n">h</span><span class="o">,</span> <span class="n">c</span><span class="bp">⁻¹</span><span class="o">,</span> <span class="n">inv_ne_zero</span> <span class="n">hc</span><span class="o">,</span> <span class="n">f₁.isometry_of_inner</span> <span class="n">key</span><span class="o">,</span> <span class="n">minor'</span><span class="o">⟩⟩,</span>
+  <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">def</span> <span class="n">char_fun</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">:</span> <span class="n">ℝ</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">choose</span> <span class="n">c</span> <span class="n">hc</span> <span class="n">huv</span> <span class="n">using</span> <span class="o">(</span><span class="n">conformal_at_iff</span> <span class="n">h</span><span class="o">)</span><span class="bp">.</span><span class="n">mp</span> <span class="n">H</span><span class="bp">;</span> <span class="n">exact</span> <span class="n">c</span>
+
+<span class="kd">theorem</span> <span class="n">_root_.conformal_at_preserves_angle</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">}</span> <span class="o">{</span><span class="n">f'</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">≃</span><span class="n">L</span><span class="o">[</span><span class="n">ℝ</span><span class="o">]</span> <span class="n">Y</span><span class="o">}</span>
+<span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">has_fderiv_at</span> <span class="n">f</span> <span class="n">f'.to_continuous_linear_map</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">H</span> <span class="o">:</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">u</span> <span class="n">v</span> <span class="o">:</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">inner_product_geometry.angle</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner_product_geometry.angle</span> <span class="n">u</span> <span class="n">v</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="c1">-- don't begin a proof with `intros u v`, just put them before the colon</span>
+  <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">inner_product_geometry.angle</span><span class="o">},</span>
+  <span class="k">suffices</span> <span class="n">new</span> <span class="o">:</span> <span class="n">inner</span> <span class="o">(</span><span class="n">f'</span> <span class="n">u</span><span class="o">)</span> <span class="o">(</span><span class="n">f'</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">f'</span> <span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">f'</span> <span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">),</span>
+  <span class="o">{</span> <span class="n">rw</span> <span class="n">new</span><span class="o">,</span> <span class="o">},</span>
+  <span class="o">{</span>
+    <span class="n">rcases</span> <span class="n">H</span> <span class="k">with</span> <span class="o">⟨</span><span class="n">f₁</span><span class="o">,</span> <span class="n">h₁</span><span class="o">,</span> <span class="n">c₁</span><span class="o">,</span> <span class="n">hc₁</span><span class="o">,</span> <span class="n">lie</span><span class="o">,</span> <span class="n">h₂</span><span class="o">⟩,</span>
+    <span class="k">have</span> <span class="n">minor</span> <span class="o">:</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">w</span><span class="o">,</span> <span class="n">hc₁</span> <span class="o">(</span><span class="n">norm_eq_zero.mp</span> <span class="n">w</span><span class="o">),</span>
+    <span class="k">have</span> <span class="o">:</span> <span class="n">f'.to_continuous_linear_map</span> <span class="bp">=</span> <span class="n">f₁</span> <span class="o">:=</span> <span class="n">has_fderiv_at.unique</span> <span class="n">h</span> <span class="n">h₁</span><span class="o">,</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">continuous_linear_equiv.coe_coe</span> <span class="n">f'</span><span class="o">,</span> <span class="bp">←</span> <span class="n">continuous_linear_equiv.coe_def_rev</span> <span class="n">f'</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">inner_product_angle.def</span><span class="o">},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">this</span><span class="o">,</span> <span class="n">h₂</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="n">function.comp_apply</span><span class="o">},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="n">real_inner_smul_left</span><span class="o">,</span> <span class="n">real_inner_smul_right</span><span class="o">,</span> <span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">,</span> <span class="n">linear_isometry_equiv.inner_map_map</span><span class="o">],</span>
+    <span class="n">repeat</span> <span class="o">{</span><span class="n">rw</span> <span class="o">[</span><span class="n">norm_smul</span><span class="o">,</span> <span class="n">linear_isometry_equiv.norm_map</span><span class="o">]},</span>
+    <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">mul_assoc</span><span class="o">],</span>
+    <span class="n">exact</span> <span class="k">calc</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span>
+            <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">c₁</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mul_comm</span><span class="o">,</span> <span class="n">mul_assoc</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="n">abs</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">abs</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="n">real.norm_eq_abs</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">pow_two</span><span class="o">,</span> <span class="bp">←</span> <span class="n">sq_abs</span><span class="o">,</span> <span class="n">pow_two</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)))</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">simp</span> <span class="n">only</span> <span class="o">[</span><span class="n">mul_assoc</span><span class="o">]</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span><span class="o">)</span> <span class="bp">/</span> <span class="o">(</span><span class="n">c₁</span> <span class="bp">*</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">))</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="n">mul_div_mul_left</span> <span class="n">_</span> <span class="n">_</span> <span class="n">hc₁</span>
+        <span class="bp">...</span> <span class="bp">=</span> <span class="n">inner</span> <span class="n">u</span> <span class="n">v</span> <span class="bp">/</span> <span class="o">(</span><span class="bp">∥</span><span class="n">u</span><span class="bp">∥</span> <span class="bp">*</span> <span class="bp">∥</span><span class="n">v</span><span class="bp">∥</span><span class="o">)</span> <span class="o">:</span> <span class="kd">by</span> <span class="n">rw</span> <span class="n">mul_div_mul_left</span> <span class="n">_</span> <span class="n">_</span> <span class="n">hc₁</span><span class="o">,</span>
+  <span class="o">},</span>
+<span class="kd">end</span>
+
+<span class="kd">end</span> <span class="n">conformal_at</span>
+
+<span class="kd">def</span> <span class="n">conformal</span>
+<span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span>
+<span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">∀</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">conformal_at</span> <span class="n">f</span> <span class="n">x</span>
+
+<span class="kn">namespace</span> <span class="n">conformal</span>
+
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="n">Y</span> <span class="n">Z</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">X</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Y</span><span class="o">]</span> <span class="o">[</span><span class="n">inner_product_space</span> <span class="n">ℝ</span> <span class="n">Z</span><span class="o">]</span>
+
+<span class="kd">theorem</span> <span class="n">differentiable</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">f</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">differentiable</span> <span class="n">ℝ</span> <span class="n">f</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="o">(</span><span class="n">h</span> <span class="n">x</span><span class="o">)</span><span class="bp">.</span><span class="n">differentiable_at</span>
+
+<span class="kd">theorem</span> <span class="n">id</span> <span class="o">:</span> <span class="n">conformal</span> <span class="o">(</span><span class="n">id</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">X</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.id</span> <span class="n">x</span>
+
+<span class="kd">theorem</span> <span class="n">const_smul</span> <span class="o">{</span><span class="n">c</span> <span class="o">:</span> <span class="n">ℝ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">c</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal</span> <span class="o">(</span><span class="bp">λ</span> <span class="o">(</span><span class="n">x</span> <span class="o">:</span> <span class="n">X</span><span class="o">),</span> <span class="n">c</span> <span class="bp">•</span> <span class="n">x</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.const_smul</span> <span class="n">h</span> <span class="n">x</span>
+
+<span class="kd">theorem</span> <span class="n">comp</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">X</span> <span class="bp">→</span> <span class="n">Y</span><span class="o">}</span> <span class="o">{</span><span class="n">g</span> <span class="o">:</span> <span class="n">Y</span> <span class="bp">→</span> <span class="n">Z</span><span class="o">}</span> <span class="o">(</span><span class="n">hf</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">f</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">:</span> <span class="n">conformal</span> <span class="n">g</span><span class="o">)</span> <span class="o">:</span>
+<span class="n">conformal</span> <span class="o">(</span><span class="n">g</span> <span class="bp">∘</span> <span class="n">f</span><span class="o">)</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">x</span><span class="o">,</span> <span class="n">conformal_at.comp</span> <span class="o">(</span><span class="n">hf</span> <span class="n">x</span><span class="o">)</span> <span class="o">(</span><span class="n">hg</span> <span class="o">(</span><span class="n">f</span> <span class="n">x</span><span class="o">))</span>
+
+<span class="kd">end</span> <span class="n">conformal</span>
+
+<span class="kd">end</span> <span class="n">conformal_API</span>
+</code></pre></div><br>
+</p>
+</blockquote>
+<p>Thank you for the comments! I will study them and adjust the rest of the file accordingly, especially not starting the proof with intros something.</p>
+
+
+
+<a name="246432538"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432538" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432538">(Jul 19 2021 at 09:16)</a>:</h4>
+<p>You should perhaps just PR this directly to mathlib. Your github username is <code>justadzr</code> -- <span class="user-group-mention" data-user-group-id="2494">@maintainers</span> can Yourong have PR access to non-master branches of mathlib?</p>
+
+
+
+<a name="246432596"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432596" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432596">(Jul 19 2021 at 09:16)</a>:</h4>
+<p>If you make a PR you will get some more experts looking at it carefully, including people (unlike me!) who actually know something about the subject.</p>
+
+
+
+<a name="246432599"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432599" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432599">(Jul 19 2021 at 09:16)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246432482">said</a>:</p>
+<blockquote>
+<p>Oh cool, Oliver's suggestion is pretty much exactly what I just read through :-) Consider that to be your first review!</p>
+</blockquote>
+<p>Great, I will cut the first section and turn it into a PR.</p>
+
+
+
+<a name="246432724"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432724" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432724">(Jul 19 2021 at 09:18)</a>:</h4>
+<p><span class="user-mention" data-user-id="384549">@Yourong Zang</span> <a href="https://github.com/leanprover-community/mathlib/invitations">https://github.com/leanprover-community/mathlib/invitations</a></p>
+
+
+
+<a name="246432789"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432789" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432789">(Jul 19 2021 at 09:19)</a>:</h4>
+<p>Making stuff a PR will not slow down your work, because you can make the PR and then make your own project have that specific branch of mathlib as a dependency rather than <code>master</code>.  My understanding is that you might find it difficult to just switch directly to working directly on a branch of mathlib because for your work on Riemann surfaces you might need some tricky facts about holomorphic functions which are not yet there. But this conformal stuff looks to me to be directly ready for mathlib. Thanks a lot for writing it!</p>
+
+
+
+<a name="246432925"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246432925" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246432925">(Jul 19 2021 at 09:21)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110038">Kevin Buzzard</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246432789">said</a>:</p>
+<blockquote>
+<p>Making stuff a PR will not slow down your work, because you can make the PR and then make your own project have that specific branch of mathlib as a dependency rather than <code>master</code>.  My understanding is that you might find it difficult to just switch directly to working directly on a branch of mathlib because for your work on Riemann surfaces you might need some tricky facts about holomorphic functions which are not yet there. But this conformal stuff looks to me to be directly ready for mathlib. Thanks a lot for writing it!</p>
+</blockquote>
+<p>Thank you. But in which branch should I make this pull request?</p>
+
+
+
+<a name="246433057"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246433057" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246433057">(Jul 19 2021 at 09:23)</a>:</h4>
+<p><code>git checkout -b new-conformal-map-branch</code> will create a new branch for you</p>
+
+
+
+<a name="246433154"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246433154" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246433154">(Jul 19 2021 at 09:24)</a>:</h4>
+<p>But you can also use the git interface in VScode.</p>
+
+
+
+<a name="246433179"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246433179" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246433179">(Jul 19 2021 at 09:24)</a>:</h4>
+<p><span class="user-mention" data-user-id="384549">@Yourong Zang</span> there is a youtube video on how to make mathlib PRs. If you are unfamiliar with git/github/PRs, you might want to watch it.</p>
+
+
+
+<a name="246433231"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246433231" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Johan Commelin <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246433231">(Jul 19 2021 at 09:25)</a>:</h4>
+<p><a href="https://www.youtube.com/watch?v=Bnc8w9lxe8A">#howtoPR</a></p>
+<div class="youtube-video message_inline_image"><a data-id="Bnc8w9lxe8A" href="https://www.youtube.com/watch?v=Bnc8w9lxe8A"><img src="https://uploads.zulipusercontent.net/ae6a5158c3c3f73f7cadb724ecaee86e98129753/68747470733a2f2f692e7974696d672e636f6d2f76692f426e633877396c786538412f64656661756c742e6a7067"></a></div>
+
+
+
+<a name="246433316"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246433316" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246433316">(Jul 19 2021 at 09:26)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="112680">Johan Commelin</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246433179">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="384549">Yourong Zang</span> there is a youtube video on how to make mathlib PRs. If you are unfamiliar with git/github/PRs, you might want to watch it.</p>
+</blockquote>
+<p>That is extremely helpful. Thank you!</p>
+
+
+
+<a name="246434009"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246434009" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246434009">(Jul 19 2021 at 09:34)</a>:</h4>
+<p>This is very nice but I still think it's much more standard to ask that conformal linear maps are <em>positive</em> multiples of isometries.</p>
+
+
+
+<a name="246434358"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246434358" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246434358">(Jul 19 2021 at 09:38)</a>:</h4>
+<p>Possibly stupid question alert: isn't multiplication by -1 an isometry, so it doesn't matter?</p>
+
+
+
+<a name="246434863"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246434863" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246434863">(Jul 19 2021 at 09:44)</a>:</h4>
+<p>Right, I guess I meant you should add that they are orientation preserving.</p>
+
+
+
+<a name="246435253"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246435253" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246435253">(Jul 19 2021 at 09:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246434863">said</a>:</p>
+<blockquote>
+<p>Right, I guess I meant you should add that they are orientation preserving.</p>
+</blockquote>
+<p>But wouldn't that exclude inversions in spaces of odd dimensions?</p>
+
+
+
+<a name="246435359"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246435359" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246435359">(Jul 19 2021 at 09:50)</a>:</h4>
+<p>It's true this is weird. But anti-holomorphic map in complex dimension 1 should be anti-conformal, not conformal.</p>
+
+
+
+<a name="246435419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246435419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246435419">(Jul 19 2021 at 09:51)</a>:</h4>
+<p>But that's not super important, especially since we are used to having more general definitions in formalization.</p>
+
+
+
+<a name="246435447"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246435447" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246435447">(Jul 19 2021 at 09:51)</a>:</h4>
+<p>We should at least have a big warning in the relevant docstrings.</p>
+
+
+
+<a name="246435974"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246435974" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246435974">(Jul 19 2021 at 09:56)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246435359">said</a>:</p>
+<blockquote>
+<p>It's true this is weird. But anti-holomorphic map in complex dimension 1 should be anti-conformal, not conformal.</p>
+</blockquote>
+<p>Then should I PR a file with the orientation-preserving definition?</p>
+
+
+
+<a name="246436144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436144">(Jul 19 2021 at 09:59)</a>:</h4>
+<p>I think you can keep your definition as long as you put a warning in the docstrings (at module and declaration levels).</p>
+
+
+
+<a name="246436493"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436493" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436493">(Jul 19 2021 at 10:03)</a>:</h4>
+<p>Style remark: in mathlib we never put a brace alone on its line.  See <a href="https://leanprover-community.github.io/contribute/style.html">https://leanprover-community.github.io/contribute/style.html</a>. Also, you should never need to type ⇑</p>
+
+
+
+<a name="246436772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436772">(Jul 19 2021 at 10:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246436144">said</a>:</p>
+<blockquote>
+<p>I think you can keep your definition as long as you put a warning in the docstrings (at module and declaration levels).</p>
+</blockquote>
+<p>Would it be better to just call these maps angle-preserving instead of conformal?</p>
+
+
+
+<a name="246436787"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436787" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436787">(Jul 19 2021 at 10:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246436493">said</a>:</p>
+<blockquote>
+<p>Style remark: in mathlib we never put a brace alone on its line.  See <a href="https://leanprover-community.github.io/contribute/style.html">https://leanprover-community.github.io/contribute/style.html</a>. Also, you should never need to type ⇑</p>
+</blockquote>
+<p>Thank you for the information. I will adjust the code.</p>
+
+
+
+<a name="246436915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Patrick Massot <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436915">(Jul 19 2021 at 10:08)</a>:</h4>
+<p>angle-preserving is also ambiguous since it could mean either oriented or unoriented angles. And writing <code>unoriented_angle_preserving</code> would be too long.</p>
+
+
+
+<a name="246436978"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436978" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436978">(Jul 19 2021 at 10:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246436915">said</a>:</p>
+<blockquote>
+<p>angle-preserving is also ambiguous since it could mean either oriented or unoriented angles. And writing <code>unoriented_angle_preserving</code> would be too long.</p>
+</blockquote>
+<p>Ok then I will put a warning in the docstrings.</p>
+
+
+
+<a name="246436992"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246436992" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246436992">(Jul 19 2021 at 10:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110031">Patrick Massot</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246436915">said</a>:</p>
+<blockquote>
+<p>angle-preserving is also ambiguous since it could mean either oriented or unoriented angles. And writing <code>unoriented_angle_preserving</code> would be too long.</p>
+</blockquote>
+<p>Thank you for the instructions! They are extremely helpful.</p>
+
+
+
+<a name="246497282"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246497282" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kalle Kytölä <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246497282">(Jul 19 2021 at 18:56)</a>:</h4>
+<p>Just wanted to say that I am also very excited to hear conformal maps are now on their way to mathlib, thanks to <span class="user-mention" data-user-id="384549">@Yourong Zang</span>! <span aria-label="tada" class="emoji emoji-1f389" role="img" title="tada">:tada:</span> <span aria-label="globe" class="emoji emoji-1f310" role="img" title="globe">:globe:</span></p>
+
+
+
+<a name="246497977"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246497977" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246497977">(Jul 19 2021 at 19:01)</a>:</h4>
+<p>Thank you! Though the maps are not defined in the most general sense.</p>
+<p><span class="user-mention silent" data-user-id="373986">Kalle Kytölä</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246497282">said</a>:</p>
+<blockquote>
+<p>Just wanted to say that I am also very excited to hear conformal maps are now on their way to mathlib, thanks to <span class="user-mention silent" data-user-id="384549">Yourong Zang</span>! <span aria-label="tada" class="emoji emoji-1f389" role="img" title="tada">:tada:</span> <span aria-label="globe" class="emoji emoji-1f310" role="img" title="globe">:globe:</span></p>
+</blockquote>
+
+
+
+<a name="246500535"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246500535" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246500535">(Jul 19 2021 at 19:18)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="384549">Yourong Zang</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246428735">said</a>:</p>
+<blockquote>
+<p>Also, do we need partial derivatives to formalize Liouville's theorem on C^4 conformal mappings between Euclidean spaces?</p>
+</blockquote>
+<p>Thanks for the PR, <span class="user-mention" data-user-id="384549">@Yourong Zang</span>!  In answer to this question -- you can use <a href="https://leanprover-community.github.io/mathlib_docs/find/times_cont_diff">docs#times_cont_diff</a>, letting <code>n</code> be 4, or just requiring <code>4 ≤ n</code>.</p>
+
+
+
+<a name="246501873"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246501873" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246501873">(Jul 19 2021 at 19:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="260507">Heather Macbeth</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246500535">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="384549">Yourong Zang</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246428735">said</a>:</p>
+<blockquote>
+<p>Also, do we need partial derivatives to formalize Liouville's theorem on C^4 conformal mappings between Euclidean spaces?</p>
+</blockquote>
+<p>Thanks for the PR, <span class="user-mention silent" data-user-id="384549">Yourong Zang</span>!  In answer to this question -- you can use <a href="https://leanprover-community.github.io/mathlib_docs/find/times_cont_diff">docs#times_cont_diff</a>, letting <code>n</code> be 4, or just requiring <code>4 ≤ n</code>.</p>
+</blockquote>
+<p>Thank you for the comments. I didn't see anything about partial derivatives in mathlib/Zulip. Should I define them like <code>fderiv \R f x (v i)</code> for some standard basis <code>v</code> of a Euclidean space?</p>
+
+
+
+<a name="246501962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246501962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246501962">(Jul 19 2021 at 19:29)</a>:</h4>
+<p>I don't think that it's really necessary to work with a basis -- can you try to give a more abstract version of the argument that doesn't require it?</p>
+
+
+
+<a name="246502352"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246502352" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246502352">(Jul 19 2021 at 19:31)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="260507">Heather Macbeth</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246501962">said</a>:</p>
+<blockquote>
+<p>I don't think that it's really necessary to work with a basis -- can you try to give a more abstract version of the argument that doesn't require it?</p>
+</blockquote>
+<p>Unfortunately I am not sure about that. The materials I could find are quite limited, and most of them involve dealing with partial derivatives or Jacobians.</p>
+
+
+
+<a name="246502471"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246502471" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246502471">(Jul 19 2021 at 19:32)</a>:</h4>
+<p>Which source are you following?  I can try to suggest a route to a more abstract argument.</p>
+
+
+
+<a name="246502640"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Formalizing%20conformal%20maps/near/246502640" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yourong Zang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Formalizing.20conformal.20maps.html#246502640">(Jul 19 2021 at 19:34)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="260507">Heather Macbeth</span> <a href="#narrow/stream/116395-maths/topic/Formalizing.20conformal.20maps/near/246502471">said</a>:</p>
+<blockquote>
+<p>Which source are you following?  I can try to suggest a route to a more abstract argument.</p>
+</blockquote>
+<p>That would be wonderful and extremely helpful! I am currently searching for different proofs online to resolve the problem.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

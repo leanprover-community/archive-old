@@ -1,0 +1,60 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/src.2Fruntime.2Falloc.2Ecpp.20linked.20list.20optimization.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/src.2Fruntime.2Falloc.2Ecpp.20linked.20list.20optimization.html">src/runtime/alloc.cpp linked list optimization</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="290710946"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/src/runtime/alloc.cpp%20linked%20list%20optimization/near/290710946" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jad Ghalayini <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/src.2Fruntime.2Falloc.2Ecpp.20linked.20list.20optimization.html#290710946">(Jul 25 2022 at 01:48)</a>:</h4>
+<p>From my reading of <code>alloc.cpp</code>, it seems the mutex in</p>
+<div class="codehilite" data-code-language="C++"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">heap_manager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="cm">/* The mutex protects the list of orphan segments. */</span><span class="w"></span>
+<span class="w">    </span><span class="n">mutex</span><span class="w">             </span><span class="n">m_mutex</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">heap</span><span class="w"> </span><span class="o">*</span><span class="w">            </span><span class="n">m_orphans</span><span class="p">{</span><span class="k">nullptr</span><span class="p">};</span><span class="w"></span>
+
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">push_orphan</span><span class="p">(</span><span class="n">heap</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">h</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="cm">/* TODO(Leo): avoid mutex */</span><span class="w"></span>
+<span class="w">        </span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">m_mutex</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">h</span><span class="o">-&gt;</span><span class="n">m_next_orphan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m_orphans</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="n">m_orphans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">h</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">heap</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nf">pop_orphan</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="cm">/* TODO(Leo): avoid mutex */</span><span class="w"></span>
+<span class="w">        </span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">m_mutex</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">m_orphans</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="n">heap</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m_orphans</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="n">m_orphans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">h</span><span class="o">-&gt;</span><span class="n">m_next_orphan</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">h</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</code></pre></div>
+<p>could be relatively easily replaced with simply an intrusive atomic linked-list, as the comments seem to indicate. Would a PR implementing this be welcome?</p>
+
+
+
+<a name="290791108"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/src/runtime/alloc.cpp%20linked%20list%20optimization/near/290791108" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/src.2Fruntime.2Falloc.2Ecpp.20linked.20list.20optimization.html#290791108">(Jul 25 2022 at 17:19)</a>:</h4>
+<p>Thanks for offering to help. Unfortunately, we don't have the resources to review this kind of PR at the moment.<br>
+We are currently focused on porting all Mathlib tactics to Lean 4, and making sure all bugs and missing features have been addressed.<br>
+We will probably only have time to review the PR in November.  Note that we seldom touch <code>alloc.c</code>, so even if you submit the PR now, it will not get stale. If you are ok with the PR sitting there for a few months, please go ahead.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

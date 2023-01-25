@@ -1,0 +1,1209 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/116395-maths/topic/Lagrange.20interpolants.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/index.html">maths</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html">Lagrange interpolants</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="287693862"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287693862" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287693862">(Jun 28 2022 at 09:56)</a>:</h4>
+<p>I'm picking back up some work I was doing with <a href="https://leanprover-community.github.io/mathlib_docs/linear_algebra/lagrange.html">https://leanprover-community.github.io/mathlib_docs/linear_algebra/lagrange.html</a>.</p>
+<p>One issue I have here is that, quite commonly, one wants to talk of a (finite) set of interpolation points, and the values they take at those points.</p>
+<p>Naively, I would think to represent this as an (injective) map from a fintype to my field, and then a separate map from my fintype to the field, representing the point and their values.</p>
+<p>The difficulty with this is that it's difficult to then take "the product over the fintype for all j \= to some (fixed) i", which is relevant in the interpolation. And indeed, in the above, we define the interpolation for a finset in particular. The difficulty then is that my finset, as well as being a set of points in my field, also ends up indexing, say, the values a polynomial takes on them.</p>
+<p>This also has the effect of impose a decidable_eq constraint on the field which I'm not sure is warranted: I think this comes from the use of "finset.erase", but really what is necessary is that you have decidable equality on your <em>indexing</em> finset/fintype.</p>
+<p>Do you see my issue? What do you think the best way to solve this would be? Is it worth re-factoring <a href="https://leanprover-community.github.io/mathlib_docs/linear_algebra/lagrange.html">https://leanprover-community.github.io/mathlib_docs/linear_algebra/lagrange.html</a> in order to remove this decidable_eq constraint on the field (which as I say I am not sure is necessary)?</p>
+
+
+
+<a name="287739472"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287739472" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287739472">(Jun 28 2022 at 16:14)</a>:</h4>
+<p>You can get rid of decidable_eq by going back to the underlying list of the finset, and if you define <a href="https://leanprover-community.github.io/mathlib_docs/find/lagrange.basis">docs#lagrange.basis</a> using <a href="https://leanprover-community.github.io/mathlib_docs/find/list.prod">docs#list.prod</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/lagrange.interpolate">docs#lagrange.interpolate</a> using <a href="https://leanprover-community.github.io/mathlib_docs/find/list.sum">docs#list.sum</a> you don't need decidable_eq, as you can remove the nth element from a list without decidable_eq. If you then show the resulting Lagrange polnomial is independent of the list (a chosen ordering) then it descends to a function on <code>finset F</code>.<br>
+I'm not sure you should worry too much about dicidable_eq though. <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.X">docs#polynomial.X</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/polynomial.C">docs#polynomial.C</a> are already <code>noncomputable</code> (boils down to <a href="https://leanprover-community.github.io/mathlib_docs/find/finsupp.single">docs#finsupp.single</a> being noncomputable), but I'd expect the above definition should unfold/reduce/eval(?) more nicely than the current one; if you have a computable finset I think it can be definitionally reduce to an expression involving X and C without decidable_eq.</p>
+
+
+
+<a name="287756544"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287756544" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287756544">(Jun 28 2022 at 18:26)</a>:</h4>
+<p>I've been playing around with something which I'm more or less ready to share. How do I create PRs which depend on one another?</p>
+
+
+
+<a name="287756618"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287756618" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287756618">(Jun 28 2022 at 18:26)</a>:</h4>
+<p>(tl;dr doing everything on fintypes seems very viable, matches with mv_polynomial in some nice ways, and gives shorter proofs most of the time)</p>
+
+
+
+<a name="287756894"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287756894" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287756894">(Jun 28 2022 at 18:29)</a>:</h4>
+<p>Actually, you know what, if I factor this in the right way, it won't matter.</p>
+
+
+
+<a name="287758243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287758243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287758243">(Jun 28 2022 at 18:39)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/15036">https://github.com/leanprover-community/mathlib/pull/15036</a></p>
+
+
+
+<a name="287758446"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287758446" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287758446">(Jun 28 2022 at 18:41)</a>:</h4>
+<p>Here - I decided it would just be easier to do the refactor and then people could comment on it.</p>
+<p>The issue, by the way, isn't the decidable equality of the finset in the way I think you are describing, <span class="user-mention" data-user-id="224323">@Junyan Xu</span>. The previous formulation needed decidable equality <em>of the whole field</em>: that's extremely strong compared to, say, decidable equality of <code>fin n</code>.</p>
+
+
+
+<a name="287758577"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287758577" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287758577">(Jun 28 2022 at 18:42)</a>:</h4>
+<p>If you index things injectively by a decidably equal fintype, then you don't care about equality on the field.</p>
+
+
+
+<a name="287759465"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287759465" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287759465">(Jun 28 2022 at 18:49)</a>:</h4>
+<p>Well an injective function from <code>fin n</code> is equivalent to an ordering on the <code>finset</code>, namely a <code>list</code>. However it's indeed weird that <a href="https://leanprover-community.github.io/mathlib_docs/find/lagrange.interpolate">docs#lagrange.interpolate</a> takes a function from F to F, and your PR would allow a function from the finset/fintype to F, which seems better. And I agree that using an indexing type might be more convenient in some cases.</p>
+
+
+
+<a name="287764096"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287764096" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287764096">(Jun 28 2022 at 19:24)</a>:</h4>
+<p>Indeed, but I have injective functions from arbitrary fintypes (fin n is just the obvious special case).</p>
+
+
+
+<a name="287764543"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287764543" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Stuart Presnell <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287764543">(Jun 28 2022 at 19:28)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287756544">said</a>:</p>
+<blockquote>
+<p>How do I create PRs which depend on one another?</p>
+</blockquote>
+<p>One way to do this (perhaps not simplest or most efficient, idk) is to create the first PR (e.g. in branch <code>my_branch_one</code>) then open a new branch for the dependent PR and do <code>git merge my_branch_one</code>.  Then when you create a PR from the second branch, add a line in the comments indicating the dependency, e.g. <code>- [ ] depends on: #54321 [Using stuff from my first branch]</code>.</p>
+
+
+
+<a name="287764795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287764795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287764795">(Jun 28 2022 at 19:30)</a>:</h4>
+<p>Thanks for the review <span class="user-mention" data-user-id="459227">@Violeta Hernández</span></p>
+
+
+
+<a name="287764832"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287764832" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287764832">(Jun 28 2022 at 19:31)</a>:</h4>
+<p>as you noticed I had throughly de-simped it, so thanks for the skutwork.</p>
+
+
+
+<a name="287785093"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287785093" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287785093">(Jun 28 2022 at 22:32)</a>:</h4>
+<p><code>interpolate_eq_interpolate_erase_add</code> has proved challenging to translate into this refactor. I am inclined to ditch it - there are I think other things one might want to prove about the Lagrange interpolants (for instance, other ways of constructing them) but my suspicion is that there will be better routes to this.</p>
+
+
+
+<a name="287785236"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287785236" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287785236">(Jun 28 2022 at 22:33)</a>:</h4>
+<p>I'm not sure how we handle operating over a subtype of a fintype acting as an index, in general.</p>
+
+
+
+<a name="287785852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287785852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287785852">(Jun 28 2022 at 22:40)</a>:</h4>
+<p>I would strongly advise you to not use an indexing fintype, but instead a finset inside an indexing type.</p>
+
+
+
+<a name="287785914"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287785914" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287785914">(Jun 28 2022 at 22:41)</a>:</h4>
+<p>This makes adding/removing  elements less awkward and lets you take finsets in the field by considering the field itself as the indexing type.</p>
+
+
+
+<a name="287787893"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287787893" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287787893">(Jun 28 2022 at 23:02)</a>:</h4>
+<p><span class="user-mention" data-user-id="330967">@Wrenna Robson</span>; these Zulip discussions are great, but can you make sure to link the PR from the Zulip thread (<a href="https://github.com/leanprover-community/mathlib/pull/15036">#15036</a>?) and vice versa in future? It makes it easier to track what's going on!</p>
+
+
+
+<a name="287789452"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789452" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789452">(Jun 28 2022 at 23:21)</a>:</h4>
+<p>Ah, so the link here is fine, but I need to link it back the other way?</p>
+
+
+
+<a name="287789558"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789558" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789558">(Jun 28 2022 at 23:22)</a>:</h4>
+<p><span class="user-mention" data-user-id="387244">@Yaël Dillies</span> that's a nice idea, I see the logic of it. How do you pair up nodes and values using that approach?</p>
+
+
+
+<a name="287789567"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789567" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789567">(Jun 28 2022 at 23:22)</a>:</h4>
+<p>It would be more readable if you were writing <a href="https://github.com/leanprover-community/mathlib/pull/15036">#15036</a> instead of <a href="https://github.com/leanprover-community/mathlib/pull/15036">https://github.com/leanprover-community/mathlib/pull/15036</a></p>
+
+
+
+<a name="287789596"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789596" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789596">(Jun 28 2022 at 23:23)</a>:</h4>
+<p>Right - and what about the link back?</p>
+
+
+
+<a name="287789617"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789617" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789617">(Jun 28 2022 at 23:23)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287789558">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="387244">Yaël Dillies</span> that's a nice idea, I see the logic of it. How do you pair up nodes and values using that approach?</p>
+</blockquote>
+<p>Have them both be indexed families indexed by the same finset?</p>
+
+
+
+<a name="287789638"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789638" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789638">(Jun 28 2022 at 23:23)</a>:</h4>
+<p>Write something like <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants">Zulip</a></p>
+
+
+
+<a name="287789740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789740">(Jun 28 2022 at 23:24)</a>:</h4>
+<p>Hmm - the thing is that sometimes it is really natural to consider these things as fin n -&gt; tuples, rather than, say, going from finset.range (which I think is what you would do with that approach).</p>
+
+
+
+<a name="287789782"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789782" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789782">(Jun 28 2022 at 23:25)</a>:</h4>
+<p>You can always index them by <code>univ : finset (fin n)</code>.</p>
+
+
+
+<a name="287789792"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789792" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789792">(Jun 28 2022 at 23:25)</a>:</h4>
+<p>The question I suppose is how this stuff is to be used - it isn't currently and I can only testify from my use-case.</p>
+
+
+
+<a name="287789818"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789818" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789818">(Jun 28 2022 at 23:25)</a>:</h4>
+<p>(in which there's little need for adding/removing points)</p>
+
+
+
+<a name="287789901"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789901" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789901">(Jun 28 2022 at 23:26)</a>:</h4>
+<p>Please please please give it a try. I've add extensive experience with similar things and finset-indexed families are by far the least painful.</p>
+
+
+
+<a name="287789939"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789939" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789939">(Jun 28 2022 at 23:27)</a>:</h4>
+<p>I'll certainly have a go - do you have a link to something that uses a similar approach so I have something to model off?</p>
+
+
+
+<a name="287789955"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789955" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789955">(Jun 28 2022 at 23:27)</a>:</h4>
+<p>I've seen plenty of fintype-indexed stuff but much less finset-indexed stuff.</p>
+
+
+
+<a name="287789980"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287789980" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287789980">(Jun 28 2022 at 23:27)</a>:</h4>
+<p><del>docs#finpartition comes to mind</del> oh, that's not indexed</p>
+
+
+
+<a name="287790061"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790061" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790061">(Jun 28 2022 at 23:28)</a>:</h4>
+<p>Apologies, I totally missed that you had already linked to the PR above!</p>
+
+
+
+<a name="287790119"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790119" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790119">(Jun 28 2022 at 23:29)</a>:</h4>
+<p>No worries - it would be a bit odd of me if I hadn't for sure.</p>
+
+
+
+<a name="287790127"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790127" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790127">(Jun 28 2022 at 23:29)</a>:</h4>
+<p>Typically, <a href="https://leanprover-community.github.io/mathlib_docs/find/finset.sum">docs#finset.sum</a></p>
+
+
+
+<a name="287790197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790197">(Jun 28 2022 at 23:30)</a>:</h4>
+<p>Also <a href="https://leanprover-community.github.io/mathlib_docs/find/finset.sup">docs#finset.sup</a></p>
+
+
+
+<a name="287790300"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790300" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790300">(Jun 28 2022 at 23:31)</a>:</h4>
+<p>This case is a bit unusual though because the map has to be injective, so the only motivation for this refactor seems to be one of computability?</p>
+
+
+
+<a name="287790314"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790314" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790314">(Jun 28 2022 at 23:31)</a>:</h4>
+<p>No</p>
+
+
+
+<a name="287790341"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790341" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790341">(Jun 28 2022 at 23:32)</a>:</h4>
+<p>It's also because the current version interpolates over a whole function F -&gt; F. But this is an unusual place to start.</p>
+
+
+
+<a name="287790431"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790431" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790431">(Jun 28 2022 at 23:32)</a>:</h4>
+<p>Doesn't it let you specify an arbitrary finset of F?</p>
+
+
+
+<a name="287790442"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790442" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790442">(Jun 28 2022 at 23:32)</a>:</h4>
+<p>As the nodal points.</p>
+
+
+
+<a name="287790510"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790510" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790510">(Jun 28 2022 at 23:34)</a>:</h4>
+<p>What's more usual is the following: you have some nodal points, which I'll index in the obvious way but we understand that it could be more general: x_1, x_2, ..., x_n. You have some values, r_1, ..., r_n. You construct a polynomial p of minimal degree such that p(x_i) = r_i.</p>
+
+
+
+<a name="287790612"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790612" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790612">(Jun 28 2022 at 23:35)</a>:</h4>
+<p>Ah. I missed that you needed to match up elements of two finsets</p>
+
+
+
+<a name="287790613"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790613" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790613">(Jun 28 2022 at 23:35)</a>:</h4>
+<p>The current formulation is the following: given some finset s, and some function f : F -&gt; F, construct a polynomial p of minimal degree such that p(x) = f(x) for all x in s</p>
+
+
+
+<a name="287790654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790654">(Jun 28 2022 at 23:35)</a>:</h4>
+<p>Yes - it's the matching up which is the tricky part, and why I've reformulated in the way that I did, after thinking about it and trying a few things. It ran through very smooth this way.</p>
+
+
+
+<a name="287790738"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790738" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790738">(Jun 28 2022 at 23:36)</a>:</h4>
+<p>I think what Yaël is proposing is roughly <code>(s : finset ι) (x : ι ↪ F) (r : ι → F)</code>?</p>
+
+
+
+<a name="287790752"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790752" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790752">(Jun 28 2022 at 23:36)</a>:</h4>
+<p>And actually btw - the second lot isn't a finset necessarily: they don't have to be distinct.</p>
+
+
+
+<a name="287790765"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790765" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790765">(Jun 28 2022 at 23:37)</a>:</h4>
+<p>or <code>(s : finset F) (r : F → F)</code></p>
+
+
+
+<a name="287790776"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790776" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790776">(Jun 28 2022 at 23:37)</a>:</h4>
+<p>That's what we have today</p>
+
+
+
+<a name="287790795"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790795" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790795">(Jun 28 2022 at 23:37)</a>:</h4>
+<p>Yes: I don't want r: F -&gt; F. That's just what we already have, and it isn't useful in my actual context to do the actual maths you want to do with this</p>
+
+
+
+<a name="287790880"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790880" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790880">(Jun 28 2022 at 23:38)</a>:</h4>
+<p>What you describe there is nearly what I have, Eric - though I'm not sure how the finset gets folded in.</p>
+
+
+
+<a name="287790896"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790896" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790896">(Jun 28 2022 at 23:38)</a>:</h4>
+<p>It's the union of what you have and what we had before</p>
+
+
+
+<a name="287790961"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287790961" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287790961">(Jun 28 2022 at 23:39)</a>:</h4>
+<p>Yes. I mean I'm perfectly happy to find something that works for everyone - but I have found my formulation very straightforward to work with and it works for my context. I do agree that erasing or adding nodes is hard though - it could be nice to fix that.</p>
+
+
+
+<a name="287791056"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791056" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791056">(Jun 28 2022 at 23:41)</a>:</h4>
+<p>One other thing to consider; <code>(s : finset F) (r : F → F)</code> in this case can be represented neatly as <code>r' : F →₀ F</code></p>
+
+
+
+<a name="287791074"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791074" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791074">(Jun 28 2022 at 23:41)</a>:</h4>
+<p>Yes, I had actually wondered about the use of finsupps somehow.</p>
+
+
+
+<a name="287791180"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791180" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791180">(Jun 28 2022 at 23:43)</a>:</h4>
+<p>And then my spelling above amounts to having <code>r' = r.map_domain f</code> (<a href="https://leanprover-community.github.io/mathlib_docs/find/finsupp.map_domain">docs#finsupp.map_domain</a>)</p>
+
+
+
+<a name="287791184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791184">(Jun 28 2022 at 23:43)</a>:</h4>
+<p>A key test I would like to try is if my definition of the interpolant is compatible with, say, the construction of the interpolant using the derivative (I already have some work doing this, using current-mathlib).</p>
+
+
+
+<a name="287791213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791213">(Jun 28 2022 at 23:43)</a>:</h4>
+<p>This sort of thing does often leave you wanting to erase stuff from sums.</p>
+
+
+
+<a name="287791269"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791269" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791269">(Jun 28 2022 at 23:44)</a>:</h4>
+<p>How does finsupp work? If you use finsupp you can't specify any element to be mapped to 0.</p>
+
+
+
+<a name="287791330"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791330" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791330">(Jun 28 2022 at 23:45)</a>:</h4>
+<p>Yeah I mean that is the issue - you want to lead values outside the nodal values unspecified.</p>
+
+
+
+<a name="287791389"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791389" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791389">(Jun 28 2022 at 23:46)</a>:</h4>
+<p>That's why I am suspicious of anything that starts with F -&gt; F: clearly that's a thing you want to be able to work with, that's why I define <code>interpolate_at</code>.</p>
+
+
+
+<a name="287791426"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791426" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791426">(Jun 28 2022 at 23:46)</a>:</h4>
+<p>But I'm not sure it should be the core definition.</p>
+
+
+
+<a name="287791480"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791480" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791480">(Jun 28 2022 at 23:47)</a>:</h4>
+<p>Whoops. Clutching at straws, <code>F →₀ with_zero F</code> ought to be a faithful representation, but I doubt it's useful</p>
+
+
+
+<a name="287791579"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791579" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791579">(Jun 28 2022 at 23:48)</a>:</h4>
+<p>Yes that sounds highly suspect. Again, in the context I am working in - I'm not going to fully explain it but, it's Goppa codes, it's always Goppa codes, I hate it, free me from this <em>ahem</em> - you really do have like, a fixed number of points that you care about, and those points are fixed.</p>
+
+
+
+<a name="287791622"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791622" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791622">(Jun 28 2022 at 23:49)</a>:</h4>
+<p>That's why - look you can say "ho ho ho I'm very good at Lean and this works better" all you like but I did do it this way for a reason - just picking some fintype or finset or whatever, fixing that, and using that to index is very natural.</p>
+
+
+
+<a name="287791647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791647">(Jun 28 2022 at 23:49)</a>:</h4>
+<p>Ultimately if you pick a finset I think you're going to want to be thinking about functions from it anyway and then you're just promoting it to a type.</p>
+
+
+
+<a name="287791701"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791701" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791701">(Jun 28 2022 at 23:50)</a>:</h4>
+<p>I don't disagree, I just wonder if we're missing some primitive collection type</p>
+
+
+
+<a name="287791707"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791707" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791707">(Jun 28 2022 at 23:50)</a>:</h4>
+<p>Cotton?</p>
+
+
+
+<a name="287791758"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791758" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791758">(Jun 28 2022 at 23:51)</a>:</h4>
+<p>Oh I see. I mean I suppose, technically, all I need is some labels for my nodes and they don't have to be homogeneous? So maybe there's some absolutely demented ways of labelling them with heterogeneous types.</p>
+
+
+
+<a name="287791771"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791771" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791771">(Jun 28 2022 at 23:51)</a>:</h4>
+<p>But uh - I don't want to. &lt;_&lt;</p>
+
+
+
+<a name="287791873"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791873" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791873">(Jun 28 2022 at 23:53)</a>:</h4>
+<p>I will say that I did first of all try indexing the values with the node finset. It just ended up a lot messier and I kept fighting against myself.</p>
+
+
+
+<a name="287791929"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791929" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791929">(Jun 28 2022 at 23:53)</a>:</h4>
+<p>What I'm curious about is whether something like</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">indexed_dict</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span>
+<span class="o">(</span><span class="n">keys</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">α</span><span class="o">)</span>
+<span class="o">(</span><span class="n">values</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="n">β</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">indexed_dict.get</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">:</span> <span class="n">option</span> <span class="n">β</span> <span class="o">:=</span>
+<span class="c1">-- computable by enumeration</span>
+</code></pre></div>
+<p>is a useful abstraction for this kind of problem</p>
+
+
+
+<a name="287791986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287791986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287791986">(Jun 28 2022 at 23:54)</a>:</h4>
+<p>I'm not sure I understand the role that s has here.</p>
+
+
+
+<a name="287792073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792073">(Jun 28 2022 at 23:56)</a>:</h4>
+<p>(Incidentally, this is a side point, I think one reason it is nice to get more computability here even though at the current time it doesn't matter, is that in some future Lean 4 world where we're actually doing computation, somebody is going to want to write a numerical methods library and at that time they'll thank us if the interpolant works nicely.)</p>
+
+
+
+<a name="287792135"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792135" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792135">(Jun 28 2022 at 23:56)</a>:</h4>
+<p>(they'll be very annoyed that polynomial is noncomputable first though)</p>
+
+
+
+<a name="287792150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792150">(Jun 28 2022 at 23:57)</a>:</h4>
+<p>yes in this perfect world I'm imagining we've fixed that perverse state of affairs</p>
+
+
+
+<a name="287792159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792159">(Jun 28 2022 at 23:57)</a>:</h4>
+<p>I mean it's like that for very good reasons but it's also a funny joke</p>
+
+
+
+<a name="287792257"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792257" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792257">(Jun 28 2022 at 23:58)</a>:</h4>
+<p>I imagine in practice we might have "computable polynomials" and "theorem polynomials" and some translation between them, a la how we have array I think because it's fast even though we don't really do, say, linear algebra proofs with it.</p>
+
+
+
+<a name="287792306"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792306" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792306">(Jun 28 2022 at 23:59)</a>:</h4>
+<p>Incidentally my framework also fits well into the lemmas at the top (reworked versions of existing ones) which link to the vandermonde. If you look at how the matrix.vandermonde lemmas work, it's all about doing this kind of thing with indexes.</p>
+
+
+
+<a name="287792372"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792372" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792372">(Jun 29 2022 at 00:00)</a>:</h4>
+<p>In the case of the vandermonde you have to do stuff with fin n but you can fix that (noncomputably, but that's fine enough for government work).</p>
+
+
+
+<a name="287792507"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792507" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792507">(Jun 29 2022 at 00:02)</a>:</h4>
+<p>I'm really very, very happy with how easy those proofs were (with only a little bit of massaging). The vandermonde is the key link between Lagrange interpolation and linear algebra (and thus the particular link between polynomials and linear algebra which is key for This Sort Of Thing).</p>
+
+
+
+<a name="287792528"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792528" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792528">(Jun 29 2022 at 00:02)</a>:</h4>
+<p>It's basically the best gadget.</p>
+
+
+
+<a name="287792680"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287792680" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287792680">(Jun 29 2022 at 00:05)</a>:</h4>
+<blockquote>
+<p>I imagine in practice we might have "computable polynomials" and "theorem polynomials" and some translation between them, a la how we have array I think because it's fast even though we don't really do, say, linear algebra proofs with it.</p>
+</blockquote>
+<p>Some discussions in this twitter thread last November:<br>
+<a href="https://twitter.com/XenaProject/status/1462788134584954881">https://twitter.com/XenaProject/status/1462788134584954881</a><br>
+<a href="https://twitter.com/XenaProject/status/1462475753556221953">https://twitter.com/XenaProject/status/1462475753556221953</a><br>
+<a href="https://twitter.com/XenaProject/status/1462800104541376524">https://twitter.com/XenaProject/status/1462800104541376524</a></p>
+<div class="inline-preview-twitter"><div class="twitter-tweet"><a href="https://twitter.com/XenaProject/status/1462788134584954881"><img class="twitter-avatar" src="https://uploads.zulipusercontent.net/9686557e167ea0d81d62930b9cefbd210a469b3c/68747470733a2f2f7062732e7477696d672e636f6d2f70726f66696c655f696d616765732f313236333831303239373536303733353734342f674d69616e515f565f6e6f726d616c2e6a7067"></a><p><a href="https://twitter.com/EscardoMartin">@EscardoMartin</a> <a href="https://twitter.com/jjcarett2">@jjcarett2</a> Well this is an interesting idea. I remember when Lean switched from constructive to nonconstructive polynomials (and I remember why too -- we were having problems proving theorems about constructive polys). But wouldn't having both `poly` and `constructive_poly` be a minefield?</p><span>- Kevin Buzzard (@XenaProject)</span></div></div><div class="inline-preview-twitter"><div class="twitter-tweet"><a href="https://twitter.com/XenaProject/status/1462475753556221953"><img class="twitter-avatar" src="https://uploads.zulipusercontent.net/9686557e167ea0d81d62930b9cefbd210a469b3c/68747470733a2f2f7062732e7477696d672e636f6d2f70726f66696c655f696d616765732f313236333831303239373536303733353734342f674d69616e515f565f6e6f726d616c2e6a7067"></a><p><a href="https://twitter.com/jjcarett2">@jjcarett2</a> <a href="https://twitter.com/EscardoMartin">@EscardoMartin</a> In Lean we rejected constructive polynomials because they were simply too tedious to work with; constructivism caused pain, and the only gain was constructive polynomial addition. Instead we have a *tactic* for doing polynomial addition, and this will do for us.</p><span>- Kevin Buzzard (@XenaProject)</span></div></div><div class="inline-preview-twitter"><div class="twitter-tweet"><a href="https://twitter.com/XenaProject/status/1462800104541376524"><img class="twitter-avatar" src="https://uploads.zulipusercontent.net/9686557e167ea0d81d62930b9cefbd210a469b3c/68747470733a2f2f7062732e7477696d672e636f6d2f70726f66696c655f696d616765732f313236333831303239373536303733353734342f674d69616e515f565f6e6f726d616c2e6a7067"></a><p><a href="https://twitter.com/jonmsterling">@jonmsterling</a> <a href="https://twitter.com/EscardoMartin">@EscardoMartin</a> <a href="https://twitter.com/jjcarett2">@jjcarett2</a> You say "coefficients are 0 except for degrees in this explicit finset" where a finset is a constructive finite subset of the naturals, so now you can't add them because you can't tell whether the coefficient of x^3 is zero because you can't decide a+b=0 in the reals.</p><span>- Kevin Buzzard (@XenaProject)</span></div></div>
+
+
+
+<a name="287793024"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287793024" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287793024">(Jun 29 2022 at 00:11)</a>:</h4>
+<p>Interesting! I leave that stuff to cleverer minds than I.</p>
+
+
+
+<a name="287793105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287793105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287793105">(Jun 29 2022 at 00:12)</a>:</h4>
+<p>I am simply small brain cavewoman and want to know that x + x + x^2 + x = x^2 + 3*x.</p>
+
+
+
+<a name="287793133"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287793133" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287793133">(Jun 29 2022 at 00:13)</a>:</h4>
+<p>(Which I assume is ultimately how you do it in the simple case, use some sparkly ubertactic to put polynomials in some normal form.)</p>
+
+
+
+<a name="287806674"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287806674" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287806674">(Jun 29 2022 at 04:39)</a>:</h4>
+<p>The noncomputability of <a href="https://leanprover-community.github.io/mathlib_docs/find/finsupp.single">docs#finsupp.single</a> comes from the need to distinguish between zero and nonzero, hence the need of decidable_eq, supplied by the classical instance:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">finsupp.single</span> <span class="n">a</span> <span class="n">b</span> <span class="bp">=</span> <span class="o">{</span><span class="n">support</span> <span class="o">:=</span> <span class="n">ite</span> <span class="o">(</span><span class="n">b</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="bp">∅</span> <span class="o">{</span><span class="n">a</span><span class="o">},</span> <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="o">(</span><span class="n">a'</span> <span class="o">:</span> <span class="n">α</span><span class="o">),</span> <span class="n">ite</span> <span class="o">(</span><span class="n">a</span> <span class="bp">=</span> <span class="n">a'</span><span class="o">)</span> <span class="n">b</span> <span class="mi">0</span><span class="o">,</span> <span class="n">mem_support_to_fun</span> <span class="o">:=</span> <span class="n">_</span><span class="o">}</span>
+</code></pre></div>
+<p>A more computable implementation of <code>finsupp</code> would be the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span>
+  <span class="n">data.finset.basic</span>
+  <span class="n">data.setoid.basic</span>
+
+<span class="kd">variables</span> <span class="o">(</span><span class="n">α</span> <span class="n">M</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">)</span>
+
+<span class="kd">structure</span> <span class="n">finsupp_aux</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">support</span> <span class="o">:</span> <span class="n">multiset</span> <span class="n">α</span><span class="o">)</span>
+<span class="o">(</span><span class="n">to_fun</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">M</span><span class="o">)</span>
+<span class="o">(</span><span class="n">mem_support_to_fun</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">a</span><span class="o">,</span> <span class="n">to_fun</span> <span class="n">a</span> <span class="bp">≠</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">a</span> <span class="bp">∈</span> <span class="n">support</span><span class="o">)</span> <span class="c1">-- notice this is no longer iff</span>
+
+<span class="kd">def</span> <span class="n">finsupp</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">:=</span> <span class="n">quotient</span> <span class="o">(</span><span class="n">setoid.comap</span> <span class="n">finsupp_aux.to_fun</span> <span class="bp">⊥</span> <span class="o">:</span> <span class="n">setoid</span> <span class="o">(</span><span class="n">finsupp_aux</span> <span class="n">α</span> <span class="n">M</span><span class="o">))</span>
+<span class="c1">-- `f g : finsupp_aux α M` are equivalent iff `f.to_fun = g.to_fun`.</span>
+
+<span class="kd">def</span> <span class="n">finsupp.single</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">α</span><span class="o">]</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">finsupp</span> <span class="n">α</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">apply</span> <span class="n">quotient.mk</span><span class="o">,</span> <span class="n">exact</span>
+<span class="o">{</span> <span class="n">support</span> <span class="o">:=</span> <span class="o">{</span><span class="n">a</span><span class="o">},</span>
+  <span class="n">to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a'</span><span class="o">,</span> <span class="k">if</span> <span class="n">a'</span> <span class="bp">=</span> <span class="n">a</span> <span class="k">then</span> <span class="n">m</span> <span class="k">else</span> <span class="mi">0</span><span class="o">,</span>
+  <span class="n">mem_support_to_fun</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">a'</span> <span class="n">h</span><span class="o">,</span> <span class="kd">by</span> <span class="o">{</span> <span class="n">left</span><span class="o">,</span> <span class="n">by_contra</span> <span class="n">hne</span><span class="o">,</span> <span class="n">exact</span> <span class="n">h</span> <span class="o">(</span><span class="n">if_neg</span> <span class="n">hne</span><span class="o">)</span> <span class="o">}</span> <span class="o">},</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>However, if you have a list of terms in <code>α × M</code> and want to computably construct a term in <code>finsupp α M</code>, you still need <code>decidable_eq α</code> to define <code>to_fun</code> field and to define polynomial multiplication, but that's satisfied when <code>α</code> is <code>ℕ</code> or <code>ℤ</code> (for polynomials) and many other cases. A maximally computable definition would be the following:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">finsupp'</span> <span class="o">[</span><span class="n">add_comm_monoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">:=</span> <span class="n">quotient</span> <span class="o">(</span><span class="n">setoid.comap</span>
+  <span class="o">(</span><span class="bp">λ</span> <span class="n">s</span> <span class="n">a</span><span class="o">,</span> <span class="o">(</span><span class="n">multiset.map</span> <span class="n">prod.snd</span> <span class="bp">$</span> <span class="kd">by</span> <span class="n">classical</span><span class="bp">;</span> <span class="n">exact</span> <span class="n">s.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span><span class="o">,</span> <span class="n">p.fst</span> <span class="bp">=</span> <span class="n">a</span><span class="o">))</span><span class="bp">.</span><span class="n">sum</span><span class="o">)</span> <span class="bp">⊥</span> <span class="o">:</span> <span class="n">setoid</span> <span class="bp">$</span> <span class="n">multiset</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">M</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">finsupp'.single</span> <span class="o">[</span><span class="n">add_comm_monoid</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">finsupp'</span> <span class="n">α</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="o">{</span> <span class="n">apply</span> <span class="n">quotient.mk</span><span class="o">,</span> <span class="n">exact</span> <span class="o">{(</span><span class="n">a</span><span class="o">,</span><span class="n">m</span><span class="o">)}</span> <span class="o">}</span>
+</code></pre></div>
+<p>This definition would allow you to define polynomial addition and multiplication computably without <code>decidable_eq α</code>. But it requires an add_comm_monoid, and evaluation won't be able to automatically combine like terms. So it feels the first definition would be most useful.<br>
+A third definition only requires has_zero, but doesn't support computable addition:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">finsupp''_aux</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">monomials</span> <span class="o">:</span> <span class="n">multiset</span> <span class="o">(</span><span class="n">α</span> <span class="bp">×</span> <span class="n">M</span><span class="o">))</span>
+<span class="o">(</span><span class="n">nodup</span> <span class="o">:</span> <span class="o">(</span><span class="n">monomials.map</span> <span class="n">prod.fst</span><span class="o">)</span><span class="bp">.</span><span class="n">nodup</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">finsupp''</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">:=</span> <span class="n">quotient</span> <span class="o">(</span><span class="n">setoid.comap</span>
+  <span class="o">(</span><span class="bp">λ</span> <span class="n">f</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">M</span><span class="o">],</span> <span class="kd">by</span> <span class="n">exactI</span> <span class="n">f.monomials.filter</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">p</span><span class="o">,</span> <span class="n">p.snd</span> <span class="bp">≠</span> <span class="mi">0</span><span class="o">))</span> <span class="bp">⊥</span> <span class="o">:</span> <span class="n">setoid</span> <span class="o">(</span><span class="n">finsupp''_aux</span> <span class="n">α</span> <span class="n">M</span><span class="o">))</span>
+
+<span class="kd">def</span> <span class="n">finsupp''.single</span> <span class="o">[</span><span class="n">has_zero</span> <span class="n">M</span><span class="o">]</span> <span class="o">(</span><span class="n">a</span> <span class="o">:</span> <span class="n">α</span><span class="o">)</span> <span class="o">(</span><span class="n">m</span> <span class="o">:</span> <span class="n">M</span><span class="o">)</span> <span class="o">:</span> <span class="n">finsupp''</span> <span class="n">α</span> <span class="n">M</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">apply</span> <span class="n">quotient.mk</span><span class="o">,</span> <span class="n">exact</span>
+<span class="o">{</span> <span class="n">monomials</span> <span class="o">:=</span> <span class="o">{(</span><span class="n">a</span><span class="o">,</span><span class="n">m</span><span class="o">)},</span>
+  <span class="n">nodup</span> <span class="o">:=</span> <span class="n">multiset.nodup_singleton</span> <span class="n">_</span> <span class="o">},</span>
+<span class="kd">end</span>
+</code></pre></div>
+<p>Have people explored these ideas before?</p>
+
+
+
+<a name="287810159"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287810159" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287810159">(Jun 29 2022 at 05:52)</a>:</h4>
+<p>Wow, <a href="https://leanprover-community.github.io/mathlib_docs/find/dfinsupp.pre">docs#dfinsupp.pre</a> uses exactly my first strategy! I found it in <a href="#narrow/stream/113489-new-members/topic/.60ite.60.20with.20multiple.20decidable.20instances/near/272320459">this thread</a>.</p>
+<p>Maybe I am not thinking about the right question, as per what Reid Barton said:</p>
+<blockquote>
+<p>"making finsupp computable" is not the right kind of goal, the correct goal should be "add data structure X which supports operations Y in time complexity Z, for use in algorithm W"</p>
+</blockquote>
+
+
+
+<a name="287812071"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287812071" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287812071">(Jun 29 2022 at 06:26)</a>:</h4>
+<p>Since the lagrange stuff is being refactored, what do people think about allowing the values to live in some algebra R over F instead of F itself? If R is a domain you also get uniqueness.</p>
+
+
+
+<a name="287815516"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287815516" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287815516">(Jun 29 2022 at 07:17)</a>:</h4>
+<p>I wouldn't take anything I say about constructivism on Twitter seriously, not least because I don't know anything about it</p>
+
+
+
+<a name="287831564"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287831564" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287831564">(Jun 29 2022 at 10:08)</a>:</h4>
+<p>I'm fine for it to not be over a field - just let me know the more general setting.</p>
+
+
+
+<a name="287831631"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287831631" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287831631">(Jun 29 2022 at 10:08)</a>:</h4>
+<p><span class="user-mention" data-user-id="310045">@Eric Wieser</span> I understand why you've made the suggestion re:  not using<code>∏ j, ite (i = j) 1</code> that you have - but I have certainly found that form a <em>lot</em> easier to work with in proofs.</p>
+
+
+
+<a name="287831702"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287831702" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287831702">(Jun 29 2022 at 10:09)</a>:</h4>
+<p>Like switching to the <code>erase</code> formulation makes all my proofs break and it isn't necessarily clear how to fix them without making them all longer.</p>
+
+
+
+<a name="287835441"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287835441" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287835441">(Jun 29 2022 at 10:52)</a>:</h4>
+<p>I'm quite surprised by that; we have plenty of lemmas about the product of <code>finset.erase</code></p>
+
+
+
+<a name="287835672"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287835672" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287835672">(Jun 29 2022 at 10:55)</a>:</h4>
+<p>It's also worth noting that the existing proofs already used <code>finset.erase</code></p>
+
+
+
+<a name="287835950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287835950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287835950">(Jun 29 2022 at 10:58)</a>:</h4>
+<p>With <span class="user-mention" data-user-id="387244">@Yaël Dillies</span>' suggested approach <a href="https://leanprover-community.github.io/mathlib_docs/find/lagrange.basis">docs#lagrange.basis</a> would just become</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">basis</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="o">:=</span>
+<span class="bp">∏</span> <span class="n">j</span> <span class="k">in</span> <span class="n">s.erase</span> <span class="n">i</span><span class="o">,</span> <span class="n">C</span> <span class="o">(</span><span class="n">v</span> <span class="n">i</span> <span class="bp">-</span> <span class="n">v</span> <span class="n">j</span><span class="o">)</span><span class="bp">⁻¹</span> <span class="bp">*</span> <span class="o">(</span><span class="n">X</span> <span class="bp">-</span> <span class="n">C</span> <span class="o">(</span><span class="n">v</span> <span class="n">j</span><span class="o">))</span>
+</code></pre></div>
+<p>or  the equivalent</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">basis</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">i</span> <span class="o">:</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]</span> <span class="o">:=</span>
+<span class="bp">∏</span> <span class="n">y</span> <span class="k">in</span> <span class="o">(</span><span class="n">s.erase</span> <span class="n">i</span><span class="o">)</span><span class="bp">.</span><span class="n">map</span> <span class="n">v</span><span class="o">,</span> <span class="n">C</span> <span class="o">(</span><span class="n">v</span> <span class="n">i</span> <span class="bp">-</span> <span class="n">y</span><span class="o">)</span><span class="bp">⁻¹</span> <span class="bp">*</span> <span class="o">(</span><span class="n">X</span> <span class="bp">-</span> <span class="n">C</span> <span class="n">y</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="287836522"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287836522" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287836522">(Jun 29 2022 at 11:05)</a>:</h4>
+<p>Oh, I'm sure if I find the right lemmas it'll be fine; it's worth saying that the existing proofs got quite long and involved (my current proofs I think generally are shorter) but I'm sure there are short ways.</p>
+
+
+
+<a name="287836546"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287836546" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287836546">(Jun 29 2022 at 11:05)</a>:</h4>
+<p>I just don't much like that definition, though.</p>
+
+
+
+<a name="287836695"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287836695" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287836695">(Jun 29 2022 at 11:07)</a>:</h4>
+<p>(Also the <code>basis_divisor v i j</code> abstraction is very nice to work with so it would be good to keep that.)</p>
+
+
+
+<a name="287836913"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287836913" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287836913">(Jun 29 2022 at 11:09)</a>:</h4>
+<p>I don't see why you would define some indexed embedding but then only work with a finset of it, as opposed to simply working with a finite type. Indexing by types is what we do in the case of, say, !docs#matrix, it works well there.</p>
+
+
+
+<a name="287837979"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287837979" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287837979">(Jun 29 2022 at 11:21)</a>:</h4>
+<p>(I could see, btw <code>(v : s ↪ F)</code> working... but at that stage you're just using s as a fintype!)</p>
+
+
+
+<a name="287841910"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287841910" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287841910">(Jun 29 2022 at 12:00)</a>:</h4>
+<p><span class="user-mention" data-user-id="310045">@Eric Wieser</span>good news - managed to fix my proofs. thank goodness the effect wasn't too large.</p>
+
+
+
+<a name="287842423"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287842423" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287842423">(Jun 29 2022 at 12:05)</a>:</h4>
+<p>ultimately I can see the value of the above approach when we're dealing with a flexible indexing set. it's just not clear to me that is what you want here.</p>
+
+
+
+<a name="287842823"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287842823" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287842823">(Jun 29 2022 at 12:09)</a>:</h4>
+<p>Also - what do you do in the case where you want to add a node to <code>v : ι ↪ F</code> that wasn't originally specified - that is, extend <code>ι</code>? That to me feels at least as likely as wanting to shrink it.</p>
+
+
+
+<a name="287842986"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287842986" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287842986">(Jun 29 2022 at 12:11)</a>:</h4>
+<p>It occurs that you could define <code>def basis_divisor (x y : F) : F[X] := C (x - y)⁻¹ * (X - C (y))</code>, closer to how it originally works (though I do think abstracting that out is useful, it has nice properties in and of itself).</p>
+
+
+
+<a name="287843119"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287843119" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287843119">(Jun 29 2022 at 12:12)</a>:</h4>
+<p>But then you get close to re-introducing this decidable_eq condition on the field, which is unnatural.</p>
+
+
+
+<a name="287849243"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287849243" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287849243">(Jun 29 2022 at 13:03)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/data/setoid/partition.html#indexed_partition">https://leanprover-community.github.io/mathlib_docs/data/setoid/partition.html#indexed_partition</a></p>
+
+
+
+<a name="287849278"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287849278" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287849278">(Jun 29 2022 at 13:03)</a>:</h4>
+<p>This seems to be an example where, again, we index by type.</p>
+
+
+
+<a name="287854460"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287854460" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287854460">(Jun 29 2022 at 13:39)</a>:</h4>
+<p>I'm not sure if it's what you're explicitly describing above, but I think I see the problem; <code>(s : finset ι) (i : ι) (v : ι ↪ F)</code> puts too strong a condition on <code>v</code>, as it only need to be injective on <code>s</code>.</p>
+
+
+
+<a name="287855659"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287855659" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastien Gouezel <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287855659">(Jun 29 2022 at 13:46)</a>:</h4>
+<p>Can't you drop all the injectivity assumptions in the definition of <code>basis</code>, and prove results assuming <code>inj_on v s</code>?</p>
+
+
+
+<a name="287860443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287860443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287860443">(Jun 29 2022 at 14:18)</a>:</h4>
+<p>Yes; what isn't clear to me is what advantage that gets you.</p>
+
+
+
+<a name="287860749"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287860749" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287860749">(Jun 29 2022 at 14:20)</a>:</h4>
+<p>Like - at that stage, why not just define <code>v : s ↪ F</code>?</p>
+
+
+
+<a name="287860879"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287860879" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287860879">(Jun 29 2022 at 14:21)</a>:</h4>
+<p>because then how do you add an element? This sounds like pain.</p>
+
+
+
+<a name="287860915"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287860915" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287860915">(Jun 29 2022 at 14:21)</a>:</h4>
+<p>Right - what I'm saying is I'm not sure that you need to.</p>
+
+
+
+<a name="287860964"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287860964" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287860964">(Jun 29 2022 at 14:21)</a>:</h4>
+<p>Certainly I'm proving everything I want to be proving without doing this.</p>
+
+
+
+<a name="287861073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287861073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287861073">(Jun 29 2022 at 14:22)</a>:</h4>
+<p>It's like saying, for, say, <code>matrix</code>, "how do you add a column to the column indexing type"? You don't, really.</p>
+
+
+
+<a name="287861292"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287861292" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287861292">(Jun 29 2022 at 14:23)</a>:</h4>
+<p>Also: if I define <code>v : ι -&gt; F</code>, then what happens when I want to add a node to <code>s</code> that isn't indexed by any <code>i : ι</code>? You end up with the same problem anyway.</p>
+
+
+
+<a name="287872280"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287872280" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287872280">(Jun 29 2022 at 15:29)</a>:</h4>
+<p>Just pushed a new set of commits to <a href="https://github.com/leanprover-community/mathlib/pull/15036">#15036</a>.</p>
+
+
+
+<a name="287872443"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287872443" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287872443">(Jun 29 2022 at 15:30)</a>:</h4>
+<p>Importantly we now have <code>eq_interpolate_iff</code>, which we implicitly previously had but I think is good to have explicitly: this is the characteristic property of the interpolation to a set of node-value pairs.</p>
+
+
+
+<a name="287872614"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287872614" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287872614">(Jun 29 2022 at 15:31)</a>:</h4>
+<p>(This also perhaps makes a little clearer why I am happy with the current formulation: an interpolation is arguably defined /according to a particular choice of nodes/, and adding or removing a node simply gives a different interpolation, although there clearly is a relationship here.)</p>
+
+
+
+<a name="287872667"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287872667" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287872667">(Jun 29 2022 at 15:31)</a>:</h4>
+<p>We also need a better location for the <code>non_lagrange</code> lemmas than this file: happy to take suggestions.</p>
+
+
+
+<a name="287872766"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287872766" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287872766">(Jun 29 2022 at 15:32)</a>:</h4>
+<p>The only requirement is that wherever they go, this file will want to import it.</p>
+
+
+
+<a name="287878042"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287878042" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287878042">(Jun 29 2022 at 16:04)</a>:</h4>
+<p>The finset approach does have things to commend it, I think, if we wanted to have other forms of the interpolant especially.<br>
+So what is needed is:</p>
+<ul>
+<li>Have some type of indexes <code>ι</code>, which will probably have decidable equality.</li>
+<li>Have some <code>s : finset ι</code>, which represents "currently used indexes".</li>
+<li>For each <code>i</code> in <code>s</code>, we have some <code>v_i</code> in <code>F</code>, and these <code>v_i</code> are unique. They're the nodes.</li>
+<li>For each <code>i</code> in <code>s</code>,  we have some <code>r_i</code> in F. They don't have to be unique.</li>
+</ul>
+<p>That's almost the setup above, but, crucially, there's no need to define <code>v_i</code> and <code>r_i</code> across the entire <code>ι</code>.</p>
+
+
+
+<a name="287878162"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287878162" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287878162">(Jun 29 2022 at 16:05)</a>:</h4>
+<p>But as I've said, I'm not necessarily sure that's better if you're not adding/removing nodes.</p>
+
+
+
+<a name="287879192"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287879192" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287879192">(Jun 29 2022 at 16:10)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287878042">said</a>:</p>
+<blockquote>
+<p>That's almost the setup above, but, crucially, there's no need to define <code>v_i</code> and <code>r_i</code> across the entire <code>ι</code>.</p>
+</blockquote>
+<p>This doesn't really matter though, as you know these types are inhabited so you can always output zero.</p>
+
+
+
+<a name="287879966"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287879966" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287879966">(Jun 29 2022 at 16:16)</a>:</h4>
+<p>yes, but I am... not convinced by that perspective.</p>
+
+
+
+<a name="287885352"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287885352" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287885352">(Jun 29 2022 at 16:57)</a>:</h4>
+<p>Is there a way to (noncomputably) turn a <code>s : finset F</code> into an injective function <code>v : fin (card s) -&gt; F</code></p>
+
+
+
+<a name="287885468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287885468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287885468">(Jun 29 2022 at 16:58)</a>:</h4>
+<p>Having tried to implement the above, that's really the sticking point, because I want to be able to use <code>det_vandermonde_ne_zero_iff</code>.</p>
+
+
+
+<a name="287885633"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287885633" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287885633">(Jun 29 2022 at 16:59)</a>:</h4>
+<p><code>fintype.equiv_fin</code> does this for fintypes.</p>
+
+
+
+<a name="287886417"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287886417" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287886417">(Jun 29 2022 at 17:05)</a>:</h4>
+<p>I guess you could claim that we should have <code>vandermonde : matrix ι (fin n) R</code>, although that doesn't help when you get to taking the determinant</p>
+
+
+
+<a name="287886533"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287886533" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287886533">(Jun 29 2022 at 17:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287885633">said</a>:</p>
+<blockquote>
+<p><code>fintype.equiv_fin</code> does this for fintypes.</p>
+</blockquote>
+<p>That should be all you need, <code>↥s</code> is a fintype</p>
+
+
+
+<a name="287890654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287890654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287890654">(Jun 29 2022 at 17:37)</a>:</h4>
+<p>I don't really claim that - I just want to use the nice vandermonde polynomial lemmas.</p>
+
+
+
+<a name="287890704"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287890704" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287890704">(Jun 29 2022 at 17:37)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287886533">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287885633">said</a>:</p>
+<blockquote>
+<p><code>fintype.equiv_fin</code> does this for fintypes.</p>
+</blockquote>
+<p>That should be all you need, <code>↥s</code> is a fintype</p>
+</blockquote>
+<p>Right, that's what I thought. I'll try it again. Where's the instance for that?</p>
+
+
+
+<a name="287890945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287890945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287890945">(Jun 29 2022 at 17:39)</a>:</h4>
+<p>I need <code>↥s ↪ F</code>; what gives that?</p>
+
+
+
+<a name="287891152"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287891152" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287891152">(Jun 29 2022 at 17:41)</a>:</h4>
+<p><a href="https://leanprover-community.github.io/mathlib_docs/find/function.embedding.subtype">docs#function.embedding.subtype</a></p>
+
+
+
+<a name="287891714"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287891714" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287891714">(Jun 29 2022 at 17:46)</a>:</h4>
+<p>ta</p>
+
+
+
+<a name="287891770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287891770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287891770">(Jun 29 2022 at 17:46)</a>:</h4>
+<p>well, that does it. it's not... pretty...</p>
+
+
+
+<a name="287891848"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287891848" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287891848">(Jun 29 2022 at 17:46)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">eq_zero_of_eval_eq_zero</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">F</span><span class="o">)</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]}</span>
+  <span class="o">(</span><span class="n">degree_f_lt</span> <span class="o">:</span> <span class="n">f.degree</span> <span class="bp">&lt;</span> <span class="n">card</span> <span class="n">s</span><span class="o">)</span> <span class="o">(</span><span class="n">eval_f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">x</span> <span class="bp">∈</span> <span class="n">s</span><span class="o">,</span> <span class="n">f.eval</span> <span class="n">x</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">mem_degree_lt</span><span class="o">,</span> <span class="bp">←</span> <span class="n">fintype.card_coe</span><span class="o">]</span> <span class="n">at</span> <span class="n">degree_f_lt</span><span class="o">,</span>
+  <span class="n">refine</span> <span class="n">vandermonde_invert</span> <span class="o">(</span><span class="n">function.embedding.trans</span> <span class="o">(</span><span class="n">fintype.equiv_fin</span> <span class="n">s</span><span class="o">)</span><span class="bp">.</span><span class="n">symm.to_embedding</span> <span class="o">(</span><span class="n">function.embedding.subtype</span> <span class="n">_</span><span class="o">))</span> <span class="n">degree_f_lt</span> <span class="n">_</span><span class="o">,</span>
+  <span class="n">simp_rw</span> <span class="o">[</span><span class="n">function.embedding.trans_apply</span><span class="o">,</span> <span class="n">function.embedding.coe_subtype</span><span class="o">],</span>
+  <span class="n">exact</span> <span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">eval_f</span> <span class="n">_</span> <span class="o">(</span><span class="n">coe_mem</span> <span class="n">_</span><span class="o">),</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="287891866"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287891866" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287891866">(Jun 29 2022 at 17:46)</a>:</h4>
+<p>Compared with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">theorem</span> <span class="n">eq_zero_of_eval_eq_zero</span> <span class="o">{</span><span class="n">F</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">field</span> <span class="n">F</span><span class="o">]</span> <span class="o">{</span><span class="n">ι</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">{</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span><span class="o">[</span><span class="n">X</span><span class="o">]}</span>
+  <span class="o">(</span><span class="n">degree_f_lt</span> <span class="o">:</span> <span class="n">f.degree</span> <span class="bp">&lt;</span> <span class="n">fintype.card</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">eval_f</span> <span class="o">:</span> <span class="bp">∀</span> <span class="n">i</span><span class="o">,</span> <span class="n">f.eval</span> <span class="o">(</span><span class="n">v</span> <span class="n">i</span><span class="o">)</span> <span class="bp">=</span> <span class="mi">0</span><span class="o">)</span> <span class="o">:</span> <span class="n">f</span> <span class="bp">=</span> <span class="mi">0</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="bp">←</span> <span class="n">mem_degree_lt</span> <span class="n">at</span> <span class="n">degree_f_lt</span><span class="o">,</span>
+  <span class="n">exact</span> <span class="n">vandermonde_invert</span>  <span class="o">(</span><span class="n">function.embedding.trans</span><span class="o">(</span><span class="n">fintype.equiv_fin</span> <span class="n">ι</span><span class="o">)</span><span class="bp">.</span><span class="n">symm.to_embedding</span> <span class="n">v</span><span class="o">)</span>
+                            <span class="n">degree_f_lt</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">_</span><span class="o">,</span> <span class="n">eval_f</span> <span class="n">_</span><span class="o">)</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="287892178"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287892178" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287892178">(Jun 29 2022 at 17:49)</a>:</h4>
+<p>For reference <code>vandermonde_invert</code> is essentially "that, but indexed with fin n".</p>
+
+
+
+<a name="287893643"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287893643" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287893643">(Jun 29 2022 at 18:00)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="310045">Eric Wieser</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287879192">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="330967">Wrenna Robson</span> <a href="#narrow/stream/116395-maths/topic/Lagrange.20interpolants/near/287878042">said</a>:</p>
+<blockquote>
+<p>That's almost the setup above, but, crucially, there's no need to define <code>v_i</code> and <code>r_i</code> across the entire <code>ι</code>.</p>
+</blockquote>
+<p>This doesn't really matter though, as you know these types are inhabited so you can always output zero.</p>
+</blockquote>
+<p>It's a shame there's no "finsupp but for junk values instead of zero".</p>
+
+
+
+<a name="287893664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/287893664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#287893664">(Jun 29 2022 at 18:00)</a>:</h4>
+<p>Because that's kinda what this approach would need.</p>
+
+
+
+<a name="288100654"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288100654" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288100654">(Jun 30 2022 at 23:19)</a>:</h4>
+<p><span class="user-mention" data-user-id="387244">@Yaël Dillies</span> <span class="user-mention" data-user-id="310045">@Eric Wieser</span> Good news! After substantial effort, I've refactored my refactor so that it's indexed-by-finsets, per the suggestions above.</p>
+
+
+
+<a name="288100664"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288100664" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288100664">(Jun 30 2022 at 23:19)</a>:</h4>
+<p>We're now in the sort of halfway house between the two worlds.</p>
+
+
+
+<a name="288100742"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288100742" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288100742">(Jun 30 2022 at 23:20)</a>:</h4>
+<p>I've also left out all the <code>interpolate_at</code> stuff, which is about interpolating a particular function <code>F -&gt; F</code>: it was ending up with a lot of definition replication where the proofs were just yards of def eq, for no clear benefit.</p>
+
+
+
+<a name="288101068"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288101068" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288101068">(Jun 30 2022 at 23:25)</a>:</h4>
+<p><code>interpolate_eq_interpolate_erase_add</code> now has a nice proof (I changed the statement slightly but it says the same thing). I think this is probably generalisable, incidentally, to any subset of the finset.</p>
+<p>Also, the proof of <code>basis_divisor_add_symm</code> is a little indulgent (you <em>can</em> do it quicker using "brute force rewrites, though it's horrible), but I think it nicely shows the utility of using the earlier lemmas.</p>
+
+
+
+<a name="288102136"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288102136" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288102136">(Jun 30 2022 at 23:39)</a>:</h4>
+<p>It might be nice to have the barycentric form of the interpolant, but that does run into issues with the fact you have to work over the fraction field.</p>
+
+
+
+<a name="288102568"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288102568" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288102568">(Jun 30 2022 at 23:44)</a>:</h4>
+<p><a href="/user_uploads/3121/LOdZgtqRyRAuuAoluIol7g2k/682c36ab-c98e-4b4b-b99b-e5387a300bb6.jpg">682c36ab-c98e-4b4b-b99b-e5387a300bb6.jpg</a></p>
+<div class="message_inline_image"><a href="/user_uploads/3121/LOdZgtqRyRAuuAoluIol7g2k/682c36ab-c98e-4b4b-b99b-e5387a300bb6.jpg" title="682c36ab-c98e-4b4b-b99b-e5387a300bb6.jpg"><img src="/user_uploads/3121/LOdZgtqRyRAuuAoluIol7g2k/682c36ab-c98e-4b4b-b99b-e5387a300bb6.jpg"></a></div>
+
+
+
+<a name="288102578"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288102578" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288102578">(Jun 30 2022 at 23:44)</a>:</h4>
+<p>For reference</p>
+
+
+
+<a name="288105317"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288105317" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288105317">(Jul 01 2022 at 00:26)</a>:</h4>
+<p>By the way, do we really not have zero_lt_two for with_bot?</p>
+
+
+
+<a name="288117063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288117063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Violeta Hernández <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288117063">(Jul 01 2022 at 03:57)</a>:</h4>
+<p>Oh if only someone had proposed a refactor to provide those lemmas in much more general circumstances</p>
+
+
+
+<a name="288126852"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288126852" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288126852">(Jul 01 2022 at 06:31)</a>:</h4>
+<p>Hahaha I did think of you</p>
+
+
+
+<a name="288126866"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288126866" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288126866">(Jul 01 2022 at 06:32)</a>:</h4>
+<p>I hate working with with_bot so much. Everything is so much harder than it needs to be.</p>
+
+
+
+<a name="288126922"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288126922" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288126922">(Jul 01 2022 at 06:32)</a>:</h4>
+<p>And then occasionally mathlib can't find the covariant class instances and complains.</p>
+
+
+
+<a name="288126951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288126951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288126951">(Jul 01 2022 at 06:33)</a>:</h4>
+<p>I was dreaming about finsets last night -_-</p>
+
+
+
+<a name="288127189"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288127189" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288127189">(Jul 01 2022 at 06:36)</a>:</h4>
+<p>My worry is that it might be annoying to use some of this stuff in practice, and also that maybe I should make a fintype definition as well, using the now finset-indexed version. But then it's like - do you replicate all the theorems? Is it better to just have the one most general version of interpolate and let people just use it in different ways in context, or is there value to providing specific versions?</p>
+
+
+
+<a name="288127193"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288127193" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288127193">(Jul 01 2022 at 06:36)</a>:</h4>
+<p>Interested in thoughts.</p>
+
+
+
+<a name="288127374"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288127374" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288127374">(Jul 01 2022 at 06:39)</a>:</h4>
+<p>Also someone mentioned it might be possible to generalise it somewhat more</p>
+
+
+
+<a name="288135841"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288135841" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288135841">(Jul 01 2022 at 08:13)</a>:</h4>
+<p>This is what I mean by other spellings (fragment):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">section</span> <span class="n">other_spellings</span>
+<span class="kn">open</span> <span class="n">finset</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">ι</span> <span class="o">:</span> <span class="kt">Type</span><span class="bp">*</span><span class="o">}</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">ι</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">interpolate_on</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">s</span> <span class="n">v</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="n">f</span> <span class="o">(</span><span class="n">v</span> <span class="n">i</span><span class="o">))</span>
+<span class="kd">def</span> <span class="n">interpolate_fintype</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">r</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">univ</span> <span class="n">v</span> <span class="n">r</span>
+<span class="kd">def</span> <span class="n">interpolate_fintype_on</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">univ</span> <span class="n">v</span> <span class="o">(</span><span class="bp">λ</span> <span class="n">i</span><span class="o">,</span> <span class="n">f</span> <span class="o">(</span><span class="n">v</span> <span class="n">i</span><span class="o">))</span>
+
+<span class="kd">lemma</span> <span class="n">inj_on_finset_univ</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">{</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">}</span> <span class="o">:</span> <span class="n">set.inj_on</span> <span class="n">v</span> <span class="o">(</span><span class="n">univ</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span> <span class="o">:=</span>
+<span class="n">set.inj_on_of_injective</span> <span class="n">v.inj'</span> <span class="n">_</span>
+
+<span class="kd">end</span> <span class="n">other_spellings</span>
+</code></pre></div>
+
+
+
+<a name="288135950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288135950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288135950">(Jul 01 2022 at 08:14)</a>:</h4>
+<p>So, like, in theory you could replicate some of the theorems for some of these? But I'm not sure there's much use.</p>
+
+
+
+<a name="288136674"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288136674" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288136674">(Jul 01 2022 at 08:21)</a>:</h4>
+<p>The only thing would be avoiding having to type out that proof for <code>inj_on_finset_univ</code> every time.</p>
+
+
+
+<a name="288163369"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288163369" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288163369">(Jul 01 2022 at 12:41)</a>:</h4>
+<p>We now have the following extension of the existing <code>interpolate_eq_interpolate_erase_add</code>, which is now a special case:</p>
+<p><code>theorem interpolate_eq_sum_interpolate_insert_sdiff (hvt : set.inj_on v t) (hs : s.nonempty)
+  (hst : s ⊆ t) : interpolate t v r =
+  ∑ i in s, (interpolate (insert i (t \ s)) v r) * basis s v i := sorry</code></p>
+
+
+
+<a name="288163408"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288163408" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288163408">(Jul 01 2022 at 12:41)</a>:</h4>
+<p>Ultimately the finset approach was the right one because this was, mostly, a dream.</p>
+
+
+
+<a name="288163656"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288163656" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288163656">(Jul 01 2022 at 12:44)</a>:</h4>
+<p>This is going to need some extensive review (even though I think it is near a "done" point). In particular, I think a lot of my proofs today can probably be golfed, but I didn't have it in me to tighten them all.</p>
+
+
+
+<a name="288163745"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288163745" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288163745">(Jul 01 2022 at 12:44)</a>:</h4>
+<p>But I do feel confident in the work - things, mostly, feel "neat".</p>
+
+
+
+<a name="288179709"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288179709" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288179709">(Jul 01 2022 at 14:50)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">interpolate_on</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">ι</span><span class="o">)</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">s</span> <span class="n">v</span> <span class="o">(</span><span class="n">f</span> <span class="bp">∘</span> <span class="n">v</span><span class="o">)</span>
+<span class="kd">def</span> <span class="n">interpolate_fintype</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">r</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">univ</span> <span class="n">v</span> <span class="n">r</span>
+<span class="kd">def</span> <span class="n">interpolate_fintype_on</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">ι</span><span class="o">]</span> <span class="o">(</span><span class="n">v</span> <span class="o">:</span> <span class="n">ι</span> <span class="bp">↪</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">univ</span> <span class="n">v</span> <span class="o">(</span><span class="n">f</span> <span class="bp">∘</span> <span class="n">v</span><span class="o">)</span>
+<span class="kd">def</span> <span class="n">interpolate_fintype_using</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">F</span><span class="o">]</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">finset</span> <span class="n">F</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">s</span> <span class="n">id</span> <span class="n">f</span>
+<span class="kd">def</span> <span class="n">interpolate_finfield</span> <span class="o">[</span><span class="n">fintype</span> <span class="n">F</span><span class="o">]</span> <span class="o">[</span><span class="n">decidable_eq</span> <span class="n">F</span><span class="o">]</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">F</span> <span class="bp">→</span> <span class="n">F</span><span class="o">)</span> <span class="o">:=</span> <span class="n">interpolate</span> <span class="n">univ</span> <span class="n">id</span> <span class="n">f</span>
+</code></pre></div>
+<p>These are all the sensible variants I can think of. It could be useful to have other versions of my theorems for them - the alternative I think would be making more of the parameters in the theorems explicit.</p>
+
+
+
+<a name="288179950"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288179950" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288179950">(Jul 01 2022 at 14:52)</a>:</h4>
+<p>What I hadn't realised was true until I wrote that last one down, but which is obvious now that I think about it, is that all maps F -&gt; F on a finite field F can be described as polynomials.</p>
+
+
+
+<a name="288379495"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288379495" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288379495">(Jul 04 2022 at 08:15)</a>:</h4>
+<p>Just a bump to ask what people think is still required here, and if I should put in any of the different spellings/special cases I made above?</p>
+
+
+
+<a name="288379565"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288379565" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288379565">(Jul 04 2022 at 08:16)</a>:</h4>
+<p><a href="https://github.com/leanprover-community/mathlib/pull/15036">#15036</a> is the PR in question, as a reminder.</p>
+
+
+
+<a name="288407291"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288407291" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yaël Dillies <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288407291">(Jul 04 2022 at 13:04)</a>:</h4>
+<p>You could post in <a class="stream" data-stream-id="144837" href="/#narrow/stream/144837-PR-reviews">#PR reviews</a></p>
+
+
+
+<a name="288408416"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Lagrange%20interpolants/near/288408416" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Wrenna Robson <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Lagrange.20interpolants.html#288408416">(Jul 04 2022 at 13:15)</a>:</h4>
+<p>Ah - thanks, I wasn't subbed to that/</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

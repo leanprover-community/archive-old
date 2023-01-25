@@ -1,0 +1,122 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html">csimp can violate linear access of data</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="237952455"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237952455" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237952455">(May 08 2021 at 12:31)</a>:</h4>
+<p>When you found that <code>csimp</code> did a swap that resulted in a shared reference, what did you do to fix it?</p>
+
+
+
+<a name="237952590"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237952590" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237952590">(May 08 2021 at 12:33)</a>:</h4>
+<p>The issue was that <code>simp</code> was basically inlining portions of the result of the function, but without actually deleting the call to the function and resulting in two versions of the value lying around. I marked the function as <code>@[inline]</code> so simp didn't have to deal with it</p>
+
+
+
+<a name="237952591"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237952591" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237952591">(May 08 2021 at 12:33)</a>:</h4>
+<p>I'll make a MWE</p>
+
+
+
+<a name="237954609"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237954609" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237954609">(May 08 2021 at 13:05)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">structure</span> <span class="n">Foo</span> <span class="n">where</span>
+  <span class="n">a</span> <span class="o">:</span> <span class="n">String</span>
+  <span class="n">b</span> <span class="o">:</span> <span class="n">Unit</span>
+  <span class="n">c</span> <span class="o">:</span> <span class="n">Unit</span>
+
+<span class="kd">def</span> <span class="n">withA</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">String</span><span class="o">)</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">Foo</span><span class="o">)</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">:=</span>
+  <span class="o">{</span> <span class="n">s</span> <span class="k">with</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">f</span> <span class="n">s.a</span> <span class="o">}</span>
+
+<span class="kd">def</span> <span class="n">doStuffLinearly</span> <span class="o">:</span> <span class="n">String</span> <span class="bp">→</span> <span class="n">String</span> <span class="o">:=</span>
+<span class="n">dbgTraceIfShared</span> <span class="s2">"oh no"</span>
+
+<span class="kd">set_option</span> <span class="n">trace.compiler.ir.result</span> <span class="n">true</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">bar</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">Foo</span><span class="o">)</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s'</span> <span class="o">:=</span> <span class="n">withA</span> <span class="n">doStuffLinearly</span> <span class="n">s</span>
+  <span class="c1">-- let s' := dbgTraceIfShared "this would fail" s'</span>
+  <span class="n">pure</span> <span class="o">{</span> <span class="n">s'</span> <span class="k">with</span> <span class="n">c</span> <span class="o">:=</span> <span class="o">()</span> <span class="o">}</span>
+
+<span class="k">#eval</span> <span class="k">show</span> <span class="n">IO</span> <span class="n">Unit</span> <span class="k">from</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">n</span> <span class="bp">←</span> <span class="n">IO.rand</span> <span class="mi">0</span> <span class="mi">1</span> <span class="c1">-- to make sure lean doesn't put s in a global variable</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">toString</span> <span class="n">n</span><span class="o">,</span> <span class="o">(),</span> <span class="o">()⟩</span>
+  <span class="k">let</span> <span class="n">s</span> <span class="o">:=</span> <span class="n">dbgTraceIfShared</span> <span class="s2">"ok here"</span> <span class="n">s</span>
+  <span class="k">let</span> <span class="o">⟨</span><span class="n">a</span><span class="o">,</span> <span class="n">b</span><span class="o">,</span> <span class="n">c</span><span class="o">⟩</span> <span class="bp">←</span> <span class="n">bar</span> <span class="n">s</span>
+  <span class="n">b</span>
+</code></pre></div>
+
+
+
+<a name="237954959"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237954959" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237954959">(May 08 2021 at 13:10)</a>:</h4>
+<p>The interesting part here is <code>bar</code>. It performs two linear operations on the state <code>Foo</code>, first it modifies <code>a</code> with <code>doStuffLinearly</code>, then we get the resulting value <code>s'</code> and resets <code>c</code> in it. However, the generated IR makes it clear that what lean is actually compiling is</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">bar</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">Foo</span><span class="o">)</span> <span class="o">:</span> <span class="n">Foo</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">s'</span> <span class="o">:=</span> <span class="n">withA</span> <span class="n">doStuffLinearly</span> <span class="n">s</span>
+  <span class="n">pure</span> <span class="o">{</span> <span class="n">a</span> <span class="o">:=</span> <span class="n">s'.a</span><span class="o">,</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">s.b</span><span class="o">,</span> <span class="n">c</span> <span class="o">:=</span> <span class="o">()</span> <span class="o">}</span>
+</code></pre></div>
+<p>where field <code>b</code> is taken from the <em>previous</em> value of <code>s</code>. At first I had these named the same thing and I thought it was some kind of name confusion, but what's actually happening is that lean looks at the definition of <code>withA</code> and determines that <code>s'.b = s.b</code> so the replacement is permitted. Which is true, but causes a reference to <code>s</code> to hang around when <code>withA doStuffLinearly s</code> is called, meaning that <code>doStuffLinearly</code> will not have linear access to <code>s.a</code>.</p>
+
+
+
+<a name="237955007"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237955007" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237955007">(May 08 2021 at 13:11)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">bar</span> <span class="o">(</span><span class="n">x_1</span> <span class="o">:</span> <span class="n">obj</span><span class="o">)</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span>
+  <span class="k">let</span> <span class="n">x_2</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">bar._closed_1</span><span class="bp">;</span>
+  <span class="n">inc</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_3</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">withA</span> <span class="n">x_2</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_4</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">proj</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span> <span class="n">x_3</span><span class="bp">;</span>
+  <span class="n">inc</span> <span class="n">x_4</span><span class="bp">;</span>
+  <span class="n">dec</span> <span class="n">x_3</span><span class="bp">;</span>
+  <span class="k">let</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="o">:=</span> <span class="n">isShared</span> <span class="n">x_1</span><span class="bp">;</span>
+  <span class="n">case</span> <span class="n">x_5</span> <span class="o">:</span> <span class="n">u8</span> <span class="n">of</span>
+  <span class="n">Bool.false</span> <span class="bp">→</span>
+    <span class="k">let</span> <span class="n">x_6</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">proj</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span> <span class="n">x_1</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_6</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_7</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">proj</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span> <span class="n">x_1</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_7</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_8</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">ctor_0</span><span class="o">[</span><span class="n">PUnit.unit</span><span class="o">]</span><span class="bp">;</span>
+    <span class="n">set</span> <span class="n">x_1</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span> <span class="o">:=</span> <span class="n">x_8</span><span class="bp">;</span>
+    <span class="n">set</span> <span class="n">x_1</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span> <span class="o">:=</span> <span class="n">x_4</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_1</span>
+  <span class="n">Bool.true</span> <span class="bp">→</span>
+    <span class="k">let</span> <span class="n">x_9</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">proj</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span> <span class="n">x_1</span><span class="bp">;</span>
+    <span class="n">inc</span> <span class="n">x_9</span><span class="bp">;</span>
+    <span class="n">dec</span> <span class="n">x_1</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_10</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">ctor_0</span><span class="o">[</span><span class="n">PUnit.unit</span><span class="o">]</span><span class="bp">;</span>
+    <span class="k">let</span> <span class="n">x_11</span> <span class="o">:</span> <span class="n">obj</span> <span class="o">:=</span> <span class="n">ctor_0</span><span class="o">[</span><span class="n">Foo.mk</span><span class="o">]</span> <span class="n">x_4</span> <span class="n">x_9</span> <span class="n">x_10</span><span class="bp">;</span>
+    <span class="n">ret</span> <span class="n">x_11</span>
+</code></pre></div>
+<p>Here <code>x_1</code> is <code>s</code>, and <code>x_3</code> is <code>s'</code>. You can see references to <code>x_1</code> appearing later in the function after the <code>withA</code> call, as well as <code>inc x_1</code> before calling <code>withA</code>.</p>
+
+
+
+<a name="237955105"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237955105" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237955105">(May 08 2021 at 13:13)</a>:</h4>
+<p>Putting <code>@[inline]</code> on <code>withA</code> causes it to actually be inlined, instead of just partially inlined like this, meaning that all the destructuring happens only at the beginning of the function and the individual projections are used linearly.</p>
+
+
+
+<a name="237957133"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/csimp%20can%20violate%20linear%20access%20of%20data/near/237957133" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Jeremy Avigad <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/csimp.20can.20violate.20linear.20access.20of.20data.html#237957133">(May 08 2021 at 13:46)</a>:</h4>
+<p>Thanks, Mario. The example is clear, and the explanations are especially interesting and helpful.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

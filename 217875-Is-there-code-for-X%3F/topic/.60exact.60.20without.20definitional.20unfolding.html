@@ -1,0 +1,85 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/index.html">Is there code for X?</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html">`exact` without definitional unfolding</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="238043412"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/%60exact%60%20without%20definitional%20unfolding/near/238043412" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html#238043412">(May 09 2021 at 15:39)</a>:</h4>
+<p>Is there a tactic that is like <code>exact</code> but asserts there is no definitional unfolding? The application is something like:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">example</span> <span class="o">:</span> <span class="n">some_special_case</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">pedantic_exact</span> <span class="o">(</span><span class="n">some_general_result</span> <span class="n">f</span><span class="o">)</span>
+</code></pre></div>
+<p>The goal here is to confirm that there is no need to add the special case lemma, as we already have a general syntactically equal result elsewhere.</p>
+<p><code>exact</code> doesn't cut it here, as it performs definitional unfolding. <code>rw</code> comes close, but it can use <code>h : a = b</code> to change <code>f a</code> to <code>f b</code> rather than only acting on the entire goal.</p>
+
+
+
+<a name="238043487"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/%60exact%60%20without%20definitional%20unfolding/near/238043487" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html#238043487">(May 09 2021 at 15:41)</a>:</h4>
+<p>I guess the meta question is; if we have a lemma that can be proved with <code>by rw a_single_lemma</code>, should that lemma exist in the first place? (If not, then <code>by rw</code> is essentially what I'm after anyway)</p>
+
+
+
+<a name="238360592"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/%60exact%60%20without%20definitional%20unfolding/near/238360592" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Floris van Doorn <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html#238360592">(May 11 2021 at 18:31)</a>:</h4>
+<p>I think if a lemma can be proven by <code>by rw [single_lemma]</code> this lemma is usually not worth having. But here is a definition of <code>pedantic_exact</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">tactic.interactive</span>
+
+<span class="n">setup_tactic_parser</span>
+<span class="kn">open</span> <span class="n">tactic</span>
+
+<span class="kn">namespace</span> <span class="n">tactic</span>
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">pedantic_exact</span> <span class="o">(</span><span class="n">e</span> <span class="o">:</span> <span class="n">expr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">t1</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+  <span class="n">t2</span> <span class="bp">←</span> <span class="n">infer_type</span> <span class="n">e</span><span class="o">,</span>
+  <span class="n">guard</span> <span class="o">(</span><span class="n">t1</span> <span class="bp">=ₐ</span> <span class="n">t2</span><span class="o">)</span> <span class="bp">&lt;|&gt;</span> <span class="n">fail</span> <span class="s2">"The type doesn't match exactly."</span><span class="o">,</span>
+  <span class="n">exact</span> <span class="n">e</span>
+
+<span class="kd">meta</span> <span class="kd">def</span> <span class="n">interactive.pedantic_exact</span> <span class="o">(</span><span class="n">q</span> <span class="o">:</span> <span class="n">parse</span> <span class="n">texpr</span><span class="o">)</span> <span class="o">:</span> <span class="n">tactic</span> <span class="n">unit</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="n">tgt</span> <span class="o">:</span> <span class="n">expr</span> <span class="bp">←</span> <span class="n">target</span><span class="o">,</span>
+  <span class="n">i_to_expr_strict</span> <span class="bp">``</span><span class="o">(</span><span class="bp">%%</span><span class="n">q</span> <span class="o">:</span> <span class="bp">%%</span><span class="n">tgt</span><span class="o">)</span> <span class="bp">&gt;&gt;=</span> <span class="n">tactic.pedantic_exact</span>
+<span class="kd">end</span> <span class="n">tactic</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">pedantic_exact</span> <span class="n">rfl</span> <span class="c1">-- succeeds</span>
+<span class="kd">example</span> <span class="o">:</span> <span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span> <span class="bp">=</span> <span class="mi">4</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">pedantic_exact</span> <span class="n">rfl</span> <span class="c1">-- fails</span>
+</code></pre></div>
+
+
+
+<a name="238361169"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/%60exact%60%20without%20definitional%20unfolding/near/238361169" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html#238361169">(May 11 2021 at 18:35)</a>:</h4>
+<p>Some useful lemmas can even be proved using <code>by rw []</code>:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">def</span> <span class="n">a</span> <span class="o">:=</span> <span class="mi">42</span>
+<span class="kd">@[reducible]</span> <span class="kd">def</span> <span class="n">b</span> <span class="o">:=</span> <span class="n">a</span>
+
+<span class="kd">lemma</span> <span class="n">b_eq_a</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="n">a</span> <span class="o">:=</span> <span class="kd">by</span> <span class="n">rw</span> <span class="o">[]</span>
+
+<span class="kd">example</span> <span class="o">:</span> <span class="n">b</span> <span class="bp">=</span> <span class="mi">42</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">rw</span> <span class="n">b_eq_a</span><span class="o">,</span> <span class="c1">-- this rw is necessary</span>
+  <span class="n">rw</span> <span class="n">a</span><span class="o">,</span>
+<span class="kd">end</span>
+</code></pre></div>
+
+
+
+<a name="238363772"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/217875-Is%20there%20code%20for%20X%3F/topic/%60exact%60%20without%20definitional%20unfolding/near/238363772" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Eric Wieser <a href="https://leanprover-community.github.io/archive/stream/217875-Is-there-code-for-X%3F/topic/.60exact.60.20without.20definitional.20unfolding.html#238363772">(May 11 2021 at 18:54)</a>:</h4>
+<p>I've not seen <code>=ₐ</code> before</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

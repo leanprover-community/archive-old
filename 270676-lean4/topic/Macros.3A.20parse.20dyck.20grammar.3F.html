@@ -1,0 +1,177 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html">Macros: parse dyck grammar?</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="255484740"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255484740" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255484740">(Sep 29 2021 at 22:18)</a>:</h4>
+<p>I'm trying to learn the LEAN4 macro system well enough to parse context-free grammars I'm interested in. I started with trying the <a href="https://en.wikipedia.org/wiki/Dyck_language">dyck grammar</a> / balanced parens.</p>
+<p>Here's what I have so far:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Dyck</span><span class="o">:</span> <span class="kt">Type</span> <span class="o">:=</span>
+   <span class="bp">|</span> <span class="n">Round</span> <span class="o">:</span> <span class="n">Dyck</span> <span class="bp">-&gt;</span> <span class="n">Dyck</span>
+   <span class="bp">|</span> <span class="n">End</span> <span class="o">:</span> <span class="n">Dyck</span>
+
+<span class="n">declare_syntax_cat</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"End"</span> <span class="o">:</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"("</span> <span class="n">brack</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"{"</span> <span class="n">brack</span> <span class="s2">"}"</span> <span class="o">:</span> <span class="n">brack</span>
+
+<span class="n">macro</span> <span class="s2">"End"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.End</span><span class="o">)</span>
+<span class="n">macro</span> <span class="s2">"("</span> <span class="n">expr</span><span class="o">:</span><span class="n">brack</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.Round</span> <span class="bp">$</span><span class="n">expr</span><span class="o">)</span>
+
+<span class="n">syntax</span> <span class="s2">"brack"</span> <span class="n">ident</span> <span class="s2">"-&gt;"</span> <span class="n">brack</span> <span class="o">:</span> <span class="n">command</span>
+
+<span class="n">macro</span> <span class="s2">"brack"</span> <span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="s2">"End"</span><span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+   <span class="bp">`</span><span class="o">(</span><span class="kd">def</span> <span class="bp">$</span><span class="n">n</span> <span class="o">:</span> <span class="n">Dyck</span> <span class="o">:=</span> <span class="n">End</span><span class="o">)</span>
+
+<span class="c1">-- | macro that wants `( brack )`</span>
+<span class="n">macro</span> <span class="s2">"brack"</span> <span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="s2">"-&gt;"</span> <span class="s2">"("</span> <span class="n">e</span><span class="o">:</span><span class="n">brack</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+   <span class="bp">`</span><span class="o">(</span><span class="kd">def</span> <span class="bp">$</span><span class="n">n</span> <span class="o">:</span> <span class="n">Dyck</span> <span class="o">:=</span> <span class="n">Dyck.Round</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span>
+
+<span class="n">brack</span> <span class="n">foo</span> <span class="n">End</span>
+<span class="n">print</span> <span class="n">foo</span>
+
+<span class="n">brack</span> <span class="n">bar</span> <span class="o">(</span> <span class="n">End</span> <span class="o">)</span>
+<span class="n">print</span> <span class="n">bar</span>
+</code></pre></div>
+<p>Unfortunately, the line that attempts to parse <code>"(" brack ")"</code> fails with:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">$</span> <span class="n">lean</span> <span class="n">macros.lean</span>
+<span class="n">macros.lean</span><span class="o">:</span><span class="mi">19</span><span class="o">:</span><span class="mi">33</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="n">stx</span>
+<span class="n">macros.lean</span><span class="o">:</span><span class="mi">19</span><span class="o">:</span><span class="mi">39</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="n">identifier</span>
+<span class="n">macros.lean</span><span class="o">:</span><span class="mi">20</span><span class="o">:</span><span class="mi">9</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="n">identifier</span>
+<span class="n">macros.lean</span><span class="o">:</span><span class="mi">23</span><span class="o">:</span><span class="mi">0</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="n">command</span>
+<span class="n">macros.lean</span><span class="o">:</span><span class="mi">25</span><span class="o">:</span><span class="mi">10</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">expected</span> <span class="bp">'-&gt;'</span> <span class="n">or</span> <span class="bp">'</span><span class="n">End'</span>
+</code></pre></div>
+<p>How should I write the macro such that parse and evaluate the "bracket language" correctly? </p>
+<p>I'm on the nightly if it helps:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="bp">/</span><span class="n">home</span><span class="bp">/</span><span class="n">bollu</span><span class="bp">/</span><span class="n">work</span><span class="bp">/</span><span class="mi">2</span><span class="bp">-</span><span class="n">mlir</span><span class="bp">-</span><span class="n">verif</span><span class="bp">$</span> <span class="bp">~/</span><span class="n">work</span><span class="bp">/</span><span class="n">lean4</span><span class="bp">-</span><span class="n">contrib</span><span class="bp">/</span><span class="n">build</span><span class="bp">/</span><span class="n">stage1</span><span class="bp">/</span><span class="n">bin</span><span class="bp">/</span><span class="n">lean</span> <span class="c1">--version</span>
+<span class="n">Lean</span> <span class="o">(</span><span class="n">version</span> <span class="mi">4</span><span class="bp">.</span><span class="mi">0</span><span class="bp">.</span><span class="mi">0</span><span class="o">,</span> <span class="n">commit</span> <span class="n">f4759c9a223f</span><span class="o">,</span> <span class="n">Release</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="255485971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255485971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255485971">(Sep 29 2021 at 22:28)</a>:</h4>
+<p>Your syntax looks like it expects a literal <code>-&gt;</code> but you don't have that in your usage examples</p>
+
+
+
+<a name="255486026"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255486026" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255486026">(Sep 29 2021 at 22:29)</a>:</h4>
+<p>also you need <code>#print foo</code> instead of <code>print foo</code></p>
+
+
+
+<a name="255486790"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255486790" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255486790">(Sep 29 2021 at 22:36)</a>:</h4>
+<p><span class="user-mention" data-user-id="130575">@Siddharth Bhat</span>  Not sure exactly what you are trying to do, but I think the following example may illustrate may idioms we use:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">inductive</span> <span class="n">Dyck</span><span class="o">:</span> <span class="kt">Type</span> <span class="o">:=</span>
+   <span class="bp">|</span> <span class="n">Round</span> <span class="o">:</span> <span class="n">Dyck</span> <span class="bp">-&gt;</span> <span class="n">Dyck</span>
+   <span class="bp">|</span> <span class="n">End</span> <span class="o">:</span> <span class="n">Dyck</span>
+
+<span class="n">declare_syntax_cat</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"End"</span> <span class="o">:</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"("</span> <span class="n">brack</span> <span class="s2">")"</span> <span class="o">:</span> <span class="n">brack</span>
+<span class="n">syntax</span> <span class="s2">"{"</span> <span class="n">brack</span> <span class="s2">"}"</span> <span class="o">:</span> <span class="n">brack</span>
+
+<span class="c1">-- auxiliary notation for translating `brack` into `term`</span>
+<span class="n">syntax</span> <span class="s2">"fromBrack% "</span> <span class="n">brack</span> <span class="o">:</span> <span class="n">term</span>
+
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="n">End</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.End</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">(</span> <span class="bp">$</span><span class="n">b</span> <span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">{</span> <span class="bp">$</span><span class="n">b</span> <span class="o">})</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.Round</span> <span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+
+<span class="c1">-- Remark: after this command `brack` will be a "reserved" keyword, and we will have to use `«brack»`</span>
+<span class="c1">-- to reference the `brack` syntax category</span>
+<span class="n">macro</span> <span class="s2">"brack"</span> <span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="s2">"-&gt;"</span> <span class="n">e</span><span class="o">:</span><span class="n">brack</span>  <span class="o">:</span> <span class="n">command</span> <span class="bp">=&gt;</span>
+   <span class="bp">`</span><span class="o">(</span><span class="kd">def</span> <span class="bp">$</span><span class="n">n</span><span class="o">:</span><span class="n">ident</span> <span class="o">:</span> <span class="n">Dyck</span> <span class="o">:=</span> <span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">e</span><span class="o">)</span>
+
+<span class="n">brack</span> <span class="n">bar</span> <span class="bp">-&gt;</span> <span class="o">(</span> <span class="n">End</span> <span class="o">)</span>
+<span class="k">#print</span> <span class="n">bar</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def bar : Dyck :=</span>
+<span class="cm">Dyck.End</span>
+<span class="cm">-/</span>
+<span class="n">brack</span> <span class="n">foo</span> <span class="bp">-&gt;</span> <span class="o">(</span> <span class="o">{</span> <span class="o">{</span> <span class="n">End</span> <span class="o">}</span> <span class="o">}</span> <span class="o">)</span>
+<span class="k">#print</span> <span class="n">foo</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">def foo : Dyck :=</span>
+<span class="cm">Dyck.Round (Dyck.Round Dyck.End)</span>
+<span class="cm">-/</span>
+</code></pre></div>
+
+
+
+<a name="255487144"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487144" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Siddharth Bhat <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487144">(Sep 29 2021 at 22:39)</a>:</h4>
+<p>Thanks a lot, the example is super helpful! A question: is it possible to learn what the line</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="n">End</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.End</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">(</span> <span class="bp">$</span><span class="n">b</span> <span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">{</span> <span class="bp">$</span><span class="n">b</span> <span class="o">})</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.Round</span> <span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+</code></pre></div>
+<p>desugars into? I want to understand how to write everything in terms of the low level <code>macro</code> command, and I'm guessing there's a LEAN option to debug print macro expansions?</p>
+
+
+
+<a name="255487195"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487195" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487195">(Sep 29 2021 at 22:39)</a>:</h4>
+<p>the <code>macro</code> command is not low level, and in fact it desugars to <code>syntax</code> + <code>macro_rules</code></p>
+
+
+
+<a name="255487217"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487217" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487217">(Sep 29 2021 at 22:40)</a>:</h4>
+<p><code>macro_rules</code> desugars to a <code>def</code> with certain attributes</p>
+
+
+
+<a name="255487278"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487278" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487278">(Sep 29 2021 at 22:40)</a>:</h4>
+<p>and <code>syntax</code> also desugars to <code>def</code> with attributes</p>
+
+
+
+<a name="255487472"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487472" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487472">(Sep 29 2021 at 22:42)</a>:</h4>
+<p><code>macro</code> is usable in the special case where the corresponding <code>macro_rules</code> has only one alternative</p>
+
+
+
+<a name="255487496"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487496" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487496">(Sep 29 2021 at 22:42)</a>:</h4>
+<blockquote>
+<p>desugars into? I want to understand how to write everything in terms of the low level macro command, and I'm guessing there's a LEAN option to debug print macro expansions?</p>
+</blockquote>
+<p>Everything Mario wrote is correct. You can see the definition that is sent to the Lean kernel by using the option</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kd">set_option</span> <span class="n">trace.Elab.definition</span> <span class="n">true</span> <span class="k">in</span>
+<span class="n">macro_rules</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="n">End</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.End</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">(</span> <span class="bp">$</span><span class="n">b</span> <span class="o">))</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="bp">`</span><span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="o">{</span> <span class="bp">$</span><span class="n">b</span> <span class="o">})</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">(</span><span class="n">Dyck.Round</span> <span class="o">(</span><span class="n">fromBrack</span><span class="bp">%</span> <span class="bp">$</span><span class="n">b</span><span class="o">))</span>
+</code></pre></div>
+
+
+
+<a name="255487651"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Macros%3A%20parse%20dyck%20grammar%3F/near/255487651" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Leonardo de Moura <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/Macros.3A.20parse.20dyck.20grammar.3F.html#255487651">(Sep 29 2021 at 22:44)</a>:</h4>
+<p>If we use the option before the <code>macro</code> command, we will see two definitions: the parser and the macro expansion function.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

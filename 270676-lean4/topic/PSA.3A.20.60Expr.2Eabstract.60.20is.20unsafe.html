@@ -1,0 +1,46 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html">PSA: `Expr.abstract` is unsafe</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="239378044"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/PSA%3A%20%60Expr.abstract%60%20is%20unsafe/near/239378044" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html#239378044">(May 19 2021 at 07:22)</a>:</h4>
+<p>I'm sure this is well-known by now, but did you know that <code>Expr.abstract</code> is unsafe and should probably never be used (if the expression could contain a metavariable)?  This has to do with the way metavariables and free variables interact: let's say you have a term <code>?m + y</code> and you want to abstract the free variable <code>y</code>.  In Lean 3 you would want the result <code>?m[#0] + #0</code> (containing the beloved delayed abstraction macro).  In Lean 4, this is done differently: a new metavariable <code>?n</code> is created, and the result should be <code>?n #0 + #0</code> (adding the assignment <code>?m := ?n y</code>).</p>
+<p>However, <code>Expr.abstract</code> completely ignores this situation and you get <code>?m + #0</code> as the result.  This is bad because the instantiated expression can still contain the free variable <code>y</code> even though you thought that you abstracted it away!  (Side note: the <code>expr.abstract_locals</code> function in Lean 3 has exactly the same issue.  This explains many mysterious "failed to add declaration to environment, it contains local constants" errors...)</p>
+<p>The correct replacement is called <code>Lean.MetavarContext.MkBinding.abstractRange</code>, and it's of course private.  If you want to create a lambda or a forall, you can use the higher-level functions <code>mkLambdaFVars</code> and <code>mkForallFVars</code>, resp.  But please be aware that these functions will not always create lambdas or foralls, despite their name.  Sometimes they will also create lets, and sometimes they will also do nothing.</p>
+
+
+
+<a name="239382217"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/PSA%3A%20%60Expr.abstract%60%20is%20unsafe/near/239382217" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Fabian <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html#239382217">(May 19 2021 at 08:00)</a>:</h4>
+<p>I suggest creating an mwe and a github issue for how this be solved best in lean 4. It is possible that abstract should handle the case. If abstractRange is private, then it's quite possible that this is a bug.</p>
+
+
+
+<a name="239382468"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/PSA%3A%20%60Expr.abstract%60%20is%20unsafe/near/239382468" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Gabriel Ebner <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html#239382468">(May 19 2021 at 08:03)</a>:</h4>
+<p>Expr.abstract can't handle that case since it needs to create a new metavariable.  For that it needs access to the metavariable context.</p>
+
+
+
+<a name="239383652"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/PSA%3A%20%60Expr.abstract%60%20is%20unsafe/near/239383652" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/PSA.3A.20.60Expr.2Eabstract.60.20is.20unsafe.html#239383652">(May 19 2021 at 08:13)</a>:</h4>
+<p>Probably worth clarifying what "unsafe" means here. I guess you mean "will produce incorrect results in tactics using it, which will later be caught by the kernel", not "memory unsafe" or "allows you to prove false"</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

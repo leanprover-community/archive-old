@@ -1,0 +1,579 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/270676-lean4/topic/implementing.20.60(x).html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/index.html">lean4</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html">implementing `(x)</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="236933153"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236933153" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236933153">(May 01 2021 at 03:38)</a>:</h4>
+<p>Regarding the purity of macro expansion: Is it possible to implement something like lean 3's <code> `(expr)</code> notation? For easy mode let's assume there are no antiquotations. Here the idea is that at parse time we typecheck <code>expr</code>, and we insert a literal or as close as we can get to one. For example turning <code> `(True.intro)</code> into <code>mkConst `True.intro</code> and <code> `(2 + 2 : Nat)</code> into <code>mkApp5 (mkConst `Add.add) (mkConst `Nat) (mkConst `instAddNat) &lt;2...&gt; &lt;2...&gt;</code></p>
+
+
+
+<a name="236938488"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236938488" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236938488">(May 01 2021 at 05:03)</a>:</h4>
+<p>Since that is almost what <code> `(x) </code> already does, I assume you are just looking for a pure version of <code> `(x) </code>?  For that, you would just need to duplicate <code> `(x) </code>'s behavior, but stripping it of its state (which also include hygiene). It would be cool though if <code>  `(x) </code> was intelligent enough to not add state for expressions that don't need it.</p>
+
+
+
+<a name="236939191"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236939191" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236939191">(May 01 2021 at 05:15)</a>:</h4>
+<p>The main mechanism of the current quotation syntax can be found here in the Lean 4 source: <a href="https://github.com/leanprover/lean4/blob/e70e924327c3b42d28dd8a59340a89cbafb3d5b6/src/Lean/Elab/Quotation.lean#L128">https://github.com/leanprover/lean4/blob/e70e924327c3b42d28dd8a59340a89cbafb3d5b6/src/Lean/Elab/Quotation.lean#L128</a></p>
+
+
+
+<a name="236939834"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236939834" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236939834">(May 01 2021 at 05:27)</a>:</h4>
+<p>In fact, here is a quick example that does just that:</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">pureQuoteSyntax</span> <span class="o">:</span> <span class="n">Syntax</span> <span class="bp">→</span> <span class="n">MacroM</span> <span class="n">Syntax</span>
+  <span class="bp">|</span> <span class="n">Syntax.ident</span> <span class="n">_</span> <span class="n">rawVal</span> <span class="n">val</span> <span class="n">preresolved</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">Syntax.ident</span> <span class="n">SourceInfo.none</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">rawVal</span><span class="o">)</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">val</span><span class="o">)</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">preresolved</span><span class="o">))</span>
+  <span class="bp">|</span> <span class="n">stx</span><span class="bp">@</span><span class="o">(</span><span class="n">Syntax.node</span> <span class="n">k</span> <span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+      <span class="k">let</span> <span class="n">empty</span> <span class="bp">←</span> <span class="bp">`</span><span class="o">(</span><span class="n">Array.empty</span><span class="o">)</span>
+      <span class="k">let</span> <span class="n">args</span> <span class="bp">←</span>
+        <span class="n">stx.getArgs.foldlM</span>
+          <span class="o">(</span><span class="k">fun</span> <span class="n">args</span> <span class="n">arg</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+            <span class="k">let</span> <span class="n">arg</span> <span class="bp">←</span> <span class="n">pureQuoteSyntax</span> <span class="n">arg</span><span class="bp">;</span>
+            <span class="bp">`</span><span class="o">(</span><span class="n">Array.push</span> <span class="bp">$</span><span class="n">args</span> <span class="bp">$</span><span class="n">arg</span><span class="o">))</span>
+          <span class="n">empty</span>
+      <span class="bp">`</span><span class="o">(</span><span class="n">Syntax.node</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">k</span><span class="o">)</span> <span class="bp">$</span><span class="n">args</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">Syntax.atom</span> <span class="n">info</span> <span class="n">val</span> <span class="bp">=&gt;</span>
+    <span class="bp">`</span><span class="o">(</span><span class="n">Syntax.atom</span> <span class="n">SourceInfo.none</span> <span class="bp">$</span><span class="o">(</span><span class="n">quote</span> <span class="n">val</span><span class="o">))</span>
+  <span class="bp">|</span> <span class="n">Syntax.missing</span> <span class="bp">=&gt;</span> <span class="n">Macro.throwUnsupported</span>
+
+<span class="n">macro</span> <span class="s2">"pureQuote"</span> <span class="n">x</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="n">pureQuoteSyntax</span> <span class="n">x</span>
+
+<span class="k">#check</span> <span class="n">pureQuote</span> <span class="o">(</span><span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+<span class="c">/-</span><span class="cm"></span>
+<span class="cm">Syntax.node (Name.mkStr (Name.mkStr (Name.mkStr (Name.mkStr Name.anonymous "Lean") "Parser") "Term") "paren")</span>
+<span class="cm">  (Array.push</span>
+<span class="cm">    (Array.push (Array.push Array.empty (Syntax.atom SourceInfo.none "("))</span>
+<span class="cm">      (Syntax.node (Name.mkStr Name.anonymous "null")</span>
+<span class="cm">        (Array.push</span>
+<span class="cm">          (Array.push Array.empty</span>
+<span class="cm">            (Syntax.node (Name.mkStr Name.anonymous "term_+_")</span>
+<span class="cm">              (Array.push</span>
+<span class="cm">                (Array.push</span>
+<span class="cm">                  (Array.push Array.empty</span>
+<span class="cm">                    (Syntax.node (Name.mkStr Name.anonymous "numLit")</span>
+<span class="cm">                      (Array.push Array.empty (Syntax.atom SourceInfo.none "2"))))</span>
+<span class="cm">                  (Syntax.atom SourceInfo.none "+"))</span>
+<span class="cm">                (Syntax.node (Name.mkStr Name.anonymous "numLit")</span>
+<span class="cm">                  (Array.push Array.empty (Syntax.atom SourceInfo.none "2"))))))</span>
+<span class="cm">          (Syntax.node (Name.mkStr Name.anonymous "null")</span>
+<span class="cm">            (Array.push Array.empty</span>
+<span class="cm">              (Syntax.node</span>
+<span class="cm">                (Name.mkStr (Name.mkStr (Name.mkStr (Name.mkStr Name.anonymous "Lean") "Parser") "Term")</span>
+<span class="cm">                  "typeAscription")</span>
+<span class="cm">                (Array.push (Array.push Array.empty (Syntax.atom SourceInfo.none ":"))</span>
+<span class="cm">                  (Syntax.ident SourceInfo.none (String.toSubstring "Nat") (Name.mkStr Name.anonymous "Nat") []))))))))</span>
+<span class="cm">    (Syntax.atom SourceInfo.none ")")) : Syntax</span>
+<span class="cm">-/</span>
+</code></pre></div>
+<p>Note that this example does not preserve source info but that could be easily resolved (by writing a <code>Quote SourceInfo</code> instance and splicing in<code>quote info</code> in the place of <code>SourceInfo.none</code></p>
+
+
+
+<a name="236941250"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236941250" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236941250">(May 01 2021 at 05:52)</a>:</h4>
+<p>And because I was for some reason having fun doing this, here is a version that does that (and doesn't even need MacroM):</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Syntax</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Quote</span> <span class="n">SourceInfo</span> <span class="o">:=</span>
+  <span class="n">Quote.mk</span> <span class="k">fun</span> <span class="n">info</span> <span class="bp">=&gt;</span>
+    <span class="k">match</span> <span class="n">info</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">SourceInfo.original</span> <span class="n">leading</span> <span class="n">pos</span> <span class="n">trailing</span> <span class="bp">=&gt;</span>
+      <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">SourceInfo.original</span> <span class="bp">#</span><span class="o">[</span><span class="n">quote</span> <span class="n">leading</span><span class="o">,</span> <span class="n">quote</span> <span class="n">pos</span><span class="o">,</span> <span class="n">quote</span> <span class="n">trailing</span><span class="o">]</span>
+    <span class="bp">|</span> <span class="n">SourceInfo.synthetic</span> <span class="n">pos</span> <span class="n">endPos</span> <span class="bp">=&gt;</span>
+      <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">SourceInfo.synthetic</span> <span class="bp">#</span><span class="o">[</span><span class="n">quote</span> <span class="n">pos</span><span class="o">,</span> <span class="n">quote</span> <span class="n">endPos</span><span class="o">]</span>
+    <span class="bp">|</span> <span class="n">SourceInfo.none</span> <span class="bp">=&gt;</span>
+      <span class="n">mkCIdent</span> <span class="bp">``</span><span class="n">SourceInfo.none</span>
+
+<span class="n">partial</span> <span class="kd">def</span> <span class="n">pureQuoteSyntax</span> <span class="o">:</span> <span class="n">Syntax</span> <span class="bp">-&gt;</span> <span class="n">Syntax</span>
+  <span class="bp">|</span> <span class="n">Syntax.ident</span> <span class="n">info</span> <span class="n">rawVal</span> <span class="n">val</span> <span class="n">preresolved</span> <span class="bp">=&gt;</span>
+    <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">Lean.Syntax.ident</span>
+      <span class="bp">#</span><span class="o">[</span><span class="n">quote</span> <span class="n">info</span><span class="o">,</span> <span class="n">quote</span> <span class="n">rawVal</span><span class="o">,</span> <span class="n">quote</span> <span class="n">val</span><span class="o">,</span> <span class="n">quote</span> <span class="n">preresolved</span><span class="o">]</span>
+  <span class="bp">|</span> <span class="n">stx</span><span class="bp">@</span><span class="o">(</span><span class="n">Syntax.node</span> <span class="n">k</span> <span class="n">_</span><span class="o">)</span> <span class="bp">=&gt;</span>
+      <span class="k">let</span> <span class="n">args</span> <span class="o">:=</span>
+        <span class="n">stx.getArgs.foldl</span>
+          <span class="o">(</span><span class="k">fun</span> <span class="n">args</span> <span class="n">arg</span> <span class="bp">=&gt;</span>
+            <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">Array.push</span> <span class="bp">#</span><span class="o">[</span><span class="n">args</span><span class="o">,</span> <span class="n">pureQuoteSyntax</span> <span class="n">arg</span><span class="o">])</span>
+          <span class="o">(</span><span class="n">mkCIdent</span> <span class="bp">``</span><span class="n">Array.empty</span><span class="o">)</span>
+      <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">Syntax.node</span> <span class="bp">#</span><span class="o">[</span><span class="n">quote</span> <span class="n">k</span><span class="o">,</span> <span class="n">args</span><span class="o">]</span>
+  <span class="bp">|</span> <span class="n">Syntax.atom</span> <span class="n">info</span> <span class="n">val</span> <span class="bp">=&gt;</span>
+    <span class="n">mkCApp</span> <span class="bp">``</span><span class="n">Syntax.atom</span> <span class="bp">#</span><span class="o">[</span><span class="n">quote</span> <span class="n">info</span><span class="o">,</span> <span class="n">quote</span> <span class="n">val</span><span class="o">]</span>
+  <span class="bp">|</span> <span class="n">Syntax.missing</span> <span class="bp">=&gt;</span>
+    <span class="n">mkCIdent</span> <span class="bp">``</span><span class="n">Syntax.missing</span>
+
+<span class="n">macro</span> <span class="s2">"pureQuote"</span> <span class="n">x</span><span class="o">:</span><span class="n">term</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="n">pureQuoteSyntax</span> <span class="n">x</span>
+
+<span class="k">#check</span> <span class="n">pureQuote</span> <span class="o">(</span><span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span> <span class="o">:</span> <span class="n">Nat</span><span class="o">)</span>
+</code></pre></div>
+
+
+
+<a name="236942073"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236942073" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236942073">(May 01 2021 at 06:06)</a>:</h4>
+<p>Note that, unfortunately, the built-in <code>Quote Syntax</code> instance is just <code>id</code>, so we can't just use <code>quote</code> on <code>Syntax</code> directly. </p>
+<p>In fact, <span class="user-mention" data-user-id="110024">@Sebastian Ullrich</span> ,  I feel like the fact that <code>Quote Syntax</code> is defined as <code>id</code> is incorrect. After all the whole point of <code>Quote</code> is for <code>$(quote x) = x</code> to hold, correct? The <code>id</code> definition violates this. It also means that complex structures with nested <code>Syntax</code> (such as Arrays) won't properly quote either.</p>
+
+
+
+<a name="236945526"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236945526" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mac <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236945526">(May 01 2021 at 07:06)</a>:</h4>
+<p>For some reason, I even decided to go whole hog and adapt the antiquote code as well: <a href="https://gist.github.com/tydeu/bc706963b4e965901abbf44007f9c748">https://gist.github.com/tydeu/bc706963b4e965901abbf44007f9c748</a></p>
+<p>Everything seems like it migrated properly into a Macro which produces pure syntax (I get no type errors and the macro still works), but I did not test it rigorously (or at all, really). So just take it as a proof of concept.</p>
+
+
+
+<a name="236951751"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236951751" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236951751">(May 01 2021 at 09:05)</a>:</h4>
+<p><span class="user-mention" data-user-id="315577">@Mac</span> I think this topic is about Lean 3's <code> ```(e) </code><br>
+<span class="user-mention" data-user-id="110049">@Mario Carneiro</span> That should definitely be an elaborator, but with that you can certainly implement the Lean 3 semantics: replace antiquotations with fresh mvar-typed locals, <code>elabTermAndSynthesize</code>, reflect resulting <code>Expr</code> into <code>Syntax</code>, substitute back antiquotations (may be fused with previous step)</p>
+
+
+
+<a name="236951821"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236951821" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236951821">(May 01 2021 at 09:06)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> <a href="#narrow/stream/270676-lean4/topic/implementing.20.60.28x.29/near/236942073">said</a>:</p>
+<blockquote>
+<p>It also means that complex structures with nested <code>Syntax</code> (such as Arrays) won't properly quote either.</p>
+</blockquote>
+<p>This is actually exactly how we use the current <code>Quote Syntax</code> instance. There may be use cases for the other definition, but this one works for us.</p>
+
+
+
+<a name="236961197"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236961197" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236961197">(May 01 2021 at 11:52)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/implementing.20.60.28x.29/near/236951751">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> I think this topic is about Lean 3's <code> ```(e) </code></p>
+</blockquote>
+<p>No, it's about lean 3's <code> `(e) </code>, the one that produces an <code>expr</code> not a <code>pexpr</code></p>
+
+
+
+<a name="236961249"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236961249" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236961249">(May 01 2021 at 11:53)</a>:</h4>
+<p>Lean 4's <code> `(e) </code> produces a <code>Syntax</code> (actually a <code>MacroM Syntax</code>) so it's closer to lean 3's <code> ``(e) </code></p>
+
+
+
+<a name="236961343"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236961343" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236961343">(May 01 2021 at 11:55)</a>:</h4>
+<p>The distinction between <code> ``(e) </code> and <code> ```(e)</code> seems to depend on what you do with the macro that you get - you can embed it in another or execute it on the spot</p>
+
+
+
+<a name="236961550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236961550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236961550">(May 01 2021 at 11:59)</a>:</h4>
+<p>The main point is that it should return an <code>Expr</code>, not a <code>Syntax</code> like lean 4 <code> `(e) </code></p>
+
+
+
+<a name="236962244"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236962244" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236962244">(May 01 2021 at 12:08)</a>:</h4>
+<p>In lean3, there was a macro (I know, more name overloading) which directly implemented expr literals, so you wouldn't need to actually generate an expression like <code>mkApp (mkConst ...)</code> like I showed, you could instead just hold on to the expr itself (which is easy to generate using the elaborator) and then the "expr literal" macro would be an expr that means "<code>e</code>, as an <code>expr</code>" where <code>e</code> is an actual expr like <code>2 + 2</code>. In lean 4, I don't know how one could even express such a thing: ideally we would just precalculate an expr static and insert the code "load this static expr" rather than building it on the spot with all those <code>mkApp</code> calls</p>
+
+
+
+<a name="236963503"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236963503" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236963503">(May 01 2021 at 12:30)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110049">Mario Carneiro</span> <a href="#narrow/stream/270676-lean4/topic/implementing.20.60.28x.29/near/236961197">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/implementing.20.60.28x.29/near/236951751">said</a>:</p>
+<blockquote>
+<p><span class="user-mention silent" data-user-id="315577">Mac</span> I think this topic is about Lean 3's <code> ```(e) </code></p>
+</blockquote>
+<p>No, it's about lean 3's <code> `(e) </code>, the one that produces an <code>expr</code> not a <code>pexpr</code></p>
+</blockquote>
+<p>Right, more backticks in Lean 3 made quotations less specific and name literals more specific... whoever thought that was a good idea <span aria-label="halo" class="emoji emoji-1f607" role="img" title="halo">:halo:</span> . In the/my Lean 4 convention, this macro/elaborator should be called <code> `[Expr|e] </code>.</p>
+
+
+
+<a name="236963623"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236963623" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236963623">(May 01 2021 at 12:32)</a>:</h4>
+<p>I don't think there is any practical need for the "expr literal" macro optimization</p>
+
+
+
+<a name="236964063"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236964063" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236964063">(May 01 2021 at 12:39)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="110024">Sebastian Ullrich</span> <a href="#narrow/stream/270676-lean4/topic/implementing.20.60.28x.29/near/236963623">said</a>:</p>
+<blockquote>
+<p>I don't think there is any practical need for the "expr literal" macro optimization</p>
+</blockquote>
+<p>It is very important for high performance tactics like <code>normNum</code> that they can use pre-constructed exprs when building things as much as possible. In a perfect world this would be essentially "constant folding" but I don't know to what extent lean supports constant folding of exprs and other inductive types</p>
+
+
+
+<a name="236964237"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236964237" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236964237">(May 01 2021 at 12:42)</a>:</h4>
+<p>If I put it in an auxiliary <code>def myExpr : Expr := `[Expr| 2 + 2 : Nat]</code>, will the code that constructs <code>myExpr</code> be run once or every time <code>myExpr</code> is referenced? If once, is it done at compile time or on first use with a thunk setup? Do I need <code>initialize</code> to do this?</p>
+
+
+
+<a name="236964438"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236964438" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236964438">(May 01 2021 at 12:46)</a>:</h4>
+<p>Currently, closed terms are evaluated exactly once, at startup. We are planning to refine this compilation step in the future so that they are either compiled in as constants (i.e. "evaluated at compile time") or, if they are too costly for that, which shouldn't be an issue for terms already in normal form like this macro, as thunks. So yes, this should be and should keep being essentially free.</p>
+
+
+
+<a name="236965279"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965279" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965279">(May 01 2021 at 13:00)</a>:</h4>
+<p>Does that apply also to closed subterms of an open term, or is the usage of a <code>myExpr</code> auxiliary important to get the optimization?</p>
+
+
+
+<a name="236965347"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965347" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965347">(May 01 2021 at 13:01)</a>:</h4>
+<p>That is, if I have <code> `[Expr|(2 + 2) + $x]</code> then I'd like to compile that to <code>mkApp &lt;+ constant&gt; &lt;nat constant&gt; &lt;instNatAdd constant&gt; &lt;2+2 constant&gt; x</code></p>
+
+
+
+<a name="236965469"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965469" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965469">(May 01 2021 at 13:03)</a>:</h4>
+<p>Yes, that should work. You can give it a try using <code>set_option trace.compiler.ir.result true</code> (run on cmdline). The nat constant will be compiled in directly, there are a few special cases.</p>
+
+
+
+<a name="236965616"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965616" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965616">(May 01 2021 at 13:06)</a>:</h4>
+<p>Great. So the only missing ingredient is translating <code>Expr.app -&gt; mkApp</code> and friends</p>
+
+
+
+<a name="236965646"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965646" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965646">(May 01 2021 at 13:06)</a>:</h4>
+<p>or maybe reflect is able to do this?</p>
+
+
+
+<a name="236965686"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236965686" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236965686">(May 01 2021 at 13:07)</a>:</h4>
+<p>You say "this should be an elaborator", could you show a simple example of an elaborator so I know what you mean?</p>
+
+
+
+<a name="236966717"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966717" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966717">(May 01 2021 at 13:23)</a>:</h4>
+<p>Is there an equivalent of <code>has_reflect</code> in lean 4? I didn't see a <code>deriving Reflect</code> on <code>Expr</code></p>
+
+
+
+<a name="236966785"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966785" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966785">(May 01 2021 at 13:24)</a>:</h4>
+<p>No, we had no need for it yet, just like the quotation</p>
+
+
+
+<a name="236966871"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966871" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966871">(May 01 2021 at 13:26)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean.Elab.Term</span>
+
+<span class="n">elab</span> <span class="s2">"`[Expr|"</span> <span class="n">stx</span><span class="o">:</span><span class="n">incQuotDepth</span><span class="o">(</span><span class="n">term</span><span class="o">)</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">elabTermAndSynthesize</span> <span class="n">stx</span> <span class="o">(</span><span class="n">expectedType</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">none</span><span class="o">)</span>
+  <span class="n">_</span>
+</code></pre></div>
+
+
+
+<a name="236966912"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966912" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966912">(May 01 2021 at 13:27)</a>:</h4>
+<p><code>elab</code> is a macro for <code>syntax</code> + <code>@[termElab]</code></p>
+
+
+
+<a name="236966928"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966928" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966928">(May 01 2021 at 13:27)</a>:</h4>
+<p>That's what I did, but now I'm stuck with <code>e : Expr</code> and want a <code>Syntax</code> (or rather an <code>Expr</code> from it) to insert in the expression</p>
+
+
+
+<a name="236966983"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236966983" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236966983">(May 01 2021 at 13:28)</a>:</h4>
+<p>That will give me the expr <code>2 + 2</code> and I want the expr <code>mkApp ... mk2 mk2</code></p>
+
+
+
+<a name="236967017"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967017" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967017">(May 01 2021 at 13:29)</a>:</h4>
+<p>Yes, the <code>_</code> is where you fill in the missing implementation of <code>reflect : Expr -&gt; Expr</code> :)</p>
+
+
+
+<a name="236967066"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967066" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967066">(May 01 2021 at 13:30)</a>:</h4>
+<p>where is the <code>expectedType?</code> argument in <code>elab</code>?</p>
+
+
+
+<a name="236967101"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967101" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967101">(May 01 2021 at 13:30)</a>:</h4>
+<p>does it just call <code>ensureHasType</code> on the result?</p>
+
+
+
+<a name="236967104"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967104" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967104">(May 01 2021 at 13:30)</a>:</h4>
+<p><del>Oh, I guess it should be an instance <code>Quote Expr</code>?</del> Depending on how you want to handle antiquotations</p>
+
+
+
+<a name="236967111"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967111" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967111">(May 01 2021 at 13:31)</a>:</h4>
+<p>I'll worry about antiquotations later</p>
+
+
+
+<a name="236967142"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967142" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967142">(May 01 2021 at 13:31)</a>:</h4>
+<p>Do you think it would be better to write <code>Expr -&gt; Syntax</code> or <code>Expr -&gt; Expr</code> for the quote function?</p>
+
+
+
+<a name="236967205"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967205" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967205">(May 01 2021 at 13:32)</a>:</h4>
+<p>Yeah, it should be the latter, I just noticed</p>
+
+
+
+<a name="236967258"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967258" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967258">(May 01 2021 at 13:33)</a>:</h4>
+<p>I suppose the former is a bit more versatile and also hooks in to the <code>Quote</code> typeclass, but it needs an elaboration afterward that isn't quite necessary here</p>
+
+
+
+<a name="236967268"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967268" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967268">(May 01 2021 at 13:33)</a>:</h4>
+<p>I take it <code>deriving Quote</code> isn't a thing yet?</p>
+
+
+
+<a name="236967406"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236967406" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236967406">(May 01 2021 at 13:35)</a>:</h4>
+<p>You can access the expected type like this (this will postpone the elaborator until the type is available): <a href="https://github.com/leanprover/lean4/blob/e70e924327c3b42d28dd8a59340a89cbafb3d5b6/tests/lean/run/elabCmd.lean#L27-L28">https://github.com/leanprover/lean4/blob/e70e924327c3b42d28dd8a59340a89cbafb3d5b6/tests/lean/run/elabCmd.lean#L27-L28</a><br>
+But you shouldn't need to just for checking, the outer expression should take care of that</p>
+
+
+
+<a name="236972283"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236972283" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236972283">(May 01 2021 at 14:32)</a>:</h4>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">Lean</span>
+<span class="kn">open</span> <span class="n">Lean</span> <span class="n">Elab</span> <span class="n">Term</span>
+
+<span class="kn">namespace</span> <span class="n">Lean</span>
+<span class="kd">class</span> <span class="n">Reflect</span> <span class="o">(</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">)</span> <span class="n">where</span>
+  <span class="n">reflectTy</span> <span class="o">:</span> <span class="n">Expr</span>
+  <span class="n">reflect</span> <span class="o">:</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Expr</span>
+
+<span class="kn">open</span> <span class="n">Reflect</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">Bool</span> <span class="n">where</span>
+  <span class="n">reflectTy</span> <span class="o">:=</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">Bool</span>
+  <span class="n">reflect</span> <span class="n">b</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">b</span> <span class="k">then</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">true</span> <span class="k">else</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">false</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Nat</span><span class="o">,</span> <span class="n">mkNatLit</span><span class="o">⟩</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">Int</span> <span class="n">where</span>
+  <span class="n">reflectTy</span> <span class="o">:=</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">Int</span>
+  <span class="n">reflect</span> <span class="n">n</span> <span class="o">:=</span> <span class="k">if</span> <span class="n">n</span> <span class="bp">&lt;</span> <span class="mi">0</span> <span class="k">then</span>
+    <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Int.negOfNat</span><span class="o">)</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">n.natAbs</span><span class="o">)</span>
+  <span class="k">else</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Int.ofNat</span><span class="o">)</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">n.natAbs</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">{</span><span class="n">α</span> <span class="o">:</span> <span class="kt">Type</span><span class="o">}</span> <span class="o">[</span><span class="n">Reflect</span> <span class="n">α</span><span class="o">]</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="o">(</span><span class="n">List</span> <span class="n">α</span><span class="o">)</span> <span class="o">:=</span>
+  <span class="o">⟨</span><span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">List</span> <span class="n">us</span><span class="o">)</span> <span class="o">(</span><span class="n">reflectTy</span> <span class="n">α</span><span class="o">),</span> <span class="n">f</span><span class="o">⟩</span>
+<span class="n">where</span>
+  <span class="n">e</span> <span class="o">:=</span> <span class="n">reflectTy</span> <span class="n">α</span>
+  <span class="n">us</span> <span class="o">:=</span> <span class="o">[</span><span class="n">levelZero</span><span class="o">]</span>
+  <span class="n">f</span> <span class="o">:</span> <span class="n">List</span> <span class="n">α</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="o">[]</span> <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">List.nil</span> <span class="n">us</span><span class="o">)</span> <span class="n">e</span>
+  <span class="bp">|</span> <span class="n">h</span><span class="o">::</span><span class="n">t</span> <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">List.cons</span> <span class="n">us</span><span class="o">)</span> <span class="n">e</span> <span class="o">(</span><span class="n">reflect</span> <span class="n">h</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="n">t</span><span class="o">)</span>
+
+<span class="kd">def</span> <span class="n">Name.reflect</span> <span class="o">:</span> <span class="n">Name</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">anonymous</span> <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">anonymous</span>
+  <span class="bp">|</span> <span class="n">str</span> <span class="n">anonymous</span> <span class="n">s</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkSimple</span><span class="o">)</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">s</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">str</span> <span class="n">p</span> <span class="n">s</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkStr</span><span class="o">)</span> <span class="n">p.reflect</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">s</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">num</span> <span class="n">p</span> <span class="n">v</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkNum</span><span class="o">)</span> <span class="n">p.reflect</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">v</span><span class="o">)</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">Name</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Name</span><span class="o">,</span> <span class="n">Name.reflect</span><span class="o">⟩</span>
+
+<span class="kd">def</span> <span class="n">Level.reflect</span> <span class="o">:</span> <span class="n">Level</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">zero</span> <span class="n">_</span>       <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">levelZero</span>
+  <span class="bp">|</span> <span class="n">succ</span> <span class="n">l</span> <span class="n">_</span>     <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLevelSucc</span><span class="o">)</span> <span class="n">l.reflect</span>
+  <span class="bp">|</span> <span class="n">max</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="n">_</span>  <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLevelMax</span><span class="o">)</span> <span class="n">l₁.reflect</span> <span class="n">l₂.reflect</span>
+  <span class="bp">|</span> <span class="n">imax</span> <span class="n">l₁</span> <span class="n">l₂</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLevelIMax</span><span class="o">)</span> <span class="n">l₁.reflect</span> <span class="n">l₂.reflect</span>
+  <span class="bp">|</span> <span class="n">param</span> <span class="n">n</span> <span class="n">_</span>    <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLevelParam</span><span class="o">)</span> <span class="n">n.reflect</span>
+  <span class="bp">|</span> <span class="n">mvar</span> <span class="n">n</span> <span class="n">_</span>     <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLevelMVar</span><span class="o">)</span> <span class="n">n.reflect</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">Level</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">Level</span><span class="o">,</span> <span class="n">Level.reflect</span><span class="o">⟩</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">BinderInfo</span> <span class="n">where</span>
+  <span class="n">reflectTy</span> <span class="o">:=</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo</span>
+  <span class="n">reflect</span>
+  <span class="bp">|</span> <span class="n">BinderInfo.default</span>        <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo.default</span>
+  <span class="bp">|</span> <span class="n">BinderInfo.implicit</span>       <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo.implicit</span>
+  <span class="bp">|</span> <span class="n">BinderInfo.strictImplicit</span> <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo.strictImplicit</span>
+  <span class="bp">|</span> <span class="n">BinderInfo.instImplicit</span>   <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo.instImplicit</span>
+  <span class="bp">|</span> <span class="n">BinderInfo.auxDecl</span>        <span class="bp">=&gt;</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">BinderInfo.auxDecl</span>
+
+<span class="kn">open</span> <span class="n">DataValue</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">MData.reflect</span> <span class="o">(</span><span class="n">md</span> <span class="o">:</span> <span class="n">MData</span><span class="o">)</span> <span class="o">:</span> <span class="n">Expr</span> <span class="o">:=</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">mut</span> <span class="n">e</span> <span class="o">:=</span> <span class="n">mkConst</span> <span class="bp">``</span><span class="n">MData.empty</span>
+  <span class="n">for</span> <span class="o">(</span><span class="n">k</span><span class="o">,</span> <span class="n">v</span><span class="o">)</span> <span class="k">in</span> <span class="n">md</span> <span class="k">do</span>
+    <span class="k">let</span> <span class="n">k</span> <span class="o">:=</span> <span class="n">k.reflect</span>
+    <span class="n">e</span> <span class="o">:=</span> <span class="k">match</span> <span class="n">v</span> <span class="k">with</span>
+    <span class="bp">|</span> <span class="n">ofString</span> <span class="n">v</span> <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">KVMap.setString</span><span class="o">)</span> <span class="n">e</span> <span class="n">k</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">v</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">ofBool</span> <span class="n">v</span>   <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">KVMap.setBool</span><span class="o">)</span> <span class="n">e</span> <span class="n">k</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">v</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">ofName</span> <span class="n">v</span>   <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">KVMap.setName</span><span class="o">)</span> <span class="n">e</span> <span class="n">k</span> <span class="n">v.reflect</span>
+    <span class="bp">|</span> <span class="n">ofNat</span> <span class="n">v</span>    <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">KVMap.setNat</span><span class="o">)</span> <span class="n">e</span> <span class="n">k</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">v</span><span class="o">)</span>
+    <span class="bp">|</span> <span class="n">ofInt</span> <span class="n">v</span>    <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">KVMap.setInt</span><span class="o">)</span> <span class="n">e</span> <span class="n">k</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">v</span><span class="o">)</span>
+  <span class="n">e</span>
+
+<span class="kd">instance</span> <span class="o">:</span> <span class="n">Reflect</span> <span class="n">MData</span> <span class="o">:=</span> <span class="o">⟨</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">MData</span><span class="o">,</span> <span class="n">MData.reflect</span><span class="o">⟩</span>
+
+<span class="kn">open</span> <span class="n">Literal</span> <span class="k">in</span>
+<span class="kd">def</span> <span class="n">Expr.reflect</span> <span class="o">:</span> <span class="n">Expr</span> <span class="bp">→</span> <span class="n">Expr</span>
+  <span class="bp">|</span> <span class="n">bvar</span> <span class="n">n</span> <span class="n">_</span>        <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkBVar</span><span class="o">)</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">n</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">fvar</span> <span class="n">n</span> <span class="n">_</span>        <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkFVar</span><span class="o">)</span> <span class="n">n.reflect</span>
+  <span class="bp">|</span> <span class="n">mvar</span> <span class="n">n</span> <span class="n">_</span>        <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkMVar</span><span class="o">)</span> <span class="n">n.reflect</span>
+  <span class="bp">|</span> <span class="n">sort</span> <span class="n">l</span> <span class="n">_</span>        <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkSort</span><span class="o">)</span> <span class="n">l.reflect</span>
+  <span class="bp">|</span> <span class="n">const</span> <span class="n">n</span> <span class="n">ls</span> <span class="n">_</span>    <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkConst</span><span class="o">)</span> <span class="n">n.reflect</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">ls</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">app</span> <span class="n">f</span> <span class="n">x</span> <span class="n">_</span>       <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkApp</span><span class="o">)</span> <span class="n">f.reflect</span> <span class="n">x.reflect</span>
+  <span class="bp">|</span> <span class="n">lam</span> <span class="n">x</span> <span class="n">d</span> <span class="n">b</span> <span class="n">c</span>     <span class="bp">=&gt;</span> <span class="n">mkApp4</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLambda</span><span class="o">)</span>
+    <span class="n">x.reflect</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">c.binderInfo</span><span class="o">)</span> <span class="n">d.reflect</span> <span class="n">b.reflect</span>
+  <span class="bp">|</span> <span class="n">forallE</span> <span class="n">x</span> <span class="n">d</span> <span class="n">b</span> <span class="n">c</span> <span class="bp">=&gt;</span> <span class="n">mkApp4</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkForall</span><span class="o">)</span>
+    <span class="n">x.reflect</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">c.binderInfo</span><span class="o">)</span> <span class="n">d.reflect</span> <span class="n">b.reflect</span>
+  <span class="bp">|</span> <span class="n">letE</span> <span class="n">x</span> <span class="n">t</span> <span class="n">v</span> <span class="n">b</span> <span class="n">c</span>  <span class="bp">=&gt;</span> <span class="n">mkApp5</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkLet</span><span class="o">)</span>
+    <span class="n">x.reflect</span> <span class="n">t.reflect</span> <span class="n">v.reflect</span> <span class="n">b.reflect</span> <span class="o">(</span><span class="n">Reflect.reflect</span> <span class="n">c.nonDepLet</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">lit</span> <span class="o">(</span><span class="n">natVal</span> <span class="n">n</span><span class="o">)</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkNatLit</span><span class="o">)</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">n</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">lit</span> <span class="o">(</span><span class="n">strVal</span> <span class="n">s</span><span class="o">)</span> <span class="n">_</span> <span class="bp">=&gt;</span> <span class="n">mkApp</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkStrLit</span><span class="o">)</span> <span class="o">(</span><span class="n">mkStrLit</span> <span class="n">s</span><span class="o">)</span>
+  <span class="bp">|</span> <span class="n">mdata</span> <span class="n">md</span> <span class="n">e</span> <span class="n">_</span>    <span class="bp">=&gt;</span> <span class="n">mkApp2</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkMData</span><span class="o">)</span> <span class="n">md.reflect</span> <span class="n">e.reflect</span>
+  <span class="bp">|</span> <span class="n">proj</span> <span class="n">s</span> <span class="n">i</span> <span class="n">e</span> <span class="n">_</span>    <span class="bp">=&gt;</span> <span class="n">mkApp3</span> <span class="o">(</span><span class="n">mkConst</span> <span class="bp">``</span><span class="n">mkProj</span><span class="o">)</span> <span class="n">s.reflect</span> <span class="o">(</span><span class="n">mkNatLit</span> <span class="n">i</span><span class="o">)</span> <span class="n">e.reflect</span>
+
+<span class="kd">end</span> <span class="n">Lean</span>
+
+<span class="n">elab</span> <span class="s2">"`[Expr|"</span> <span class="n">stx</span><span class="o">:</span><span class="n">term</span> <span class="s2">"]"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="k">do</span>
+  <span class="k">let</span> <span class="n">e</span> <span class="bp">←</span> <span class="n">elabTermAndSynthesize</span> <span class="n">stx</span> <span class="o">(</span><span class="n">expectedType</span><span class="bp">?</span> <span class="o">:=</span> <span class="n">none</span><span class="o">)</span>
+  <span class="n">e.reflect</span>
+
+<span class="n">elab</span> <span class="s2">"two_plus_two"</span> <span class="o">:</span> <span class="n">term</span> <span class="bp">=&gt;</span> <span class="bp">`</span><span class="o">[</span><span class="n">Expr</span><span class="bp">|</span> <span class="mi">2</span> <span class="bp">+</span> <span class="mi">2</span><span class="o">]</span>
+
+<span class="kd">def</span> <span class="n">bar</span> <span class="o">:</span> <span class="n">Nat</span> <span class="o">:=</span> <span class="n">two_plus_two</span>
+
+<span class="k">#print</span> <span class="n">bar</span> <span class="c1">-- def bar : Nat := 2 + 2</span>
+</code></pre></div>
+
+
+
+<a name="236972971"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236972971" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236972971">(May 01 2021 at 14:42)</a>:</h4>
+<p>Does <code>ForIn</code> provide a <code>fold</code> function? It is a little cumbersome to have to write a do block with a for loop in order to fold over <code>KVMap</code></p>
+
+
+
+<a name="236973213"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236973213" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236973213">(May 01 2021 at 14:46)</a>:</h4>
+<p>Also the use of <code>[levelZero]</code> in the reflect instance for <code>List</code> is questionable. The reflect typeclass could come with a level argument</p>
+
+
+
+<a name="236977905"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236977905" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236977905">(May 01 2021 at 15:38)</a>:</h4>
+<p><span class="user-mention" data-user-id="110049">@Mario Carneiro</span> FYI a <code>Reflect</code>already exists (<code>ToExpr</code> <a href="https://github.com/leanprover/lean4/blob/master/src/Lean/ToExpr.lean">https://github.com/leanprover/lean4/blob/master/src/Lean/ToExpr.lean</a>) but it is missing some instances.</p>
+
+
+
+<a name="236977951"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236977951" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236977951">(May 01 2021 at 15:39)</a>:</h4>
+<p>Actually, it may be designed for a different purpose, since <code>Expr</code>s <code>toExpr</code> to themselves.</p>
+
+
+
+<a name="236978040"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978040" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978040">(May 01 2021 at 15:40)</a>:</h4>
+<p>Oh, right! So in that regard it is just like <code>Quote</code>.</p>
+
+
+
+<a name="236978085"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978085" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978085">(May 01 2021 at 15:41)</a>:</h4>
+<p>I don't think either behavior is correct (Mac already observed this for <code>Quote</code> above)</p>
+
+
+
+<a name="236978099"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978099" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978099">(May 01 2021 at 15:41)</a>:</h4>
+<p>In what setting is the identity function the right behavior?</p>
+
+
+
+<a name="236978193"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978193" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978193">(May 01 2021 at 15:43)</a>:</h4>
+<p>For example one reasonable constraint is that <code>inferType (toExpr x) = toTypeExpr</code>, and all instances satisfy this except <code>ToExpr Expr</code></p>
+
+
+
+<a name="236978322"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978322" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978322">(May 01 2021 at 15:45)</a>:</h4>
+<p>The <code>ToExpr Expr</code> instance is not being used currently.</p>
+
+
+
+<a name="236978422"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978422" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Mario Carneiro <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978422">(May 01 2021 at 15:46)</a>:</h4>
+<p>I also slightly prefer the <code>Reflect</code> name because <code>ToExpr</code> suggests a "coercion" like behavior such that the identity function is defensible</p>
+
+
+
+<a name="236978467"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/236978467" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Daniel Selsam <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#236978467">(May 01 2021 at 15:47)</a>:</h4>
+<p>I agree.</p>
+
+
+
+<a name="237081002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/237081002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#237081002">(May 02 2021 at 20:41)</a>:</h4>
+<p>So, if I understand correctly, something that is phrased as </p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">t</span> <span class="bp">←</span> <span class="n">mk_mvar</span>
+<span class="n">to_expr</span> <span class="bp">``</span><span class="o">(</span><span class="n">false.elim</span> <span class="bp">%%</span><span class="n">t</span><span class="o">)</span> <span class="n">tt</span> <span class="n">ff</span> <span class="bp">&gt;&gt;=</span> <span class="n">exact</span>
+</code></pre></div>
+<p>or</p>
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="n">exact</span> <span class="bp">`</span><span class="o">(</span><span class="n">True</span><span class="o">)</span>
+</code></pre></div>
+<p>in Lean 3 is not yet possible because there is no <code>Quote Expr</code>?</p>
+
+
+
+<a name="237082184"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/237082184" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Sebastian Ullrich <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#237082184">(May 02 2021 at 20:59)</a>:</h4>
+<p>No, <code>Quote</code> is about reflection at run time. Your first example is covered by the stdlib, your second one by Mario's macro.</p>
+
+
+
+<a name="237082556"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/implementing%20%60%28x%29/near/237082556" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/270676-lean4/topic/implementing.20.60(x).html#237082556">(May 02 2021 at 21:01)</a>:</h4>
+<p>Thanks for the clarification. Could you please share a stub showing how the first example is expressed in the stdlib?</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>

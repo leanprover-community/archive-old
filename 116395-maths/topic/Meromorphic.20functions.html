@@ -1,0 +1,488 @@
+---
+layout: archive
+title: Zulip Chat Archive
+permalink: /stream/116395-maths/topic/Meromorphic.20functions.html
+---
+
+<h2>Stream: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/index.html">maths</a></h2>
+<h3>Topic: <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html">Meromorphic functions</a></h3>
+
+<hr>
+
+<base href="https://leanprover.zulipchat.com/">
+
+<head><link href="/style.css" rel="stylesheet"></head>
+
+{% raw %}
+
+<a name="267316997"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267316997" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267316997">(Jan 08 2022 at 21:30)</a>:</h4>
+<p><span class="user-mention" data-user-id="260507">@Heather Macbeth</span> and I have been discussing the sheaf of meromorphic functions.</p>
+<p>Here is an initial definition of the sheaf of rings of fractions.</p>
+<div class="spoiler-block"><div class="spoiler-header">
+</div><div class="spoiler-content" aria-hidden="true">
+<div class="codehilite" data-code-language="Lean"><pre><span></span><code><span class="kn">import</span> <span class="n">algebra.category.CommRing</span>
+<span class="kn">import</span> <span class="n">algebra.category.CommRing.filtered_colimits</span>
+<span class="kn">import</span> <span class="n">algebra.category.CommRing.limits</span>
+
+<span class="kn">import</span> <span class="n">category_theory.sites.sheaf</span>
+<span class="kn">import</span> <span class="n">category_theory.sites.sheafification</span>
+<span class="kn">import</span> <span class="n">topology.sheaves.sheaf_condition.sites</span>
+<span class="kn">import</span> <span class="n">ring_theory.localization</span>
+<span class="c1">--import category_theory.filtered</span>
+
+<span class="kn">open</span> <span class="n">category_theory</span>
+
+<span class="kd">universe</span> <span class="n">u</span>
+<span class="kd">variables</span> <span class="o">{</span><span class="n">X</span> <span class="o">:</span> <span class="kt">Type</span> <span class="n">u</span><span class="o">}</span> <span class="o">[</span><span class="n">topological_space</span> <span class="n">X</span><span class="o">]</span>
+<span class="kd">variables</span> <span class="o">(</span><span class="n">P</span> <span class="o">:</span> <span class="n">Sheaf</span> <span class="o">(</span><span class="n">opens.grothendieck_topology</span> <span class="n">X</span><span class="o">)</span> <span class="n">CommRing.</span><span class="o">{</span><span class="n">u</span><span class="o">})</span>
+
+<span class="kn">open</span> <span class="n">opposite</span> <span class="n">topological_space</span>
+
+<span class="kd">def</span> <span class="n">is_regular_element</span> <span class="o">{</span><span class="n">U</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">s</span> <span class="o">:</span> <span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">U</span><span class="o">))</span> <span class="o">:</span> <span class="kt">Prop</span> <span class="o">:=</span>
+<span class="bp">∀</span> <span class="o">(</span><span class="n">V</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">)</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">V</span> <span class="bp">≤</span> <span class="n">U</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">V</span><span class="o">)),</span> <span class="n">P.val.map</span> <span class="o">(</span><span class="n">hom_of_le</span> <span class="n">h</span><span class="o">)</span><span class="bp">.</span><span class="n">op</span> <span class="n">s</span> <span class="bp">*</span> <span class="n">f</span> <span class="bp">=</span> <span class="mi">0</span> <span class="bp">→</span> <span class="n">f</span> <span class="bp">=</span> <span class="mi">0</span>
+
+<span class="kd">def</span> <span class="n">regular_element</span> <span class="o">(</span><span class="n">U</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">submonoid</span> <span class="o">(</span><span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">U</span><span class="o">))</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">carrier</span> <span class="o">:=</span> <span class="o">{</span> <span class="n">s</span> <span class="bp">|</span> <span class="n">is_regular_element</span> <span class="n">P</span> <span class="n">s</span> <span class="o">},</span>
+  <span class="n">one_mem'</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">intros</span> <span class="n">V</span> <span class="n">h</span> <span class="n">f</span> <span class="n">hf</span><span class="o">,</span>
+    <span class="n">simpa</span> <span class="n">using</span> <span class="n">hf</span>
+  <span class="kd">end</span><span class="o">,</span>
+  <span class="n">mul_mem'</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">intros</span> <span class="n">s</span> <span class="n">t</span> <span class="n">hs</span> <span class="n">ht</span> <span class="n">V</span> <span class="n">h</span> <span class="n">f</span> <span class="n">hf</span><span class="o">,</span>
+    <span class="n">dsimp</span> <span class="n">at</span> <span class="n">hs</span> <span class="n">ht</span><span class="o">,</span>
+    <span class="n">simp</span> <span class="o">[</span><span class="n">mul_assoc</span><span class="o">]</span> <span class="n">at</span> <span class="n">hf</span><span class="o">,</span>
+    <span class="n">specialize</span> <span class="n">hs</span> <span class="n">V</span> <span class="n">h</span> <span class="n">_</span> <span class="n">hf</span><span class="o">,</span>
+    <span class="n">exact</span> <span class="n">ht</span> <span class="n">V</span> <span class="n">h</span> <span class="n">_</span> <span class="n">hs</span><span class="o">,</span>
+  <span class="kd">end</span> <span class="o">}</span>
+
+<span class="kd">lemma</span> <span class="n">map_is_regular_element</span> <span class="o">{</span><span class="n">U</span> <span class="n">V</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">U</span> <span class="bp">≤</span> <span class="n">V</span><span class="o">)</span> <span class="o">(</span><span class="n">f</span> <span class="o">:</span> <span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">V</span><span class="o">))</span> <span class="o">:</span>
+  <span class="n">is_regular_element</span> <span class="n">P</span> <span class="n">f</span> <span class="bp">→</span> <span class="n">is_regular_element</span> <span class="n">P</span> <span class="o">(</span><span class="n">P.val.map</span> <span class="o">(</span><span class="n">hom_of_le</span> <span class="n">h</span><span class="o">)</span><span class="bp">.</span><span class="n">op</span> <span class="n">f</span><span class="o">)</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intros</span> <span class="n">hf</span> <span class="n">W</span> <span class="n">h</span> <span class="n">g</span><span class="o">,</span>
+  <span class="n">rw</span> <span class="o">[</span><span class="bp">←</span> <span class="n">comp_apply</span><span class="o">,</span> <span class="bp">←</span> <span class="n">P.val.map_comp</span><span class="o">,</span> <span class="bp">←</span> <span class="n">op_comp</span><span class="o">],</span>
+  <span class="n">intros</span> <span class="n">h</span><span class="o">,</span>
+  <span class="n">apply</span> <span class="n">hf</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span> <span class="n">h</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">lemma</span> <span class="n">comap_regular_element</span> <span class="o">{</span><span class="n">U</span> <span class="n">V</span> <span class="o">:</span> <span class="o">(</span><span class="n">opens</span> <span class="n">X</span><span class="o">)</span><span class="bp">ᵒᵖ</span><span class="o">}</span> <span class="o">(</span><span class="n">h</span> <span class="o">:</span> <span class="n">U</span> <span class="bp">⟶</span> <span class="n">V</span><span class="o">)</span> <span class="o">:</span>
+  <span class="n">regular_element</span> <span class="n">P</span> <span class="n">U.unop</span> <span class="bp">≤</span> <span class="o">(</span><span class="n">regular_element</span> <span class="n">P</span> <span class="n">V.unop</span><span class="o">)</span><span class="bp">.</span><span class="n">comap</span> <span class="o">(</span><span class="n">P.val.map</span> <span class="n">h</span><span class="o">)</span><span class="bp">.</span><span class="n">to_monoid_hom</span> <span class="o">:=</span>
+<span class="kd">begin</span>
+  <span class="n">intros</span> <span class="n">f</span> <span class="n">hf</span><span class="o">,</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">V.unop</span> <span class="bp">≤</span> <span class="n">U.unop</span> <span class="o">:=</span> <span class="n">le_of_hom</span> <span class="n">h.unop</span><span class="o">,</span>
+  <span class="n">change</span> <span class="n">is_regular_element</span> <span class="n">_</span> <span class="n">_</span><span class="o">,</span>
+  <span class="n">convert</span> <span class="n">map_is_regular_element</span> <span class="n">P</span> <span class="n">this</span> <span class="n">f</span> <span class="n">hf</span><span class="o">,</span>
+  <span class="k">have</span> <span class="o">:</span> <span class="n">h</span> <span class="bp">=</span> <span class="o">(</span><span class="n">hom_of_le</span> <span class="n">this</span><span class="o">)</span><span class="bp">.</span><span class="n">op</span><span class="o">,</span>
+  <span class="o">{</span> <span class="n">change</span> <span class="n">h.unop.op</span> <span class="bp">=</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">congr'</span> <span class="mi">1</span> <span class="o">},</span>
+  <span class="n">rw</span> <span class="n">this</span><span class="o">,</span>
+  <span class="n">refl</span><span class="o">,</span>
+<span class="kd">end</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">total_fraction_presheaf</span> <span class="o">:</span> <span class="o">(</span><span class="n">opens</span> <span class="n">X</span><span class="o">)</span><span class="bp">ᵒᵖ</span> <span class="bp">⥤</span> <span class="n">CommRing</span> <span class="o">:=</span>
+<span class="o">{</span> <span class="n">obj</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">U</span><span class="o">,</span> <span class="n">CommRing.of</span> <span class="bp">$</span> <span class="n">localization</span> <span class="o">(</span><span class="n">regular_element</span> <span class="n">P</span> <span class="n">U.unop</span><span class="o">),</span>
+  <span class="n">map</span> <span class="o">:=</span> <span class="bp">λ</span> <span class="n">U</span> <span class="n">V</span> <span class="n">h</span><span class="o">,</span> <span class="kd">begin</span>
+    <span class="n">apply</span> <span class="n">is_localization.map</span> <span class="n">_</span> <span class="o">(</span><span class="n">P.val.map</span> <span class="n">h</span><span class="o">)</span> <span class="o">(</span><span class="n">comap_regular_element</span> <span class="n">_</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">change</span> <span class="n">algebra</span> <span class="o">(</span><span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">U.unop</span><span class="o">))</span> <span class="o">(</span><span class="n">localization</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply_instance</span><span class="o">,</span>
+    <span class="n">change</span> <span class="n">is_localization</span> <span class="n">_</span> <span class="o">(</span><span class="n">localization</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply_instance</span><span class="o">,</span>
+    <span class="n">change</span> <span class="n">algebra</span> <span class="o">(</span><span class="n">P.val.obj</span> <span class="o">(</span><span class="n">op</span> <span class="n">V.unop</span><span class="o">))</span> <span class="o">(</span><span class="n">localization</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply_instance</span><span class="o">,</span>
+    <span class="n">change</span> <span class="n">is_localization</span> <span class="n">_</span> <span class="o">(</span><span class="n">localization</span> <span class="n">_</span><span class="o">),</span>
+    <span class="n">apply_instance</span><span class="o">,</span>
+  <span class="kd">end</span><span class="o">,</span>
+  <span class="n">map_id'</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">intros</span> <span class="n">U</span><span class="o">,</span>
+    <span class="n">simp</span><span class="o">,</span>
+    <span class="n">change</span> <span class="n">is_localization.map</span> <span class="n">_</span> <span class="o">(</span><span class="n">ring_hom.id</span> <span class="n">_</span><span class="o">)</span> <span class="n">_</span> <span class="bp">=</span> <span class="n">ring_hom.id</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">ext</span><span class="o">,</span>
+    <span class="n">simp</span><span class="o">,</span>
+  <span class="kd">end</span><span class="o">,</span>
+  <span class="n">map_comp'</span> <span class="o">:=</span> <span class="kd">begin</span>
+    <span class="n">intros</span> <span class="n">U</span> <span class="n">V</span> <span class="n">W</span> <span class="n">f</span> <span class="n">g</span><span class="o">,</span>
+    <span class="n">simp</span><span class="o">,</span>
+    <span class="n">change</span> <span class="n">is_localization.map</span> <span class="n">_</span> <span class="o">((</span><span class="n">P.val.map</span> <span class="n">g</span><span class="o">)</span><span class="bp">.</span><span class="n">comp</span> <span class="o">(</span><span class="n">P.val.map</span> <span class="n">f</span><span class="o">))</span> <span class="n">_</span> <span class="bp">=</span>
+      <span class="o">(</span><span class="n">is_localization.map</span> <span class="n">_</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">comp</span> <span class="n">_</span><span class="o">,</span>
+    <span class="n">rw</span> <span class="n">is_localization.map_comp_map</span><span class="o">,</span>
+    <span class="n">refl</span><span class="o">,</span>
+  <span class="kd">end</span> <span class="o">}</span> <span class="bp">.</span>
+
+<span class="c1">-- Why is this needed???</span>
+<span class="kd">instance</span> <span class="o">(</span><span class="n">U</span> <span class="o">:</span> <span class="n">opens</span> <span class="n">X</span><span class="o">)</span> <span class="o">:</span> <span class="n">is_filtered</span> <span class="o">((</span><span class="n">opens.grothendieck_topology</span> <span class="n">X</span><span class="o">)</span><span class="bp">.</span><span class="n">cover</span> <span class="n">U</span><span class="o">)</span><span class="bp">ᵒᵖ</span> <span class="o">:=</span>
+<span class="kd">by</span> <span class="n">apply_instance</span>
+
+<span class="kd">noncomputable</span> <span class="kd">def</span> <span class="n">total_fraction_sheaf</span> <span class="o">:</span> <span class="n">Sheaf</span> <span class="o">(</span><span class="n">opens.grothendieck_topology</span> <span class="n">X</span><span class="o">)</span> <span class="n">CommRing</span> <span class="o">:=</span>
+<span class="o">(</span><span class="n">presheaf_to_Sheaf</span> <span class="n">_</span> <span class="n">_</span><span class="o">)</span><span class="bp">.</span><span class="n">obj</span> <span class="o">(</span><span class="n">total_fraction_presheaf</span> <span class="n">P</span><span class="o">)</span>
+
+<span class="c1">-- Now if `P` is the sheaf of holomorphic functions, then `total_fraction_sheaf P` should be</span>
+<span class="c1">-- the sheaf of meromorphic functions.</span>
+</code></pre></div>
+</div></div>
+<p>As you can see, there are some pain points in this code, around the following points:</p>
+<ol>
+<li>I used Grothendieck topologies, because as far as I know we cannot easily sheafify presheaves of commutative rings using sheaves from the <code>topology</code> part of mathlib.</li>
+<li>Mapping localizations is more difficult than it should be... I could add some algebra instances, sure, but it's still a bit annoying.</li>
+<li>There are some annoying points coming up due to <code>op</code>, but I don't see any way to avoid them.</li>
+<li>Why do I need to manually add the <code>is_filtered</code> instance toward the bottom?</li>
+</ol>
+
+
+
+<a name="267317269"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317269" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317269">(Jan 08 2022 at 21:36)</a>:</h4>
+<p>It would be better to develop a general construction of localization of sheaves of commutative rings by a sub(pre)sheaf of monoids. If someone wants to try to even write down the type of such a construction, that would be great!</p>
+
+
+
+<a name="267317737"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317737" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317737">(Jan 08 2022 at 21:48)</a>:</h4>
+<p>A probably not that related question: what is a better way to talk about a "sub(pre)sheaf of monoids"?<br>
+An mono into the image of the <code>F : Sheaf X CommRing</code> under some forgetful functor <code>Sheaf X CommRing ⥤  Sheaf X Monoid</code>?<br>
+I was thinking about this just this afternoon (though I was thinking about ideal sheaves) and I have yet obtained a satisfactory solution.</p>
+
+
+
+<a name="267317820"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317820" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317820">(Jan 08 2022 at 21:51)</a>:</h4>
+<p><span class="user-mention" data-user-id="439483">@Andrew Yang</span> that question is definitely related! Note that to localize a ring, one must use <a href="https://leanprover-community.github.io/mathlib_docs/find/submonoid">docs#submonoid</a> at some point</p>
+
+
+
+<a name="267317826"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317826" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317826">(Jan 08 2022 at 21:51)</a>:</h4>
+<p>(at least in the way localization is currently done)</p>
+
+
+
+<a name="267317886"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317886" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317886">(Jan 08 2022 at 21:52)</a>:</h4>
+<p>If you have a morphism of sheaves of monoids, you can localize at the images, I guess... But I don't know how workable that would be in practice</p>
+
+
+
+<a name="267317912"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267317912" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267317912">(Jan 08 2022 at 21:53)</a>:</h4>
+<p>I thought so too. Since most of the substuff library talks about the bundled substuff, we would need to juggle with images all the time if we go for this approach.</p>
+
+
+
+<a name="267318580"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267318580" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267318580">(Jan 08 2022 at 22:05)</a>:</h4>
+<p>For sheaves of ideals, you can model them as kernels of morphisms of sheaves of rings, for example.</p>
+
+
+
+<a name="267319362"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267319362" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267319362">(Jan 08 2022 at 22:21)</a>:</h4>
+<p>You'll have a bad notion of equality that way</p>
+
+
+
+<a name="267319370"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267319370" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267319370">(Jan 08 2022 at 22:21)</a>:</h4>
+<p>equality is evil anyway</p>
+
+
+
+<a name="267319419"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267319419" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Kevin Buzzard <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267319419">(Jan 08 2022 at 22:22)</a>:</h4>
+<p>Perhaps not for sheaves of ideals</p>
+
+
+
+<a name="267319425"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267319425" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267319425">(Jan 08 2022 at 22:22)</a>:</h4>
+<p>ok, fair point..</p>
+
+
+
+<a name="267323550"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267323550" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267323550">(Jan 08 2022 at 23:52)</a>:</h4>
+<p>Is there no way to use <code>non_zero_divisors</code> here?</p>
+
+
+
+<a name="267324150"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267324150" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267324150">(Jan 09 2022 at 00:07)</a>:</h4>
+<p>For example, if I am reading the definition, correctly, you're working on <code>{ obj := λ U, CommRing.of $ fraction_ring (P.val.obj U), ...}</code>? There are some API missing for your <code>2.</code> point. Just to familiarize myself with this part of the library, is there a reason to not use <code>CommRing.of_hom _</code> for your <code>hom := </code> construction?</p>
+
+
+
+<a name="267324896"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267324896" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267324896">(Jan 09 2022 at 00:27)</a>:</h4>
+<p><span class="user-mention" data-user-id="308899">@Yakov Pechersky</span> take a look at the definition on the nlab, <br>
+<a href="http://nlab-pages.s3.us-east-2.amazonaws.com/nlab/show/sheaf+of+meromorphic+functions">http://nlab-pages.s3.us-east-2.amazonaws.com/nlab/show/sheaf+of+meromorphic+functions</a></p>
+<p>and also (in the algebraic context) the top of page 141 of Hartshorne.</p>
+
+
+
+<a name="267324938"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267324938" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267324938">(Jan 09 2022 at 00:28)</a>:</h4>
+<p>I don't think using <code>non_zero_divisors</code> works in this level of generality.</p>
+
+
+
+<a name="267324945"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267324945" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267324945">(Jan 09 2022 at 00:28)</a>:</h4>
+<p>As for <code>CommRing.of_hom</code>, it's not really needed here, as morphisms in the category <code>CommRing</code> are defeq to ring homs.</p>
+
+
+
+<a name="267324962"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267324962" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267324962">(Jan 09 2022 at 00:29)</a>:</h4>
+<p>Oh wait, I see what you mean... maybe it does work to resolve 2, let me check.</p>
+
+
+
+<a name="267325052"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267325052" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267325052">(Jan 09 2022 at 00:31)</a>:</h4>
+<p>No, unfortunately the same annoyances show up with <code>CommRing.of_hom</code> as well... lean is not able to deduce the algebra and <code>is_localization</code> instances for some reason.</p>
+
+
+
+<a name="267325053"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267325053" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267325053">(Jan 09 2022 at 00:31)</a>:</h4>
+<p>Yeah it didn't help when I tried</p>
+
+
+
+<a name="267342689"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267342689" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> David Wärn <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267342689">(Jan 09 2022 at 07:51)</a>:</h4>
+<p>A section of a sheaf of rings is regular if all its restrictions are <code>non_zero_divisors</code>. This is strictly stronger than just being a <code>non_zero_divisor</code> in <code>P(U)</code>, so <code>fraction_ring (P U)</code> already inverts too many things</p>
+
+
+
+<a name="267493874"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267493874" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267493874">(Jan 10 2022 at 20:17)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243562">Adam Topaz</span> <a href="#narrow/stream/116395-maths/topic/Meromorphic.20functions/near/267316997">said</a>:</p>
+<blockquote>
+<p>As you can see, there are some pain points in this code, around the following points:</p>
+<ol>
+<li>I used Grothendieck topologies, because as far as I know we cannot easily sheafify presheaves of commutative rings using sheaves from the <code>topology</code> part of mathlib.</li>
+</ol>
+</blockquote>
+<p>I didn't realise we had both <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.Sheaf">docs#category_theory.Sheaf</a> and <a href="https://leanprover-community.github.io/mathlib_docs/find/Top.sheaf">docs#Top.sheaf</a>.  Is it planned for the former to subsume the latter at some point?</p>
+
+
+
+<a name="267495605"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267495605" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267495605">(Jan 10 2022 at 20:32)</a>:</h4>
+<p>Ping <span class="user-mention" data-user-id="384542">@Justus Springer</span> <span class="user-mention" data-user-id="439483">@Andrew Yang</span></p>
+
+
+
+<a name="267495878"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267495878" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267495878">(Jan 10 2022 at 20:35)</a>:</h4>
+<p>Quoting Justus from his PR linking the two notions:</p>
+<blockquote>
+<p>@jcommelin I did briefly think about this and I'm not sure. It's a design decision I don't feel comfortable making at the moment. Removing the sheaf-on-space definition by making it a special case of the more general one certainly feels like the right thing to do. But on the other hand, I consider sheaves on spaces a pretty important special case and some users (e.g. me three weeks ago) may not want to think about sites and just do sheaves on spaces. So there probably should be a lot of API specialising every applicable concept around sheaves to the case of spaces anyway. So maybe it wouldn't even make that much of a difference in size. But conceptually, it would probably be the right thing do to in the long run.</p>
+<p>Note that some things can already be deduplicated using the equivalence of categories: Right now there are two proofs that composing a sheaf with an isomorphism-reflecting limit-preserving functor again yields a sheaf. They work in slightly different settings, but you could definitely make one a special case of the other by going around the equivalence of categories. I might try to do that soon.</p>
+</blockquote>
+
+
+
+<a name="267496002"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496002" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496002">(Jan 10 2022 at 20:36)</a>:</h4>
+<p>Also -- how do I make a <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.Sheaf">docs#category_theory.Sheaf</a>?  I think it's nearly possible to make the structure sheaf of a complex manifold as a <a href="https://leanprover-community.github.io/mathlib_docs/find/Top.sheaf">docs#Top.sheaf</a> -- <a href="https://leanprover-community.github.io/mathlib_docs/find/Top.local_predicate">docs#Top.local_predicate</a> does this, the only problem is that it makes a sheaf of types rather than a sheaf of rings.</p>
+
+
+
+<a name="267496112"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496112" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496112">(Jan 10 2022 at 20:37)</a>:</h4>
+<p>We have the equivalence between the two notions as an equivalence of categories.</p>
+
+
+
+<a name="267496167"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496167" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496167">(Jan 10 2022 at 20:37)</a>:</h4>
+<p>I see.  Would some sheaf person be up for modifying <a href="https://leanprover-community.github.io/mathlib_docs/find/Top.local_predicate">docs#Top.local_predicate</a> to make sheaves of rings?</p>
+
+
+
+<a name="267496172"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496172" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496172">(Jan 10 2022 at 20:37)</a>:</h4>
+<p>The type vs. commring is an issue.</p>
+
+
+
+<a name="267496486"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496486" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496486">(Jan 10 2022 at 20:40)</a>:</h4>
+<p>We could refactor <code>local_predicate</code> to take in a sufficiently nice concrete category instead of <code>Type*</code>.</p>
+
+
+
+<a name="267496647"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496647" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496647">(Jan 10 2022 at 20:41)</a>:</h4>
+<p>Or we could build up enough of the API so that using <code>Sheaf (opens.grothendieck_topology X) A</code> isn't so scary.</p>
+
+
+
+<a name="267496702"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496702" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496702">(Jan 10 2022 at 20:42)</a>:</h4>
+<p><span class="user-mention" data-user-id="439483">@Andrew Yang</span> what do you think?</p>
+
+
+
+<a name="267496770"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496770" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496770">(Jan 10 2022 at 20:42)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243562">Adam Topaz</span> <a href="#narrow/stream/116395-maths/topic/Meromorphic.20functions/near/267496112">said</a>:</p>
+<blockquote>
+<p>We have the equivalence between the two notions as an equivalence of categories.</p>
+</blockquote>
+<p>If I understand correctly, an equivalence of categories wouldn't give a bijection of the objects, let alone a bijection respecting definitional equality ... so this sounds like it would get awkward.</p>
+
+
+
+<a name="267496860"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496860" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496860">(Jan 10 2022 at 20:43)</a>:</h4>
+<p>I think the functors for this equivalence are defeq to the identity on the level of presheaves, but I'm not 100% sure (I think Justus is the person who built that equivalence?)</p>
+
+
+
+<a name="267496946"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267496946" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267496946">(Jan 10 2022 at 20:44)</a>:</h4>
+<p>Oh, that's nice then!</p>
+
+
+
+<a name="267497190"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267497190" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267497190">(Jan 10 2022 at 20:46)</a>:</h4>
+<p>For a presheaf <code>Cᵒᵖ ⥤ D</code>, we know that it is a sheaf on the space iff it is a sheaf wrt the grothendieck topology, and the two categories are defined as merely a subtype of the category of presheaves, so it should not be a pain to move from one to another.</p>
+
+
+
+<a name="267497557"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267497557" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267497557">(Jan 10 2022 at 20:49)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="243562">Adam Topaz</span> <a href="#narrow/stream/116395-maths/topic/Meromorphic.20functions/near/267496486">said</a>:</p>
+<blockquote>
+<p>We could refactor <code>local_predicate</code> to take in a sufficiently nice concrete category instead of <code>Type*</code>.</p>
+</blockquote>
+<p>This sounds great ...</p>
+
+
+
+<a name="267497677"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267497677" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267497677">(Jan 10 2022 at 20:50)</a>:</h4>
+<p>I'm not sure how one would generalize <code>local_predicate</code> to concrete categories.<br>
+We would need to know that the set of the functions satisfying P locally is an object in the category, and the condition would vary for different categories?</p>
+
+
+
+<a name="267497888"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267497888" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267497888">(Jan 10 2022 at 20:52)</a>:</h4>
+<p>Note that we have <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.presheaf.is_sheaf_iff_is_sheaf_forget">docs#category_theory.presheaf.is_sheaf_iff_is_sheaf_forget</a>, so we should still be able to use the local predicate stuff for good enough concrete categories.</p>
+
+
+
+<a name="267500137"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267500137" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267500137">(Jan 10 2022 at 21:09)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="439483">Andrew Yang</span> <a href="#narrow/stream/116395-maths/topic/Meromorphic.20functions/near/267497677">said</a>:</p>
+<blockquote>
+<p>I'm not sure how one would generalize <code>local_predicate</code> to concrete categories.<br>
+We would need to know that the set of the functions satisfying P locally is an object in the category, and the condition would vary for different categories?</p>
+</blockquote>
+<p>Could you do it for categories which have been constructed using <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.bundled">docs#category_theory.bundled</a> or <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.bundled_hom.category">docs#category_theory.bundled_hom.category</a> ?</p>
+
+
+
+<a name="267500693"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267500693" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267500693">(Jan 10 2022 at 21:13)</a>:</h4>
+<p>We would still need to prove things like <a href="https://github.com/leanprover-community/mathlib/blob/dc3cbb7d7d31191be71a6a52015e03a7578ff961/src/algebraic_geometry/structure_sheaf.lean#L147-L210">https://github.com/leanprover-community/mathlib/blob/dc3cbb7d7d31191be71a6a52015e03a7578ff961/src/algebraic_geometry/structure_sheaf.lean#L147-L210</a><br>
+for each local predicates we want to use, and the condition crucially depends on the P used.</p>
+
+
+
+<a name="267509111"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267509111" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Heather Macbeth <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267509111">(Jan 10 2022 at 22:14)</a>:</h4>
+<p>Even if there's no way to abstract it to sheaves of "certain kinds of categories", it might be nice to provide a local-predicate construction for sheaves of rings, since that one's used a lot.</p>
+
+
+
+<a name="267787286"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267787286" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Antoine Chambert-Loir <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267787286">(Jan 12 2022 at 21:15)</a>:</h4>
+<p><span class="user-mention silent" data-user-id="130377">David Wärn</span> <a href="#narrow/stream/116395-maths/topic/Meromorphic.20functions/near/267342689">said</a>:</p>
+<blockquote>
+<p>A section of a sheaf of rings is regular if all its restrictions are <code>non_zero_divisors</code>. This is strictly stronger than just being a <code>non_zero_divisor</code> in <code>P(U)</code>, so <code>fraction_ring (P U)</code> already inverts too many things</p>
+</blockquote>
+<p>For those of you who want to look at old stuff, this problem is the source of a mistake in Grothendieck's EGA (it is written that the obvious presheaf is a sheaf, but it's not a presheaf!). It has been adressed in a nice paper of Steven Kleiman, <em>Some misconceptions about K_X</em>, L'enseignement mathématique, DOI:10.5169/seals-50379</p>
+
+
+
+<a name="267787410"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267787410" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267787410">(Jan 12 2022 at 21:16)</a>:</h4>
+<p>Antoine, I added a refence to your blog post about this, by Kevin's pointer to it! <a href="https://github.com/leanprover-community/mathlib/blob/master/src/field_theory/ratfunc.lean#L58">https://github.com/leanprover-community/mathlib/blob/master/src/field_theory/ratfunc.lean#L58</a></p>
+
+
+
+<a name="267787496"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267787496" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Yakov Pechersky <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267787496">(Jan 12 2022 at 21:17)</a>:</h4>
+<p>It was my motivation to generalize <code>ratfunc.lift_on</code> to arbitary <code>[comm_ring K}</code> without requiring <code>[is_domain K]</code></p>
+
+
+
+<a name="267917793"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267917793" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Justus Springer <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267917793">(Jan 13 2022 at 19:24)</a>:</h4>
+<p>I think there is still a lot of stuff in the sheaf theory library that should be generalised from sheaves of types to sheaves valued in more general "nice enough" category. In fact, working with sheaves in lean made me realise what exactly "nice enough" means in this context: It needs to be a concrete category whose forgetful functor reflects isomorphisms and preserves limits and filtered colimits. The first two properties ensures that a presheaf is a sheaf if and only if the underlying presheaf of types is a sheaf, while preserving colimits ensures that taking stalks commutes with the forgetful functor. All the typical "algebraic" categories, like <code>Group</code> or <code>CommRing</code> satisfy this property (and this is already in mathlib). The stacks project calls these categories "types of algebraic structures" in <a href="https://stacks.math.columbia.edu/tag/007L">stacks#007L</a>. So I believe if sheafification and the stuff about local prediactes should be generalised, it is this class of categories one should look at, not only <code>CommRing</code>.</p>
+
+
+
+<a name="267918273"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267918273" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267918273">(Jan 13 2022 at 19:28)</a>:</h4>
+<p>Those are exactly the conditions I had set up for sheafification over a general site.</p>
+
+
+
+<a name="267918371"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267918371" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267918371">(Jan 13 2022 at 19:29)</a>:</h4>
+<p>E.g. <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.grothendieck_topology.sheafify_is_sheaf">docs#category_theory.grothendieck_topology.sheafify_is_sheaf</a></p>
+
+
+
+<a name="267918883"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267918883" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Justus Springer <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267918883">(Jan 13 2022 at 19:32)</a>:</h4>
+<p>Oh wow, I didn't know this already exists in mathlib for sites.</p>
+
+
+
+<a name="267919098"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267919098" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267919098">(Jan 13 2022 at 19:34)</a>:</h4>
+<p>Actually since we have the adjunction <a href="https://leanprover-community.github.io/mathlib_docs/find/category_theory.sheafification_adjunction">docs#category_theory.sheafification_adjunction</a> and the equivalence between the site-theoretic definition of sheaves and the topological one, as an equivalence of categories, it would be easy to obtain the sheafification adjunction for topological spaces as well by composing... that's some sort of sheafification in general for topological spaces, although if you need more control over the stalks that would require additional work.</p>
+
+
+
+<a name="267920136"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267920136" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Justus Springer <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267920136">(Jan 13 2022 at 19:43)</a>:</h4>
+<p>Yeah,  it seems it's about time that sheaves on sites and sheaves on spaces are unified. Maybe I should have tried to do that when I built the equivalence. The longer the theories move independently the harder it will be to clean it up and unify them. In a sense it doesn't matter that much because we'll still want all the API for the special case of sheaves on spaces, but it's the right thing to do conceptually.</p>
+
+
+
+<a name="267920548"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267920548" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Andrew Yang <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267920548">(Jan 13 2022 at 19:46)</a>:</h4>
+<p>I also think that we should make the sites one the official definition (while keeping all the other sheaves on topology stuff). I would suppose that the transition won't be that painful, since we are just replacing a Prop valued thing into another that we know is equivalent.<br>
+This gives us sheaves in categories without products (which I do not know how useful it is), but more importantly this makes it easier to access the sites stuff (sheafification, pullback-pushforward, abelian-ness, etc).</p>
+
+
+
+<a name="267920733"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/267920733" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#267920733">(Jan 13 2022 at 19:48)</a>:</h4>
+<p>(Thanks for the reminder that I should eventually mathlibify the fact that abelian sheaves are an abelian category ;))<br>
+<code>mathlibify</code> is the left adjoint to the forgetful functor from mathlib to lte, of course.</p>
+
+
+
+<a name="268241634"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/268241634" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Junyan Xu <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#268241634">(Jan 17 2022 at 08:44)</a>:</h4>
+<p>If we just want the sheaf for schemes and not general ringed spaces, then according to the misconceptions paper, we can define sections of the presheaf using the "wrong" definition on open affines, then sheafify and extend to all opens, using Andrew's work at <a href="https://leanprover-community.github.io/mathlib_docs/category_theory/sites/dense_subsite.html">https://leanprover-community.github.io/mathlib_docs/category_theory/sites/dense_subsite.html</a>.</p>
+
+
+
+<a name="268275865"></a>
+<h4><a href="https://leanprover.zulipchat.com/#narrow/stream/116395-maths/topic/Meromorphic%20functions/near/268275865" class="zl"><img src="https://leanprover-community.github.io/archive/assets/img/zulip2.png" alt="view this post on Zulip"></a> Adam Topaz <a href="https://leanprover-community.github.io/archive/stream/116395-maths/topic/Meromorphic.20functions.html#268275865">(Jan 17 2022 at 14:15)</a>:</h4>
+<p>Sure, but we should have a construction that will also let us construct meromorphic functions in the holomorphic setting (and other settings as well), not just in the algebraic context.</p>
+
+
+
+{% endraw %}
+
+<hr><p>Last updated: Jan 25 2023 at 00:06 UTC</p>
